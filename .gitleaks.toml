@@ -1,3 +1,8 @@
+# gitleaks config — target schema: v8.x legacy syntax (`[[allowlist.paths]]`).
+# Pin gitleaks <=v8.17 in S1.5 CI workflow until migration to v8.18+ `[[allowlists]] paths = [...]`.
+# On v8.18+ this file's allowlists are silently ignored (gitleaks warns but does not fail-hard).
+# Migration tracked in audit-notes.md "Implementation findings" once S1.5 lands.
+
 [extend]
 useDefault = true
 

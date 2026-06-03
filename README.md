@@ -24,6 +24,8 @@ cp .env.example .env  # populate PHOENIX_API_KEY, GEMINI_API_KEY, etc.
 make dev   # starts chaoslab-agent + target-agent + chaoslab-web locally
 ```
 
+> Note: the `make dev` target itself lands in story-8.4. Until then, run each app individually — see `apps/*/README.md`.
+
 For more: `docs/cicd.md` (cloud deploy), `docs/PRD.md` (what it is), `CLAUDE.md` (development workflow).
 
 ---
@@ -49,9 +51,9 @@ See `docs/architecture.md` ADR-002 + `docs/stories/story-3.*` for the adapter la
 - `apps/target-agent/` — the naive customer-support agent under test
 - `docs/` — full spec (PRD, architecture w/ 12 ADRs, cicd, coding-standards, ux-spec, 52 stories)
 - `research/google-cloud-rapid-agent/` — 30k+ lines of context (brainstorm, audit, RAT-results)
-- `infra/` — IAM + Secret Manager + Cloud Run setup
-- `scripts/` — utilities (400-line guard, demo seed)
-- `.github/workflows/` — CI (pr-checks, staging-deploy, prod-promote, visual-tests)
+- `infra/` — IAM + Secret Manager + Cloud Run setup _(scaffolded in S1.4)_
+- `scripts/` — utilities: 400-line guard _(S1.3)_, demo seed _(S8.2)_
+- `.github/workflows/` — CI: pr-checks _(S1.5)_, staging-deploy _(S1.6)_, prod-promote _(S1.7)_, visual-tests _(S7.x)_
 
 ---
 
