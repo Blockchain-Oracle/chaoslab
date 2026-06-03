@@ -13,24 +13,24 @@ The thing that's confusing about this stack right now: **Google renamed everythi
 
 Read this table first. Re-read it whenever you get confused about what's what.
 
-| You'll see this (old / docs / blog posts) | Today's name (June 2026) | What it actually is |
-|---|---|---|
-| **Vertex AI** | **Gemini Enterprise Agent Platform** | The umbrella product. The whole managed offering for building/running/governing agents on Google Cloud. "Vertex AI" still exists as a billing line item and Python SDK package (`google-cloud-aiplatform`), but the *product surface* is now Gemini Enterprise Agent Platform. |
-| **Gemini Enterprise** | Gemini Enterprise (separate) | This is the *end-user app* (Google's ChatGPT-for-business, formerly the "Gemini for Workspace" successor). NOT what you build on. Don't confuse with the Agent Platform. |
-| **Vertex AI Agent Builder** | **Agent Platform → Studio** (a.k.a. "Agent Studio") | The low-code visual agent builder in the GCP Console. Previously called "Agent Designer" in preview, then "Agent Builder", now "Agent Studio". Same tool, third name. |
-| **Vertex AI Search and Conversation** | Now folded into Agent Studio (RAG/Search component) | Old name for the RAG / search engine piece. Lives inside Agent Studio now as the data-store + grounding feature. |
-| **Agent Development Kit / ADK** | **ADK (unchanged)** | The code-first open-source framework. `pip install google-adk`. Python is primary; TypeScript / Go / Java / Kotlin also supported. This is the path you almost certainly want for a hackathon. |
-| **Vertex AI Reasoning Engine** | **Agent Runtime** | The managed serverless runtime for hosting ADK agents. Sub-second cold starts, multi-day workflows. Replaces / supersedes "Reasoning Engine". Sometimes still called "Agent Engine" in older blog posts. |
-| **Cloud Run** | **Cloud Run (unchanged)** | Generic serverless containers. Not agent-specific. Run any Docker container, scales to zero. The cheap general-purpose option. |
-| **Gemini API / Google AI Studio** | Gemini API via AI Studio (consumer tier) | Personal API key at `aistudio.google.com`. Cheaper / free tier. Separate billing from Google Cloud. **For this hackathon, you want the Vertex AI / Agent Platform path, not the AI Studio path**, because the $100 credit applies to Cloud, not to AI Studio. |
-| **Antigravity** | Antigravity (separate, unrelated build target) | Google's agentic IDE (their answer to Cursor). **It is a developer tool, NOT a deployment target for the hackathon.** Don't accidentally build "an Antigravity agent" — you want a Gemini Enterprise Agent Platform agent. |
-| Models: Gemini 2.0, 2.5, 3.0, 3.1 | **Gemini 3.x is current** (Pro, Flash, Flash-Lite, Flash Image, Nano) | Naming convention: bigger = smarter + more expensive. "Pro" = top-tier reasoning. "Flash" = fast + cheap default. "Flash-Lite" = cheapest. Gemini 2.0 Flash was deprecated June 1, 2026. |
-| Agent Garden | Agent Garden (new) | Library of pre-built agent templates inside the Agent Platform. Pulls from Google + partners. Worth a browse for inspiration. |
-| Agent Memory Bank | Agent Memory Bank (new) | Managed memory/state store for agents. The "stateful" piece. |
-| Agent Identity / Registry / Gateway | New governance layer | Identity = who/what an agent is. Registry = catalog of agents in your org. Gateway = secure ingress for agent traffic. You probably do NOT need these for a hackathon demo. |
-| Agent Simulation / Evaluation / Observability | New optimization layer | Pre-prod testing + production observability. Arize integrates here (the Arize hackathon track is about observability). |
-| A2A (Agent-to-Agent Protocol) | A2A | Google's open protocol for agent ↔ agent communication. Different from MCP (MCP = agent ↔ tools). |
-| MCP (Model Context Protocol) | MCP (Anthropic-originated, now broadly adopted) | The protocol agents use to call external tools/services. **At least one Partner MCP server is REQUIRED for the hackathon submission.** |
+| You'll see this (old / docs / blog posts)     | Today's name (June 2026)                                              | What it actually is                                                                                                                                                                                                                                                            |
+| --------------------------------------------- | --------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **Vertex AI**                                 | **Gemini Enterprise Agent Platform**                                  | The umbrella product. The whole managed offering for building/running/governing agents on Google Cloud. "Vertex AI" still exists as a billing line item and Python SDK package (`google-cloud-aiplatform`), but the _product surface_ is now Gemini Enterprise Agent Platform. |
+| **Gemini Enterprise**                         | Gemini Enterprise (separate)                                          | This is the _end-user app_ (Google's ChatGPT-for-business, formerly the "Gemini for Workspace" successor). NOT what you build on. Don't confuse with the Agent Platform.                                                                                                       |
+| **Vertex AI Agent Builder**                   | **Agent Platform → Studio** (a.k.a. "Agent Studio")                   | The low-code visual agent builder in the GCP Console. Previously called "Agent Designer" in preview, then "Agent Builder", now "Agent Studio". Same tool, third name.                                                                                                          |
+| **Vertex AI Search and Conversation**         | Now folded into Agent Studio (RAG/Search component)                   | Old name for the RAG / search engine piece. Lives inside Agent Studio now as the data-store + grounding feature.                                                                                                                                                               |
+| **Agent Development Kit / ADK**               | **ADK (unchanged)**                                                   | The code-first open-source framework. `pip install google-adk`. Python is primary; TypeScript / Go / Java / Kotlin also supported. This is the path you almost certainly want for a hackathon.                                                                                 |
+| **Vertex AI Reasoning Engine**                | **Agent Runtime**                                                     | The managed serverless runtime for hosting ADK agents. Sub-second cold starts, multi-day workflows. Replaces / supersedes "Reasoning Engine". Sometimes still called "Agent Engine" in older blog posts.                                                                       |
+| **Cloud Run**                                 | **Cloud Run (unchanged)**                                             | Generic serverless containers. Not agent-specific. Run any Docker container, scales to zero. The cheap general-purpose option.                                                                                                                                                 |
+| **Gemini API / Google AI Studio**             | Gemini API via AI Studio (consumer tier)                              | Personal API key at `aistudio.google.com`. Cheaper / free tier. Separate billing from Google Cloud. **For this hackathon, you want the Vertex AI / Agent Platform path, not the AI Studio path**, because the $100 credit applies to Cloud, not to AI Studio.                  |
+| **Antigravity**                               | Antigravity (separate, unrelated build target)                        | Google's agentic IDE (their answer to Cursor). **It is a developer tool, NOT a deployment target for the hackathon.** Don't accidentally build "an Antigravity agent" — you want a Gemini Enterprise Agent Platform agent.                                                     |
+| Models: Gemini 2.0, 2.5, 3.0, 3.1             | **Gemini 3.x is current** (Pro, Flash, Flash-Lite, Flash Image, Nano) | Naming convention: bigger = smarter + more expensive. "Pro" = top-tier reasoning. "Flash" = fast + cheap default. "Flash-Lite" = cheapest. Gemini 2.0 Flash was deprecated June 1, 2026.                                                                                       |
+| Agent Garden                                  | Agent Garden (new)                                                    | Library of pre-built agent templates inside the Agent Platform. Pulls from Google + partners. Worth a browse for inspiration.                                                                                                                                                  |
+| Agent Memory Bank                             | Agent Memory Bank (new)                                               | Managed memory/state store for agents. The "stateful" piece.                                                                                                                                                                                                                   |
+| Agent Identity / Registry / Gateway           | New governance layer                                                  | Identity = who/what an agent is. Registry = catalog of agents in your org. Gateway = secure ingress for agent traffic. You probably do NOT need these for a hackathon demo.                                                                                                    |
+| Agent Simulation / Evaluation / Observability | New optimization layer                                                | Pre-prod testing + production observability. Arize integrates here (the Arize hackathon track is about observability).                                                                                                                                                         |
+| A2A (Agent-to-Agent Protocol)                 | A2A                                                                   | Google's open protocol for agent ↔ agent communication. Different from MCP (MCP = agent ↔ tools).                                                                                                                                                                              |
+| MCP (Model Context Protocol)                  | MCP (Anthropic-originated, now broadly adopted)                       | The protocol agents use to call external tools/services. **At least one Partner MCP server is REQUIRED for the hackathon submission.**                                                                                                                                         |
 
 ### What lives where in the GCP Console (June 2026)
 
@@ -69,14 +69,14 @@ You have to pick one. The hackathon rules allow EITHER but they have very differ
 
 ### Decision matrix
 
-| If… | Pick |
-|---|---|
-| You're targeting the Arize track | **Code-first (ADK)** — REQUIRED |
-| You want fastest demo, simple use case | Visual (Studio) |
-| You're integrating a Partner MCP server | **Code-first (ADK)** — much smoother |
-| You want a custom frontend / API | **Code-first** → deploy backend on Cloud Run |
-| You'll demo via the Studio playground UI | Visual |
-| You're using fancy multi-agent orchestration | **Code-first (ADK sub-agents)** |
+| If…                                          | Pick                                         |
+| -------------------------------------------- | -------------------------------------------- |
+| You're targeting the Arize track             | **Code-first (ADK)** — REQUIRED              |
+| You want fastest demo, simple use case       | Visual (Studio)                              |
+| You're integrating a Partner MCP server      | **Code-first (ADK)** — much smoother         |
+| You want a custom frontend / API             | **Code-first** → deploy backend on Cloud Run |
+| You'll demo via the Studio playground UI     | Visual                                       |
+| You're using fancy multi-agent orchestration | **Code-first (ADK sub-agents)**              |
 
 **Recommendation for Abu: Path B (Code-first ADK).** You have agentic dev workflows. You will need MCP. You will want git. You will want to debug. Studio is for product managers.
 
@@ -88,7 +88,7 @@ You have to pick one. The hackathon rules allow EITHER but they have very differ
 
 ADK = open-source Python framework from Google for building production AI agents. Repo: `google/adk-python`. Docs: `https://adk.dev` (redirected from `google.github.io/adk-docs/`).
 
-Tagline from Google: *"Build production agents, not prototypes."* It's positioned as the code-first counterpart to LangChain/LlamaIndex, but designed by Google specifically for Gemini + Google Cloud deployment. Currently processes 6 trillion+ tokens/month.
+Tagline from Google: _"Build production agents, not prototypes."_ It's positioned as the code-first counterpart to LangChain/LlamaIndex, but designed by Google specifically for Gemini + Google Cloud deployment. Currently processes 6 trillion+ tokens/month.
 
 ### Languages
 
@@ -247,7 +247,7 @@ async def chat(user_id, session_id, text):
 
 ### CRITICAL HACKATHON RULE: no competing orchestrators
 
-Section 7B of the rules bans **LangChain / LangGraph / LlamaIndex as the PRIMARY orchestrator** in the submission. You can call LangChain *components* (e.g., a retriever) from inside an ADK tool, but ADK must be the top-level driver. Don't accidentally write a LangGraph agent that "calls Gemini" — that fails the rule.
+Section 7B of the rules bans **LangChain / LangGraph / LlamaIndex as the PRIMARY orchestrator** in the submission. You can call LangChain _components_ (e.g., a retriever) from inside an ADK tool, but ADK must be the top-level driver. Don't accidentally write a LangGraph agent that "calls Gemini" — that fails the rule.
 
 ---
 
@@ -257,21 +257,23 @@ Source: https://ai.google.dev/gemini-api/docs/pricing
 
 Prices below are **standard Vertex AI / Gemini API** rates per million tokens (1M tokens ≈ 750k words ≈ a small novel).
 
-| Model | Input ($/M tok) | Output ($/M tok) | Best for |
-|---|---|---|---|
-| **Gemini 2.5 Pro** | $1.25 (≤200k) / $2.50 (>200k) | $10 / $15 | Hard reasoning, planning, multi-step tasks |
-| **Gemini 2.5 Flash** | $0.30 (text/image/video) / $1.00 (audio) | $2.50 | **Hackathon default sweet spot** — fast, cheap, function-calling, MCP-friendly |
-| **Gemini 2.5 Flash-Lite** | $0.10 | $0.40 | Cheapest viable. High-volume / simple classification |
-| Gemini 2.0 Flash | $0.10 / $0.70 (audio) | $0.40 | **Deprecated June 1, 2026** — do NOT use |
-| Gemini 3.1 Pro / Flash | [UNVERIFIED — listed in 3.x announcements but exact pricing not pulled] | [UNVERIFIED] | Newer models from Next 2026 keynote |
+| Model                     | Input ($/M tok)                                                         | Output ($/M tok) | Best for                                                                       |
+| ------------------------- | ----------------------------------------------------------------------- | ---------------- | ------------------------------------------------------------------------------ |
+| **Gemini 2.5 Pro**        | $1.25 (≤200k) / $2.50 (>200k)                                           | $10 / $15        | Hard reasoning, planning, multi-step tasks                                     |
+| **Gemini 2.5 Flash**      | $0.30 (text/image/video) / $1.00 (audio)                                | $2.50            | **Hackathon default sweet spot** — fast, cheap, function-calling, MCP-friendly |
+| **Gemini 2.5 Flash-Lite** | $0.10                                                                   | $0.40            | Cheapest viable. High-volume / simple classification                           |
+| Gemini 2.0 Flash          | $0.10 / $0.70 (audio)                                                   | $0.40            | **Deprecated June 1, 2026** — do NOT use                                       |
+| Gemini 3.1 Pro / Flash    | [UNVERIFIED — listed in 3.x announcements but exact pricing not pulled] | [UNVERIFIED]     | Newer models from Next 2026 keynote                                            |
 
 ### Math against your $100 credit
 
 Using Gemini 2.5 Flash at $0.30 in / $2.50 out:
+
 - 1M input tokens + 100k output tokens = $0.55
 - $100 credit ≈ ~180 such conversations. Plenty for build + demo.
 
 Using Gemini 2.5 Pro at $1.25 in / $10 out:
+
 - Same 1M in + 100k out = $2.25
 - $100 credit ≈ ~44 such conversations. Still fine for hackathon scale.
 
@@ -329,6 +331,7 @@ Both are allowed by hackathon rules. They are very different.
 For a hackathon demo where judges need a clickable URL: **Cloud Run with `adk api_server` + a static frontend**, OR **Agent Runtime + a Streamlit-on-Cloud-Run frontend.** Either works. Cloud Run alone is simplest.
 
 Sources:
+
 - https://google.github.io/adk-docs/deploy/agent-engine/
 - https://cloud.google.com/blog/topics/developers-practitioners/from-code-to-cloud-three-labs-for-deploying-your-ai-agent
 
@@ -365,6 +368,7 @@ The hackathon distributes Google Cloud credits "while supplies last, first-come-
 Per the Devpost FAQ (paraphrased — verify against the live FAQ when you redeem): 100 credits typically covers **millions of API tokens** at Flash pricing. You'd have to actively try to burn it on Pro for a week to run out. For a hackathon, you will not hit the limit unless you're doing huge RAG ingestion.
 
 Sources:
+
 - https://rapid-agent.devpost.com/resources
 - https://rapid-agent.devpost.com/updates
 
@@ -514,6 +518,7 @@ Partner MCP servers need credentials. The pattern is:
 4. Never check into git.
 
 Sources:
+
 - `google/adk-python` repo (`llms-full.txt`) — canonical MCPToolset examples
 - https://adk.dev/
 
@@ -540,14 +545,14 @@ Requires Python 3.10+.
 
 ### Templates shipped
 
-| Template | What it gives you |
-|---|---|
-| `adk` | Bare ADK ReAct agent. The minimal start. |
-| `adk_a2a` | ADK + Agent2Agent Protocol. For multi-agent systems that talk to other agents. |
-| `agentic_rag` | ADK + RAG. Document retrieval baked in. |
-| `adk_live` | Real-time multimodal RAG (voice/video streaming). |
-| `adk_java` | Same as `adk` but Java instead of Python. |
-| `langgraph` | ReAct agent using LangGraph. **AVOID for this hackathon** — banned as primary orchestrator per Section 7B. |
+| Template      | What it gives you                                                                                          |
+| ------------- | ---------------------------------------------------------------------------------------------------------- |
+| `adk`         | Bare ADK ReAct agent. The minimal start.                                                                   |
+| `adk_a2a`     | ADK + Agent2Agent Protocol. For multi-agent systems that talk to other agents.                             |
+| `agentic_rag` | ADK + RAG. Document retrieval baked in.                                                                    |
+| `adk_live`    | Real-time multimodal RAG (voice/video streaming).                                                          |
+| `adk_java`    | Same as `adk` but Java instead of Python.                                                                  |
+| `langgraph`   | ReAct agent using LangGraph. **AVOID for this hackathon** — banned as primary orchestrator per Section 7B. |
 
 ### Deployment targets supported
 
@@ -560,6 +565,7 @@ Bundles **Cloud Build OR GitHub Actions** workflows. You can wire up auto-deploy
 ### Should Abu clone it vs start fresh?
 
 **Clone it.** Specifically `agent-starter-pack create` then pick `adk` template (or `agentic_rag` if your wedge needs RAG). You get:
+
 - Working `Dockerfile`
 - Working `pyproject.toml` / `requirements.txt`
 - `uvicorn` + `adk api_server` wiring
@@ -667,6 +673,7 @@ Cons: Two deploy targets. More moving parts. The Vertex AI SDK call from a Node 
 ### Auth for the demo URL
 
 If you require auth on Cloud Run, judges can't easily test. Either:
+
 - Leave Cloud Run unauthenticated (set IAM `allUsers` → `roles/run.invoker`). For a hackathon demo this is fine; just don't put secrets in URLs.
 - Or, require a simple shared password in your README that judges paste.
 
@@ -680,7 +687,7 @@ Quick bullets on traps that will burn time if you don't know about them.
 
 - **RBI debit card mandate burns Indian Google Cloud signups.** If your card is Indian, billing setup may fail. Workarounds: (a) virtual card from Niyo / Fi / Jupiter, (b) ask in the hackathon Discord whether they have a credit-redemption path that doesn't require card-on-file.
 - **Free trial credit ($300, 90 days)** and **promotional credit ($100 hackathon)** are DIFFERENT instruments with different redemption flows. The promo credit redeems at `console.cloud.google.com/billing/redeem` with a code. The trial activates when you sign up. They DO stack — but read the small print on each.
-- Some hackathon promo credits require your billing account to be a *Cloud Billing* account (not "AI Studio billing"). Make sure you set up Cloud billing first, then redeem.
+- Some hackathon promo credits require your billing account to be a _Cloud Billing_ account (not "AI Studio billing"). Make sure you set up Cloud billing first, then redeem.
 
 ### Console UI naming
 

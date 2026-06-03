@@ -29,6 +29,7 @@
 The "general-purpose agent that does everything" category. Heavily contested. Mostly browser- or desktop-takeover shaped.
 
 ### 1. OpenAI Operator → ChatGPT Agent / Computer-Using Agent
+
 - **Maker:** OpenAI
 - **What it does:** Browser-driving agent. Watches DOM screenshots, reasons, controls mouse/keyboard. Now folded into ChatGPT Agent product. ([OpenAI](https://openai.com/index/introducing-operator/), [DualMedia](https://www.dualmedia.fr/en/ai-browsers-2026/))
 - **Status:** Operator-as-product was sunset Aug 31, 2025 (failed reliably on CAPTCHA / JS-heavy flows); capabilities live on inside ChatGPT Agent. ([Helicone](https://www.helicone.ai/blog/browser-use-vs-computer-use-vs-operator))
@@ -36,51 +37,61 @@ The "general-purpose agent that does everything" category. Heavily contested. Mo
 - **Gap:** No persistent memory of past sessions surfaced to the user as first-class. No domain priors (treats every site as new). No multi-tenancy / team workspaces.
 
 ### 2. Anthropic Claude Computer Use / Claude Cowork / Claude Code
+
 - **Maker:** Anthropic
 - **What it does:** API-level computer-use tool (screenshots + mouse/keyboard primitives), packaged into Claude Cowork (paid product, March 2026) and Claude Code (terminal coding agent). ([Anthropic](https://www.anthropic.com/news/3-5-models-and-computer-use), [CNBC](https://www.cnbc.com/2026/03/24/anthropic-claude-ai-agent-use-computer-finish-tasks.html))
 - **Notable:** Loop command for cron-style runs; voice mode in 20 languages; phone-remote control of desktop agents.
 - **Gap:** Still primarily a single-machine, single-user experience. Doesn't natively handle multi-account / impersonation workflows enterprises need.
 
 ### 3. Google AntiGravity
+
 - **Maker:** Google (launched Nov 18, 2025 alongside Gemini 3, version 2.0 at I/O 2026)
 - **What it does:** Agent-first IDE built on VS Code. Manager View lets developer dispatch 5+ agents in parallel on different tickets. Combines editor + terminal + browser surface. ([Google Developers Blog](https://developers.googleblog.com/build-with-google-antigravity-our-new-agentic-development-platform/), [Wikipedia](https://en.wikipedia.org/wiki/Google_Antigravity))
 - **Notable:** Multi-model (Claude Sonnet 4.6, Opus 4.6, OSS GPT variants alongside Gemini); native parallel-agent fan-out UX.
 - **Gap:** Coder-only. Doesn't generalize to non-engineering knowledge workers.
 
 ### 4. Manus AI
+
 - **Maker:** Butterfly Effect (Monica AI team), acquired by Meta Q4 2025 for ~$2B but still operates standalone. ([Lindy](https://www.lindy.ai/blog/manus-ai-alternatives))
 - **What it does:** Multi-agent general-purpose agent with sub-agents for browsing/data/code/writing. Sandbox = isolated cloud VM per task. Browser Operator chrome extension (Nov 2025, GA'd at scale) takes over the user's local browser session. ([Manus blog](https://manus.im/blog/manus-browser-operator), [E2B blog](https://e2b.dev/blog/how-manus-uses-e2b-to-provide-agents-with-virtual-computers))
 - **Notable:** Uses E2B Firecracker microVMs; "Agent Skills" feature for user-defined custom workflows; persistent VM file system.
 - **Gap:** Demo-impressive but reliability still weak on long-horizon tasks. No domain specialization — competes on general-purpose breadth.
 
 ### 5. Lindy.ai
+
 - **Maker:** Lindy (Flo Crivello)
 - **What it does:** No-code agent builder for SMBs. 5,000+ integrations. Triggers + actions. Deep on inbox triage, voice calls, scheduling, lead qualification. ([Lindy](https://www.lindy.ai/blog/best-ai-agents))
 - **Notable UX:** "Delegate to AI" inbox pattern — Lindy lives in the user's Gmail / Slack like a coworker.
 - **Gap:** Limited deep-reasoning. Strong for workflow automation; weak for one-shot research / artifact-production.
 
 ### 6. Reflection AI / Asimov
+
 - **Maker:** Reflection AI (Sequoia-backed, ex-Google DeepMind founders, $2B Series B late 2025) ([Sequoia](https://sequoiacap.com/article/reflection-ai-asimov/), [Pulse2](https://pulse2.com/reflection-ai-secures-2-billion-series-b-for-building-autonomous-coding-agents-and-frontier-models/))
 - **What it does:** Code-comprehension agent. Ingests not just code but Slack, email, Jira, GitHub threads. Persistent "Asimov Memories" let the team teach it. Many small retrievers + one short-context combiner.
 - **Notable:** Beat Cursor Ask and Claude Code on blind OSS-maintainer eval. VPC-deployed (privacy-first).
 - **Gap:** Read-only by design. Doesn't WRITE code or take action. Pure comprehension layer.
 
 ### 7. HyperWrite Personal Assistant
+
 - **Maker:** OthersideAI — older entry, still operating but lost mindshare. [UNVERIFIED] current status; not surfaced prominently in 2026 round-ups.
 - **Gap:** Outflanked by Lindy on no-code, by Operator/Manus on browser takeover.
 
 ### 8. MultiOn
+
 - **Maker:** MultiOn — web-action agent. [UNVERIFIED] active product status as of June 2026 — not appearing in major comparison articles surveyed; possibly absorbed or sunset.
 
 ### 9. Adept
+
 - **Maker:** Adept Labs. **DEFUNCT** — talent + tech acquired by Amazon mid-2024. No standalone product. Confirmed by absence from every 2026 comparison.
 
 ### 10. ChatGPT (Atlas / agentic browsing surfaces)
+
 - **Maker:** OpenAI
 - **What it does:** ChatGPT now ships a Computer mode and agentic browsing inside the consumer product (announced/expanded throughout 2026). Spaces-style team workspaces. ([Releasebot](https://releasebot.io/updates/perplexity-ai))
 - **Gap:** Closed ecosystem — can't custom-wire MCP servers from arbitrary partners (well, post-MCP-adoption announcement, can, but UX still locked).
 
 ### 11. Perplexity (Spaces + Comet browser)
+
 - **Maker:** Perplexity AI
 - **What it does:** Research-focused agent with Spaces (team research workspaces), inline diffs, plan approvals, Snowflake/Databricks workflows, GPT-5.5 default orchestration. ([Releasebot](https://releasebot.io/updates/perplexity-ai))
 - **Gap:** Strong on read-only research, weak on writing/action — pages are research outputs, not workflow executions.
@@ -95,17 +106,17 @@ The hot market. 2026 = "vertical AI eats SaaS" (consensus across SignalFire, Scr
 
 ### Coding agents — SATURATED-HOT
 
-| Product | Maker | Shape | Gap |
-|---|---|---|---|
-| **Cursor** | Anysphere | Local-first IDE, pair-programmer mode | Limited team coordination |
-| **Devin** | Cognition Labs | Fully autonomous PR-to-merge, "junior eng" framing walked back; Devin 3.0 ships re-planning | Reliability still inconsistent on real production code |
-| **Codeium Windsurf** | Codeium | IDE with Cascade agent, auto-lint-fix, terminal exec | Smaller integration surface than Cursor |
-| **Replit Agent (Agent 4)** | Replit | Browser cloud IDE + agent; March 2026 release; full-stack from prompt | Hits ceilings on complex business logic |
-| **Bolt.new** | StackBlitz | Fastest prompt-to-preview; JS-only | Frontend-rich, weak backend |
-| **Lovable** | Lovable Labs | Most-polished end-to-end app gen with auth + DB | TypeScript-bound; design opinionated |
-| **Claude Code** | Anthropic | Terminal-first agentic coder | UX limited to CLI users |
-| **Google AntiGravity** | Google | Multi-agent IDE with Manager View | Coder-only |
-| **Asimov** | Reflection AI | Read-only comprehension over code+docs+chat | Doesn't write |
+| Product                    | Maker          | Shape                                                                                       | Gap                                                    |
+| -------------------------- | -------------- | ------------------------------------------------------------------------------------------- | ------------------------------------------------------ |
+| **Cursor**                 | Anysphere      | Local-first IDE, pair-programmer mode                                                       | Limited team coordination                              |
+| **Devin**                  | Cognition Labs | Fully autonomous PR-to-merge, "junior eng" framing walked back; Devin 3.0 ships re-planning | Reliability still inconsistent on real production code |
+| **Codeium Windsurf**       | Codeium        | IDE with Cascade agent, auto-lint-fix, terminal exec                                        | Smaller integration surface than Cursor                |
+| **Replit Agent (Agent 4)** | Replit         | Browser cloud IDE + agent; March 2026 release; full-stack from prompt                       | Hits ceilings on complex business logic                |
+| **Bolt.new**               | StackBlitz     | Fastest prompt-to-preview; JS-only                                                          | Frontend-rich, weak backend                            |
+| **Lovable**                | Lovable Labs   | Most-polished end-to-end app gen with auth + DB                                             | TypeScript-bound; design opinionated                   |
+| **Claude Code**            | Anthropic      | Terminal-first agentic coder                                                                | UX limited to CLI users                                |
+| **Google AntiGravity**     | Google         | Multi-agent IDE with Manager View                                                           | Coder-only                                             |
+| **Asimov**                 | Reflection AI  | Read-only comprehension over code+docs+chat                                                 | Doesn't write                                          |
 
 Sources: [Vellum](https://www.vellum.ai/blog/best-ai-coding-agents), [Builder.io](https://www.builder.io/blog/devin-vs-cursor), [Blink](https://blink.new/blog/best-ai-coding-agents-2026).
 
@@ -221,24 +232,24 @@ Mining what actually wins, drawn from primary winner announcements.
 
 Source: [Google Cloud blog](https://cloud.google.com/blog/products/ai-machine-learning/adk-hackathon-results-winners-and-highlights/)
 
-| Project | Shape | What won |
-|---|---|---|
-| **TradeSage AI** (Grand prize) | Multi-agent financial trading hypothesis evaluator | Hyper-specific domain, multi-agent, ADK + Agent Engine + Cloud Run + Vertex AI (uses MULTIPLE Google services) |
-| **Energy Agent AI** (NA winner) | Energy customer mgmt | Vertical domain |
-| **Bleach** (EMEA winner) | Visual ADK agent builder, plain English | META — builds tools for ADK developers |
-| **Edu.AI** (APAC winner) | Multi-agent Brazil education system | Local-language vertical with social impact |
-| **SalesShortcut** (LATAM winner) | Multi-agent SDR | Productized B2B vertical |
+| Project                          | Shape                                              | What won                                                                                                       |
+| -------------------------------- | -------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| **TradeSage AI** (Grand prize)   | Multi-agent financial trading hypothesis evaluator | Hyper-specific domain, multi-agent, ADK + Agent Engine + Cloud Run + Vertex AI (uses MULTIPLE Google services) |
+| **Energy Agent AI** (NA winner)  | Energy customer mgmt                               | Vertical domain                                                                                                |
+| **Bleach** (EMEA winner)         | Visual ADK agent builder, plain English            | META — builds tools for ADK developers                                                                         |
+| **Edu.AI** (APAC winner)         | Multi-agent Brazil education system                | Local-language vertical with social impact                                                                     |
+| **SalesShortcut** (LATAM winner) | Multi-agent SDR                                    | Productized B2B vertical                                                                                       |
 
 ### GKE Hackathon 2025
 
 Source: [Google Cloud blog](https://cloud.google.com/blog/topics/developers-practitioners/winners-and-highlights-from-gke-hackathon)
 
-| Project | Shape |
-|---|---|
-| **cart-to-kitchen AI assistant** (grand prize, Amie Wei) | Grocery→recipe agent, GKE + ADK + A2A |
-| **Voice Teller** | AI phone agent for banking (replaces IVR) — Julian Hecker |
-| **CO2-Aware Shopping Assistant** | 6 specialized agents, ADK + MCP + A2A |
-| **Vigil AI** | Hierarchical multi-agent for Bank of Anthos fraud detection |
+| Project                                                  | Shape                                                       |
+| -------------------------------------------------------- | ----------------------------------------------------------- |
+| **cart-to-kitchen AI assistant** (grand prize, Amie Wei) | Grocery→recipe agent, GKE + ADK + A2A                       |
+| **Voice Teller**                                         | AI phone agent for banking (replaces IVR) — Julian Hecker   |
+| **CO2-Aware Shopping Assistant**                         | 6 specialized agents, ADK + MCP + A2A                       |
+| **Vigil AI**                                             | Hierarchical multi-agent for Bank of Anthos fraud detection |
 
 ### Google Cloud Gen AI Exchange Hackathon (India, 2025, 270K developers)
 
@@ -505,10 +516,10 @@ Given the rapid-agent hackathon's emphasis on (a) real action, (b) MCP integrati
 
 ## Open questions / [UNVERIFIED]
 
-| Question | Why | How to verify |
-|---|---|---|
-| Did MultiOn ship anything in 2026? | Affects Section 1 completeness | Check multion.com / @multion_ai |
-| Current status of Domo, Sapient, RegoX finance agents | Section 2 finance gap may be smaller than stated | Crunchbase + Sacra |
-| Has any startup productized Gap 1 (the "fire bad agents" meta-agent)? | Direct competitor check for the recursive Arize wedge | Search "agent grading agent", "meta-observability agent" via Tavily |
-| What did the AI in Action 2025 winners actually demo? | Specific UX-pattern borrow material | Devpost aiinaction.devpost.com project gallery |
-| Is there a Devpost gallery for the rapid-agent hackathon itself, locked or visible? | Saturation reality-check | `03-project-gallery.md` already says NO until post-deadline |
+| Question                                                                            | Why                                                   | How to verify                                                       |
+| ----------------------------------------------------------------------------------- | ----------------------------------------------------- | ------------------------------------------------------------------- |
+| Did MultiOn ship anything in 2026?                                                  | Affects Section 1 completeness                        | Check multion.com / @multion_ai                                     |
+| Current status of Domo, Sapient, RegoX finance agents                               | Section 2 finance gap may be smaller than stated      | Crunchbase + Sacra                                                  |
+| Has any startup productized Gap 1 (the "fire bad agents" meta-agent)?               | Direct competitor check for the recursive Arize wedge | Search "agent grading agent", "meta-observability agent" via Tavily |
+| What did the AI in Action 2025 winners actually demo?                               | Specific UX-pattern borrow material                   | Devpost aiinaction.devpost.com project gallery                      |
+| Is there a Devpost gallery for the rapid-agent hackathon itself, locked or visible? | Saturation reality-check                              | `03-project-gallery.md` already says NO until post-deadline         |

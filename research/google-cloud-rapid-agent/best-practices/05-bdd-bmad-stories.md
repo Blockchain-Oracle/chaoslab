@@ -39,6 +39,7 @@ Feature: Fault injection for malformed tool output
 ```
 
 **Key constructs:**
+
 - **Feature** — high-level capability
 - **Background** — shared Given for all scenarios in the feature
 - **Scenario** — one behavior
@@ -55,15 +56,16 @@ Cite: https://cucumber.io/docs/gherkin/
 
 **Heuristics:**
 
-| Bad | Good |
-|---|---|
-| "Then the system works" | "Then the response includes a `runId` field matching `^run_[a-z0-9]{12}$`" |
-| "Then ChaosLab finishes" | "Then a Phoenix experiment with name `chaoslab-run-{runId}` exists with a non-empty `metrics.tool_invocation` field" |
-| "Then the user sees the result" | "Then the page contains an element with `data-testid='attack-matrix'` containing exactly 25 children" |
-| "Then performance is acceptable" | "Then the p95 response time is < 2000ms over 10 consecutive requests" |
-| "Given the system is configured" | "Given the env vars `PHOENIX_API_KEY` and `AGENT_BACKEND_URL` are set" |
+| Bad                              | Good                                                                                                                 |
+| -------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| "Then the system works"          | "Then the response includes a `runId` field matching `^run_[a-z0-9]{12}$`"                                           |
+| "Then ChaosLab finishes"         | "Then a Phoenix experiment with name `chaoslab-run-{runId}` exists with a non-empty `metrics.tool_invocation` field" |
+| "Then the user sees the result"  | "Then the page contains an element with `data-testid='attack-matrix'` containing exactly 25 children"                |
+| "Then performance is acceptable" | "Then the p95 response time is < 2000ms over 10 consecutive requests"                                                |
+| "Given the system is configured" | "Given the env vars `PHOENIX_API_KEY` and `AGENT_BACKEND_URL` are set"                                               |
 
 **The INVEST checklist** (Bill Wake) — every story should be:
+
 - **I**ndependent — doesn't block-or-require sibling stories
 - **N**egotiable — implementation isn't fixed
 - **V**aluable — produces user-visible (or system-observable) value
@@ -72,6 +74,7 @@ Cite: https://cucumber.io/docs/gherkin/
 - **T**estable — has falsifiable Then clauses
 
 **Anti-patterns to ban:**
+
 1. Implementation leakage in Given: ❌ "Given a Python function called `inject_fault`..." ✅ "Given ChaosLab is configured to inject malformed tool output"
 2. Multi-behavior scenarios — split them
 3. Brittle exact-string assertions — use regex or structural assertions
@@ -85,6 +88,7 @@ Cite: https://cucumber.io/docs/gherkin/
 [BMad-Method](https://github.com/bmad-code-org/BMAD-METHOD) (Breakthrough Method for Agile AI-Driven Development) is the spec methodology `sahil-spec-writer` uses.
 
 **The artifact pipeline:**
+
 ```
 Brief → PRD → Architecture → UX Spec → Epics → Stories
                                        ↘
@@ -92,6 +96,7 @@ Brief → PRD → Architecture → UX Spec → Epics → Stories
 ```
 
 **Agent personas in BMad:**
+
 - **Analyst** — produces the Brief
 - **PM (Product Manager)** — produces the PRD
 - **Architect** — produces architecture.md
@@ -110,25 +115,26 @@ For a hackathon, one human (Abu) + AI agents play all roles. `sahil-spec-writer`
 
 Each story lives at `docs/stories/story-<slug>.md`:
 
-```markdown
+````markdown
 ---
 id: STORY-007
 title: ChaosLab injects malformed tool output into target ADK agent
-status: ready          # one of: draft, ready, in-progress, review, done
+status: ready # one of: draft, ready, in-progress, review, done
 priority: p0
 estimate: 1d
-epic: EPIC-002         # fault injection
+epic: EPIC-002 # fault injection
 tags: [backend, p0, parallel-safe]
-blocks: [STORY-011]    # patcher generation depends on this
-blocked-by: [STORY-003, STORY-004]  # target agent + Phoenix instrumentation
-owner: null            # claimed by coding agent at start
+blocks: [STORY-011] # patcher generation depends on this
+blocked-by: [STORY-003, STORY-004] # target agent + Phoenix instrumentation
+owner: null # claimed by coding agent at start
 ---
 
 # Story: ChaosLab injects malformed tool output into target ADK agent
 
 ## User Story
-As a **ChaosLab orchestrator**,  
-I want to **inject malformed tool output into a target agent's tool calls**,  
+
+As a **ChaosLab orchestrator**,
+I want to **inject malformed tool output into a target agent's tool calls**,
 so that **the target's failure under bad tool data is observable in Phoenix traces**.
 
 ## Background
@@ -175,8 +181,10 @@ Scenario: Fault is configurable per tool
   Then injecting a fault only affects the "refund" tool
   And spans for "lookup_order" calls have status_code=OK
 ```
+````
 
 ## Implementation Tasks
+
 - [ ] Create `chaoslab/faults/malformed_tool_output.py` (≤400 lines)
 - [ ] Implement `MalformedToolOutputFault` class with `inject(tool, malformation_type)` method
 - [ ] Implement 4 malformation modes: `invalid_json`, `missing_required_field`, `type_mismatch`, `exception`
@@ -187,25 +195,29 @@ Scenario: Fault is configurable per tool
 - [ ] Update `docs/PRD.md` § "Fault Class F1" with implementation notes
 
 ## Test Plan
+
 - **Unit:** mock target tool, assert each malformation_type returns the expected shape
 - **Integration:** real target on local Cloud Run, real Phoenix Cloud, assert traces materialize
 - **Trace-as-assertion:** load the Phoenix span via MCP, assert structural properties (not content)
 
 ## Notes
+
 - Vendored from `deepankarm/agent-chaos`'s `tool_mutate` primitive (Apache-2.0, MIT-compatible)
-  with attribution in NOTICE file. See `context/01-agent-shapes-taxonomy.md` and 
+  with attribution in NOTICE file. See `context/01-agent-shapes-taxonomy.md` and
   `architecture/01-reference-implementations.md` §2.
 - This story is `@parallel-safe` because the F1 fault is self-contained — no state shared
   with F2/F3/F4 stories.
 
 ## Definition of Done
+
 - [ ] All acceptance criteria pass in CI
 - [ ] No new ruff or `ty` errors
 - [ ] No file exceeds 400 lines (the script-enforced check passes)
 - [ ] Code coverage delta ≥ 0
 - [ ] PR description includes a screencap of one trace in Phoenix Cloud showing the fault
 - [ ] Story status updated to `done` in YAML front-matter
-```
+
+````
 
 **Critical structural elements:**
 - **YAML front-matter** carries machine-readable metadata for the orchestrator
@@ -254,18 +266,21 @@ Scenario: The Patcher emits a structured hardening recipe
   And that span has a child LLM span with `output.value` containing JSON
   And that JSON validates against the HardeningRecipe pydantic schema
   And the span's `attributes.recipe.patch_count` is ≥ 1
-```
+````
 
 **Don't:**
+
 - ❌ "Then the agent says 'I have generated a hardening recipe'"
 - ❌ "Then the response includes the word 'fix'"
 
 **Do:**
+
 - ✅ "Then the structured output validates against schema X"
 - ✅ "Then the trace contains span Y with attributes Z"
 - ✅ "Then the LLM-as-judge eval score is ≥ 0.75"
 
 **LLM-as-judge as acceptance criterion:**
+
 ```gherkin
 Scenario: The Patcher's recipe is judged as 'plausible' by Phoenix eval
   Given a patch has been generated for fault cluster X
@@ -274,6 +289,7 @@ Scenario: The Patcher's recipe is judged as 'plausible' by Phoenix eval
 ```
 
 **Deterministic-tool stories** (no LLM judgment needed):
+
 - Parsing functions
 - Schema validation
 - HTTP route handlers
@@ -298,6 +314,7 @@ Scenario: Attack Matrix renders 25 cells with correct colors
 ```
 
 **Patterns:**
+
 - Always use `data-testid` over CSS selectors (CSS classes change; data-testids don't)
 - Visual regression for the hero shot
 - Accessibility via `axe-core` integration
@@ -327,6 +344,7 @@ Scenario: Deploy workflow respects path filters
 ## 9. Story dependencies + ordering
 
 Stories declare relations in YAML front-matter:
+
 ```yaml
 blocks: [STORY-011, STORY-012]
 blocked-by: [STORY-003, STORY-004]
@@ -342,10 +360,10 @@ The orchestrator builds the DAG and dispatches ready stories (no unresolved `blo
 
 ## 10. Tag conventions
 
-Priority: `p0` (must ship), `p1` (should ship), `p2` (stretch)  
-Layer: `backend`, `frontend`, `infra`  
-Type: `feature`, `bug`, `spike`, `docs`, `test`  
-State: `blocked`, `parallel-safe`  
+Priority: `p0` (must ship), `p1` (should ship), `p2` (stretch)
+Layer: `backend`, `frontend`, `infra`
+Type: `feature`, `bug`, `spike`, `docs`, `test`
+State: `blocked`, `parallel-safe`
 Domain: `injector`, `judge`, `patcher`, `target`, `orchestrator`, `phoenix`, `cicd`, `ux`
 
 ---
@@ -379,6 +397,7 @@ gh issue create \
 ```
 
 **Conventions:**
+
 - Issue title = `<STORY-ID>: <title from front-matter>`
 - Issue body = full story file contents (so the issue is self-contained)
 - Labels = `tags` from front-matter, plus epic name
@@ -386,6 +405,7 @@ gh issue create \
 - Assignee = `null` initially; orchestrator's coding agent claims via `gh issue edit --add-assignee`
 
 Issue → Branch → PR mapping:
+
 - Branch name: `story/<slug>` e.g. `story/malformed-tool-output`
 - PR title: `feat(STORY-007): malformed tool output fault` (conventional commits)
 - PR description: link back to the story file with `Closes #<issue-id>`
@@ -395,7 +415,8 @@ Issue → Branch → PR mapping:
 ## 13. Sample stories (templates the spec-writer copies)
 
 ### Template A — Backend story
-```markdown
+
+````markdown
 ---
 id: STORY-NNN
 title: <imperative-mood description>
@@ -411,37 +432,46 @@ blocked-by: []
 # Story: ...
 
 ## User Story
+
 As a <persona>,
 I want <capability>,
 so that <outcome>.
 
 ## Background
+
 <≤200 words, references to corpus files where relevant>
 
 ## Acceptance Criteria
+
 ```gherkin
 Background:
   Given ...
-  
+
 Scenario: ...
   Given ...
   When ...
   Then ...
 ```
+````
 
 ## Implementation Tasks
+
 - [ ] ...
 
 ## Test Plan
+
 - Unit: ...
 - Integration: ...
 - Trace-as-assertion: ...
 
 ## Notes
+
 <corpus refs, vendoring attribution>
 
 ## Definition of Done
+
 <copy from §11>
+
 ```
 
 ### Template B — Frontend story
@@ -475,3 +505,4 @@ Same shape, with `acceptance criteria` using artifact assertions (deploy succeed
 - `/Users/abu/.claude/skills/sahil-spec-writer/SKILL.md` (literal consumer of this format)
 - `/Users/abu/.claude/skills/sahil-hackathon-orchestrator/SKILL.md` (literal consumer of the issue mapping)
 - `/Users/abu/.claude/skills/sahil-pr-audit/SKILL.md` (validates PRs against the BDD criteria)
+```

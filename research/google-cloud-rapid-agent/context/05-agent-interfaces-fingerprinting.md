@@ -59,23 +59,23 @@ Notes:
 From the official spec
 (https://github.com/a2aproject/A2A/blob/main/docs/specification.md):
 
-| Field | Type | Required | Description |
-|---|---|---|---|
-| `name` | string | yes | Human-readable agent identifier |
-| `description` | string | no | Capabilities / purpose narrative |
-| `version` | string | no | Version identifier for the card |
-| `url` | string | no | Primary service endpoint URL |
-| `provider` | `AgentProvider` | no | Publishing entity metadata |
-| `skills` | `AgentSkill[]` | no | Discrete capabilities |
-| `defaultInputModes` | `string[]` | no | Preferred incoming media types |
-| `defaultOutputModes` | `string[]` | no | Preferred outgoing media types |
-| `capabilities` | `AgentCapabilities` | no | Feature flags |
-| `securitySchemes` | `map<string, SecurityScheme>` | no | Auth schemes |
-| `security` | `object[]` | no | Required scheme references |
-| `documentationUrl` | string | no | Human docs link |
-| `extensions` | `AgentExtension[]` | no | Protocol extensions in use |
-| `interfaces` / `supportedInterfaces` | `AgentInterface[]` | no | Protocol bindings (HTTP+JSON, gRPC, JSONRPC) |
-| `signature` / `signatures` | `AgentCardSignature[]` | no | JWS-based card verification |
+| Field                                | Type                          | Required | Description                                  |
+| ------------------------------------ | ----------------------------- | -------- | -------------------------------------------- |
+| `name`                               | string                        | yes      | Human-readable agent identifier              |
+| `description`                        | string                        | no       | Capabilities / purpose narrative             |
+| `version`                            | string                        | no       | Version identifier for the card              |
+| `url`                                | string                        | no       | Primary service endpoint URL                 |
+| `provider`                           | `AgentProvider`               | no       | Publishing entity metadata                   |
+| `skills`                             | `AgentSkill[]`                | no       | Discrete capabilities                        |
+| `defaultInputModes`                  | `string[]`                    | no       | Preferred incoming media types               |
+| `defaultOutputModes`                 | `string[]`                    | no       | Preferred outgoing media types               |
+| `capabilities`                       | `AgentCapabilities`           | no       | Feature flags                                |
+| `securitySchemes`                    | `map<string, SecurityScheme>` | no       | Auth schemes                                 |
+| `security`                           | `object[]`                    | no       | Required scheme references                   |
+| `documentationUrl`                   | string                        | no       | Human docs link                              |
+| `extensions`                         | `AgentExtension[]`            | no       | Protocol extensions in use                   |
+| `interfaces` / `supportedInterfaces` | `AgentInterface[]`            | no       | Protocol bindings (HTTP+JSON, gRPC, JSONRPC) |
+| `signature` / `signatures`           | `AgentCardSignature[]`        | no       | JWS-based card verification                  |
 
 The `interfaces` field is the newer ordered list of protocol bindings;
 earlier drafts used `url` + a flat capabilities object. An ordered list
@@ -222,7 +222,7 @@ message.
       "openIdConnectUrl": "https://accounts.google.com/.well-known/openid-configuration"
     }
   },
-  "security": [{"google": ["openid", "profile"]}],
+  "security": [{ "google": ["openid", "profile"] }],
   "defaultInputModes": ["application/json", "text/plain"],
   "defaultOutputModes": ["application/json", "image/png"],
   "skills": [
@@ -662,7 +662,7 @@ Pattern observed in community proposals (GitHub issue #166) and Cloud API:
 - Body: `{ "task": "...", "model": "...", "timeout": <s> }`
 - Headers: `X-API-Key: <key>`
 - Response: `{ "result": "...", "status": "success|error",
-  "execution_time": <s> }`
+"execution_time": <s> }`
 
 ### 7.3 Skyvern (Skyvern-AI/skyvern)
 
@@ -702,7 +702,7 @@ Across browser-agent products the contract is:
 
 - Authentication: API key in header (`X-API-Key` or `Authorization: Bearer`).
 - Input: `{ task: string, start_url?: string, schema?: JSONSchema,
-  webhook_url?: string, timeout?: number }`.
+webhook_url?: string, timeout?: number }`.
 - Output: synchronous JSON OR webhook callback.
 - Sessions are first-class for stateful multi-turn flows.
 
@@ -1192,21 +1192,21 @@ If no metadata surface responds:
 
 ### 14.1 Per-framework auth shapes
 
-| Framework | Default auth | Discovery |
-|---|---|---|
-| A2A | Per `securitySchemes` in AgentCard (apiKey, http+bearer, oauth2, oidc, mtls) | Card declares scheme |
-| OpenAPI/Actions | `components.securitySchemes` | Spec declares scheme |
-| MCP | OAuth 2.1 recommended; bearer or API key in HTTP header | Initialize handshake post-auth |
-| LangServe | Inherits FastAPI dependencies; no built-in auth | Out-of-band |
-| Mastra | Custom middleware on Hono | Out-of-band |
-| Slack bot | Signing secret (request signature) | App config |
-| Discord bot | Ed25519 public key (request signature) | App config |
-| Vapi | Bearer API key | Env / dashboard |
-| Retell | Bearer API key | Env / dashboard |
-| LiveKit | API key + secret → short-lived JWT | SDK-generated |
-| browser-use / Skyvern | API key in header | Env / dashboard |
-| Postmark / Resend inbound | None on inbound (SPF/DKIM at transport) | N/A |
-| CLI agents | Local user permissions | N/A |
+| Framework                 | Default auth                                                                 | Discovery                      |
+| ------------------------- | ---------------------------------------------------------------------------- | ------------------------------ |
+| A2A                       | Per `securitySchemes` in AgentCard (apiKey, http+bearer, oauth2, oidc, mtls) | Card declares scheme           |
+| OpenAPI/Actions           | `components.securitySchemes`                                                 | Spec declares scheme           |
+| MCP                       | OAuth 2.1 recommended; bearer or API key in HTTP header                      | Initialize handshake post-auth |
+| LangServe                 | Inherits FastAPI dependencies; no built-in auth                              | Out-of-band                    |
+| Mastra                    | Custom middleware on Hono                                                    | Out-of-band                    |
+| Slack bot                 | Signing secret (request signature)                                           | App config                     |
+| Discord bot               | Ed25519 public key (request signature)                                       | App config                     |
+| Vapi                      | Bearer API key                                                               | Env / dashboard                |
+| Retell                    | Bearer API key                                                               | Env / dashboard                |
+| LiveKit                   | API key + secret → short-lived JWT                                           | SDK-generated                  |
+| browser-use / Skyvern     | API key in header                                                            | Env / dashboard                |
+| Postmark / Resend inbound | None on inbound (SPF/DKIM at transport)                                      | N/A                            |
+| CLI agents                | Local user permissions                                                       | N/A                            |
 
 ### 14.2 The "act on behalf of user" pattern
 
@@ -1259,24 +1259,24 @@ tokens.
 An agent in 2026 can expose itself as either:
 
 A. **MCP server** — the chaos tool acts as an MCP client; uses
-   JSON-RPC `initialize` → `tools/list` → `tools/call` pattern.
+JSON-RPC `initialize` → `tools/list` → `tools/call` pattern.
 
 B. **HTTP API** — the chaos tool sends arbitrary HTTP requests; uses
-   OpenAPI / LangServe / A2A / proprietary REST shapes.
+OpenAPI / LangServe / A2A / proprietary REST shapes.
 
 ### 15.2 Practical differences for chaos testing
 
-| Aspect | MCP | HTTP API |
-|---|---|---|
-| Schema discovery | Strong — `tools/list` returns JSON Schema per tool | Mixed — OpenAPI strong, others none |
-| Sessions | Required (initialize handshake, session ID) | Often stateless |
-| Notifications | Built-in (`notifications/*`) | Polling or custom SSE/webhook |
-| Authentication | OAuth 2.1 recommended, bearer in HTTP layer | All HTTP auth schemes |
-| Multi-tool semantics | Single endpoint, dispatch by tool name | Many endpoints, dispatch by URL |
-| Streaming | SSE on HTTP transport, or stdio | Per-API |
-| Inter-tool composition | Client orchestrates explicitly | Possibly hidden inside API |
-| Logging / observability | `logging/setLevel` primitive | Out-of-band |
-| Testing tools | MCP Inspector | Generic HTTP tooling (curl, Postman) |
+| Aspect                  | MCP                                                | HTTP API                             |
+| ----------------------- | -------------------------------------------------- | ------------------------------------ |
+| Schema discovery        | Strong — `tools/list` returns JSON Schema per tool | Mixed — OpenAPI strong, others none  |
+| Sessions                | Required (initialize handshake, session ID)        | Often stateless                      |
+| Notifications           | Built-in (`notifications/*`)                       | Polling or custom SSE/webhook        |
+| Authentication          | OAuth 2.1 recommended, bearer in HTTP layer        | All HTTP auth schemes                |
+| Multi-tool semantics    | Single endpoint, dispatch by tool name             | Many endpoints, dispatch by URL      |
+| Streaming               | SSE on HTTP transport, or stdio                    | Per-API                              |
+| Inter-tool composition  | Client orchestrates explicitly                     | Possibly hidden inside API           |
+| Logging / observability | `logging/setLevel` primitive                       | Out-of-band                          |
+| Testing tools           | MCP Inspector                                      | Generic HTTP tooling (curl, Postman) |
 
 ### 15.3 Which is more common in mid-2026
 
@@ -1420,6 +1420,7 @@ acknowledges they have a test key.
 ## 18. Sources
 
 ### A2A
+
 - A2A Protocol Specification (latest) — https://a2a-protocol.org/latest/specification/
 - A2A v0.3.0 — https://a2a-protocol.org/v0.3.0/specification/
 - A2A Agent Discovery topic — https://a2a-protocol.org/dev/topics/agent-discovery/
@@ -1445,6 +1446,7 @@ acknowledges they have a test key.
 - Inkeep A2A JSON-RPC — https://docs.inkeep.com/talk-to-your-agents/a2a
 
 ### MCP
+
 - MCP Architecture — https://modelcontextprotocol.io/docs/concepts/architecture
 - MCP Specification — https://modelcontextprotocol.io/specification/latest
 - MCP llms.txt — https://modelcontextprotocol.io/llms.txt
@@ -1458,6 +1460,7 @@ acknowledges they have a test key.
 - Sentry MCP — https://docs.sentry.io/product/sentry-mcp/
 
 ### OpenAPI / GPT Actions
+
 - OpenAPI Specification — https://swagger.io/specification/
 - OpenAPI v3.2.0 — https://spec.openapis.org/oas/v3.2.0.html
 - OAI Specification Issue #864 — https://github.com/OAI/OpenAPI-Specification/issues/864
@@ -1473,6 +1476,7 @@ acknowledges they have a test key.
 - Logto GPT Action OAuth — https://blog.logto.io/gpt-action-oauth
 
 ### LangServe / LangGraph
+
 - LangServe — https://github.com/langchain-ai/langserve
 - LangServe server.py — https://github.com/langchain-ai/langserve/blob/main/langserve/server.py
 - LangServe README — https://github.com/langchain-ai/langserve/blob/main/README.md
@@ -1480,6 +1484,7 @@ acknowledges they have a test key.
 - NLUX LangServe endpoints — https://docs.nlkit.com/nlux/learn/adapters/langchain/endpoints
 
 ### Mastra
+
 - Mastra Server overview — https://mastra.ai/docs/server/mastra-server
 - Mastra Server routes reference — https://mastra.ai/reference/server/routes
 - Mastra Custom API Routes — https://mastra.ai/docs/server/custom-api-routes
@@ -1487,6 +1492,7 @@ acknowledges they have a test key.
 - DeepWiki Mastra Server — https://deepwiki.com/mastra-ai/mastra/9-examples-and-applications
 
 ### Browser-use agents
+
 - browser-use repo — https://github.com/browser-use/browser-use
 - Browser-use Cloud BU Agent API v3 — https://docs.cloud.browser-use.com/new-features/api-v3
 - Browser-use REST API issue — https://github.com/browser-use/browser-use/issues/166
@@ -1502,6 +1508,7 @@ acknowledges they have a test key.
 - API-Based Web Agents paper — https://yueqis.github.io/API-Based-Agent/
 
 ### Voice agents
+
 - Vapi assistants quickstart — https://docs.vapi.ai/assistants/quickstart
 - Vapi Create Assistant API — https://docs.vapi.ai/api-reference/assistants/create
 - Vapi Phone Calling — https://docs.vapi.ai/phone-calling
@@ -1521,6 +1528,7 @@ acknowledges they have a test key.
 - LiveKit Agents repo — https://github.com/livekit/agents
 
 ### Slack / Discord
+
 - Slack Events API — https://api.slack.com/events-api
 - Slack HTTP Request URLs — https://api.slack.com/apis/http
 - Slack url_verification event — https://api.slack.com/events/url_verification
@@ -1532,6 +1540,7 @@ acknowledges they have a test key.
 - Discord API docs PING issue — https://github.com/discord/discord-api-docs/issues/6596
 
 ### Email / inbound webhooks
+
 - Postmark Inbound Webhook — https://postmarkapp.com/developer/webhooks/inbound-webhook
 - Postmark Inbound Overview — https://postmarkapp.com/developer/user-guide/inbound
 - Postmark Inbound Sample Workflow — https://postmarkapp.com/developer/user-guide/inbound/sample-inbound-workflow
@@ -1540,6 +1549,7 @@ acknowledges they have a test key.
 - Postmark migration from Resend — https://postmarkapp.com/migration-guides/resend
 
 ### CLI agents
+
 - Goose CLI commands — https://goose-docs.ai/docs/guides/goose-cli-commands/
 - Goose AGENTS.md — https://github.com/block/goose/blob/main/AGENTS.md
 - Aider MCP issue — https://github.com/Aider-AI/aider/issues/4506
@@ -1547,6 +1557,7 @@ acknowledges they have a test key.
 - awesome-cli-coding-agents — https://github.com/bradAGI/awesome-cli-coding-agents
 
 ### Fingerprinting / red-teaming research
+
 - Effective Prompt Extraction from Language Models (Zhang/Carlini/Ippolito) — https://arxiv.org/abs/2307.06865
 - System Prompt Extraction Attacks and Defenses — https://arxiv.org/abs/2505.23817
 - SPE-LLM HTML — https://arxiv.org/html/2505.23817v1
@@ -1577,6 +1588,7 @@ acknowledges they have a test key.
 - IMDA LLM Testing Starter Kit — https://www.imda.gov.sg/-/media/imda/files/about/emerging-tech-and-research/artificial-intelligence/starter-kit-for-testing-llm-based-applications-for-safety-and-reliability.pdf
 
 ### Garak / PyRIT
+
 - Garak repo — https://github.com/NVIDIA/garak
 - Garak site — https://garak.ai/
 - Garak README — https://raw.githubusercontent.com/NVIDIA/garak/main/README.md
@@ -1595,6 +1607,7 @@ acknowledges they have a test key.
 - Microsoft AI Red Teaming Agent (Foundry) — https://learn.microsoft.com/en-us/azure/foundry/concepts/ai-red-teaming-agent
 
 ### Auth + multi-tenant
+
 - Scalekit OAuth vs API Keys for AI Agents — https://www.scalekit.com/blog/oauth-vs-api-keys-for-ai-agents
 - Nango guide to secure AI agent API authentication — https://nango.dev/blog/guide-to-secure-ai-agent-api-authentication/
 - DEV.to multi-user AI agent OAuth 2.1 OIDC — https://dev.to/arcade/how-to-manage-multi-user-ai-agent-authentication-and-authorization-in-2026-oauth-21-oidc-and-2943
@@ -1605,6 +1618,7 @@ acknowledges they have a test key.
 - Spring multi-tenant OAuth2 — https://sdoxsee.github.io/blog/2021/03/22/multi-tenant-oauth-2.0-resource-servers.html
 
 ### Model-specific behavior
+
 - Cybernews Adversarial Prompts Test — https://cybernews.com/security/we-tested-chatgpt-gemini-and-claude/
 - Lumenova Frontier AI Cognitive Test — https://www.lumenova.ai/ai-experiments/frontier-ai-cognitive-test-claude-gpt5-gemini-part3/
 - Joan Media Model-Specific Prompting — https://www.joanmedia.dev/ai-blog/model-specific-prompting-how-claude-gpt-and-gemini-differ
@@ -1614,6 +1628,7 @@ acknowledges they have a test key.
 - Kunal Ganglani LLM API Latency Benchmarks 2026 — https://www.kunalganglani.com/blog/llm-api-latency-benchmarks-2026
 
 ### Context window / token budget
+
 - LLM Context Window Token Budget DEV — https://dev.to/swapnanilsaha/llm-context-window-token-budget-why-your-window-fills-up-fast-4c05
 - machinelearningplus Context Window Guide — https://machinelearningplus.com/gen-ai/context-windows-token-budget/
 - Apxml Managing Token Budgets — https://apxml.com/courses/getting-started-with-llm-toolkit/chapter-3-context-and-token-management/managing-token-budgets
@@ -1622,6 +1637,7 @@ acknowledges they have a test key.
 - GeeksforGeeks Tokens and Context Windows — https://www.geeksforgeeks.org/artificial-intelligence/tokens-and-context-windows-in-llms/
 
 ### Other
+
 - ekamoira MCP server discovery 2026 — https://www.ekamoira.com/blog/mcp-server-discovery-implement-well-known-mcp-json-2026-guide
 - Apigene Remote MCP Servers — https://apigene.ai/blog/remote-mcp-servers
 - Simplescraper How to MCP — https://simplescraper.io/blog/how-to-mcp

@@ -10,11 +10,11 @@ The official GitLab MCP server at `https://gitlab.com/api/v4/mcp` IS real, but i
 
 ## Summary
 
-| Claims audited | Count |
-|---|---|
-| CONFIRMED | 4 |
-| NEEDS-FIX | 2 |
-| WRONG (load-bearing) | 3 |
+| Claims audited       | Count |
+| -------------------- | ----- |
+| CONFIRMED            | 4     |
+| NEEDS-FIX            | 2     |
+| WRONG (load-bearing) | 3     |
 
 ---
 
@@ -51,11 +51,11 @@ create_workitem_note, get_workitem_notes, search, search_labels, semantic_code_s
 
 **Tools S6.6 calls that DO NOT EXIST on the official server:**
 
-| S6.6 calls | Status on official MCP | What to do |
-|---|---|---|
-| `create_merge_request` | EXISTS (18.5, enhanced 18.8) | Keep — this is the only call S6.6 makes that actually works |
-| `create_branch` | **DOES NOT EXIST** | Fall back to REST `POST /projects/:id/repository/branches` |
-| `create_or_update_file` | **DOES NOT EXIST** | Fall back to REST `POST /projects/:id/repository/files/:file_path` |
+| S6.6 calls              | Status on official MCP       | What to do                                                         |
+| ----------------------- | ---------------------------- | ------------------------------------------------------------------ |
+| `create_merge_request`  | EXISTS (18.5, enhanced 18.8) | Keep — this is the only call S6.6 makes that actually works        |
+| `create_branch`         | **DOES NOT EXIST**           | Fall back to REST `POST /projects/:id/repository/branches`         |
+| `create_or_update_file` | **DOES NOT EXIST**           | Fall back to REST `POST /projects/:id/repository/files/:file_path` |
 
 Run this against the live endpoint with a valid trial token and you will get `tool not found` for both. S6.6's BDD acceptance criterion at line 53 ("respx history shows POST to ... with tool name `create_merge_request`") passes only because respx is mocking — there is no live-endpoint verification in unit tests, only `@pytest.mark.online` which skips in CI by default.
 
@@ -69,11 +69,11 @@ S6.6 lines 25, 220-226, 310-311, and the BDD criterion at line 60 ("respx histor
 
 ### 7. Banned community MCPs — **CONFIRMED (all 3 exist)**
 
-| Repo | Real? | Stars | Last active | Tools |
-|---|---|---|---|---|
-| `zereight/gitlab-mcp` | YES | 1.6k | v2.1.18 May 30 2026 | 170 tools including `create_or_update_file`, `create_branch`, `create_merge_request` |
-| `mcpland/gitlab-mcp` | YES | 8 | v1.5.1 May 28 2026 | 80+ tools including projects, MRs, pipelines, commits, repo mgmt |
-| `wadew/gitlab-mcp` | YES | — | active 2026 | Full GitLab surface incl. branches/commits/MRs; pip-installable as `python-gitlab-mcp` |
+| Repo                  | Real? | Stars | Last active         | Tools                                                                                  |
+| --------------------- | ----- | ----- | ------------------- | -------------------------------------------------------------------------------------- |
+| `zereight/gitlab-mcp` | YES   | 1.6k  | v2.1.18 May 30 2026 | 170 tools including `create_or_update_file`, `create_branch`, `create_merge_request`   |
+| `mcpland/gitlab-mcp`  | YES   | 8     | v1.5.1 May 28 2026  | 80+ tools including projects, MRs, pipelines, commits, repo mgmt                       |
+| `wadew/gitlab-mcp`    | YES   | —     | active 2026         | Full GitLab surface incl. branches/commits/MRs; pip-installable as `python-gitlab-mcp` |
 
 All three expose the file-write + branch-create surface that the official server lacks — which is exactly why community MCPs exist. The BAN list and grep-check in S6.6 (line 47, 123) is correctly scoped — these are real packages an unwary coding agent could install. **Keep the ban.**
 
@@ -88,10 +88,12 @@ No published MCP-specific rate limits on the docs page. Underlying GitLab API ra
 This preserves the "official MCP credit" claim WHERE IT APPLIES while making S6.6 actually work.
 
 **`_gitlab_mcp_client.py` keeps these official MCP calls only:**
+
 - `create_merge_request` — at the official `https://gitlab.com/api/v4/mcp` endpoint
 - Optionally: `create_workitem_note` (MR comment with recipe summary), `get_merge_request` (to fetch web_url for return value)
 
 **New file `_gitlab_rest_client.py` (or via `python-gitlab` SDK) handles the surface the official MCP omits:**
+
 - Branch creation: `python-gitlab` Project.branches.create({'branch': name, 'ref': 'main'})
 - File commits: `python-gitlab` Project.files.create(...) / Project.commits.create(...) — use `commits` API to commit multiple files atomically
 - Both auth with the same PAT (api scope)

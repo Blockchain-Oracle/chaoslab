@@ -9,11 +9,11 @@
 
 ## Summary
 
-| Claims audited | Count |
-|---|---|
-| CONFIRMED | 7 |
-| NEEDS-FIX | 3 |
-| WRONG (oversold but not load-bearing) | 2 |
+| Claims audited                        | Count |
+| ------------------------------------- | ----- |
+| CONFIRMED                             | 7     |
+| NEEDS-FIX                             | 3     |
+| WRONG (oversold but not load-bearing) | 2     |
 
 ---
 
@@ -51,12 +51,12 @@ All three files S5.1 names (`llm.py`, `tool.py`, `user.py`) exist at the exact p
 
 S5.2–S5.5 each claim a vendored primitive backs them. Reality:
 
-| Story | Fault | Story claim | What's actually in the vendored code | Verdict |
-|---|---|---|---|---|
-| S5.2 | F1 malformed_tool_output | Wraps vendored `tool.py` | `tool.py` has `ToolErrorChaos`, `ToolEmptyChaos`, `ToolTimeoutChaos`, `ToolMutateChaos`. **`ToolMutateChaos`** maps to F1's `invalid_json` / `missing_required_field` / `type_mismatch` modes (user supplies a custom mutator function — ChaosLab would supply 4 such mutators). `exception` mode is NOT directly supported — `apply()` returns a `ChaosResult.mutate(...)`, not raise. **Note:** Story 5.2's "Known pitfalls" explicitly says *"Do NOT depend on `_vendored/` for F1. The vendored `tool.py` is reference-only for F1 — F1 is simple enough to implement directly from `architecture/04 §8.2`."* — so the story already knows this. | **Re-implementation, NOT reuse.** Vendored code is reference-only. |
-| S5.3 | F2 prompt_injection | Wraps vendored `user.py` | `user.py` has ONE class, `UserInputMutateChaos`, which takes a user-supplied mutator function. **The 4 OWASP LLM01 payloads (`instruction_override`, `role_hijacking`, `payload_smuggling`, `indirect_injection`) are NOT in the vendored code** — the upstream README example shows `inject_prompt_attack(query) -> f"{query} IGNORE PREVIOUS INSTRUCTIONS."` as a docstring example only. ChaosLab must write all 4 payload strings itself (the story's `_PAYLOADS` dict). The "vendored primitive" is just a thin pydantic wrapper around a callable. | **Re-implementation. The 4 payloads are wholly new code.** Vendor saves ~5 LOC of pydantic boilerplate at most. |
-| S5.4 | F3 context_poisoning | Wraps vendored code | The vendored `chaos/` dir has both `context.py` (context-mutate chaos, NOT mentioned in S5.1's vendor list) AND `history.py` (history-mutate, history-truncate, history-inject for between-turn poisoning). **NEITHER is on S5.1's vendor list.** S5.4's reference impl uses ADK `BaseRetrievalTool` monkey-patching directly — independent of vendor. | **Vendor list is INCOMPLETE for F3.** If S5.4 were to genuinely reuse, it would want `context.py` + `history.py` vendored. Story 5.4 doesn't — it re-implements. |
-| S5.5 | F4 latency_spike | Wraps vendored `tool.py`'s `ToolTimeoutChaos` | Vendored `ToolTimeoutChaos.apply()` returns the **string** `"Tool execution timed out after Xs"` as a mutated result. It DOES NOT actually `asyncio.sleep`. It doesn't construct an httpx transport shim. **S5.5's reference impl re-implements both `asyncio.sleep` and the httpx `AsyncBaseTransport` shim from scratch.** | **Re-implementation. Vendored primitive is just a flag/string.** Vendor saves nothing. |
+| Story | Fault                    | Story claim                                   | What's actually in the vendored code                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 | Verdict                                                                                                                                                          |
+| ----- | ------------------------ | --------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| S5.2  | F1 malformed_tool_output | Wraps vendored `tool.py`                      | `tool.py` has `ToolErrorChaos`, `ToolEmptyChaos`, `ToolTimeoutChaos`, `ToolMutateChaos`. **`ToolMutateChaos`** maps to F1's `invalid_json` / `missing_required_field` / `type_mismatch` modes (user supplies a custom mutator function — ChaosLab would supply 4 such mutators). `exception` mode is NOT directly supported — `apply()` returns a `ChaosResult.mutate(...)`, not raise. **Note:** Story 5.2's "Known pitfalls" explicitly says _"Do NOT depend on `_vendored/` for F1. The vendored `tool.py` is reference-only for F1 — F1 is simple enough to implement directly from `architecture/04 §8.2`."_ — so the story already knows this. | **Re-implementation, NOT reuse.** Vendored code is reference-only.                                                                                               |
+| S5.3  | F2 prompt_injection      | Wraps vendored `user.py`                      | `user.py` has ONE class, `UserInputMutateChaos`, which takes a user-supplied mutator function. **The 4 OWASP LLM01 payloads (`instruction_override`, `role_hijacking`, `payload_smuggling`, `indirect_injection`) are NOT in the vendored code** — the upstream README example shows `inject_prompt_attack(query) -> f"{query} IGNORE PREVIOUS INSTRUCTIONS."` as a docstring example only. ChaosLab must write all 4 payload strings itself (the story's `_PAYLOADS` dict). The "vendored primitive" is just a thin pydantic wrapper around a callable.                                                                                             | **Re-implementation. The 4 payloads are wholly new code.** Vendor saves ~5 LOC of pydantic boilerplate at most.                                                  |
+| S5.4  | F3 context_poisoning     | Wraps vendored code                           | The vendored `chaos/` dir has both `context.py` (context-mutate chaos, NOT mentioned in S5.1's vendor list) AND `history.py` (history-mutate, history-truncate, history-inject for between-turn poisoning). **NEITHER is on S5.1's vendor list.** S5.4's reference impl uses ADK `BaseRetrievalTool` monkey-patching directly — independent of vendor.                                                                                                                                                                                                                                                                                               | **Vendor list is INCOMPLETE for F3.** If S5.4 were to genuinely reuse, it would want `context.py` + `history.py` vendored. Story 5.4 doesn't — it re-implements. |
+| S5.5  | F4 latency_spike         | Wraps vendored `tool.py`'s `ToolTimeoutChaos` | Vendored `ToolTimeoutChaos.apply()` returns the **string** `"Tool execution timed out after Xs"` as a mutated result. It DOES NOT actually `asyncio.sleep`. It doesn't construct an httpx transport shim. **S5.5's reference impl re-implements both `asyncio.sleep` and the httpx `AsyncBaseTransport` shim from scratch.**                                                                                                                                                                                                                                                                                                                         | **Re-implementation. Vendored primitive is just a flag/string.** Vendor saves nothing.                                                                           |
 
 **Net: 0 of 4 fault classes meaningfully consume vendored runtime code.** All 4 wrapper stories implement directly against ADK callbacks. The vendoring is effectively documentation / attribution / mining for ideas, not code reuse.
 
@@ -92,7 +92,7 @@ Recommended: **(b)**. `llm.py` brings net negative value — its only Gemini-com
 
 - `pyproject.toml` declares `requires-python = ">=3.12"` — same as ChaosLab.
 - Uses modern idioms: `from __future__ import annotations`, PEP 604 `int | None`, `typing.Self`, `pydantic` v2 (`ConfigDict`, `PrivateAttr`, `model_validator`).
-- No deprecated patterns (`typing.List`, `typing.Optional`, dataclasses). PR #1 from Jan 2 was a refactor *away* from dataclasses to pydantic, so the code is currently pydantic v2 throughout.
+- No deprecated patterns (`typing.List`, `typing.Optional`, dataclasses). PR #1 from Jan 2 was a refactor _away_ from dataclasses to pydantic, so the code is currently pydantic v2 throughout.
 - Type hints are complete; `py.typed` marker file is present so downstream type checkers see signatures.
 
 ### 6. Dependency surface — **NEEDS-FIX (one transitive risk; otherwise clean)**
@@ -109,9 +109,9 @@ Vendored files' runtime imports (verified by reading every line):
 
 **Fix:** S5.1 must also vendor `chaos/base.py` (6.3 KB), `chaos/builder.py` (4.1 KB), and `agent_chaos/types.py` (1.4 KB), THEN rewrite the import paths from `agent_chaos.chaos.X` → `chaoslab_agent.injector.faults._vendored.X`. This contradicts the story's verbatim-copy + "Do NOT add docstrings, type fixes, or 'minor cleanups'" rule. Either:
 
-  - (a) Rewrite the imports as a documented, one-line `# vendored: import rewritten` patch per file (minimal, clearly justified deviation from verbatim policy), OR
-  - (b) Don't vendor at all — `pip install agent-chaos` as a regular dependency. But the upstream pulls in `httpx`, `fastapi`, `uvicorn`, `websockets`, `pydantic` and optionally `anthropic/openai/gemini`. `fastapi`/`uvicorn`/`websockets` are NOT in ChaosLab's `architecture.md` "Required external libraries" table — they're the upstream's CLI/UI runtime deps. Pip-installing would add bloat but is mechanically simpler than the import-rewrite carve-out. **Cost:** ~30 MB of disk + 4 transitive deps not on our list.
-  - (c) **RECOMMENDED:** Skip the vendor entirely. Per Finding 3, the wrapper modules don't consume the runtime; they just borrow the IDEAS. Replace S5.1 with a much smaller story: "Add `NOTICE` attribution + `architecture/04 §8.2` reference comments in F1–F4 modules pointing at the upstream files for IP-trail." Saves ~1.5h of build + sidesteps the import-rewrite problem.
+- (a) Rewrite the imports as a documented, one-line `# vendored: import rewritten` patch per file (minimal, clearly justified deviation from verbatim policy), OR
+- (b) Don't vendor at all — `pip install agent-chaos` as a regular dependency. But the upstream pulls in `httpx`, `fastapi`, `uvicorn`, `websockets`, `pydantic` and optionally `anthropic/openai/gemini`. `fastapi`/`uvicorn`/`websockets` are NOT in ChaosLab's `architecture.md` "Required external libraries" table — they're the upstream's CLI/UI runtime deps. Pip-installing would add bloat but is mechanically simpler than the import-rewrite carve-out. **Cost:** ~30 MB of disk + 4 transitive deps not on our list.
+- (c) **RECOMMENDED:** Skip the vendor entirely. Per Finding 3, the wrapper modules don't consume the runtime; they just borrow the IDEAS. Replace S5.1 with a much smaller story: "Add `NOTICE` attribution + `architecture/04 §8.2` reference comments in F1–F4 modules pointing at the upstream files for IP-trail." Saves ~1.5h of build + sidesteps the import-rewrite problem.
 
 ### 7. Recent activity / project liveness — **NEEDS-FIX (project is essentially abandoned)**
 
@@ -131,7 +131,7 @@ fecc1695  2026-01-02  refactor: use pydantic instead of dataclasses ...
 
 Issue tracker is dormant — total of 2 issues, both authored by the maintainer himself as PR-issues for self-merged refactors.
 
-**Implication for ChaosLab:** vendoring at a frozen SHA is fine *because* the project is frozen — there's nothing to drift against. But the "active, v0.1.3 released Jan 2026" framing in `architecture/01 §2` line 73 ("Status: Active") was accurate when written and is now stale. The repo is *one developer's side project that shipped 4 releases in a 4-day burst, then went silent*. Recommend updating `architecture/01 §2` to "Status: dormant since Jan 2026, but Apache-2.0 freeze is acceptable for vendor use."
+**Implication for ChaosLab:** vendoring at a frozen SHA is fine _because_ the project is frozen — there's nothing to drift against. But the "active, v0.1.3 released Jan 2026" framing in `architecture/01 §2` line 73 ("Status: Active") was accurate when written and is now stale. The repo is _one developer's side project that shipped 4 releases in a 4-day burst, then went silent_. Recommend updating `architecture/01 §2` to "Status: dormant since Jan 2026, but Apache-2.0 freeze is acceptable for vendor use."
 
 ### 8. Issue tracker health — **CONFIRMED (no critical open bugs)**
 
@@ -150,11 +150,11 @@ class Chaos(Protocol):
     def apply(self, **kwargs) -> ChaosResult: ...
 ```
 
-**They are framework-agnostic at the data-class level** — the chaos *spec* is just config + a `should_trigger`/`apply` decision pair. But to actually inject anything, you need the upstream `ChaosPatcher` (from `patch/patcher.py`) which **monkey-patches `anthropic` SDK methods** at module-load time. From the README's examples, every use of agent-chaos pairs a chaos list with `BaselineScenario` + `Turn` from the upstream's scenario runner, which is `pydantic-ai`-based.
+**They are framework-agnostic at the data-class level** — the chaos _spec_ is just config + a `should_trigger`/`apply` decision pair. But to actually inject anything, you need the upstream `ChaosPatcher` (from `patch/patcher.py`) which **monkey-patches `anthropic` SDK methods** at module-load time. From the README's examples, every use of agent-chaos pairs a chaos list with `BaselineScenario` + `Turn` from the upstream's scenario runner, which is `pydantic-ai`-based.
 
 In other words: **the data classes are reusable; the injection mechanism is not.** ChaosLab plans to inject via ADK callbacks (`before_tool_callback`, `before_model_callback`), which is a completely different mechanism from `ChaosPatcher`'s SDK monkey-patch.
 
-This is fine for the "vendor as reference" use case but is the substantive answer to the architecture doc's claim of "framework-agnostic primitives." It's actually framework-coupled at the only layer that matters (injection wiring). ChaosLab's S5.2–S5.5 wrap *the idea*, not the code.
+This is fine for the "vendor as reference" use case but is the substantive answer to the architecture doc's claim of "framework-agnostic primitives." It's actually framework-coupled at the only layer that matters (injection wiring). ChaosLab's S5.2–S5.5 wrap _the idea_, not the code.
 
 ### 10. Pinned canonical commit — **CONFIRMED**
 
@@ -173,15 +173,15 @@ This is the SHA S5.1's NOTICE block should be pinned to.
 
 `gh search repos "agent chaos" --language=python` returns 11 results. Filtering for substance:
 
-| Repo | Stars | License | Active | Notes |
-|---|---|---|---|---|
-| **`deepankarm/agent-chaos`** | 23 | Apache-2.0 | dormant 5mo | The only candidate with a published PyPI package + Apache-2.0 license + non-trivial code (>20 KB of fault logic). |
-| `floritange/AgentChaos` | 0 | MIT | active May 2026 | "Evaluate agent system robustness through controlled, runtime, non-intrusive LLM API fault injection." Looks promising on description but 0 stars + no PyPI release + unverified code quality. **MIT-licensed** — compatible with Apache-2.0. Worth a 5-minute look if `deepankarm` is fully discarded. |
-| `IntelligentDDS/AgentChaos` | 0 | no license | active Mar 2026 | **No license file** → cannot legally vendor. Skip. |
-| `NoraXu-0111/AgentChaos` | 0 | unknown | active Jun 2026 | 0 stars, recent activity but unknown shape. |
-| `Xrenya/AgentChaosMCP` | 0 | unknown | active May 2026 | MCP-focused, not fault primitives. Skip. |
-| `Ch4you/AgenticChaosMonkey` | 1 | unknown | inactive Jan 2026 | Skip. |
-| `NVIDIA/garak` | 8002 | Apache-2.0 | very active | Different shape — vulnerability *scanner*, not a fault-primitive library. Too heavyweight for vendoring. We could optionally lift Garak probe templates as inspiration for F2 payloads, but that's a stretch (see `architecture/04 §4.5` for the existing Garak reference). |
+| Repo                         | Stars | License    | Active            | Notes                                                                                                                                                                                                                                                                                                   |
+| ---------------------------- | ----- | ---------- | ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **`deepankarm/agent-chaos`** | 23    | Apache-2.0 | dormant 5mo       | The only candidate with a published PyPI package + Apache-2.0 license + non-trivial code (>20 KB of fault logic).                                                                                                                                                                                       |
+| `floritange/AgentChaos`      | 0     | MIT        | active May 2026   | "Evaluate agent system robustness through controlled, runtime, non-intrusive LLM API fault injection." Looks promising on description but 0 stars + no PyPI release + unverified code quality. **MIT-licensed** — compatible with Apache-2.0. Worth a 5-minute look if `deepankarm` is fully discarded. |
+| `IntelligentDDS/AgentChaos`  | 0     | no license | active Mar 2026   | **No license file** → cannot legally vendor. Skip.                                                                                                                                                                                                                                                      |
+| `NoraXu-0111/AgentChaos`     | 0     | unknown    | active Jun 2026   | 0 stars, recent activity but unknown shape.                                                                                                                                                                                                                                                             |
+| `Xrenya/AgentChaosMCP`       | 0     | unknown    | active May 2026   | MCP-focused, not fault primitives. Skip.                                                                                                                                                                                                                                                                |
+| `Ch4you/AgenticChaosMonkey`  | 1     | unknown    | inactive Jan 2026 | Skip.                                                                                                                                                                                                                                                                                                   |
+| `NVIDIA/garak`               | 8002  | Apache-2.0 | very active       | Different shape — vulnerability _scanner_, not a fault-primitive library. Too heavyweight for vendoring. We could optionally lift Garak probe templates as inspiration for F2 payloads, but that's a stretch (see `architecture/04 §4.5` for the existing Garak reference).                             |
 
 **Verdict on alternatives:** `deepankarm/agent-chaos` remains the best (only) candidate that ships Apache-2.0, has a non-trivial primitive library, and aligns with the architectural intent. No swap recommended.
 
@@ -217,7 +217,7 @@ Time cost: ~20 min (just append to NOTICE + update 4 module docstrings + amend A
 
 **Option B is structurally cleaner.** The architecture doc's "vendor agent-chaos" claim was based on a surface read of the upstream README + file sizes. On detailed inspection, the upstream is Anthropic-coupled at the injection layer (the layer that matters), and the data-class layer is not load-bearing — F1–F4's wrappers re-implement the injection wiring against ADK callbacks completely independently.
 
-If Abu wants to keep ADR-006 unchanged for narrative simplicity, Option A works — but the spec MUST acknowledge that the vendored code is "reference + attribution-only" and the import-rewrite carve-out from Finding 6 is required. Either path lands at a working Epic 5 by Day 3. **The original ADR-006 claim of "3–4 days saved" is wrong; the actual savings are zero.** What *does* save time is `architecture/04 §8.2`'s inline 80-LOC reference implementations — those are the real engineering shortcut, not the vendor.
+If Abu wants to keep ADR-006 unchanged for narrative simplicity, Option A works — but the spec MUST acknowledge that the vendored code is "reference + attribution-only" and the import-rewrite carve-out from Finding 6 is required. Either path lands at a working Epic 5 by Day 3. **The original ADR-006 claim of "3–4 days saved" is wrong; the actual savings are zero.** What _does_ save time is `architecture/04 §8.2`'s inline 80-LOC reference implementations — those are the real engineering shortcut, not the vendor.
 
 ---
 

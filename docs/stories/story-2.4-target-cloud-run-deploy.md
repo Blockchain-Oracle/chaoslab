@@ -31,9 +31,9 @@ Exact files the coding agent creates or modifies for this story:
   1. Skips if `docker` not in `PATH` (use `shutil.which("docker")`).
   2. Runs `docker build -t target-agent:test .` from `apps/target-agent/`.
   3. Captures exit code, asserts it equals 0.
-  4. Runs `docker image inspect --format='{{.Size}}' target-agent:test` and asserts size < 500 * 1024 * 1024 (500 MB).
+  4. Runs `docker image inspect --format='{{.Size}}' target-agent:test` and asserts size < 500 _ 1024 _ 1024 (500 MB).
   5. Optional: runs `docker run --rm target-agent:test python -c "import target_agent; print('OK')"` to smoke the image.
-  ~120 lines.
+     ~120 lines.
 
 The coding agent must NOT modify files outside this map without re-checking CLAUDE.md.
 
@@ -156,6 +156,7 @@ python3 scripts/check_max_lines.py --strict apps/target-agent/
 
 - **Cloud Run deploy is OUT OF SCOPE.** This story only produces a buildable, runnable Docker image. The actual `gcloud run deploy target-agent --image=$IMAGE_URL ...` invocation lives in `.github/workflows/staging-deploy.yaml` from Story 1.6 — it discovers `apps/target-agent/Dockerfile` and ships the image. Do NOT add any `gcloud` calls in this story.
 - **Reference Dockerfile shape (paste-ready starting point):**
+
   ```dockerfile
   # syntax=docker/dockerfile:1.7
 
@@ -205,7 +206,9 @@ python3 scripts/check_max_lines.py --strict apps/target-agent/
   EXPOSE 8001
   CMD ["uv", "run", "target-agent"]
   ```
+
   Adjust the uv version pin to match the workspace's `uv` version from S1.1.
+
 - **Why `--no-dev`.** The runtime image must not include pytest, ruff, ty, or test fixtures. Saves ~80 MB and tightens the supply chain.
 - **Why `uv sync --frozen`.** Reproducible builds. `--frozen` fails if `uv.lock` doesn't match `pyproject.toml`, catching dependency drift at build time rather than at runtime.
 - **Why `UV_COMPILE_BYTECODE=1`.** Precompiles `.py` → `.pyc` during install. Adds ~5 seconds to build, saves ~200ms from every Cloud Run cold start.
@@ -218,6 +221,7 @@ python3 scripts/check_max_lines.py --strict apps/target-agent/
 - **Image size budget.** Target ≤ 400 MB. `python:3.12-slim` is ~150 MB. Phoenix + OpenInference + ADK + Google Cloud SDKs add ~200-250 MB combined. The 500 MB cap in the BDD criterion has a 100 MB buffer — if the build exceeds 450 MB, investigate which dep pulled in unexpected bloat (`docker history target-agent:test --no-trunc`).
 - **`.dockerignore` is load-bearing.** Without it, `docker build` will COPY the entire `.venv/`, `tests/`, `.git/`, and `__pycache__/` directories into the build context, slowing builds and risking secret leakage from `.env` files. The provided list covers the common cases; add project-specific entries as needed.
 - **Integration test pattern.** The test must:
+
   ```python
   import shutil
   import subprocess
@@ -249,7 +253,9 @@ python3 scripts/check_max_lines.py --strict apps/target-agent/
       size_bytes = int(result.stdout.strip())
       assert size_bytes < 500 * 1024 * 1024, f"image size {size_bytes} bytes exceeds 500MB"
   ```
+
   Mark `slow` because `docker build` can take 60-180 seconds on a cold cache.
+
 - **Skip behavior in CI without docker.** PR CI runs on `ubuntu-latest` which has docker pre-installed, but local dev machines may not. The `pytest.skip("docker not in PATH")` path keeps unit-only test runs green for contributors without docker.
 - **No Cloud Run deploy verification in this story.** The next story to verify a real deploy is the staging-deploy workflow (which is already covered by S1.6's BDD). When Epic 3 or Epic 4 stories start calling the deployed target, they'll discover any runtime issues — that's the right place to catch them, not here.
 - **400-line vigilance.** `Dockerfile` ~90 lines, `.dockerignore` ~40 lines, `test_dockerfile_build.py` ~120 lines — all well under 400. The 400-line guard is configured for `.py`, `.ts`, `.tsx`, `.js`, `.jsx`, `.md` per ADR-010; Dockerfile and .dockerignore are not in scope but stay short anyway.

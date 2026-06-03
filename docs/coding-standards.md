@@ -12,17 +12,20 @@ Standards apply to both Python (`apps/chaoslab-agent`, `apps/target-agent`) and 
 **Rule:** No tracked source file may exceed 400 significant lines (blank lines + single-line comments excluded). Applies to `.py`, `.ts`, `.tsx`, `.js`, `.jsx`, `.md` under `apps/`, `packages/`, `scripts/`.
 
 **Enforcement:**
+
 - Pre-commit hook (`scripts/check_max_lines.py` via `pre-commit-config.yaml`)
 - CI gate (`pr-checks.yaml/max-lines-check` job)
 - Both must pass — belt-and-suspenders per ADR-010
 
 **Excluded:**
+
 - `__init__.py` (Python re-export shims)
 - `.d.ts` (TypeScript type-only)
 - `_vendored/` (third-party copied code with NOTICE attribution)
 - Generated dirs: `node_modules/`, `.next/`, `dist/`, `build/`
 
 **If a file approaches 400 lines: split it.** Not "remove blank lines." Split by:
+
 - Responsibility (extract a class/function to its own module)
 - Layer (UI / business / data — each its own file)
 - Feature flag (gate optional behavior in a separate file)
@@ -35,15 +38,15 @@ Splitting EARLY is cheaper than splitting at 399 lines.
 
 ### Toolchain (per ADR-001 and `best-practices/01 §11`)
 
-| Tool | Purpose | Required |
-|---|---|---|
-| `uv` | Package management + venv | yes |
-| `ruff` | Lint + format (replaces flake8/black/isort/pylint) | yes |
-| `ty` | Type checker (Astral, primary) | yes |
-| `mypy strict` | Type checker (FALLBACK only if `ty` blocks build per ADR-001) | conditional |
-| `pytest` + `pytest-asyncio` + `pytest-cov` | Tests + coverage | yes |
-| `hypothesis` | Property-based tests | encouraged |
-| `pre-commit` | Git hooks | yes |
+| Tool                                       | Purpose                                                       | Required    |
+| ------------------------------------------ | ------------------------------------------------------------- | ----------- |
+| `uv`                                       | Package management + venv                                     | yes         |
+| `ruff`                                     | Lint + format (replaces flake8/black/isort/pylint)            | yes         |
+| `ty`                                       | Type checker (Astral, primary)                                | yes         |
+| `mypy strict`                              | Type checker (FALLBACK only if `ty` blocks build per ADR-001) | conditional |
+| `pytest` + `pytest-asyncio` + `pytest-cov` | Tests + coverage                                              | yes         |
+| `hypothesis`                               | Property-based tests                                          | encouraged  |
+| `pre-commit`                               | Git hooks                                                     | yes         |
 
 ### `pyproject.toml` ruff config (workspace-level)
 
@@ -146,7 +149,7 @@ exclude_lines = ["pragma: no cover", "raise NotImplementedError", "if TYPE_CHECK
 ### Python conventions
 
 - **Naming:** PEP 8. `snake_case` functions/variables, `PascalCase` classes, `UPPER_SNAKE` constants
-- **Imports:** ruff `I` sorts. Standard lib → third-party → first-party (chaoslab_agent.*) → relative. Absolute imports only inside `chaoslab_agent`.
+- **Imports:** ruff `I` sorts. Standard lib → third-party → first-party (chaoslab_agent.\*) → relative. Absolute imports only inside `chaoslab_agent`.
 - **Type annotations:** REQUIRED on every function (enforced by `ty` / `mypy strict`). Return type explicit, even `-> None`.
 - **Async:** prefer async-by-default for I/O. Use `asyncio.gather` for parallel waits. Never `time.sleep()` in async code — use `asyncio.sleep()`.
 - **Logging:** structlog only (per `best-practices/03 §11`). NEVER `print()` (banned by `T20`). Use module-level loggers: `log = structlog.get_logger(__name__)`.
@@ -199,21 +202,21 @@ def setup_logging(env: str = "production") -> None:
 
 ### Toolchain (per `best-practices/04`)
 
-| Tool | Purpose | Required |
-|---|---|---|
-| `pnpm` | Package management | yes |
-| ESLint 9 (flat config) | Lint | yes |
-| Prettier 3 + `prettier-plugin-tailwindcss` | Format | yes |
-| `tsc --noEmit` | Type check | yes |
-| `vitest` | Unit tests | yes |
-| `@playwright/test` | E2E + visual regression | yes |
+| Tool                                       | Purpose                 | Required |
+| ------------------------------------------ | ----------------------- | -------- |
+| `pnpm`                                     | Package management      | yes      |
+| ESLint 9 (flat config)                     | Lint                    | yes      |
+| Prettier 3 + `prettier-plugin-tailwindcss` | Format                  | yes      |
+| `tsc --noEmit`                             | Type check              | yes      |
+| `vitest`                                   | Unit tests              | yes      |
+| `@playwright/test`                         | E2E + visual regression | yes      |
 
 ### `eslint.config.mjs`
 
 ```js
-import js from '@eslint/js'
-import tseslint from 'typescript-eslint'
-import next from 'eslint-config-next'
+import js from "@eslint/js";
+import tseslint from "typescript-eslint";
+import next from "eslint-config-next";
 
 export default tseslint.config(
   js.configs.recommended,
@@ -221,14 +224,20 @@ export default tseslint.config(
   ...next,
   {
     rules: {
-      'max-lines': ['error', { max: 400, skipBlankLines: true, skipComments: true }],
-      '@typescript-eslint/consistent-type-imports': 'error',
-      '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_' }],
-      '@typescript-eslint/strict-boolean-expressions': 'error',
-      'no-console': ['error', { allow: ['warn', 'error'] }],
+      "max-lines": [
+        "error",
+        { max: 400, skipBlankLines: true, skipComments: true },
+      ],
+      "@typescript-eslint/consistent-type-imports": "error",
+      "@typescript-eslint/no-unused-vars": [
+        "error",
+        { argsIgnorePattern: "^_" },
+      ],
+      "@typescript-eslint/strict-boolean-expressions": "error",
+      "no-console": ["error", { allow: ["warn", "error"] }],
     },
   },
-)
+);
 ```
 
 ### `prettier.config.mjs`
@@ -237,11 +246,11 @@ export default tseslint.config(
 export default {
   semi: false,
   singleQuote: true,
-  trailingComma: 'all',
+  trailingComma: "all",
   printWidth: 100,
-  plugins: ['prettier-plugin-tailwindcss'],
-  tailwindConfig: './tailwind.config.ts',
-}
+  plugins: ["prettier-plugin-tailwindcss"],
+  tailwindConfig: "./tailwind.config.ts",
+};
 ```
 
 ### `tsconfig.json` strict mode
@@ -304,7 +313,7 @@ from __future__ import annotations  # required at top of every module
 
 ```ts
 // app/_components/attack-matrix.tsx
-'use client'
+"use client";
 // one-line comment explaining the component if non-obvious
 ```
 
@@ -321,6 +330,7 @@ Types: `feat`, `fix`, `docs`, `style`, `refactor`, `test`, `chore`, `perf`, `ci`
 Scopes: `injector`, `judge`, `patcher`, `target`, `phoenix-tools`, `frontend`, `infra`, `cicd`, `docs`, `deps`
 
 Examples:
+
 - `feat(injector): add malformed_tool_output fault decorator`
 - `fix(phoenix-tools): handle 429 retries in run_experiment wrapper`
 - `refactor(judge): extract clustering to its own module`
@@ -340,7 +350,7 @@ default_language_version:
 
 repos:
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.8.0  # pin to latest verified
+    rev: v0.8.0 # pin to latest verified
     hooks:
       - id: ruff
         args: [--fix]

@@ -38,6 +38,7 @@
 4. **`_gitlab_mcp_client.py` is now ~80 LOC** (only wraps `create_merge_request` + the MCP handshake), not ~250 LOC. The expanded REST-API client logic lives in `_gitlab_rest_client.py` (NEW, ~150 LOC) which is a thin wrapper around the `python-gitlab` package.
 
 **Amended file modification map (replaces the original below):**
+
 - `apps/chaoslab-agent/src/chaoslab_agent/patcher/gitlab_emitter.py` — NEW — `GitLabMREmitter` orchestrates: REST for branch+files, MCP for MR. ≤300 LOC.
 - `apps/chaoslab-agent/src/chaoslab_agent/patcher/_gitlab_rest_client.py` — NEW — thin `python-gitlab` wrapper for branch + commit ops. ≤150 LOC.
 - `apps/chaoslab-agent/src/chaoslab_agent/patcher/_gitlab_mcp_client.py` — NEW — MCP client for ONLY `create_merge_request`. ≤80 LOC.
@@ -47,11 +48,13 @@
 - `apps/chaoslab-agent/tests/integration/test_gitlab_emitter_online.py` — NEW — ≥3 `@pytest.mark.online` tests against a real GitLab.com trial project.
 
 **Day-1 verification step (added to RAT-runbook + S1.4 secret-manager-setup.sh):**
+
 - Spin up a fresh GitLab.com trial account, mint a PAT with `api` scope, store as `gitlab-token` in Secret Manager
 - Test the MCP `initialize` handshake against `https://gitlab.com/api/v4/mcp` with Bearer auth
 - If trial-tier access fails (official docs say Premium/Ultimate required; hackathon FAQ disagreed), fall back to all-`python-gitlab` mode and lose the official-MCP judging credit but keep the demo working
 
 **Amended BDD additions** (add to the existing BDD section in the original story below):
+
 ```
 Given the GitLabMREmitter's emit() runs end-to-end
 When the orchestration completes

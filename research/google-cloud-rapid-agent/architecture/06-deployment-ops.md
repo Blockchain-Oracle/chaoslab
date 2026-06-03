@@ -8,6 +8,7 @@
 > **Scale target:** ONE judge running ONE demo at a time. Not production.
 
 Companion files:
+
 - `02a-google-cloud-stack.md` §5 (Agent Runtime vs Cloud Run), §10 (deployment paths)
 - `02b-gemini-enterprise-agent-platform.md` (the 4-phase platform map + model pricing note)
 - `brainstorm/05-ecosystem-refactor.md` §Appendix C (9-day cadence)
@@ -24,6 +25,7 @@ Devpost submission form has one slot for **Project URL**. That's the URL judges 
 ### What the URL points at
 
 Recommend: **Cloud Run service** serving a static-ish frontend (Next.js / Streamlit) that calls a same-process or sibling Cloud Run service hosting the ADK `api_server`, which in turn:
+
 - calls Gemini 3.5 Flash via the Vertex AI SDK (token-cost line)
 - calls Phoenix MCP (`@arizeai/phoenix-mcp` via `npx`) as an `MCPToolset` inside ADK
 - emits traces to Phoenix Cloud (`app.phoenix.arize.com`) via OpenInference auto-instrumentation
@@ -91,22 +93,23 @@ This is the single biggest architectural call. Both are allowed per hackathon ru
 
 ### Side-by-side for ChaosLab specifically
 
-| Dimension | Cloud Run | Agent Runtime (Agent Engine) |
-|---|---|---|
-| Container model | Any Docker | ADK-tied PaaS, no Docker |
-| Public HTTP URL | Yes, native | No — must front with a Cloud Run/Cloud Functions/SDK caller |
-| Cold start (typical) | 1-3s Python, up to 5s with deps ([Cloud Run docs](https://docs.cloud.google.com/run/docs/tips/general)) | **<1s** documented per `02b` §5 |
-| Continuous reasoning ceiling | HTTP request timeout: 60min max (configurable up to 60min) | **Up to 7 days** per `02b` §5 |
-| Session/memory | Roll your own | Built-in (Agent Sessions + Memory Bank) |
-| Observability | Cloud Logging only | Native Agent Observability dashboards |
-| Cost shape | Per vCPU-sec + GiB-sec + requests (see §5) | Per vCPU-hr + GiB-hr — billed for active agent time, idle is free per [Vertex AI Agent Engine pricing](https://cloud.google.com/vertex-ai/pricing) |
-| Free tier | 180k vCPU-sec, 360k GiB-sec, 2M req/month | 50 vCPU-hrs + 100 GB-hrs/month |
-| Lock-in | Low (it's Docker) | High (ADK + Vertex AI SDK only) |
-| Phoenix OpenInference attach | Trivial, works in container | [UNVERIFIED] — `partner-arize.md` shows it works on ADK runtimes generally, but specific Agent Runtime startup-hook semantics for OpenInference instrumentation registration may differ |
+| Dimension                    | Cloud Run                                                                                               | Agent Runtime (Agent Engine)                                                                                                                                                            |
+| ---------------------------- | ------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Container model              | Any Docker                                                                                              | ADK-tied PaaS, no Docker                                                                                                                                                                |
+| Public HTTP URL              | Yes, native                                                                                             | No — must front with a Cloud Run/Cloud Functions/SDK caller                                                                                                                             |
+| Cold start (typical)         | 1-3s Python, up to 5s with deps ([Cloud Run docs](https://docs.cloud.google.com/run/docs/tips/general)) | **<1s** documented per `02b` §5                                                                                                                                                         |
+| Continuous reasoning ceiling | HTTP request timeout: 60min max (configurable up to 60min)                                              | **Up to 7 days** per `02b` §5                                                                                                                                                           |
+| Session/memory               | Roll your own                                                                                           | Built-in (Agent Sessions + Memory Bank)                                                                                                                                                 |
+| Observability                | Cloud Logging only                                                                                      | Native Agent Observability dashboards                                                                                                                                                   |
+| Cost shape                   | Per vCPU-sec + GiB-sec + requests (see §5)                                                              | Per vCPU-hr + GiB-hr — billed for active agent time, idle is free per [Vertex AI Agent Engine pricing](https://cloud.google.com/vertex-ai/pricing)                                      |
+| Free tier                    | 180k vCPU-sec, 360k GiB-sec, 2M req/month                                                               | 50 vCPU-hrs + 100 GB-hrs/month                                                                                                                                                          |
+| Lock-in                      | Low (it's Docker)                                                                                       | High (ADK + Vertex AI SDK only)                                                                                                                                                         |
+| Phoenix OpenInference attach | Trivial, works in container                                                                             | [UNVERIFIED] — `partner-arize.md` shows it works on ADK runtimes generally, but specific Agent Runtime startup-hook semantics for OpenInference instrumentation registration may differ |
 
 ### ChaosLab workload analysis
 
 ChaosLab's hot path per demo run:
+
 1. Judge clicks "Run Chaos Sweep" in the web UI
 2. ChaosLab agent enumerates ~12 attack scenarios (fault-class × test-input matrix)
 3. For each scenario: invoke target-agent with adversarial input
@@ -128,6 +131,7 @@ The cold-start delta matters more. <1s vs 3-5s could be the difference between "
 - `target-agent` — Cloud Run, request-based billing, min-instances=0 (cold-start tax is fine for the victim — it just adds 2s to each attack's wall-clock)
 
 Reasoning:
+
 1. **Single deployment story.** One `gcloud run deploy` per service, one set of mental models.
 2. **Public URL native.** No SDK-proxy layer in front of Agent Runtime.
 3. **Cost is bounded and observable.** Per-second billing with min-instances warm-up is predictable; Agent Runtime's per-vCPU-hour shape is similar but with less per-request granularity.
@@ -146,23 +150,24 @@ This is the second biggest call. Phoenix has two deploys: managed at `app.phoeni
 
 ### Side-by-side
 
-| Dimension | Phoenix Cloud (AX Free) | Self-hosted OSS Phoenix |
-|---|---|---|
-| Setup time | ~5 min (sign up, copy API key) | ~30-90 min (Docker, persistent volume, ingress, TLS) |
-| Cost | $0 forever ([Arize pricing](https://phoenix.arize.com/pricing/)) | Compute cost on Cloud Run or VM (~$5-15/mo for a small instance) |
-| Span limit | 25k spans/month | Unlimited (subject to your storage) |
-| Ingestion volume | 1 GB/month | Unlimited |
-| Retention | 15 days | You configure (default lifetime of storage volume) |
-| Project count | [UNVERIFIED — listed N/A in their pricing page] | Unlimited |
-| Annotation write access | Yes, via Phoenix MCP write tools | Yes, plus direct DB access |
-| Debug endpoints | Limited | Full (you own the server) |
-| Auth | Email/password + API keys | Whatever you configure |
-| Trial expiry | None — free tier is permanent | N/A |
-| Operational burden in judging window | Zero — Arize keeps it up | Yours — if your Phoenix VM crashes, demo URL is partially broken |
+| Dimension                            | Phoenix Cloud (AX Free)                                          | Self-hosted OSS Phoenix                                          |
+| ------------------------------------ | ---------------------------------------------------------------- | ---------------------------------------------------------------- |
+| Setup time                           | ~5 min (sign up, copy API key)                                   | ~30-90 min (Docker, persistent volume, ingress, TLS)             |
+| Cost                                 | $0 forever ([Arize pricing](https://phoenix.arize.com/pricing/)) | Compute cost on Cloud Run or VM (~$5-15/mo for a small instance) |
+| Span limit                           | 25k spans/month                                                  | Unlimited (subject to your storage)                              |
+| Ingestion volume                     | 1 GB/month                                                       | Unlimited                                                        |
+| Retention                            | 15 days                                                          | You configure (default lifetime of storage volume)               |
+| Project count                        | [UNVERIFIED — listed N/A in their pricing page]                  | Unlimited                                                        |
+| Annotation write access              | Yes, via Phoenix MCP write tools                                 | Yes, plus direct DB access                                       |
+| Debug endpoints                      | Limited                                                          | Full (you own the server)                                        |
+| Auth                                 | Email/password + API keys                                        | Whatever you configure                                           |
+| Trial expiry                         | None — free tier is permanent                                    | N/A                                                              |
+| Operational burden in judging window | Zero — Arize keeps it up                                         | Yours — if your Phoenix VM crashes, demo URL is partially broken |
 
 ### What the OSS version gives you that the cloud doesn't
 
 [UNVERIFIED] Based on Arize docs scan during research:
+
 - Direct write access to span annotations via DB (not just API)
 - Custom retention policies beyond 15 days
 - Custom eval LLM plug-ins beyond what AX Free exposes
@@ -173,6 +178,7 @@ None of these matter for a 9-day hackathon build where the demo runs ~50 attack 
 ### Math on the span budget
 
 Each ChaosLab demo run emits, roughly:
+
 - Target agent: 12 attacks × ~5 spans per attack invocation = 60 spans
 - ChaosLab agent: 12 evals × ~3 spans each + orchestration overhead ≈ 50 spans
 - Total per demo: ~110 spans
@@ -200,23 +206,25 @@ For ChaosLab's 9-day build + 4-week judging window:
 
 ### What secrets does ChaosLab handle?
 
-| Secret | What it is | Used by | Sensitivity |
-|---|---|---|---|
-| `PHOENIX_API_KEY` | Phoenix Cloud API key for OpenInference traces + Phoenix MCP | `chaoslab-agent`, `target-agent` | High — exposes all spans |
-| `GEMINI_API_KEY` / Vertex AI default credentials | Gemini access. On GCP, default to **Application Default Credentials (ADC) via the service account** — no API key file needed in-container. | `chaoslab-agent` (model calls + judge LLM), `target-agent` | High — burnable credit |
-| `GITLAB_PAT` | GitLab personal access token for MR emission stretch goal | `chaoslab-agent` (only if Day 7 GitLab stretch ships) | High — write access to a repo |
-| `VOYAGE_AI_KEY` | Voyage embeddings for MongoDB MCP | Not used in ChaosLab — MongoDB MCP isn't in the wedge | N/A |
-| `TARGET_AGENT_URL` | URL of the victim agent (Cloud Run autogenerated) | `chaoslab-agent` | Low — public URL anyway, but config-y so worth managing |
+| Secret                                           | What it is                                                                                                                                 | Used by                                                    | Sensitivity                                             |
+| ------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------- | ------------------------------------------------------- |
+| `PHOENIX_API_KEY`                                | Phoenix Cloud API key for OpenInference traces + Phoenix MCP                                                                               | `chaoslab-agent`, `target-agent`                           | High — exposes all spans                                |
+| `GEMINI_API_KEY` / Vertex AI default credentials | Gemini access. On GCP, default to **Application Default Credentials (ADC) via the service account** — no API key file needed in-container. | `chaoslab-agent` (model calls + judge LLM), `target-agent` | High — burnable credit                                  |
+| `GITLAB_PAT`                                     | GitLab personal access token for MR emission stretch goal                                                                                  | `chaoslab-agent` (only if Day 7 GitLab stretch ships)      | High — write access to a repo                           |
+| `VOYAGE_AI_KEY`                                  | Voyage embeddings for MongoDB MCP                                                                                                          | Not used in ChaosLab — MongoDB MCP isn't in the wedge      | N/A                                                     |
+| `TARGET_AGENT_URL`                               | URL of the victim agent (Cloud Run autogenerated)                                                                                          | `chaoslab-agent`                                           | Low — public URL anyway, but config-y so worth managing |
 
 Voyage AI is not needed; ChaosLab's MCP server is Phoenix, not MongoDB. Skip.
 
 ### Why direct env vars on Cloud Run are NOT enough
 
 Cloud Run lets you set env vars in two ways:
+
 1. **`--set-env-vars KEY=value`** — plain text, stored in service config, visible to anyone with `roles/run.viewer`. **Wrong for secrets.**
 2. **`--set-secrets KEY=secret-name:version`** — Cloud Run reads the secret from Secret Manager at startup and injects as env var into the container. **Right for secrets.**
 
 Path 1 is tempting on Day 1 (faster), but:
+
 - The secret value lives in the service revision config forever, retrievable by anyone with viewer rights including a future you who forgets and tweets a screenshot
 - Rotating the secret means redeploying the service with a new env var (vs updating one Secret Manager version)
 - `gcloud run services describe` dumps it in plaintext
@@ -291,25 +299,26 @@ On Cloud Run, prefer **Application Default Credentials via the service account**
 
 ### Cost lines
 
-| Line | Driver | Rate (verified 2026) |
-|---|---|---|
-| Gemini 3.5 Flash input tokens | Model calls | $1.50/M tokens ([Gemini pricing](https://ai.google.dev/gemini-api/docs/pricing)) |
-| Gemini 3.5 Flash output tokens | Model calls | $9.00/M tokens |
-| Gemini 3.5 Flash cached input | Model calls | $0.15/M tokens |
-| Gemini 3.1 Flash-Lite input | Cheaper sub-agent / judge calls | $0.25/M tokens |
-| Gemini 3.1 Flash-Lite output | Cheaper sub-agent / judge calls | $1.50/M tokens |
-| Cloud Run vCPU-sec (request-based) | Per-request compute | $0.000024/vCPU-sec |
-| Cloud Run GiB-sec | Memory per request | $0.0000025/GiB-sec |
-| Cloud Run requests | Per request | $0.40/M (after 2M/month free) |
-| Cloud Run min-instances idle | Warm pool 24/7 | ~$3-4/month per warm instance (256Mi-1Gi) |
-| Artifact Registry | Docker image storage | $0.10/GB/month (first 0.5GB free) |
-| Cloud Storage | Any artifacts | $0.02/GB/month standard |
-| Secret Manager | 3 secrets active | $0 (under 6-version free tier) |
-| Cloud Logging | Logs | First 50 GiB/project/month free |
+| Line                               | Driver                          | Rate (verified 2026)                                                             |
+| ---------------------------------- | ------------------------------- | -------------------------------------------------------------------------------- |
+| Gemini 3.5 Flash input tokens      | Model calls                     | $1.50/M tokens ([Gemini pricing](https://ai.google.dev/gemini-api/docs/pricing)) |
+| Gemini 3.5 Flash output tokens     | Model calls                     | $9.00/M tokens                                                                   |
+| Gemini 3.5 Flash cached input      | Model calls                     | $0.15/M tokens                                                                   |
+| Gemini 3.1 Flash-Lite input        | Cheaper sub-agent / judge calls | $0.25/M tokens                                                                   |
+| Gemini 3.1 Flash-Lite output       | Cheaper sub-agent / judge calls | $1.50/M tokens                                                                   |
+| Cloud Run vCPU-sec (request-based) | Per-request compute             | $0.000024/vCPU-sec                                                               |
+| Cloud Run GiB-sec                  | Memory per request              | $0.0000025/GiB-sec                                                               |
+| Cloud Run requests                 | Per request                     | $0.40/M (after 2M/month free)                                                    |
+| Cloud Run min-instances idle       | Warm pool 24/7                  | ~$3-4/month per warm instance (256Mi-1Gi)                                        |
+| Artifact Registry                  | Docker image storage            | $0.10/GB/month (first 0.5GB free)                                                |
+| Cloud Storage                      | Any artifacts                   | $0.02/GB/month standard                                                          |
+| Secret Manager                     | 3 secrets active                | $0 (under 6-version free tier)                                                   |
+| Cloud Logging                      | Logs                            | First 50 GiB/project/month free                                                  |
 
 ### Phase 1 — Dev (9 days, 2026-06-02 → 2026-06-11)
 
 **Token usage estimate:**
+
 - ~150 dev runs across 9 days (testing ADK locally + Cloud Run smoke tests)
 - Per run: ~12 attacks × (target agent ~3 LLM calls @ ~2k input + 500 output each) + ChaosLab orchestrator ~12 judge evals @ ~3k input + 200 output
   - Per attack: target agent 6k in / 1.5k out ≈ 9k tokens
@@ -319,6 +328,7 @@ On Cloud Run, prefer **Application Default Credentials via the service account**
 - 9-day total: 150 runs × 170k = **25.5M tokens** (~20M in, ~5M out)
 
 **Token cost (Gemini 3.5 Flash everywhere):**
+
 - Input: 20M × $1.50/M = **$30.00**
 - Output: 5M × $9.00/M = **$45.00**
 - **Phase 1 token subtotal: $75**
@@ -326,6 +336,7 @@ On Cloud Run, prefer **Application Default Credentials via the service account**
 That's the worst case with no caching, no Flash-Lite, no batch mode. Apply cost optimizations (next subsection) and this drops fast.
 
 **Cloud Run dev:**
+
 - 150 runs × ~120s/run × 1 vCPU × 1 GiB = 18,000 vCPU-sec + 18,000 GiB-sec
 - vCPU: 18,000 × $0.000024 = $0.43
 - Memory: 18,000 × $0.0000025 = $0.045
@@ -337,6 +348,7 @@ That's the worst case with no caching, no Flash-Lite, no batch mode. Apply cost 
 ### Phase 2 — Judging window (4 weeks, 2026-06-22 → 2026-07-06 + buffer)
 
 **Token usage estimate:**
+
 - ~50 total judge runs across the window (18 judges × 2-3 clicks each + buffer)
 - Same per-run cost: 170k tokens
 - 4-week total: 50 × 170k = **8.5M tokens** (~6.8M in, ~1.7M out)
@@ -345,16 +357,19 @@ That's the worst case with no caching, no Flash-Lite, no batch mode. Apply cost 
 - **Phase 2 token subtotal: ~$25.50**
 
 **Cloud Run idle (warm pool):**
+
 - 2 services with min-instances=1 (chaoslab-web, chaoslab-agent) × ~$3.50/mo × 4 weeks ≈ $7
 - target-agent at min-instances=0 (cold-start fine for the victim) → $0
 - **Phase 2 Cloud Run subtotal: ~$7**
 
 **Cloud Run request:**
+
 - 50 runs × 120s × 1 vCPU × 1 GiB across 2 services = 12,000 vCPU-sec
 - $0.29 — fits free tier
 - **~$0**
 
 **Artifact Registry:**
+
 - ~500MB Docker image × 3 services + revisions × 4 weeks ≈ $0.50
 - **~$1**
 
@@ -396,20 +411,20 @@ Submit on Jun 11. Judging Jun 22 → Jul 6. Winner notify ~Jul 7. The demo URL m
 
 ### What can break
 
-| Risk | Detection | Mitigation |
-|---|---|---|
-| Cloud Run cold start eats first impression | Manual test | min-instances=1 from Jun 18 onward |
-| Cloud Run service crashes (OOM, panic) | Cloud Logging error rate alert | Auto-restart is Cloud Run default; add liveness check |
-| Phoenix Cloud free-tier span cap hit mid-judging | Phoenix dashboard | 25k/mo limit; rolls over monthly; monitor at week 3 |
-| Phoenix Cloud retention rollover (15 days) | N/A — by design | Demo regenerates fresh spans on each click; safe |
-| Gemini API rate-limit during simultaneous judges | 429 in logs | Set max-concurrency on Cloud Run; queue if >2 simultaneous demos |
-| Gemini 3.5 Flash model deprecated | Search Vertex AI release notes | Unlikely in 4 weeks; pin to model ID `gemini-3.5-flash` not `gemini-flash-latest` |
-| Secret rotation (e.g., Phoenix API key expired) | Cloud Run logs auth errors | Phoenix Cloud API keys don't auto-expire [UNVERIFIED but typical]; mint a fresh one before Jun 22 just in case |
-| Cloud Run image purged from Artifact Registry | Image-pull error on cold start | Keep image; AR doesn't garbage-collect without explicit retention policy |
-| ADK package version drift | Local dev still works, prod doesn't | Pin `google-adk==X.Y.Z` in `requirements.txt`, never `>=` |
-| `npx @arizeai/phoenix-mcp` connectivity flaky | Tool-call errors in agent logs | Container-local subprocess; verify `npx` works in Dockerfile during build |
-| $100 credit exhausted | Billing alert | Set alert at $70; pre-emptive cost optimizations |
-| Anti-bot / WAF blocks judges' IPs | Manual test from incognito | Don't add a WAF; Cloud Run default ingress is fine |
+| Risk                                             | Detection                           | Mitigation                                                                                                     |
+| ------------------------------------------------ | ----------------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| Cloud Run cold start eats first impression       | Manual test                         | min-instances=1 from Jun 18 onward                                                                             |
+| Cloud Run service crashes (OOM, panic)           | Cloud Logging error rate alert      | Auto-restart is Cloud Run default; add liveness check                                                          |
+| Phoenix Cloud free-tier span cap hit mid-judging | Phoenix dashboard                   | 25k/mo limit; rolls over monthly; monitor at week 3                                                            |
+| Phoenix Cloud retention rollover (15 days)       | N/A — by design                     | Demo regenerates fresh spans on each click; safe                                                               |
+| Gemini API rate-limit during simultaneous judges | 429 in logs                         | Set max-concurrency on Cloud Run; queue if >2 simultaneous demos                                               |
+| Gemini 3.5 Flash model deprecated                | Search Vertex AI release notes      | Unlikely in 4 weeks; pin to model ID `gemini-3.5-flash` not `gemini-flash-latest`                              |
+| Secret rotation (e.g., Phoenix API key expired)  | Cloud Run logs auth errors          | Phoenix Cloud API keys don't auto-expire [UNVERIFIED but typical]; mint a fresh one before Jun 22 just in case |
+| Cloud Run image purged from Artifact Registry    | Image-pull error on cold start      | Keep image; AR doesn't garbage-collect without explicit retention policy                                       |
+| ADK package version drift                        | Local dev still works, prod doesn't | Pin `google-adk==X.Y.Z` in `requirements.txt`, never `>=`                                                      |
+| `npx @arizeai/phoenix-mcp` connectivity flaky    | Tool-call errors in agent logs      | Container-local subprocess; verify `npx` works in Dockerfile during build                                      |
+| $100 credit exhausted                            | Billing alert                       | Set alert at $70; pre-emptive cost optimizations                                                               |
+| Anti-bot / WAF blocks judges' IPs                | Manual test from incognito          | Don't add a WAF; Cloud Run default ingress is fine                                                             |
 
 ### Concrete keep-alive mechanism
 
@@ -441,14 +456,14 @@ For a hackathon, simple > sophisticated:
 
 ### Disaster recovery: if the demo URL dies during judging
 
-| Failure | Recovery action | RTO |
-|---|---|---|
-| Cloud Run service returning 5xx | `gcloud run services update --update-env-vars=BUMP=$(date +%s)` to force new revision | <5 min |
-| Cloud Run service deleted | Re-run the deploy script from repo `infra/deploy.sh` | <10 min |
-| Phoenix Cloud down | Wait — it's their problem. Worst case, swap demo to "trace-less mode" via a feature flag in the agent | depends |
-| GCP project quota exceeded | Request quota increase via console; usually approved in 1-2 hours for low-volume hackathon | ~2 hr |
-| $100 credit exhausted (billing freezes) | Top up with personal $20 — same billing account | <30 min |
-| ADK breaks due to dep update | Image is pinned; this can't happen at runtime unless someone redeploys | N/A |
+| Failure                                 | Recovery action                                                                                       | RTO     |
+| --------------------------------------- | ----------------------------------------------------------------------------------------------------- | ------- |
+| Cloud Run service returning 5xx         | `gcloud run services update --update-env-vars=BUMP=$(date +%s)` to force new revision                 | <5 min  |
+| Cloud Run service deleted               | Re-run the deploy script from repo `infra/deploy.sh`                                                  | <10 min |
+| Phoenix Cloud down                      | Wait — it's their problem. Worst case, swap demo to "trace-less mode" via a feature flag in the agent | depends |
+| GCP project quota exceeded              | Request quota increase via console; usually approved in 1-2 hours for low-volume hackathon            | ~2 hr   |
+| $100 credit exhausted (billing freezes) | Top up with personal $20 — same billing account                                                       | <30 min |
+| ADK breaks due to dep update            | Image is pinned; this can't happen at runtime unless someone redeploys                                | N/A     |
 
 Keep `infra/deploy.sh` in the repo. Keep a tested local Docker image you can re-push as a last-resort. Keep `.env.example` updated so Abu can re-bootstrap from a different GCP account if the original gets banned (unlikely but cheap insurance).
 
@@ -598,16 +613,16 @@ Workload Identity Federation is the right auth posture (vs storing GCP service-a
 
 The demo URL needs to "just work" — judge clicks Run, sees attacks executed and graded against a pre-staged target agent. Where the state lives:
 
-| Asset | Where it lives | Why |
-|---|---|---|
-| **Naive target agent** | `target_agent/` deployed as its own Cloud Run service | The "victim" is part of the demo; judge sees it being attacked |
-| **Attack catalog (12 scenarios)** | `eval/attack-corpus.json` in the repo, baked into the chaoslab-agent Docker image | Static — no need for a DB |
-| **Judge eval rubrics** | `eval/judge-rubrics.md` (prompt-only) → embedded into the eval LLM's system prompt | Static |
-| **Resilience curve baseline** | Re-computed live on each demo run by re-attacking the unhardened target | Fresh on every click — no staleness risk |
-| **Resilience curve "after"** | Re-computed live by attacking the hardened-version target | Same |
-| **Phoenix traces** | Phoenix Cloud projects `chaoslab-traces` and `target-agent-traces` | Live, regenerated per run; 15-day retention is fine |
-| **Golden trace snapshots** | `eval/golden-traces/` JSON files for offline tests | Repo-checked-in, immutable |
-| **Hardening recipes** | Generated live by ChaosLab → written to in-memory state, displayed in UI, optionally to GCS bucket for download | If GCS: bucket `chaoslab-demo-artifacts`, public-read with bucket-level ACL |
+| Asset                             | Where it lives                                                                                                  | Why                                                                         |
+| --------------------------------- | --------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------- |
+| **Naive target agent**            | `target_agent/` deployed as its own Cloud Run service                                                           | The "victim" is part of the demo; judge sees it being attacked              |
+| **Attack catalog (12 scenarios)** | `eval/attack-corpus.json` in the repo, baked into the chaoslab-agent Docker image                               | Static — no need for a DB                                                   |
+| **Judge eval rubrics**            | `eval/judge-rubrics.md` (prompt-only) → embedded into the eval LLM's system prompt                              | Static                                                                      |
+| **Resilience curve baseline**     | Re-computed live on each demo run by re-attacking the unhardened target                                         | Fresh on every click — no staleness risk                                    |
+| **Resilience curve "after"**      | Re-computed live by attacking the hardened-version target                                                       | Same                                                                        |
+| **Phoenix traces**                | Phoenix Cloud projects `chaoslab-traces` and `target-agent-traces`                                              | Live, regenerated per run; 15-day retention is fine                         |
+| **Golden trace snapshots**        | `eval/golden-traces/` JSON files for offline tests                                                              | Repo-checked-in, immutable                                                  |
+| **Hardening recipes**             | Generated live by ChaosLab → written to in-memory state, displayed in UI, optionally to GCS bucket for download | If GCS: bucket `chaoslab-demo-artifacts`, public-read with bucket-level ACL |
 
 No real DB. ChaosLab doesn't have a "user account" concept; every demo session is ephemeral. Session state lives in the ADK in-memory session service (`InMemorySessionService` from `02a` §3) — fine because Cloud Run with min-instances=1 keeps that memory alive across requests in normal operation, and even if Cloud Run rotates the instance, the worst case is the user clicks Run again.
 
@@ -657,20 +672,20 @@ The hackathon ships ONE target. Anything more is gilding.
 
 Top deployment-shaped failure modes for the 9-day build + 4-week judging window. Format: probability / blast radius / mitigation / recovery time.
 
-| # | Risk | P | Blast | Mitigation | Recovery |
-|---|---|---|---|---|---|
-| 1 | **Cloud Run cold start eats first impression** | Med | High (judge bounces in <5s) | min-instances=1 from Jun 18; warm-ping Cloud Scheduler every 5 min | 0 (preventive) |
-| 2 | **Phoenix MCP via `npx` keep-alive flakes on Cloud Run** (per `brainstorm/05-ecosystem-refactor.md` Day-3 risk + `CONTEXT.md` OQ-3) | Med | High (Phoenix integration is the entire wedge) | Test locally Day 2; fall back to stdio launch via `subprocess.Popen` if Streamable HTTP misbehaves; pin `@arizeai/phoenix-mcp` version | <2hr (swap import) |
-| 3 | **$100 credit exhausted before judging ends** | Low (with optimization) | High (demo URL 5xxs when Vertex AI billing freezes) | Apply optimizations §5; alarm at $70; top up $20 personal if needed | <30 min (top-up) |
-| 4 | **Gemini 3.5 Flash rate-limit during simultaneous judges** | Low (1 judge at a time mostly) | Med (demo run fails) | Set Cloud Run max-concurrency=1; add retry+jitter on 429 | <0 (auto-retry) |
-| 5 | **GitLab MCP rate-limits during stretch MR demo** | Med (if Day 7 ships) | Low (stretch feature; cuttable) | Demo MR-emit once, cache result; don't loop | N/A — cut feature |
-| 6 | **ADK package version drift (1.x → 2.x mid-build)** | Low | Med (breaking API change) | Pin `google-adk==X.Y.Z` exactly in `requirements.txt`; lock Docker image | <1hr (revert to pinned version) |
-| 7 | **Naive target agent stops being naive when Gemini 3.5 Flash quietly updates** | Med | Med (resilience curve flattens — demo's wow moment disappears) | Pin model ID `gemini-3.5-flash` not `gemini-flash-latest`; if 3.5 truly improves, sharpen attacks accordingly; record baseline trace screenshots Day 2 | 2-4 hr (sharpen attacks) |
-| 8 | **Demo URL breaks because Cloud Run pod restart wipes in-memory session** | High (will happen mid-judging) | Low (judge clicks Run again — sessions are ephemeral by design) | Document this in README; ensure UI shows "Run" button always; no multi-step state | 0 (by design) |
-| 9 | **Phoenix Cloud free-tier span cap (25k/month) hit during judging** | Low (~22k projected) | Med (no new traces visible — demo shows empty Phoenix) | Monitor at week 3; second Phoenix account ready as failover; rotation calendar-month aware | <30 min (point env var at backup) |
-| 10 | **GCP project quota for Cloud Run vCPU exceeded** | Low | High (no new deploys) | Default quota is 1000 vCPU / region, ChaosLab uses 3; safe. Verify via `gcloud compute project-info describe` Day 1 | ~2 hr (request increase) |
-| 11 | **Secret Manager IAM binding drifts (Cloud Run SA loses access)** | Low | High (agent 500s on startup, can't read Phoenix key) | Bake binding into `infra/deploy.sh`; re-apply on every deploy | <5 min |
-| 12 | **Custom domain DNS misconfig blocks judges (only if Day 7 custom-domain ships)** | Med (DNS is finicky) | Med (judges use `*.run.app` fallback) | Document both URLs in submission; cut custom domain if behind | <30 min (kill DNS, use *.run.app) |
+| #   | Risk                                                                                                                                | P                              | Blast                                                           | Mitigation                                                                                                                                             | Recovery                           |
+| --- | ----------------------------------------------------------------------------------------------------------------------------------- | ------------------------------ | --------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------- |
+| 1   | **Cloud Run cold start eats first impression**                                                                                      | Med                            | High (judge bounces in <5s)                                     | min-instances=1 from Jun 18; warm-ping Cloud Scheduler every 5 min                                                                                     | 0 (preventive)                     |
+| 2   | **Phoenix MCP via `npx` keep-alive flakes on Cloud Run** (per `brainstorm/05-ecosystem-refactor.md` Day-3 risk + `CONTEXT.md` OQ-3) | Med                            | High (Phoenix integration is the entire wedge)                  | Test locally Day 2; fall back to stdio launch via `subprocess.Popen` if Streamable HTTP misbehaves; pin `@arizeai/phoenix-mcp` version                 | <2hr (swap import)                 |
+| 3   | **$100 credit exhausted before judging ends**                                                                                       | Low (with optimization)        | High (demo URL 5xxs when Vertex AI billing freezes)             | Apply optimizations §5; alarm at $70; top up $20 personal if needed                                                                                    | <30 min (top-up)                   |
+| 4   | **Gemini 3.5 Flash rate-limit during simultaneous judges**                                                                          | Low (1 judge at a time mostly) | Med (demo run fails)                                            | Set Cloud Run max-concurrency=1; add retry+jitter on 429                                                                                               | <0 (auto-retry)                    |
+| 5   | **GitLab MCP rate-limits during stretch MR demo**                                                                                   | Med (if Day 7 ships)           | Low (stretch feature; cuttable)                                 | Demo MR-emit once, cache result; don't loop                                                                                                            | N/A — cut feature                  |
+| 6   | **ADK package version drift (1.x → 2.x mid-build)**                                                                                 | Low                            | Med (breaking API change)                                       | Pin `google-adk==X.Y.Z` exactly in `requirements.txt`; lock Docker image                                                                               | <1hr (revert to pinned version)    |
+| 7   | **Naive target agent stops being naive when Gemini 3.5 Flash quietly updates**                                                      | Med                            | Med (resilience curve flattens — demo's wow moment disappears)  | Pin model ID `gemini-3.5-flash` not `gemini-flash-latest`; if 3.5 truly improves, sharpen attacks accordingly; record baseline trace screenshots Day 2 | 2-4 hr (sharpen attacks)           |
+| 8   | **Demo URL breaks because Cloud Run pod restart wipes in-memory session**                                                           | High (will happen mid-judging) | Low (judge clicks Run again — sessions are ephemeral by design) | Document this in README; ensure UI shows "Run" button always; no multi-step state                                                                      | 0 (by design)                      |
+| 9   | **Phoenix Cloud free-tier span cap (25k/month) hit during judging**                                                                 | Low (~22k projected)           | Med (no new traces visible — demo shows empty Phoenix)          | Monitor at week 3; second Phoenix account ready as failover; rotation calendar-month aware                                                             | <30 min (point env var at backup)  |
+| 10  | **GCP project quota for Cloud Run vCPU exceeded**                                                                                   | Low                            | High (no new deploys)                                           | Default quota is 1000 vCPU / region, ChaosLab uses 3; safe. Verify via `gcloud compute project-info describe` Day 1                                    | ~2 hr (request increase)           |
+| 11  | **Secret Manager IAM binding drifts (Cloud Run SA loses access)**                                                                   | Low                            | High (agent 500s on startup, can't read Phoenix key)            | Bake binding into `infra/deploy.sh`; re-apply on every deploy                                                                                          | <5 min                             |
+| 12  | **Custom domain DNS misconfig blocks judges (only if Day 7 custom-domain ships)**                                                   | Med (DNS is finicky)           | Med (judges use `*.run.app` fallback)                           | Document both URLs in submission; cut custom domain if behind                                                                                          | <30 min (kill DNS, use \*.run.app) |
 
 Risk #1 (cold start) and #2 (Phoenix MCP flakiness) are the load-bearing ones. Everything else is bounded or low-probability.
 
@@ -797,6 +812,7 @@ curl -X POST "$URL/run" \
 ```
 
 That's it. Sub-30-minute Day-1 goal. Confirm:
+
 1. `curl` returns a 200 with the agent's greeting
 2. Phoenix Cloud > project "hello-adk" > Traces tab shows one entry with the model call span
 

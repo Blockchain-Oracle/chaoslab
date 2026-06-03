@@ -14,6 +14,7 @@
 **The original story (below) called for vendoring `chaos/{llm,tool,user}.py` into `_vendored/`. ADR-006 has been amended (`docs/architecture.md`) — we do NOT vendor anymore.**
 
 **What this story now does:**
+
 1. **Verify the source repo** at `github.com/deepankarm/agent-chaos` is reachable and Apache-2.0 licensed (already verified by audit; pinned commit SHA `32beff46a28ca043e252095e6cc62ffe2010e645`)
 2. **Add a `NOTICE` entry at repo root** with the attribution text:
    ```
@@ -31,6 +32,7 @@
 5. **Why:** the upstream `chaos/llm.py` is Anthropic-only (hardcoded `anthropic.RateLimitError` etc.) and `patch/providers/gemini.py` is a `NotImplementedError` stub. F1-F4 already reimplement natively. Vendoring offers zero code reuse, costs ~1.5h of integration, and adds maintenance burden. Attribution-only is legally clean (Apache-2.0 doesn't require attribution for non-copy use) and adequate as architectural courtesy.
 
 **Amended BDD acceptance criteria:**
+
 ```
 Given the NOTICE file at repo root
 When `grep "deepankarm/agent-chaos" NOTICE` runs
@@ -46,6 +48,7 @@ Then a grep across all 4 returns at least 4 matches (one per file)
 ```
 
 **File modification map (amended):**
+
 - `NOTICE` (NEW or UPDATE at repo root) — add the attribution block above
 - Remove all references to `apps/chaoslab-agent/src/chaoslab_agent/injector/faults/_vendored/` from the rest of the story content below
 - The original "vendor copy" file map below is **superseded** — coding agent should treat it as historical context only

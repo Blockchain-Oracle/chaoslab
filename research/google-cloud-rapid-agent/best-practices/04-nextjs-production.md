@@ -44,6 +44,7 @@ apps/web/
 ```
 
 **Server vs Client component decision rule:**
+
 - Default to **server components** — they're the App Router's reason to exist
 - Mark `'use client'` ONLY when you need: `useState`, `useEffect`, event handlers, browser APIs, or third-party client libs (Framer Motion, visx are client-only)
 - The `_components/` private folder pattern keeps page-specific client components OUT of the global `components/` tree
@@ -63,26 +64,28 @@ pnpm add -D tailwindcss@latest @tailwindcss/postcss
 ```
 
 `postcss.config.mjs`:
+
 ```js
 export default {
-  plugins: { '@tailwindcss/postcss': {} }
-}
+  plugins: { "@tailwindcss/postcss": {} },
+};
 ```
 
 `app/globals.css`:
+
 ```css
 @import "tailwindcss";
 
 @theme {
   --color-attack-red: oklch(0.65 0.24 25);
-  --color-pass-green: oklch(0.72 0.20 145);
-  --color-patch-line: oklch(0.55 0.30 280);
+  --color-pass-green: oklch(0.72 0.2 145);
+  --color-patch-line: oklch(0.55 0.3 280);
   --color-agent-orchestrator: oklch(0.62 0.25 220);
-  --color-agent-injector: oklch(0.60 0.20 30);
+  --color-agent-injector: oklch(0.6 0.2 30);
   --color-agent-judge: oklch(0.65 0.18 280);
-  --color-agent-patcher: oklch(0.70 0.22 145);
+  --color-agent-patcher: oklch(0.7 0.22 145);
   --color-agent-target: oklch(0.55 0.05 250);
-  
+
   --font-display: "Geist", system-ui, sans-serif;
   --font-mono: "Geist Mono", ui-monospace, monospace;
 }
@@ -143,22 +146,30 @@ Install: `pnpm add @visx/group @visx/scale @visx/shape @visx/grid @visx/axis @vi
 **Charts MUST be client components.** Top of file:
 
 ```tsx
-'use client'
+"use client";
 
-import { Group } from '@visx/group'
-import { scaleLinear } from '@visx/scale'
-import { Bar, LinePath } from '@visx/shape'
-import { ParentSize } from '@visx/responsive'
+import { Group } from "@visx/group";
+import { scaleLinear } from "@visx/scale";
+import { Bar, LinePath } from "@visx/shape";
+import { ParentSize } from "@visx/responsive";
 ```
 
 **Attack Matrix (5×5 grid of red/green cells):**
+
 ```tsx
-'use client'
+"use client";
 
-import { motion } from 'framer-motion'
+import { motion } from "framer-motion";
 
-interface AttackCell { idx: number; passed: boolean; faultClass: string }
-interface AttackMatrixProps { cells: AttackCell[]; revealedCount: number }
+interface AttackCell {
+  idx: number;
+  passed: boolean;
+  faultClass: string;
+}
+interface AttackMatrixProps {
+  cells: AttackCell[];
+  revealedCount: number;
+}
 
 export function AttackMatrix({ cells, revealedCount }: AttackMatrixProps) {
   return (
@@ -168,20 +179,21 @@ export function AttackMatrix({ cells, revealedCount }: AttackMatrixProps) {
           key={cell.idx}
           initial={{ scale: 0.6, opacity: 0 }}
           animate={i < revealedCount ? { scale: 1, opacity: 1 } : {}}
-          transition={{ delay: i * 0.04, type: 'spring', stiffness: 200 }}
+          transition={{ delay: i * 0.04, type: "spring", stiffness: 200 }}
           className={cn(
-            'rounded-sm aspect-square',
-            cell.passed ? 'bg-pass-green' : 'bg-attack-red'
+            "rounded-sm aspect-square",
+            cell.passed ? "bg-pass-green" : "bg-attack-red",
           )}
-          title={`${cell.faultClass}: ${cell.passed ? 'PASS' : 'FAIL'}`}
+          title={`${cell.faultClass}: ${cell.passed ? "PASS" : "FAIL"}`}
         />
       ))}
     </div>
-  )
+  );
 }
 ```
 
 **Responsive sizing pattern:**
+
 ```tsx
 <ParentSize>
   {({ width, height }) => <ResilienceCurve width={width} height={height} data={...} />}
@@ -195,25 +207,27 @@ export function AttackMatrix({ cells, revealedCount }: AttackMatrixProps) {
 The hero moment: matrix cells flip from red → green when the patch fires. Two approaches:
 
 **Approach A: re-render with stagger** (simpler — recommended)
+
 ```tsx
 // pass `state: 'pre-patch' | 'post-patch'` as prop
 // re-render with new pass/fail data; stagger via index delay
 
 <motion.div
-  key={`${state}-${i}`}  // key change forces re-mount + stagger
+  key={`${state}-${i}`} // key change forces re-mount + stagger
   initial={{ scale: 0.5, opacity: 0 }}
   animate={{ scale: 1, opacity: 1 }}
-  transition={{ delay: i * 0.03, duration: 0.4, ease: 'easeOut' }}
+  transition={{ delay: i * 0.03, duration: 0.4, ease: "easeOut" }}
 />
 ```
 
 **Approach B: layout animation** (more elaborate — for the line chart curve)
+
 ```tsx
 <motion.path
   d={curvePath}
   initial={{ pathLength: 0 }}
   animate={{ pathLength: 1 }}
-  transition={{ duration: 1.5, ease: 'easeInOut' }}
+  transition={{ duration: 1.5, ease: "easeInOut" }}
 />
 ```
 
@@ -222,10 +236,12 @@ The hero moment: matrix cells flip from red → green when the patch fires. Two 
 **Accessibility:** Wrap with `useReducedMotion()` from framer-motion. If user has `prefers-reduced-motion: reduce`, swap stagger animations for instant state changes.
 
 ```tsx
-import { useReducedMotion } from 'framer-motion'
+import { useReducedMotion } from "framer-motion";
 
-const shouldReduceMotion = useReducedMotion()
-const transition = shouldReduceMotion ? { duration: 0 } : { delay: i * 0.04, type: 'spring' }
+const shouldReduceMotion = useReducedMotion();
+const transition = shouldReduceMotion
+  ? { duration: 0 }
+  : { delay: i * 0.04, type: "spring" };
 ```
 
 ---
@@ -233,6 +249,7 @@ const transition = shouldReduceMotion ? { duration: 0 } : { delay: i * 0.04, typ
 ## 6. State management
 
 **Decision tree (production-ready 2026):**
+
 - **Server state** (data from the agent backend) → TanStack Query (`@tanstack/react-query` v5)
 - **URL state** (selected fault, run ID) → `nuqs` library — type-safe URL search params, no manual `useSearchParams` parsing
 - **Local UI state** (modal open, hover) → React `useState`
@@ -242,27 +259,27 @@ const transition = shouldReduceMotion ? { duration: 0 } : { delay: i * 0.04, typ
 
 ```tsx
 // stores/run-store.ts
-import { create } from 'zustand'
+import { create } from "zustand";
 
 interface RunState {
-  runId: string | null
-  state: 'idle' | 'attacking' | 'patching' | 'reattacking' | 'complete'
-  cells: AttackCell[]
-  resilienceCurve: { x: number; y: number }[]
-  setRun: (id: string) => void
-  setState: (s: RunState['state']) => void
-  updateCells: (cells: AttackCell[]) => void
+  runId: string | null;
+  state: "idle" | "attacking" | "patching" | "reattacking" | "complete";
+  cells: AttackCell[];
+  resilienceCurve: { x: number; y: number }[];
+  setRun: (id: string) => void;
+  setState: (s: RunState["state"]) => void;
+  updateCells: (cells: AttackCell[]) => void;
 }
 
 export const useRunStore = create<RunState>((set) => ({
   runId: null,
-  state: 'idle',
+  state: "idle",
   cells: [],
   resilienceCurve: [],
   setRun: (id) => set({ runId: id }),
   setState: (s) => set({ state: s }),
   updateCells: (cells) => set({ cells }),
-}))
+}));
 ```
 
 ---
@@ -272,54 +289,58 @@ export const useRunStore = create<RunState>((set) => ({
 The agent backend streams Phoenix trace updates over SSE. The frontend reads them and updates the matrix in real-time.
 
 **Server route** (`app/api/stream/route.ts`):
+
 ```ts
-export const dynamic = 'force-dynamic'
+export const dynamic = "force-dynamic";
 
 export async function GET(req: Request) {
   const stream = new ReadableStream({
     async start(controller) {
       const send = (event: string, data: unknown) => {
-        controller.enqueue(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`)
-      }
+        controller.enqueue(
+          `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`,
+        );
+      };
       // proxy from the agent backend's SSE endpoint
-      const upstream = await fetch(`${process.env.AGENT_BACKEND_URL}/stream`)
-      const reader = upstream.body!.getReader()
+      const upstream = await fetch(`${process.env.AGENT_BACKEND_URL}/stream`);
+      const reader = upstream.body!.getReader();
       while (true) {
-        const { done, value } = await reader.read()
-        if (done) break
-        controller.enqueue(value)
+        const { done, value } = await reader.read();
+        if (done) break;
+        controller.enqueue(value);
       }
-      controller.close()
+      controller.close();
     },
-  })
+  });
   return new Response(stream, {
     headers: {
-      'Content-Type': 'text/event-stream',
-      'Cache-Control': 'no-cache',
-      'Connection': 'keep-alive',
+      "Content-Type": "text/event-stream",
+      "Cache-Control": "no-cache",
+      Connection: "keep-alive",
     },
-  })
+  });
 }
 ```
 
 **Client hook:**
-```tsx
-'use client'
 
-import { useEffect } from 'react'
-import { useRunStore } from '@/stores/run-store'
+```tsx
+"use client";
+
+import { useEffect } from "react";
+import { useRunStore } from "@/stores/run-store";
 
 export function useTraceStream(runId: string | null) {
-  const updateCells = useRunStore((s) => s.updateCells)
+  const updateCells = useRunStore((s) => s.updateCells);
   useEffect(() => {
-    if (!runId) return
-    const es = new EventSource(`/api/stream?runId=${runId}`)
-    es.addEventListener('cell-update', (e) => {
-      updateCells(JSON.parse(e.data))
-    })
-    es.onerror = () => es.close()
-    return () => es.close()
-  }, [runId, updateCells])
+    if (!runId) return;
+    const es = new EventSource(`/api/stream?runId=${runId}`);
+    es.addEventListener("cell-update", (e) => {
+      updateCells(JSON.parse(e.data));
+    });
+    es.onerror = () => es.close();
+    return () => es.close();
+  }, [runId, updateCells]);
 }
 ```
 
@@ -330,7 +351,7 @@ export function useTraceStream(runId: string | null) {
 Use zod-validated env at startup. Create `lib/env.ts`:
 
 ```ts
-import { z } from 'zod'
+import { z } from "zod";
 
 const envSchema = z.object({
   AGENT_BACKEND_URL: z.string().url(),
@@ -338,9 +359,9 @@ const envSchema = z.object({
   GEMINI_API_KEY: z.string().min(1).optional(),
   // public (NEXT_PUBLIC_*) shipped to client — never put secrets here
   NEXT_PUBLIC_GA_ID: z.string().optional(),
-})
+});
 
-export const env = envSchema.parse(process.env)
+export const env = envSchema.parse(process.env);
 ```
 
 Then import `env` everywhere instead of `process.env.X`. Crashes loudly at startup if any required var is missing.
@@ -379,15 +400,16 @@ CMD ["node", "server.js"]
 ```
 
 **Critical:** `next.config.ts` MUST have `output: 'standalone'`:
+
 ```ts
-import type { NextConfig } from 'next'
+import type { NextConfig } from "next";
 const config: NextConfig = {
-  output: 'standalone',
+  output: "standalone",
   images: { unoptimized: false },
   poweredByHeader: false,
   reactStrictMode: true,
-}
-export default config
+};
+export default config;
 ```
 
 `standalone` produces a minimal `server.js` that includes only what was actually imported. Container size drops from ~500MB to ~80MB.
@@ -397,6 +419,7 @@ export default config
 ## 10. Security headers
 
 `next.config.ts` `headers()`:
+
 ```ts
 async headers() {
   return [
@@ -432,19 +455,21 @@ CSP is application-specific; defer to spec unless you need it now.
 The hero frame at 2:15 in the demo video — the matrix cascade-flip + curve jump — is also the Devpost project thumbnail.
 
 `app/page.tsx`:
+
 ```tsx
-import type { Metadata } from 'next'
+import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: 'ChaosLab — Adversarial Resilience for AI Agents',
-  description: 'Chaos engineering for LLM agents. Inject faults, watch them fail, harden automatically.',
+  title: "ChaosLab — Adversarial Resilience for AI Agents",
+  description:
+    "Chaos engineering for LLM agents. Inject faults, watch them fail, harden automatically.",
   openGraph: {
-    title: 'ChaosLab — Adversarial Resilience for AI Agents',
-    description: '...',
-    images: ['/og-hero.png'],  // 1200x630 PNG of the matrix+curve hero
+    title: "ChaosLab — Adversarial Resilience for AI Agents",
+    description: "...",
+    images: ["/og-hero.png"], // 1200x630 PNG of the matrix+curve hero
   },
-  twitter: { card: 'summary_large_image', images: ['/og-hero.png'] },
-}
+  twitter: { card: "summary_large_image", images: ["/og-hero.png"] },
+};
 ```
 
 ---
@@ -465,39 +490,39 @@ export const metadata: Metadata = {
 Install: `pnpm add -D @playwright/test`.
 
 `playwright.config.ts`:
+
 ```ts
-import { defineConfig, devices } from '@playwright/test'
+import { defineConfig, devices } from "@playwright/test";
 
 export default defineConfig({
-  testDir: './tests/e2e',
+  testDir: "./tests/e2e",
   fullyParallel: true,
   use: {
-    baseURL: process.env.PLAYWRIGHT_BASE_URL ?? 'http://localhost:3000',
-    trace: 'on-first-retry',
-    screenshot: 'only-on-failure',
+    baseURL: process.env.PLAYWRIGHT_BASE_URL ?? "http://localhost:3000",
+    trace: "on-first-retry",
+    screenshot: "only-on-failure",
   },
-  projects: [
-    { name: 'chromium', use: { ...devices['Desktop Chrome'] } },
-  ],
+  projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"] } }],
   webServer: {
-    command: 'pnpm dev',
-    url: 'http://localhost:3000',
+    command: "pnpm dev",
+    url: "http://localhost:3000",
     reuseExistingServer: !process.env.CI,
   },
-})
+});
 ```
 
 **Screenshot regression:**
-```ts
-import { test, expect } from '@playwright/test'
 
-test('attack matrix renders 25 cells', async ({ page }) => {
-  await page.goto('/demo?canonical=1')
-  await page.waitForSelector('[data-testid="attack-matrix"]')
-  await expect(page).toHaveScreenshot('attack-matrix-canonical.png', {
-    maxDiffPixelRatio: 0.02,  // 2% tolerance for AA differences
-  })
-})
+```ts
+import { test, expect } from "@playwright/test";
+
+test("attack matrix renders 25 cells", async ({ page }) => {
+  await page.goto("/demo?canonical=1");
+  await page.waitForSelector('[data-testid="attack-matrix"]');
+  await expect(page).toHaveScreenshot("attack-matrix-canonical.png", {
+    maxDiffPixelRatio: 0.02, // 2% tolerance for AA differences
+  });
+});
 ```
 
 **`sahil-visual-loop` integration:** the skill drops in a Playwright config + a screenshot-diff hook + a fresh-context Opus 4.7 reviewer. Invoke once at Day 1 frontend scaffold via `Skill sahil-visual-loop`. Everything below is what the skill installs — don't reimplement.
@@ -508,7 +533,7 @@ test('attack matrix renders 25 cells', async ({ page }) => {
 
 - **Hydration mismatches:** don't read `Date.now()`, `window.X`, or `Math.random()` in render. Wrap in `useEffect` (client) or `headers()`/`cookies()` (server).
 - **`'use client'` boundary too high:** if a single component needs `useState`, ONLY that component should be `'use client'`. Not its parent page.
-- **Tailwind purging dynamic classes:** Tailwind only ships classes it sees literally. `className={\`bg-${color}-500\`}` won't ship anything. Use a static lookup: `const colorMap = { red: 'bg-red-500', green: 'bg-green-500' }`.
+- **Tailwind purging dynamic classes:** Tailwind only ships classes it sees literally. `className={\`bg-${color}-500\`}`won't ship anything. Use a static lookup:`const colorMap = { red: 'bg-red-500', green: 'bg-green-500' }`.
 - **Importing server-only code in a client component:** if you mark a file `'use client'` and it imports a module using `fs`, `next/headers`, etc., the build will error. Move the server-only logic to a server component or server action.
 - **Forgetting `'use client'` on event handlers:** any component with `onClick`, `onChange`, etc. MUST be `'use client'`.
 

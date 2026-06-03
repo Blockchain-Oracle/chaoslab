@@ -156,47 +156,48 @@ rapid-agents/                                      # project root
 
 ### Python (backend — `chaoslab-agent`, `target-agent`)
 
-| Library | Purpose | How to add |
-|---|---|---|
-| `google-adk` | The agent framework | `uv add google-adk` |
-| `arize-phoenix` | Phoenix client + eval framework | `uv add arize-phoenix` |
-| `arize-phoenix-otel` | OpenInference → Phoenix exporter | `uv add arize-phoenix-otel` |
-| `arize-phoenix-client` | Python client for Phoenix Cloud (experiments, datasets, annotations) | `uv add arize-phoenix-client` |
-| `openinference-instrumentation-google-adk` | Auto-instruments ADK with OpenInference spans | `uv add openinference-instrumentation-google-adk` |
-| `openinference-instrumentation-langchain` | Tier 2 LangChain target instrumentation | `uv add openinference-instrumentation-langchain` |
-| `openinference-instrumentation-crewai` | Tier 2 CrewAI target instrumentation | `uv add openinference-instrumentation-crewai` |
-| `pydantic` v2 + `pydantic-settings` | Schemas + env-based config | `uv add pydantic pydantic-settings` |
-| `httpx` | Async HTTP client | `uv add httpx` |
-| `respx` | Mock httpx in tests | `uv add --dev respx` |
-| `structlog` | Structured logging with Phoenix trace ID propagation | `uv add structlog` |
-| `typer` | CLI (`chaoslab run`, `chaoslab status`, etc.) | `uv add typer` |
-| `python-gitlab` | GitLab MR emission (until official GitLab MCP Python SDK exists) | `uv add python-gitlab` |
-| `mcp` | Official MCP Python SDK for the Phoenix MCP client side | `uv add mcp` |
-| `google-cloud-secret-manager` | Read secrets at runtime | `uv add google-cloud-secret-manager` |
-| `pytest` + `pytest-asyncio` + `pytest-cov` | Tests | `uv add --dev pytest pytest-asyncio pytest-cov` |
-| `hypothesis` | Property-based tests | `uv add --dev hypothesis` |
+| Library                                             | Purpose                                                                                                | How to add                                                                                                                            |
+| --------------------------------------------------- | ------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------- |
+| `google-adk`                                        | The agent framework                                                                                    | `uv add google-adk`                                                                                                                   |
+| `arize-phoenix`                                     | Phoenix client + eval framework                                                                        | `uv add arize-phoenix`                                                                                                                |
+| `arize-phoenix-otel`                                | OpenInference → Phoenix exporter                                                                       | `uv add arize-phoenix-otel`                                                                                                           |
+| `arize-phoenix-client`                              | Python client for Phoenix Cloud (experiments, datasets, annotations)                                   | `uv add arize-phoenix-client`                                                                                                         |
+| `openinference-instrumentation-google-adk`          | Auto-instruments ADK with OpenInference spans                                                          | `uv add openinference-instrumentation-google-adk`                                                                                     |
+| `openinference-instrumentation-langchain`           | Tier 2 LangChain target instrumentation                                                                | `uv add openinference-instrumentation-langchain`                                                                                      |
+| `openinference-instrumentation-crewai`              | Tier 2 CrewAI target instrumentation                                                                   | `uv add openinference-instrumentation-crewai`                                                                                         |
+| `pydantic` v2 + `pydantic-settings`                 | Schemas + env-based config                                                                             | `uv add pydantic pydantic-settings`                                                                                                   |
+| `httpx`                                             | Async HTTP client                                                                                      | `uv add httpx`                                                                                                                        |
+| `respx`                                             | Mock httpx in tests                                                                                    | `uv add --dev respx`                                                                                                                  |
+| `structlog`                                         | Structured logging with Phoenix trace ID propagation                                                   | `uv add structlog`                                                                                                                    |
+| `typer`                                             | CLI (`chaoslab run`, `chaoslab status`, etc.)                                                          | `uv add typer`                                                                                                                        |
+| `python-gitlab`                                     | GitLab MR emission (until official GitLab MCP Python SDK exists)                                       | `uv add python-gitlab`                                                                                                                |
+| `mcp`                                               | Official MCP Python SDK for the Phoenix MCP client side                                                | `uv add mcp`                                                                                                                          |
+| `google-cloud-secret-manager`                       | Read secrets at runtime                                                                                | `uv add google-cloud-secret-manager`                                                                                                  |
+| `pytest` + `pytest-asyncio` + `pytest-cov`          | Tests                                                                                                  | `uv add --dev pytest pytest-asyncio pytest-cov`                                                                                       |
+| `hypothesis`                                        | Property-based tests                                                                                   | `uv add --dev hypothesis`                                                                                                             |
 | **Vendored:** `deepankarm/agent-chaos` (Apache-2.0) | Fault primitive library — saves 3-4 days of build (per `architecture/01-reference-implementations.md`) | Copy `src/agent_chaos/chaos/{llm,tool,user}.py` into `chaoslab-agent/src/chaoslab_agent/injector/faults/_vendored/`; add NOTICE entry |
 
 ### TypeScript (frontend — `chaoslab-web`)
 
-| Library | Purpose | How to add |
-|---|---|---|
-| `next` (15.x) | Framework | `pnpm add next` |
-| `react` + `react-dom` (19.x) | UI runtime | `pnpm add react react-dom` |
-| `tailwindcss` (4.x) + `@tailwindcss/postcss` | Styling | `pnpm add -D tailwindcss @tailwindcss/postcss` |
-| `shadcn/ui` (CLI) | Component generation | `pnpm dlx shadcn@latest add button card badge dialog tabs scroll-area separator toast tooltip` |
-| `@visx/*` | Chart primitives | `pnpm add @visx/group @visx/scale @visx/shape @visx/grid @visx/axis @visx/responsive @visx/text` |
-| `framer-motion` | Animation | `pnpm add framer-motion` |
-| `zustand` (v5) | Client state | `pnpm add zustand` |
-| `@tanstack/react-query` (v5) | Server state | `pnpm add @tanstack/react-query` |
-| `nuqs` | URL state | `pnpm add nuqs` |
-| `zod` | Env + schema validation | `pnpm add zod` |
-| `@playwright/test` | E2E + visual regression | `pnpm add -D @playwright/test` |
-| `vitest` + `@testing-library/react` | Unit tests | `pnpm add -D vitest @testing-library/react @testing-library/jest-dom jsdom` |
+| Library                                      | Purpose                 | How to add                                                                                       |
+| -------------------------------------------- | ----------------------- | ------------------------------------------------------------------------------------------------ |
+| `next` (15.x)                                | Framework               | `pnpm add next`                                                                                  |
+| `react` + `react-dom` (19.x)                 | UI runtime              | `pnpm add react react-dom`                                                                       |
+| `tailwindcss` (4.x) + `@tailwindcss/postcss` | Styling                 | `pnpm add -D tailwindcss @tailwindcss/postcss`                                                   |
+| `shadcn/ui` (CLI)                            | Component generation    | `pnpm dlx shadcn@latest add button card badge dialog tabs scroll-area separator toast tooltip`   |
+| `@visx/*`                                    | Chart primitives        | `pnpm add @visx/group @visx/scale @visx/shape @visx/grid @visx/axis @visx/responsive @visx/text` |
+| `framer-motion`                              | Animation               | `pnpm add framer-motion`                                                                         |
+| `zustand` (v5)                               | Client state            | `pnpm add zustand`                                                                               |
+| `@tanstack/react-query` (v5)                 | Server state            | `pnpm add @tanstack/react-query`                                                                 |
+| `nuqs`                                       | URL state               | `pnpm add nuqs`                                                                                  |
+| `zod`                                        | Env + schema validation | `pnpm add zod`                                                                                   |
+| `@playwright/test`                           | E2E + visual regression | `pnpm add -D @playwright/test`                                                                   |
+| `vitest` + `@testing-library/react`          | Unit tests              | `pnpm add -D vitest @testing-library/react @testing-library/jest-dom jsdom`                      |
 
 ### Context7 library research rule (mandatory)
 
 Before implementing anything from scratch:
+
 ```bash
 mcp__plugin_context7_context7__resolve-library-id libraryName="<what you need>"
 mcp__plugin_context7_context7__query-docs context7CompatibleLibraryID="<id>" topic="<area>" tokens=5000
@@ -357,6 +358,7 @@ This schema is canonical. Both Markdown emitter and GitLab emitter render from t
 ## CI requirements
 
 See `docs/cicd.md` for the full spec. Summary: `setup-repo.sh` (called from Story-1.1) drops:
+
 - `.github/workflows/pr-checks.yaml` (lint + tests + 400-line + type-check + coverage threshold)
 - `.github/workflows/staging-deploy.yaml` (build + push to Artifact Registry + deploy to Cloud Run staging on merge to main)
 - `.github/workflows/prod-promote.yaml` (manually triggered promotion of same image hash to prod)
@@ -371,18 +373,21 @@ See `docs/cicd.md` for the full spec. Summary: `setup-repo.sh` (called from Stor
 Coding agent verifies before submission:
 
 ### §14 — No mocks in hot path
+
 - [ ] `grep -rE "(mock|fake|dummy|hardcoded|simulated)" apps/chaoslab-agent/src/` returns zero unjustified hits (test files exempt)
 - [ ] Target agent uses real Gemini, real ADK tools
 - [ ] Phoenix integration hits real Phoenix Cloud / self-hosted instance
 - [ ] GitLab MR emission hits real `gitlab.com/api/v4/mcp` if enabled
 
 ### §13 — README shape
+
 - [ ] `README.md` has: title, one-line pitch, demo URL (Cloud Run, NOT localhost), screenshot/GIF of cascade-flip, 3-step run-locally, license link, Apache-2.0 attribution to vendored `deepankarm/agent-chaos`
 - [ ] `LICENSE` (Apache-2.0) + `NOTICE` (vendoring attribution) present
 - [ ] Demo URL actually loads (not localhost)
 - [ ] Multiple commits showing iteration (orchestrator handles this naturally via per-story PRs)
 
 ### §12 — UI structure
+
 - [ ] Header on every demo route (chaoslab-web)
 - [ ] Footer on landing page
 - [ ] No placeholder copy ("John Doe", "lorem ipsum")
@@ -391,6 +396,7 @@ Coding agent verifies before submission:
 - [ ] Reduced-motion accessibility (per `best-practices/04 §13`)
 
 ### CI
+
 - [ ] `.github/workflows/*.yaml` present and green on main
 - [ ] `pytest` runs real behavioral tests (≥80 test cases minimum across all 3 apps — coding agents add tests per story)
 - [ ] `pnpm test` runs real behavioral tests (≥30 cases for `chaoslab-web`)
@@ -401,11 +407,13 @@ Coding agent verifies before submission:
 - [ ] `pnpm lint` passes
 
 ### Phoenix integration
+
 - [ ] Canonical replay traces visible in Phoenix Cloud project `chaoslab-demo`
 - [ ] Attack Matrix cells correspond to real Phoenix span IDs (clickable → opens Phoenix span view)
 - [ ] HardeningRecipe artifact persisted to GCS and accessible via the demo Receipt card
 
 ### Demo
+
 - [ ] Demo URL accessible without login
 - [ ] Canonical replay completes in ≤30 seconds (`/replay` route)
 - [ ] Live attack run completes in ≤3 minutes (`/attack` route)

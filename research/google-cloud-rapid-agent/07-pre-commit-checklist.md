@@ -9,6 +9,7 @@ This is the gate that prevents the "I built it but realized too late it doesn't 
 ## Q1: Which track am I entering, and why this one?
 
 **The answer must include:**
+
 - The track name
 - The lane-EV reason (from `06-hidden-field.md`)
 - The personal-fit reason (skills, time budget, what you actually find interesting)
@@ -17,10 +18,11 @@ This is the gate that prevents the "I built it but realized too late it doesn't 
 **For Abu (recommendation):** Arize.
 
 Why:
+
 - Lane-EV: predicted GREEN (least crowded), ~3× the structural win-odds of MongoDB/GitLab at the same $10K bucket payout (`06-hidden-field.md`).
-- Personal fit: Abu already uses AI agent coding tools daily. The recursive "agent that observes/grades agents" angle is genuine, not contrived. Phoenix MCP lets the *built* agent read back its own traces, run evals on past runs, and propose its own improvements.
+- Personal fit: Abu already uses AI agent coding tools daily. The recursive "agent that observes/grades agents" angle is genuine, not contrived. Phoenix MCP lets the _built_ agent read back its own traces, run evals on past runs, and propose its own improvements.
 - No trial clock: Phoenix Cloud is free and stays free past judging.
-- Unique enable: Phoenix MCP exposes traces, prompts, datasets, experiments. No other partner gives the agent the ability to introspect its *own* execution.
+- Unique enable: Phoenix MCP exposes traces, prompts, datasets, experiments. No other partner gives the agent the ability to introspect its _own_ execution.
 
 Backup if Arize feels too cerebral after deep-reading `partner-arize.md`: **Fivetran**. Best mental-model match to multi-chain indexers; cleanest "before/after" demo arc. Pay the trial-squeeze tax.
 
@@ -36,14 +38,14 @@ Not "an agent for finance" — that's a domain. The problem must fit this format
 
 **Abu must write the answer in his own words** before building. Examples for an Arize-track agent:
 
-- *"A solo hackathon dev shipping under deadline pressure wastes 4+ hours debugging why their LLM agent went off the rails. My agent ingests Phoenix traces from a target agent, identifies prompt or tool-call failures, proposes a fix as a diff, and runs an A/B eval comparing old vs new prompt on a regression set — all autonomously."*
-- *"An ML platform team debugging a customer-facing chatbot can't tell whether degradation is from prompt drift or context-window pollution. My agent ingests Phoenix traces, runs a structured eval, hypothesizes the root cause class, and writes a Slack-postable incident report with a recommended action."*
+- _"A solo hackathon dev shipping under deadline pressure wastes 4+ hours debugging why their LLM agent went off the rails. My agent ingests Phoenix traces from a target agent, identifies prompt or tool-call failures, proposes a fix as a diff, and runs an A/B eval comparing old vs new prompt on a regression set — all autonomously."_
+- _"An ML platform team debugging a customer-facing chatbot can't tell whether degradation is from prompt drift or context-window pollution. My agent ingests Phoenix traces, runs a structured eval, hypothesizes the root cause class, and writes a Slack-postable incident report with a recommended action."_
 
 ---
 
 ## Q3: What does the agent DO that's not just retrieval?
 
-The Devpost rules text says explicitly: *"Move Beyond Chat: Your agent shouldn't just answer questions. It should use tools and capabilities to accomplish tasks."*
+The Devpost rules text says explicitly: _"Move Beyond Chat: Your agent shouldn't just answer questions. It should use tools and capabilities to accomplish tasks."_
 
 The agent must take **at least one consequential action** that touches a real system. Acceptable:
 
@@ -64,11 +66,12 @@ Not enough on its own: search → respond. Q&A. Show-me-results.
 
 Pull the actual MCP tool list from the partner file (`partner-arize.md`, etc.) and write down which tools your agent will invoke.
 
-Why: judges scoring "Technological Implementation" want to see *which* tools you used and *why*. A submission that calls 1 MCP tool out of the 15-100+ available is a "Stage 2 mediocre" signal.
+Why: judges scoring "Technological Implementation" want to see _which_ tools you used and _why_. A submission that calls 1 MCP tool out of the 15-100+ available is a "Stage 2 mediocre" signal.
 
 **Aim for 3-5 distinct MCP tools** used in a single agent run. That's enough to demonstrate "real integration" and not so much that it gets messy.
 
 **For Arize/Phoenix MCP**, plausible 4-tool set:
+
 1. `phoenix_get_traces` (read recent traces from a target project)
 2. `phoenix_get_prompts` (read versioned prompts)
 3. `phoenix_create_dataset` (assemble an eval dataset)
@@ -81,6 +84,7 @@ Why: judges scoring "Technological Implementation" want to see *which* tools you
 Judges land on your hosted URL with no context. The first 30 seconds determine whether they keep scrolling or scoring you a 5/10 and moving on.
 
 **The demo URL must:**
+
 - Load without a login wall
 - Have one obvious "start the agent" action
 - Pre-load sample data so the agent has something to act on
@@ -107,15 +111,15 @@ The video is the **judging insurance** when trials expire mid-judging window (Se
 
 Honest answer required. From the prior-winner and per-track gotcha analysis, the top risks per track:
 
-| Track | Most likely killer |
-|---|---|
-| **Arize** | Using Phoenix only as a dashboard (no real eval loop). Auto-fail. |
-| **Elastic** | Cluster expires before judges hit your demo URL (video saves you only if it's good). |
-| **Fivetran** | Static demo; ingestion isn't actually live during the agent run. |
-| **GitLab** | Using a community MCP server instead of official `gitlab.com/api/v4/mcp`. |
-| **MongoDB** | Using Atlas as a dumb K/V store; no `$vectorSearch` query in the agent. |
-| **Dynatrace** | Mock telemetry instead of real OneAgent collection. |
-| **All** | Banned dependency (`anthropic`, `openai`, `langchain` as primary, etc.) detected by Stage-1 automated repo scan. |
+| Track         | Most likely killer                                                                                               |
+| ------------- | ---------------------------------------------------------------------------------------------------------------- |
+| **Arize**     | Using Phoenix only as a dashboard (no real eval loop). Auto-fail.                                                |
+| **Elastic**   | Cluster expires before judges hit your demo URL (video saves you only if it's good).                             |
+| **Fivetran**  | Static demo; ingestion isn't actually live during the agent run.                                                 |
+| **GitLab**    | Using a community MCP server instead of official `gitlab.com/api/v4/mcp`.                                        |
+| **MongoDB**   | Using Atlas as a dumb K/V store; no `$vectorSearch` query in the agent.                                          |
+| **Dynatrace** | Mock telemetry instead of real OneAgent collection.                                                              |
+| **All**       | Banned dependency (`anthropic`, `openai`, `langchain` as primary, etc.) detected by Stage-1 automated repo scan. |
 
 **For an Arize build, the killer is "Phoenix-as-dashboard."** Mitigation: the agent must do AT LEAST one round of: read trace → form hypothesis → write eval dataset → run experiment → write report. Not just "look at traces."
 
@@ -123,15 +127,15 @@ Honest answer required. From the prior-winner and per-track gotcha analysis, the
 
 ## The completed Q1-Q7 set for Abu (draft — fill in his actual choices)
 
-| # | Question | Abu's answer (DRAFT — Abu must confirm/edit) |
-|---|---|---|
-| Q1 | Track | **Arize** — predicted GREEN saturation, recursive angle, no trial clock |
-| Q2 | Concrete problem | *(TBD — Abu must write)* |
-| Q3 | Consequential action | Run a real Phoenix experiment with new prompt vs baseline |
-| Q4 | MCP tools | `phoenix_get_traces`, `phoenix_get_prompts`, `phoenix_create_dataset`, `phoenix_run_experiment` |
-| Q5 | Demo URL plan | Streamlit + ADK on Cloud Run, no-login sandbox with pre-loaded sample traces |
-| Q6 | Video story | Pain (15s) → agent acts (90s) → measured outcome (45s) → call to action (30s) |
-| Q7 | Most likely killer | "Phoenix as dashboard" — mitigate by enforcing real eval-loop in the agent path |
+| #   | Question             | Abu's answer (DRAFT — Abu must confirm/edit)                                                    |
+| --- | -------------------- | ----------------------------------------------------------------------------------------------- |
+| Q1  | Track                | **Arize** — predicted GREEN saturation, recursive angle, no trial clock                         |
+| Q2  | Concrete problem     | _(TBD — Abu must write)_                                                                        |
+| Q3  | Consequential action | Run a real Phoenix experiment with new prompt vs baseline                                       |
+| Q4  | MCP tools            | `phoenix_get_traces`, `phoenix_get_prompts`, `phoenix_create_dataset`, `phoenix_run_experiment` |
+| Q5  | Demo URL plan        | Streamlit + ADK on Cloud Run, no-login sandbox with pre-loaded sample traces                    |
+| Q6  | Video story          | Pain (15s) → agent acts (90s) → measured outcome (45s) → call to action (30s)                   |
+| Q7  | Most likely killer   | "Phoenix as dashboard" — mitigate by enforcing real eval-loop in the agent path                 |
 
 Abu fills in Q2 with his wedge sentence, confirms Q1, and gates the rest on that.
 

@@ -12,11 +12,11 @@
 
 ADK has **TWO** distinct multi-agent patterns and a **THIRD** that is just "agent as a tool":
 
-| Pattern | Transport | Latency | State sharing | Use when |
-|---|---|---|---|---|
-| **Sub-agents** (`sub_agents=[...]`) | In-process Python calls | µs to ms | Shared `InvocationContext` + session `state` dict | Same process, same team, same language |
-| **A2A peers** (`RemoteA2aAgent`) | HTTP (JSON-RPC 2.0, gRPC, or REST) | tens of ms to seconds | Message-passing only; opaque to each side | Cross-process, cross-language, cross-team |
-| **Agent-as-tool** (`AgentTool`) | In-process; wraps a child agent as a callable tool | µs | Parent invokes child with explicit args; result is returned | When the child should NOT see the parent's full context |
+| Pattern                             | Transport                                          | Latency               | State sharing                                               | Use when                                                |
+| ----------------------------------- | -------------------------------------------------- | --------------------- | ----------------------------------------------------------- | ------------------------------------------------------- |
+| **Sub-agents** (`sub_agents=[...]`) | In-process Python calls                            | µs to ms              | Shared `InvocationContext` + session `state` dict           | Same process, same team, same language                  |
+| **A2A peers** (`RemoteA2aAgent`)    | HTTP (JSON-RPC 2.0, gRPC, or REST)                 | tens of ms to seconds | Message-passing only; opaque to each side                   | Cross-process, cross-language, cross-team               |
+| **Agent-as-tool** (`AgentTool`)     | In-process; wraps a child agent as a callable tool | µs                    | Parent invokes child with explicit args; result is returned | When the child should NOT see the parent's full context |
 
 ADK additionally ships four **workflow agents** (`SequentialAgent`, `ParallelAgent`, `LoopAgent`, and the newer graph `Workflow`) that compose any of the three above into deterministic control flow.
 
@@ -31,6 +31,7 @@ For ChaosLab the design space spans (a) all-in-process subagent tree, (b) A2A pe
 **What it is.** A parent `LlmAgent` declares `sub_agents=[child1, child2, ...]`. The parent's LLM decides whether to delegate based on each child's `description` field. When it delegates, the child runs **in the same Python process**, receives the same `InvocationContext`, and reads/writes the same session `state` dict. Source: `google.adk.agents.base_agent.BaseAgent` — `sub_agents: list[BaseAgent]` plus `parent_agent` back-reference (https://github.com/google/adk-python/blob/main/src/google/adk/agents/base_agent.py).
 
 **When to use.**
+
 - Single deployment unit (one Cloud Run service or one Agent Runtime instance).
 - All agents authored by you in Python.
 - You want shared session state to flow automatically.
@@ -40,9 +41,10 @@ For ChaosLab the design space spans (a) all-in-process subagent tree, (b) A2A pe
 **Latency profile.** Function-call speed (microseconds). The only delay is the LLM inference itself.
 
 **State sharing.**
-- Children read the *same* `InvocationContext` as the parent.
-- Children read/write the *same* session `state` dict via `output_key` and `state["key"]` access.
-- Children can mutate state visible to siblings *and* to the parent's continuation logic.
+
+- Children read the _same_ `InvocationContext` as the parent.
+- Children read/write the _same_ session `state` dict via `output_key` and `state["key"]` access.
+- Children can mutate state visible to siblings _and_ to the parent's continuation logic.
 
 **Failure mode.** If a child raises, the exception propagates to the parent. If the parent process dies, all children die with it. There is no fault isolation. (This is the key axis on which ChaosLab needs to decide — see §8.)
 
@@ -73,18 +75,19 @@ coordinator = LlmAgent(
 )
 ```
 
-The `description` field on each sub-agent is **load-bearing** — the parent's LLM reads it to decide *when* to delegate. Source: https://github.com/google/adk-python/blob/v1.25.0/README.md.
+The `description` field on each sub-agent is **load-bearing** — the parent's LLM reads it to decide _when_ to delegate. Source: https://github.com/google/adk-python/blob/v1.25.0/README.md.
 
 ### 1.2 A2A peers (out-of-process via Agent-to-Agent Protocol)
 
-**What it is.** Each agent is exposed as an HTTP service implementing the A2A Protocol v1.0 (https://a2a-protocol.org/). A consumer references the remote agent via `RemoteA2aAgent`, which is a client-side proxy. The ADK official docs frame this as: *"Your agent code is integrated with an A2AServer... Your Root Agent uses a RemoteA2aAgent (an ADK component that acts as a client-side proxy for the remote agent) to establish communication."* (https://adk.dev/a2a/intro/).
+**What it is.** Each agent is exposed as an HTTP service implementing the A2A Protocol v1.0 (https://a2a-protocol.org/). A consumer references the remote agent via `RemoteA2aAgent`, which is a client-side proxy. The ADK official docs frame this as: _"Your agent code is integrated with an A2AServer... Your Root Agent uses a RemoteA2aAgent (an ADK component that acts as a client-side proxy for the remote agent) to establish communication."_ (https://adk.dev/a2a/intro/).
 
 **When to use** (per official ADK guidance — https://adk.dev/a2a/intro/):
+
 - Connecting independent agents running as separate services.
 - Integrating agents from different teams or organizations.
 - Cross-language agent communication (ADK has Python + TS + Java + Go + C#/.NET clients).
 - Enforcing formal contracts (Agent Cards) between components.
-- The "When NOT to use" doc says: *prefer local sub-agents for internal code organization, performance-critical operations, shared memory access, or simple helper functions.*
+- The "When NOT to use" doc says: _prefer local sub-agents for internal code organization, performance-critical operations, shared memory access, or simple helper functions._
 
 **Latency profile.** Tens to hundreds of milliseconds per call over HTTP. Streaming SSE pushes can amortize this but the first-byte latency is still HTTP-bound. [UNVERIFIED — no canonical Google number — but back-of-envelope for Cloud Run-to-Cloud Run inside one region is ~20-80ms p50.]
 
@@ -172,8 +175,8 @@ A2A messages are made of **Parts**, each containing exactly one of: text, raw by
 
 - `role` — `user` or `agent` (Python: `a2a.types.Role.user` / `Role.agent`)
 - `messageId` — unique UUID
-- `contextId` *(optional)* — for conversation continuity
-- `taskId` *(optional)* — for long-running tasks
+- `contextId` _(optional)_ — for conversation continuity
+- `taskId` _(optional)_ — for long-running tasks
 - `parts` — list of `Part(root=TextPart(text=...))` / `FilePart` / `DataPart`
 
 Example construction (a2a-python SDK):
@@ -189,7 +192,7 @@ message = Message(
 
 ### 2.2 Agent discovery — the Agent Card
 
-Each A2A server publishes an **Agent Card** at the well-known path `/.well-known/agent-card.json`. The card is a JSON metadata document declaring identity, capabilities, skills, endpoints, and auth requirements. Spec quote: *"Agent Card: A JSON metadata document published by an A2A Server, describing its identity, capabilities, skills, service endpoint, and authentication requirements."*
+Each A2A server publishes an **Agent Card** at the well-known path `/.well-known/agent-card.json`. The card is a JSON metadata document declaring identity, capabilities, skills, endpoints, and auth requirements. Spec quote: _"Agent Card: A JSON metadata document published by an A2A Server, describing its identity, capabilities, skills, service endpoint, and authentication requirements."_
 
 In a2a-python v1.0+, the structure looks like:
 
@@ -229,9 +232,10 @@ agent_card = AgentCard(
 
 ### 2.3 Authentication
 
-Per spec: *"The operation MUST authenticate the request using one of the schemes declared in the public AgentCard.securitySchemes."*
+Per spec: _"The operation MUST authenticate the request using one of the schemes declared in the public AgentCard.securitySchemes."_
 
 Supported schemes (all standard web security):
+
 - API key (header / query param)
 - HTTP Basic / Bearer
 - OAuth 2.0 (authorization code, client credentials, device code)
@@ -243,21 +247,23 @@ For Cloud Run + Google Cloud, the practical pattern is: deploy A2A peers as sepa
 ### 2.4 Capability negotiation
 
 Agents declare optional capabilities in `AgentCard.capabilities`:
+
 - `streaming` — supports SSE streaming responses
 - `pushNotifications` — supports webhook delivery
 - `extendedAgentCard` — provides authenticated extended metadata
 
-Per spec: *"When clients attempt to use operations or features that require capabilities not declared as supported... the agent MUST return an appropriate error."* The client SHOULD inspect the card before attempting capability-gated operations.
+Per spec: _"When clients attempt to use operations or features that require capabilities not declared as supported... the agent MUST return an appropriate error."_ The client SHOULD inspect the card before attempting capability-gated operations.
 
-This is **not** the same as "the parent agent learns what tools the child has." A2A is intentionally **opaque** about the remote's internals — quoting the official intro: *"agents to interact without needing to share internal memory, tools, or proprietary logic."* The Agent Card lists skills (named capabilities) but not the full internal toolset. This is a feature, not a bug — it lets ChaosLab swap the target-agent implementation without leaking abstractions.
+This is **not** the same as "the parent agent learns what tools the child has." A2A is intentionally **opaque** about the remote's internals — quoting the official intro: _"agents to interact without needing to share internal memory, tools, or proprietary logic."_ The Agent Card lists skills (named capabilities) but not the full internal toolset. This is a feature, not a bug — it lets ChaosLab swap the target-agent implementation without leaking abstractions.
 
 ### 2.5 Streaming vs request-response
 
 Two streaming operations:
+
 1. **Send Streaming Message** — client sends a message; server streams updates as it processes.
 2. **Subscribe to Task** — client attaches to an existing task to receive live updates (useful for long-running tasks).
 
-Both follow SSE patterns: *"The stream MUST follow one of these patterns: Message-only stream... or Task lifecycle stream."* Events are delivered in order; multiple concurrent streams per task are allowed.
+Both follow SSE patterns: _"The stream MUST follow one of these patterns: Message-only stream... or Task lifecycle stream."_ Events are delivered in order; multiple concurrent streams per task are allowed.
 
 The a2a-python client returns an async generator:
 
@@ -275,15 +281,15 @@ async with await ClientFactory.connect("https://my-agent.example.com") as client
 
 A2A defines protocol-agnostic error types that map to HTTP status / gRPC code / JSON-RPC error code per binding:
 
-| Error | Meaning |
-|---|---|
-| `TaskNotFoundError` | Task doesn't exist or is inaccessible |
-| `TaskNotCancelableError` | Task is in a terminal state |
-| `PushNotificationNotSupportedError` | Webhook capability not declared |
-| `UnsupportedOperationError` | Operation/feature not supported |
-| `ContentTypeNotSupportedError` | Media type not accepted |
-| `VersionNotSupportedError` | Protocol version mismatch |
-| `ExtensionSupportRequiredError` | Required extension not declared by client |
+| Error                               | Meaning                                   |
+| ----------------------------------- | ----------------------------------------- |
+| `TaskNotFoundError`                 | Task doesn't exist or is inaccessible     |
+| `TaskNotCancelableError`            | Task is in a terminal state               |
+| `PushNotificationNotSupportedError` | Webhook capability not declared           |
+| `UnsupportedOperationError`         | Operation/feature not supported           |
+| `ContentTypeNotSupportedError`      | Media type not accepted                   |
+| `VersionNotSupportedError`          | Protocol version mismatch                 |
+| `ExtensionSupportRequiredError`     | Required extension not declared by client |
 
 Error responses MUST convey: error code, error message, error details. This matters for ChaosLab — the chaos injector can stamp known-bad states and the orchestrator gets back a predictable error object instead of an opaque 500.
 
@@ -295,7 +301,7 @@ A2A supports three protocol bindings; an Agent Card can declare multiple `suppor
 2. **gRPC** — binary RPC with proto definitions. Lower overhead.
 3. **HTTP+JSON/REST** — standard REST endpoints with JSON payloads. Easiest to debug with curl.
 
-The a2a-python SDK README confirms: *"It supports JSON-RPC, HTTP+JSON/REST, and gRPC for both client and server roles across both specification versions [1.0 and 0.3]."*
+The a2a-python SDK README confirms: _"It supports JSON-RPC, HTTP+JSON/REST, and gRPC for both client and server roles across both specification versions [1.0 and 0.3]."_
 
 ---
 
@@ -309,7 +315,7 @@ ADK ships four canonical workflow agents (`SequentialAgent`, `ParallelAgent`, `L
 
 **Mechanic.** Each sub-agent runs in declared order. State passes via shared `InvocationContext` and per-agent `output_key`. Downstream agents reference upstream outputs in their `instruction` using template syntax `{key_name}`.
 
-```python
+````python
 from google.adk.agents.sequential_agent import SequentialAgent
 from google.adk.agents.llm_agent import LlmAgent
 
@@ -338,11 +344,11 @@ pipeline = SequentialAgent(
     name="CodePipeline",
     sub_agents=[code_writer, code_reviewer, code_refactorer],
 )
-```
+````
 
 **Resumability.** `SequentialAgent` stores its position in `SequentialAgentState` so if the runtime restarts mid-pipeline (paired with `<7-day` Agent Runtime execution), it can resume from the last completed sub-agent.
 
-**Use for ChaosLab when:** the chaos run is naturally pipelined — *inject → observe → cluster → patch* — and you don't need fault isolation between stages. **This is probably the ChaosLab default.**
+**Use for ChaosLab when:** the chaos run is naturally pipelined — _inject → observe → cluster → patch_ — and you don't need fault isolation between stages. **This is probably the ChaosLab default.**
 
 ### 3.2 Parallel — fan-out N, fan-in 1
 
@@ -380,7 +386,7 @@ root = SequentialAgent(sub_agents=[fan_out, synthesizer])
 
 **Source:** `google.adk.workflow.Workflow` (https://github.com/google/adk-python/blob/main/src/google/adk/workflow/_workflow.py).
 
-**Mechanic.** Nodes + edges with conditional routes. Edges support `route` predicates so a node can emit a route value and the next node is chosen by the matching edge. The class doc says: *"`_run_impl()` IS the graph orchestration loop: SETUP: build graph, seed triggers — LOOP: schedule ready nodes via NodeRunner, handle completions — FINALIZE: collect terminal outputs."*
+**Mechanic.** Nodes + edges with conditional routes. Edges support `route` predicates so a node can emit a route value and the next node is chosen by the matching edge. The class doc says: _"`_run_impl()` IS the graph orchestration loop: SETUP: build graph, seed triggers — LOOP: schedule ready nodes via NodeRunner, handle completions — FINALIZE: collect terminal outputs."_
 
 ```python
 from google.adk.workflow import Workflow
@@ -405,7 +411,7 @@ workflow = Workflow(
 
 **Key feature:** `rerun_on_resume: bool = True` — the workflow re-runs failed nodes on resume. Pairs with `<1s cold start + 7-day execution lifetime` from `02b §5`.
 
-**Use for ChaosLab when:** the chaos loop is non-trivial — for example, *inject → observe → if failure cluster looks novel, branch to a deep-replay sub-graph; otherwise loop with a harder seed*. This is the most ChaosLab-shaped primitive but also the most complex to author for a hackathon.
+**Use for ChaosLab when:** the chaos loop is non-trivial — for example, _inject → observe → if failure cluster looks novel, branch to a deep-replay sub-graph; otherwise loop with a harder seed_. This is the most ChaosLab-shaped primitive but also the most complex to author for a hackathon.
 
 ### 3.4 Hierarchical — supervisor + workers
 
@@ -429,7 +435,7 @@ Step 4: if classified as Class A or B, call PatchGenerator.""",
 )
 ```
 
-**Use for ChaosLab when:** the run is *adaptive* — the supervisor decides which sub-agent to call based on the previous result, rather than a fixed pipeline.
+**Use for ChaosLab when:** the run is _adaptive_ — the supervisor decides which sub-agent to call based on the previous result, rather than a fixed pipeline.
 
 ### 3.5 Swarm / debate — consensus through conversation
 
@@ -462,16 +468,16 @@ The refiner calls `tool_context.actions.escalate = True` to break the loop early
 
 ### 3.6 Pattern recommendation matrix for ChaosLab
 
-| Pattern | ChaosLab use case | Likelihood |
-|---|---|---|
-| **Sequential** | Default chaos pipeline: inject → observe → cluster → patch | **High** |
-| **Parallel** | Run same seed against N target variants for benchmarking | Medium |
-| **Loop** | Iterative "find a fault that breaks the target" search; or critic↔refiner patch debate | Medium |
-| **Graph** | Adaptive routing: branch on whether failure is novel vs known | Medium-low (complexity cost) |
-| **Hierarchical** | Supervisor reads run-context and picks the right specialist | High (combine with Sequential) |
-| **Sub-agent (in-process)** | All four ChaosLab roles in one process | Default for v0 demo |
-| **A2A peer (out-of-process)** | Target agent as separate Cloud Run service so it can crash safely | **Strong fit for the "chaos" thesis** |
-| **AgentTool** | Patch generator called as opaque tool by orchestrator | Likely for the patch step |
+| Pattern                       | ChaosLab use case                                                                      | Likelihood                            |
+| ----------------------------- | -------------------------------------------------------------------------------------- | ------------------------------------- |
+| **Sequential**                | Default chaos pipeline: inject → observe → cluster → patch                             | **High**                              |
+| **Parallel**                  | Run same seed against N target variants for benchmarking                               | Medium                                |
+| **Loop**                      | Iterative "find a fault that breaks the target" search; or critic↔refiner patch debate | Medium                                |
+| **Graph**                     | Adaptive routing: branch on whether failure is novel vs known                          | Medium-low (complexity cost)          |
+| **Hierarchical**              | Supervisor reads run-context and picks the right specialist                            | High (combine with Sequential)        |
+| **Sub-agent (in-process)**    | All four ChaosLab roles in one process                                                 | Default for v0 demo                   |
+| **A2A peer (out-of-process)** | Target agent as separate Cloud Run service so it can crash safely                      | **Strong fit for the "chaos" thesis** |
+| **AgentTool**                 | Patch generator called as opaque tool by orchestrator                                  | Likely for the patch step             |
 
 ---
 
@@ -483,14 +489,14 @@ Repo: https://github.com/GoogleCloudPlatform/agent-starter-pack. Docs: https://g
 
 Confirmed templates (verified 2026-06-02 against the docs):
 
-| Template | What it demonstrates | Deployment | ChaosLab fit |
-|---|---|---|---|
-| `adk` | Base ReAct agent. Single ADK agent, tool use, reasoning. | Cloud Run, Cloud Functions | Starting point for the orchestrator |
-| `adk_a2a` | **ADK + A2A Protocol.** Distributed agent communication. Cross-framework interop. | Cloud Run | **Closest to ChaosLab's multi-service shape** |
-| `agentic_rag` | RAG agent with Vertex AI Search + Vector Search; data ingestion pipeline | Cloud Run, Terraform | Useful if ChaosLab needs to retrieve historical failure traces |
-| `adk_live` | Real-time multimodal RAG (audio/video/text) over WebSocket | Cloud Run | Not relevant for ChaosLab |
-| `adk_go` / `adk_ts` / `adk_java` | Same as `adk` but Go / TypeScript / Java | Cloud Run | Use only if you need a non-Python target agent |
-| `langgraph` | ReAct via LangGraph with A2A support | Cloud Run | **AVOID — banned as primary orchestrator by hackathon rules §7B** |
+| Template                         | What it demonstrates                                                              | Deployment                 | ChaosLab fit                                                      |
+| -------------------------------- | --------------------------------------------------------------------------------- | -------------------------- | ----------------------------------------------------------------- |
+| `adk`                            | Base ReAct agent. Single ADK agent, tool use, reasoning.                          | Cloud Run, Cloud Functions | Starting point for the orchestrator                               |
+| `adk_a2a`                        | **ADK + A2A Protocol.** Distributed agent communication. Cross-framework interop. | Cloud Run                  | **Closest to ChaosLab's multi-service shape**                     |
+| `agentic_rag`                    | RAG agent with Vertex AI Search + Vector Search; data ingestion pipeline          | Cloud Run, Terraform       | Useful if ChaosLab needs to retrieve historical failure traces    |
+| `adk_live`                       | Real-time multimodal RAG (audio/video/text) over WebSocket                        | Cloud Run                  | Not relevant for ChaosLab                                         |
+| `adk_go` / `adk_ts` / `adk_java` | Same as `adk` but Go / TypeScript / Java                                          | Cloud Run                  | Use only if you need a non-Python target agent                    |
+| `langgraph`                      | ReAct via LangGraph with A2A support                                              | Cloud Run                  | **AVOID — banned as primary orchestrator by hackathon rules §7B** |
 
 ### 4.2 `adk_a2a` template structure (per official docs)
 
@@ -515,6 +521,7 @@ cd chaos-lab && make install && make playground
 ```
 
 The template auto-wires:
+
 - `to_a2a()` exposes the agent as an A2A server on `$PORT`.
 - Cloud Build / GitHub Actions deploys to Cloud Run.
 - The Dockerfile sets `CMD ["uvicorn", "app.agent:a2a_app", "--host", "0.0.0.0", "--port", "8080"]`.
@@ -524,6 +531,7 @@ The template auto-wires:
 ### 4.3 Closest template to ChaosLab's shape
 
 **`adk_a2a` is the right scaffold.** Reasoning:
+
 - ChaosLab has at minimum 2-3 separately-deployable components (target agent + orchestrator).
 - The target agent needs fault isolation — it's the thing being broken.
 - A2A's opacity is a feature: ChaosLab shouldn't see inside the target.
@@ -531,7 +539,7 @@ The template auto-wires:
 
 Pattern: scaffold `adk_a2a` **twice** — once for the target agent (the "victim"), once for the orchestrator that contains the injector + judge + patcher as in-process sub-agents and calls the target via `RemoteA2aAgent`. Two Cloud Run services. ~$1-2 of credit to demo.
 
-Alternative: scaffold `adk_a2a` for *each* role — 4 Cloud Run services, full A2A peer mesh. Heavier ops, cleaner topology. See §8 candidate C.
+Alternative: scaffold `adk_a2a` for _each_ role — 4 Cloud Run services, full A2A peer mesh. Heavier ops, cleaner topology. See §8 candidate C.
 
 ---
 
@@ -579,12 +587,14 @@ User hypothesis
 **Tools.** External financial APIs (Alpha Vantage, Financial Modeling Prep, Yahoo Finance fallbacks), PostgreSQL+pgvector for historical data.
 
 **Tradeoffs they made:**
+
 - Sequential pipeline > DAG. Simpler. Less reusable.
 - All in one process. No fault isolation between agents.
 - Multiple API fallbacks because individual data sources rate-limit.
 
 **What ChaosLab can copy:**
-- **The Contradiction Agent pattern** — an agent whose explicit job is to argue against the previous one's output. ChaosLab's "failure judge" can be split into a *failure-detector* + a *failure-defender* that argues whether the proposed failure is actually a bug or expected behavior.
+
+- **The Contradiction Agent pattern** — an agent whose explicit job is to argue against the previous one's output. ChaosLab's "failure judge" can be split into a _failure-detector_ + a _failure-defender_ that argues whether the proposed failure is actually a bug or expected behavior.
 - The Sequential-with-output_keys composition. Cleanest path for a hackathon timeline.
 - The custom orchestrator class that wraps `Runner` — useful if you want a non-LLM driver between steps.
 
@@ -601,6 +611,7 @@ User hypothesis
 ```
 
 **Composition (declared in their submission):**
+
 - 21 × `LlmAgent`
 - 7 × `SequentialAgent`
 - 1 × `ParallelAgent` (lead-research fan-out)
@@ -609,6 +620,7 @@ User hypothesis
 - = **34 distinct agents across 5 Cloud Run microservices, communicating via A2A protocol**
 
 **Patterns applied:**
+
 - **Fan-out / Gather** for parallel lead research (ParallelAgent)
 - **Review / Critique** for proposal validation (LoopAgent w/ critic+refiner)
 - **Iterative refinement** (LoopAgent)
@@ -640,24 +652,28 @@ User hypothesis
 ```
 
 **Tradeoffs:**
+
 - Heavy operational complexity (5 services, PubSub, Gmail Watchers, service accounts).
 - BUT: clean fault isolation per stage; clean scaling profile per stage.
-- 34 agents = "advanced ADK pattern coverage" was *itself* the demo signal — judges saw breadth.
+- 34 agents = "advanced ADK pattern coverage" was _itself_ the demo signal — judges saw breadth.
 
 **What ChaosLab can copy:**
-- **A2A between microservices, sub-agents within each service.** Best of both. This is the "hybrid" topology — *don't pick A2A or sub-agents; use both at the right level.*
+
+- **A2A between microservices, sub-agents within each service.** Best of both. This is the "hybrid" topology — _don't pick A2A or sub-agents; use both at the right level._
 - The pattern-name labeling. ChaosLab's video should explicitly name "We use the Critic+Refiner pattern for patch validation, ParallelAgent for fault-class search, ..." Judges score on Tech Implementation; naming patterns is free signal.
 
 ### 5.3 Apollo Deep Research — debate / verification with state machine
 
-**Source:** https://github.com/manasseh-zw/apollo. Microsoft AI Agents Hackathon 2025 winner. **Note: built on Semantic Kernel, not ADK** — but the *pattern* is what matters.
+**Source:** https://github.com/manasseh-zw/apollo. Microsoft AI Agents Hackathon 2025 winner. **Note: built on Semantic Kernel, not ADK** — but the _pattern_ is what matters.
 
 **Three agents:**
+
 - **Apollo** (Research Coordinator) — orchestrator. Manages task distribution.
 - **Athena** (Research Engine) — generates 3-5 SERP queries per research question, ingests 5-10 results each via Exa AI Search.
 - **Hermes** (Research Analyzer) — performs **Self-Reflective RAG** — asks the vector store to critique its own knowledge gaps.
 
-**Communication.** *Dual pathway*:
+**Communication.** _Dual pathway_:
+
 1. **Chat history** via Semantic Kernel's `AgentGroupChat`.
 2. **State machine** that passes information **outside** the chat history context window, preventing token bloat and rate limiting.
 
@@ -689,17 +705,19 @@ User hypothesis
    └─────────────────────────────┘
 ```
 
-**Stop condition.** *"This cycle continues until no significant knowledge gaps remain (with strict boundaries to prevent infinite loops)."* — Apollo README. Equivalent to ADK's `LoopAgent(max_iterations=N)` + `exit_loop` tool.
+**Stop condition.** _"This cycle continues until no significant knowledge gaps remain (with strict boundaries to prevent infinite loops)."_ — Apollo README. Equivalent to ADK's `LoopAgent(max_iterations=N)` + `exit_loop` tool.
 
 **State storage.** PostgreSQL/pgvector. States: `planning → orchestration → gathering → analysis → synthesis → ready → complete`. Tracked in DB throughout.
 
 **Tradeoffs:**
+
 - Dual-channel communication (chat + state machine) avoids context-window bloat — useful pattern for long ChaosLab runs where the orchestrator's chat history would blow past 1M tokens after a few hundred fault injections.
-- C# / .NET stack — not directly portable to ADK Python, but the *shape* is one-to-one.
+- C# / .NET stack — not directly portable to ADK Python, but the _shape_ is one-to-one.
 
 **What ChaosLab can copy:**
+
 - **The "state machine outside chat history" idea.** ChaosLab will generate huge volumes of trace data per chaos run. Don't put it in the LLM's context — store it in a vector index or Memory Bank, let agents query via tools. This maps to ADK's `output_key` + `state` dict + `VertexAiMemoryBankService`.
-- **Self-reflective RAG for failure analysis.** Hermes's "ask the store to critique itself" pattern is exactly how ChaosLab's failure judge should query past chaos runs: *"have we seen this failure class before? If yes, what's the patch history?"*
+- **Self-reflective RAG for failure analysis.** Hermes's "ask the store to critique itself" pattern is exactly how ChaosLab's failure judge should query past chaos runs: _"have we seen this failure class before? If yes, what's the patch history?"_
 - **Coordinator-Engine-Analyzer triangle.** Maps cleanly to ChaosLab's Orchestrator-Injector-Judge. Add a fourth Patcher and you have the C4 candidate in §8.
 
 ---
@@ -711,6 +729,7 @@ User hypothesis
 ### 6.1 What Memory Bank is
 
 A **managed long-term memory store** that's part of Agent Runtime. Two roles:
+
 1. **Storage:** Ingest completed sessions; consolidate facts; persist beyond a single session.
 2. **Retrieval:** Search via semantic similarity over stored memories.
 
@@ -792,6 +811,7 @@ adk web ./agents --memory_service_uri="agentengine://1234567890"
 ```
 
 **Three `MemoryService` implementations** ship in ADK:
+
 - `InMemoryMemoryService` — prototyping, no persistence, keyword search.
 - `VertexAiMemoryBankService` — production, semantic search via LLM extraction.
 - `VertexAiRagMemoryService` — vector search over a Knowledge Engine RAG corpus.
@@ -853,11 +873,12 @@ So **all three semantic options are vector-indexed**. There's no native key-valu
 **Yes — for one specific job: tracking which fault classes a given target agent has been hardened against, across runs.**
 
 Concrete use:
-- Each chaos run writes a summary memory: *"On 2026-06-09, fault class X (prompt-injection-via-tool-arg) was discovered against target v3.2; patch P-42 was applied; regression test added."*
-- On the next run against the same target, the orchestrator calls `load_memory` to retrieve prior patches and avoid re-running known-fixed faults.
-- Across many runs, the orchestrator's prompt becomes adaptive: *"Don't try faults 1, 5, 9; those are hardened. Try novel mutations of fault class 17."*
 
-This is the "self-improving chaos lab" angle and it makes Memory Bank load-bearing for the *demo narrative*, not just for cache hits.
+- Each chaos run writes a summary memory: _"On 2026-06-09, fault class X (prompt-injection-via-tool-arg) was discovered against target v3.2; patch P-42 was applied; regression test added."_
+- On the next run against the same target, the orchestrator calls `load_memory` to retrieve prior patches and avoid re-running known-fixed faults.
+- Across many runs, the orchestrator's prompt becomes adaptive: _"Don't try faults 1, 5, 9; those are hardened. Try novel mutations of fault class 17."_
+
+This is the "self-improving chaos lab" angle and it makes Memory Bank load-bearing for the _demo narrative_, not just for cache hits.
 
 **Skip Memory Bank if:** the v0 demo is single-run only. Use `InMemoryMemoryService` for the demo, leave the `VertexAiMemoryBankService` upgrade path as a video talking point.
 
@@ -867,18 +888,20 @@ This is the "self-improving chaos lab" angle and it makes Memory Bank load-beari
 
 ### 7.1 Agent Identity
 
-Per the platform docs: *"every agent receives a unique cryptographic ID, creating a clear, auditable trail for every action an agent takes, mapped back to defined authorization policies."*
+Per the platform docs: _"every agent receives a unique cryptographic ID, creating a clear, auditable trail for every action an agent takes, mapped back to defined authorization policies."_
 
 In practice on Agent Runtime: each deployed agent is bound to an IAM principal at deployment time. Tool calls, model calls, and A2A peer calls are stamped with that identity. Free with Agent Runtime — no code required. For Cloud Run deployments, the equivalent is the per-service IAM service account.
 
 For ChaosLab this means:
-- The **target agent** (victim) gets its own identity. When it crashes during chaos injection, audit logs identify *which* target version was the victim.
+
+- The **target agent** (victim) gets its own identity. When it crashes during chaos injection, audit logs identify _which_ target version was the victim.
 - The **chaos injector** gets its own identity. You can audit "who attacked whom and when."
 - For **multi-tenant chaos testing** (testing isolation between two target-agent identities), Mongo capability P20 (`atlas-create-free-cluster` + `atlas-create-access-list`) pairs with this: provision per-tenant target instances dynamically.
 
 ### 7.2 Agent Registry — discovery + governance
 
 Per `02b §10`: the Registry auto-catalogs:
+
 - Agents deployed to Agent Runtime, GKE, Gemini Enterprise, Google Workspace.
 - First-party MCP servers + MCP servers from Apigee.
 - Third-party A2A agents and MCP servers (when explicitly registered).
@@ -886,10 +909,12 @@ Per `02b §10`: the Registry auto-catalogs:
 **Registration ergonomics.**
 
 For agents deployed to Agent Runtime via `adk deploy agent_engine`:
+
 - The agent is **auto-registered** to the Registry. No extra code.
 - Once registered, peer agents can discover it via the Registry API.
 
 For Gemini Enterprise app registration (a separate consumer surface):
+
 - Via Console: Agents → Add agent → Custom agent via Agent Platform → provide the reasoning engine resource path.
 - Via REST API: `POST` to the agents endpoint with `displayName`, `description`, `adkAgentDefinition.provisionedReasoningEngine.reasoningEngine = "projects/PROJECT/locations/LOCATION/reasoningEngines/RESOURCE_ID"`.
 
@@ -909,7 +934,8 @@ For a hackathon demo, path 2 is simpler. Path 1 is the "this scales to 1000 isol
 
 Standard Cloud Run service-to-service auth applies:
 
-1. Caller fetches a Google-signed ID token for the *target* service URL:
+1. Caller fetches a Google-signed ID token for the _target_ service URL:
+
    ```python
    import google.auth.transport.requests
    import google.oauth2.id_token
@@ -964,6 +990,7 @@ For a hackathon demo: set `--allow-unauthenticated` on Cloud Run and skip token 
 - **Topology:** one Cloud Run service, one deploy, one identity.
 
 **Tradeoffs vs B & C:**
+
 - ✅ Fastest to build (1 service, ~1 day of plumbing).
 - ✅ Lowest latency (microseconds between agents).
 - ✅ Cheapest demo (~$0.10-$0.50 per chaos run in token cost; ~$0 in Cloud Run cost).
@@ -996,11 +1023,12 @@ For a hackathon demo: set `--allow-unauthenticated` on Cloud Run and skip token 
 ```
 
 - **Protocol per edge:** injector ↔ judge ↔ patcher are sub-agents (in-process) inside the orchestrator. Target is A2A (separate Cloud Run service).
-- **State:** orchestrator session state holds the run log. Target is *opaque* — only its A2A responses are observable.
+- **State:** orchestrator session state holds the run log. Target is _opaque_ — only its A2A responses are observable.
 - **Memory:** orchestrator owns Memory Bank for cross-run learning. Target has its own short-lived session state.
 - **Topology:** 2 Cloud Run services. 2 IAM identities. 2 deploys.
 
 **Tradeoffs vs A & C:**
+
 - ✅ **Fault isolation where it matters most** — chaos can actually crash the target without bringing down the orchestrator.
 - ✅ Target can be any framework (Python ADK, TypeScript ADK, even a non-ADK agent that speaks A2A). Demos cross-framework chaos.
 - ✅ Latency budget reasonable — only 1 A2A hop per chaos invocation.
@@ -1043,6 +1071,7 @@ Memory Bank (VertexAiMemoryBankService) for cross-run learning
 - **Topology:** 6 Cloud Run services. 6 identities. Auto-registered to Agent Registry.
 
 **Tradeoffs vs A & B:**
+
 - ✅ **Maximum demo signal.** "Six A2A peers, framework-agnostic, fault-isolated, governed via Agent Registry" — checks every Tech Implementation box.
 - ✅ Each component independently observable, debuggable, scalable.
 - ✅ Trace collector can be reused across multiple ChaosLab deployments.
@@ -1312,7 +1341,7 @@ For Cloud Run-only deployments, there is no auto-registration to Agent Registry 
 2. **Latency profile of A2A hops in Google Cloud** — assumed 20-80ms p50 within one region based on Cloud Run norms; no canonical Google number found. (§1.2)
 3. **Exact `adk_a2a` template Dockerfile contents** — confirmed `to_a2a` is wired, exact CMD line not fetched. (§4.2)
 4. **Whether `RemoteA2aAgent` auto-handles A2A streaming SSE events** — likely yes via the underlying a2a-python client, but no explicit ADK-side doc was found showing how stream events propagate up through the parent LlmAgent's response. (§2.5)
-5. **Agent Registry membership for Cloud Run-deployed A2A peers** — Registry doc says Apigee + Agent Runtime + GKE auto-register; Cloud Run was *not* explicitly listed. May require manual registration. (§7.2)
+5. **Agent Registry membership for Cloud Run-deployed A2A peers** — Registry doc says Apigee + Agent Runtime + GKE auto-register; Cloud Run was _not_ explicitly listed. May require manual registration. (§7.2)
 6. **Whether the workflow `Graph` primitive is GA or experimental** — class doc tone suggests recent addition; no version-gating noted in research. (§3.3)
 7. **Whether `MemoryService` can be shared across two `RemoteA2aAgent` peers when each is a separate Cloud Run service** — i.e., can both services point at the same `agentengine://` URI and see the same memories? ADK docs imply yes via `memory_service_uri` CLI arg; not confirmed end-to-end in a multi-service setup. (§6.2)
 

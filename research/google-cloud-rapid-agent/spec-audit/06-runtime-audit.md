@@ -3,6 +3,7 @@
 **Auditor:** Claude (Opus 4.7, 1M ctx)
 **Audit date:** 2026-06-03
 **Spec under audit:**
+
 - `docs/architecture.md` ADR-003 (Cloud Run choice), ADR-007 (`JUDGE_LLM=gemini-3.5-flash`), ADR-009 (Workload Identity Federation)
 - `docs/cicd.md` §Workload Identity Federation + §Pipeline overview
 - `docs/stories/story-1.4-gcp-iam-bootstrap.md`
@@ -10,22 +11,22 @@
 
 **Verdict at a glance:**
 
-| # | Claim | Verdict | Severity if wrong |
-|---|---|---|---|
-| A | Gemini model IDs (3.5-flash, 3.1-pro, 3.1-flash-lite) | **CONFIRMED with caveat** | Med |
-| A.4 | Vertex AI pricing ratio Flash:Pro ≈ 1:17 | **CONFIRMED (~17×)** | Low |
-| A.5 | Gemini 2.0 deprecated as of 2026-06-01 | **CONFIRMED** | Low |
-| A.6 | `LlmAgent(model="gemini-3.5-flash")` short-ID resolves | **CONFIRMED in ADK examples** | Low |
-| B.7 | Cloud Run HTTP timeout max = 60 min | **CONFIRMED (3600s)** | Med |
-| B.8 | min-instances=1 ≈ $3-4/mo per service | **CONFIRMED** | Low |
-| B.9 | `--cpu-boost` is current gcloud flag | **CONFIRMED (`--[no-]cpu-boost`)** | **High** |
-| B.10 | `--set-secrets PHOENIX_API_KEY=...:latest` | **CONFIRMED** | Med |
-| B.11 | `--no-traffic --tag=candidate` blue/green | **CONFIRMED** | Low |
-| C.12 | `google-github-actions/auth@v2` is current | **WRONG — v3 is current** | **High** |
-| C.13 | `google-github-actions/setup-gcloud@v2` is current | **WRONG — v3 is current** | **High** |
-| C.14 | Top-5 WIF failure modes in cicd.md §13 | **CONFIRMED — all real** | Low |
-| C.15 | WIF setup gcloud syntax in cicd.md | **CONFIRMED** | Low |
-| D.16 | Cost projection ~$72 total | **CONFIRMED (~$72)** | Low |
+| #    | Claim                                                  | Verdict                            | Severity if wrong |
+| ---- | ------------------------------------------------------ | ---------------------------------- | ----------------- |
+| A    | Gemini model IDs (3.5-flash, 3.1-pro, 3.1-flash-lite)  | **CONFIRMED with caveat**          | Med               |
+| A.4  | Vertex AI pricing ratio Flash:Pro ≈ 1:17               | **CONFIRMED (~17×)**               | Low               |
+| A.5  | Gemini 2.0 deprecated as of 2026-06-01                 | **CONFIRMED**                      | Low               |
+| A.6  | `LlmAgent(model="gemini-3.5-flash")` short-ID resolves | **CONFIRMED in ADK examples**      | Low               |
+| B.7  | Cloud Run HTTP timeout max = 60 min                    | **CONFIRMED (3600s)**              | Med               |
+| B.8  | min-instances=1 ≈ $3-4/mo per service                  | **CONFIRMED**                      | Low               |
+| B.9  | `--cpu-boost` is current gcloud flag                   | **CONFIRMED (`--[no-]cpu-boost`)** | **High**          |
+| B.10 | `--set-secrets PHOENIX_API_KEY=...:latest`             | **CONFIRMED**                      | Med               |
+| B.11 | `--no-traffic --tag=candidate` blue/green              | **CONFIRMED**                      | Low               |
+| C.12 | `google-github-actions/auth@v2` is current             | **WRONG — v3 is current**          | **High**          |
+| C.13 | `google-github-actions/setup-gcloud@v2` is current     | **WRONG — v3 is current**          | **High**          |
+| C.14 | Top-5 WIF failure modes in cicd.md §13                 | **CONFIRMED — all real**           | Low               |
+| C.15 | WIF setup gcloud syntax in cicd.md                     | **CONFIRMED**                      | Low               |
+| D.16 | Cost projection ~$72 total                             | **CONFIRMED (~$72)**               | Low               |
 
 ---
 
@@ -45,12 +46,12 @@ Per [ai.google.dev/gemini-api/docs/models](https://ai.google.dev/gemini-api/docs
 
 Per [ai.google.dev/gemini-api/docs/pricing](https://ai.google.dev/gemini-api/docs/pricing):
 
-| Model | Input ($/M tok) | Output ($/M tok) | Combined |
-|---|---|---|---|
-| `gemini-3.5-flash` | $1.50 | $9.00 | $10.50 |
-| `gemini-3.1-pro-preview` (≤200k) | $2.00 | $12.00 | $14.00 |
-| `gemini-3.1-pro-preview` (>200k) | $4.00 | $18.00 | $22.00 |
-| `gemini-3.1-flash-lite` | $0.25 | $1.50 | $1.75 |
+| Model                            | Input ($/M tok) | Output ($/M tok) | Combined |
+| -------------------------------- | --------------- | ---------------- | -------- |
+| `gemini-3.5-flash`               | $1.50           | $9.00            | $10.50   |
+| `gemini-3.1-pro-preview` (≤200k) | $2.00           | $12.00           | $14.00   |
+| `gemini-3.1-pro-preview` (>200k) | $4.00           | $18.00           | $22.00   |
+| `gemini-3.1-flash-lite`          | $0.25           | $1.50            | $1.75    |
 
 **Pro / Flash ratio = 14.00 / 10.50 = 1.33× (not 17×).** The "17× cheaper" claim in ADR-007 and `architecture/04 §4` is **STALE** — it was true under the older Gemini 2.5 generation. Pro is now only ~33% more expensive than Flash for short prompts. **Flash-Lite vs Pro is the real 8-12× delta now**, not Flash vs Pro.
 
@@ -116,13 +117,13 @@ deploy-cloudrun: v3.0.1 published 2025-09-03; v3 tag updated 2025-09-03
 
 Cross-referenced cicd.md §13 / story-1.4 against `gh search issues` on `google-github-actions/auth`:
 
-| # | Failure mode in spec | Verified via |
-|---|---|---|
-| 1 | Missing `permissions: id-token: write` | [Official README](https://github.com/google-github-actions/auth) explicitly calls this out; [issue #423](https://github.com/google-github-actions/auth/issues/423) discusses related subject-length edge cases |
-| 2 | Attribute-condition case-sensitive literal | [Issue #77](https://github.com/google-github-actions/auth/issues/77) "Unable to authenticate using OIDC workload identity when adding attribute condition" — root cause was assertion mismatch (case + org/owner placeholder substitution) |
-| 3 | `principalSet` must use OWNER/REPO not just REPO | Per Google official WIF docs page, attribute mapping `assertion.repository` returns the full `OWNER/REPO` string — single-token would never match |
-| 4 | Missing `roles/iam.serviceAccountUser` on runtime SA | [Issue #455](https://github.com/google-github-actions/auth/issues/455), [#526](https://github.com/google-github-actions/auth/issues/526) "getAccessToken denied" — this is consistently the #1 reported failure |
-| 5 | `--cpu-boost` flag drift | Audited above (B.9) — **note: this is the only "failure mode" that's stopped being a real risk** in current gcloud; can be removed |
+| #   | Failure mode in spec                                 | Verified via                                                                                                                                                                                                                               |
+| --- | ---------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 1   | Missing `permissions: id-token: write`               | [Official README](https://github.com/google-github-actions/auth) explicitly calls this out; [issue #423](https://github.com/google-github-actions/auth/issues/423) discusses related subject-length edge cases                             |
+| 2   | Attribute-condition case-sensitive literal           | [Issue #77](https://github.com/google-github-actions/auth/issues/77) "Unable to authenticate using OIDC workload identity when adding attribute condition" — root cause was assertion mismatch (case + org/owner placeholder substitution) |
+| 3   | `principalSet` must use OWNER/REPO not just REPO     | Per Google official WIF docs page, attribute mapping `assertion.repository` returns the full `OWNER/REPO` string — single-token would never match                                                                                          |
+| 4   | Missing `roles/iam.serviceAccountUser` on runtime SA | [Issue #455](https://github.com/google-github-actions/auth/issues/455), [#526](https://github.com/google-github-actions/auth/issues/526) "getAccessToken denied" — this is consistently the #1 reported failure                            |
+| 5   | `--cpu-boost` flag drift                             | Audited above (B.9) — **note: this is the only "failure mode" that's stopped being a real risk** in current gcloud; can be removed                                                                                                         |
 
 **Verdict:** modes 1-4 are CONFIRMED REAL. Mode 5 is obsolete in current gcloud; downgrade or replace with a different real mode (e.g., "OIDC issuer URI typo `token.actions.githubusercontent.com` — must be exact, no trailing slash; if added, fails silently"). Per Google IAM docs, the trailing-slash issue is now a documented pitfall.
 
@@ -141,11 +142,13 @@ Minor: the official docs page recommends `assertion.repository_id` (numeric, imm
 Recomputed with verified 2026 prices:
 
 **Dev (9 days, 150 runs):**
+
 - Tokens: 20M in × $1.50/M + 5M out × $9.00/M = $30 + $45 = **$75** (worst case, no optimizations)
 - With Flash-Lite for judge + caching: drops to ~$45
 - Cloud Run dev: ~$0 (free tier covers)
 
 **Judging (4 weeks, 50 runs):**
+
 - Tokens: 6.8M in × $1.50/M + 1.7M out × $9.00/M = $10.20 + $15.30 = **$25.50**
 - Cloud Run warm pool (2 svc × $3.50/mo × 4 wk): ~$7
 - Artifact Registry: ~$1

@@ -34,11 +34,11 @@ For more: `docs/cicd.md` (cloud deploy), `docs/PRD.md` (what it is), `CLAUDE.md`
 
 ChaosLab can attack ANY agent (not just ADK):
 
-| Tier | Frameworks | How |
-|---|---|---|
-| **1** (native) | Google ADK | `RemoteA2aAgent` over A2A protocol |
-| **2** (instrumented) | LangChain, LangGraph, CrewAI, OpenAI Agents SDK | OpenInference instrumentor + adapter |
-| **3** (black-box) | Any HTTP agent | AgentCard discovery + behavioral fingerprinting |
+| Tier                 | Frameworks                                      | How                                             |
+| -------------------- | ----------------------------------------------- | ----------------------------------------------- |
+| **1** (native)       | Google ADK                                      | `RemoteA2aAgent` over A2A protocol              |
+| **2** (instrumented) | LangChain, LangGraph, CrewAI, OpenAI Agents SDK | OpenInference instrumentor + adapter            |
+| **3** (black-box)    | Any HTTP agent                                  | AgentCard discovery + behavioral fingerprinting |
 
 See `docs/architecture.md` ADR-002 + `docs/stories/story-3.*` for the adapter layer.
 

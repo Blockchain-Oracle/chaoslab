@@ -29,13 +29,15 @@ Five things Elasticsearch is genuinely best at:
 There are **TWO** Elastic MCP options and you need to know which one is current.
 
 ### Recommended (current): Elastic Agent Builder MCP endpoint
+
 - Available in **Elasticsearch 9.2+** (Cloud Serverless has this by default).
 - Defined in Kibana → Agent Builder → Tools, then surfaced at an MCP endpoint URL inside the Agent Builder UI.
-- Partner page quote: *"Point Google Cloud Agent Builder at the Elastic MCP server endpoint found in the Agent Builder Tools UI in Kibana."* ([elastic-resources](https://rapid-agent.devpost.com/details/elastic-resources))
+- Partner page quote: _"Point Google Cloud Agent Builder at the Elastic MCP server endpoint found in the Agent Builder Tools UI in Kibana."_ ([elastic-resources](https://rapid-agent.devpost.com/details/elastic-resources))
 - Exposes "all built-in and custom tools you can use to power agentic workflows." Tools include: keyword search, semantic search, ES|QL execution, index/mapping inspection, plus any custom tool you define from a query template. ([elastic.co/docs/solutions/search/mcp](https://www.elastic.co/docs/solutions/search/mcp))
 - **Status: production** (Agent Builder went GA per Elasticsearch Labs).
 
 ### Deprecated (do not use for new work): `mcp-server-elasticsearch`
+
 - The old stdio/HTTP Rust server: `docker.elastic.co/mcp/elasticsearch` ([github.com/elastic/mcp-server-elasticsearch](https://github.com/elastic/mcp-server-elasticsearch))
 - Tools exposed: `list_indices`, `get_mappings`, `search`, `esql`, `get_shards`.
 - Status: **deprecated** — security updates only. Elastic's official docs say to use Agent Builder MCP instead for 9.2+.
@@ -44,6 +46,7 @@ There are **TWO** Elastic MCP options and you need to know which one is current.
 ### Agent-side install (calling Elastic MCP from a Gemini ADK agent)
 
 For the current recommended path (Agent Builder endpoint), you wire the endpoint URL + Elastic API key into your Gemini agent's MCP client config. For the deprecated stdio server:
+
 ```bash
 docker run -i --rm \
   -e ES_URL=$ES_URL \
@@ -66,6 +69,7 @@ docker run -i --rm \
   - Optimal: trial signup ~May 28 → trial alive through ~June 11 (submission day) → record demo video right before deadline → if you need to fire it back up for judges (Jun 22 – Jul 6), use a fresh email + reindex.
 
 **Other gotchas (from elastic-resources page):**
+
 1. **Use Elastic Cloud Serverless**, not classic Elasticsearch self-hosted. Agent Builder is the value prop and it's serverless-first.
 2. **Vector / semantic search must be used.** Track risk explicitly: a keyword-only search submission misses the modern Elastic value prop.
 3. **Define tools in Kibana, not in code.** The partner page emphasizes "Define tools using ES|QL or semantic search" inside Agent Builder. Defining tools imperatively in your agent code while ignoring Agent Builder tooling weakens the integration story.
@@ -80,45 +84,51 @@ docker run -i --rm \
 ## Concrete agent ideas that fit this partner
 
 ### Idea 1 — "WorldCup-Concierge" semantic-search agent
-*Problem:* Fans visiting host cities for the 2026 World Cup need real-time, multilingual answers to "where's the nearest halal restaurant within 5km of Gillette Stadium that's open after the match," fusing scraped city data + match schedules + dietary filters.
-*Why Elastic wins this:* Hybrid (semantic + geo + filter) search is exactly Elastic's killer use case. Vector embeddings let the agent handle multilingual queries; geo + open-hours filters use structured fields.
-*Tools the agent calls:* Elastic MCP `semantic_search` on a `venues` index, `esql` aggregation for "venues within 5km open at T+match_end," `keyword_search` on a transport index.
-*Judging fit:* Potential Impact (real-world tournament audience), Design (mobile-first multilingual UX), Technological Implementation (hybrid search done right).
+
+_Problem:_ Fans visiting host cities for the 2026 World Cup need real-time, multilingual answers to "where's the nearest halal restaurant within 5km of Gillette Stadium that's open after the match," fusing scraped city data + match schedules + dietary filters.
+_Why Elastic wins this:_ Hybrid (semantic + geo + filter) search is exactly Elastic's killer use case. Vector embeddings let the agent handle multilingual queries; geo + open-hours filters use structured fields.
+_Tools the agent calls:_ Elastic MCP `semantic_search` on a `venues` index, `esql` aggregation for "venues within 5km open at T+match*end," `keyword_search` on a transport index.
+\_Judging fit:* Potential Impact (real-world tournament audience), Design (mobile-first multilingual UX), Technological Implementation (hybrid search done right).
 
 ### Idea 2 — "ComplianceCorp" regulated-doc Q&A agent for Financial Services
-*Problem:* A junior bank analyst spends hours hunting for the right paragraph in 10-Ks + internal compliance memos.
-*Why Elastic wins this:* Citations are mandatory in finance. Elastic's semantic_text returns chunks with stable doc IDs, which the agent surfaces as inline citations. ES|QL aggregations summarize trend findings ("how many of the last 50 filings mention X").
-*Tools the agent calls:* Custom Kibana-defined tools: `search_10k`, `search_internal_memos`, `count_by_filing_year`. All MCP-exposed.
-*Judging fit:* Quality of Idea (citation-first finance agent), Technological Implementation (custom Agent Builder tools).
+
+_Problem:_ A junior bank analyst spends hours hunting for the right paragraph in 10-Ks + internal compliance memos.
+_Why Elastic wins this:_ Citations are mandatory in finance. Elastic's semantic*text returns chunks with stable doc IDs, which the agent surfaces as inline citations. ES|QL aggregations summarize trend findings ("how many of the last 50 filings mention X").
+\_Tools the agent calls:* Custom Kibana-defined tools: `search_10k`, `search_internal_memos`, `count_by_filing_year`. All MCP-exposed.
+_Judging fit:_ Quality of Idea (citation-first finance agent), Technological Implementation (custom Agent Builder tools).
 
 ### Idea 3 — "ShelfSense" retail visual-similarity agent
-*Problem:* A retail merchandiser wants to find products in the catalog visually similar to a competitor's hot item.
-*Why Elastic wins this:* Elastic's vector search handles image embeddings (CLIP-style) just as well as text. Combine with structured filters (`category`, `price_tier`, `availability`).
-*Tools the agent calls:* Elastic MCP `vector_search` on image embeddings index, `esql` for sales-trend join, custom tool `find_similar_skus`.
-*Judging fit:* Design (visual UX is the selling point), Potential Impact (retail merchandising is a real budget line).
+
+_Problem:_ A retail merchandiser wants to find products in the catalog visually similar to a competitor's hot item.
+_Why Elastic wins this:_ Elastic's vector search handles image embeddings (CLIP-style) just as well as text. Combine with structured filters (`category`, `price_tier`, `availability`).
+_Tools the agent calls:_ Elastic MCP `vector_search` on image embeddings index, `esql` for sales-trend join, custom tool `find_similar_skus`.
+_Judging fit:_ Design (visual UX is the selling point), Potential Impact (retail merchandising is a real budget line).
 
 ### Idea 4 — "TicketScout" multi-tenant support agent (Brick & Mortar Retail HQ)
-*Problem:* A retail chain's HQ support team needs an agent that triages incoming store-manager tickets against past resolutions and SOP documents.
-*Why Elastic wins this:* Elastic excels at this exact shape (ticket index + SOP index + hybrid search + memory). Persisted agent memory ("we've seen this issue 3 times this month at the West Coast stores") makes it agentic, not just searchy.
-*Tools the agent calls:* `search_tickets`, `search_sops`, `save_memory` (writes a session-summary doc), `recall_memory` (semantic_text on memory index).
-*Judging fit:* Technological Implementation (memory loop), Potential Impact (replace L1 support).
+
+_Problem:_ A retail chain's HQ support team needs an agent that triages incoming store-manager tickets against past resolutions and SOP documents.
+_Why Elastic wins this:_ Elastic excels at this exact shape (ticket index + SOP index + hybrid search + memory). Persisted agent memory ("we've seen this issue 3 times this month at the West Coast stores") makes it agentic, not just searchy.
+_Tools the agent calls:_ `search_tickets`, `search_sops`, `save_memory` (writes a session-summary doc), `recall_memory` (semantic*text on memory index).
+\_Judging fit:* Technological Implementation (memory loop), Potential Impact (replace L1 support).
 
 ### Idea 5 — "MatchAnalytics" ES|QL stats-on-demand for World Cup
-*Problem:* Sports journalist needs "show me every player with >0.5 xG in the last 10 matches who plays a fullback role" in 5 seconds.
-*Why Elastic wins this:* ES|QL is Elastic's analytics weapon. PHAROS (prior hackathon winner) used the same pattern for pharma. Stats-in-one-query is faster than BigQuery for sub-100M-row sports event tables.
-*Tools the agent calls:* Custom Kibana tools `aggregate_player_stats`, `filter_by_position`, `match_metadata_lookup`. All ES|QL.
-*Judging fit:* Quality of Idea (Bloomberg-terminal-for-sports angle), Technological Implementation (ES|QL agentic).
+
+_Problem:_ Sports journalist needs "show me every player with >0.5 xG in the last 10 matches who plays a fullback role" in 5 seconds.
+_Why Elastic wins this:_ ES|QL is Elastic's analytics weapon. PHAROS (prior hackathon winner) used the same pattern for pharma. Stats-in-one-query is faster than BigQuery for sub-100M-row sports event tables.
+_Tools the agent calls:_ Custom Kibana tools `aggregate_player_stats`, `filter_by_position`, `match_metadata_lookup`. All ES|QL.
+_Judging fit:_ Quality of Idea (Bloomberg-terminal-for-sports angle), Technological Implementation (ES|QL agentic).
 
 ### Idea 6 — "DealDesk" SME-loan underwriting copilot (Financial Services)
-*Problem:* SME loan officers manually piece together credit memos from prior similar deals.
-*Why Elastic wins this:* Vector search over historical credit memos surfaces structurally similar deals; ES|QL aggregates risk distributions; Agent Builder lets the underwriter add custom tools per industry.
-*Tools the agent calls:* `find_similar_deals` (semantic), `aggregate_default_rates` (ESQL), `pull_memo_template` (keyword), Phoenix-style memory write to track decisions over time.
-*Judging fit:* Potential Impact (concrete revenue lever for banks), Quality of Idea (deal-precedent reasoning).
+
+_Problem:_ SME loan officers manually piece together credit memos from prior similar deals.
+_Why Elastic wins this:_ Vector search over historical credit memos surfaces structurally similar deals; ES|QL aggregates risk distributions; Agent Builder lets the underwriter add custom tools per industry.
+_Tools the agent calls:_ `find_similar_deals` (semantic), `aggregate_default_rates` (ESQL), `pull_memo_template` (keyword), Phoenix-style memory write to track decisions over time.
+_Judging fit:_ Potential Impact (concrete revenue lever for banks), Quality of Idea (deal-precedent reasoning).
 
 ## Track-specific judging risks (things that kill a submission)
 
 1. **Building a search UX instead of an agent.** If your demo looks like Google for documents (user types → results render), you've lost. The track wants **multi-step planning**: agent plans → calls tool A → reads result → decides to call tool B → produces an action, not a result list.
-2. **No vector / semantic search.** Keyword-only Elastic = "I could have done this with Postgres FTS." Judges will mark this down. The semantic_text + hybrid search is *the* differentiator.
+2. **No vector / semantic search.** Keyword-only Elastic = "I could have done this with Postgres FTS." Judges will mark this down. The semantic*text + hybrid search is \_the* differentiator.
 3. **Trial expires before judging finishes.** Without a recorded demo video while the cluster was live, the judges see a dead deployment. **Record demo BEFORE the trial dies.**
 4. **Not using Agent Builder tools.** Imperatively querying Elasticsearch from your agent code while ignoring Agent Builder weakens the integration story. The track explicitly wants you to define tools in Kibana.
 5. **Static demo where the data isn't live.** A pre-baked JSON of search results, not a live agent query against the index, is detectable in the video.
@@ -126,19 +136,19 @@ docker run -i --rm \
 
 ## Verified facts table
 
-| Fact | Value | Source |
-|---|---|---|
-| Trial length | 14 days, Elastic Cloud | elastic.co/cloud/cloud-trial-overview |
-| Trial extension | NOT available for SaaS trial | partner brief + elastic.co |
-| Trial signup path that grants free trial | https://cloud.elastic.co (NOT Azure/GCP marketplace) | elastic.co/cloud/cloud-trial-overview |
-| Recommended MCP server | Elastic Agent Builder MCP endpoint (in Kibana) | rapid-agent.devpost.com/details/elastic-resources |
-| Deprecated MCP server | `docker.elastic.co/mcp/elasticsearch` (security updates only) | github.com/elastic/mcp-server-elasticsearch |
-| Minimum Elasticsearch version for Agent Builder MCP | 9.2+ | elastic.co/docs/solutions/search/mcp |
-| Agent Builder status | GA (general availability) | elastic.co/search-labs/blog/agent-builder-elastic-ga |
-| SDK languages | Python, JS/TS, Java, Go, Rust, .NET (official Elasticsearch clients) | github.com/elastic/elasticsearch-py |
-| Required surface | Vector / semantic search + ES|QL tools via Agent Builder | rapid-agent.devpost.com/details/elastic-resources |
-| Demo video | ≤3 minutes, English, public link (used as backstop if trial expires) | rapid-agent.devpost.com/rules |
-| Judging period | June 22 – July 6, 2026 | rapid-agent.devpost.com/rules |
+| Fact                                                | Value                                                                | Source                                               |
+| --------------------------------------------------- | -------------------------------------------------------------------- | ---------------------------------------------------- | ------------------------------------------------- |
+| Trial length                                        | 14 days, Elastic Cloud                                               | elastic.co/cloud/cloud-trial-overview                |
+| Trial extension                                     | NOT available for SaaS trial                                         | partner brief + elastic.co                           |
+| Trial signup path that grants free trial            | https://cloud.elastic.co (NOT Azure/GCP marketplace)                 | elastic.co/cloud/cloud-trial-overview                |
+| Recommended MCP server                              | Elastic Agent Builder MCP endpoint (in Kibana)                       | rapid-agent.devpost.com/details/elastic-resources    |
+| Deprecated MCP server                               | `docker.elastic.co/mcp/elasticsearch` (security updates only)        | github.com/elastic/mcp-server-elasticsearch          |
+| Minimum Elasticsearch version for Agent Builder MCP | 9.2+                                                                 | elastic.co/docs/solutions/search/mcp                 |
+| Agent Builder status                                | GA (general availability)                                            | elastic.co/search-labs/blog/agent-builder-elastic-ga |
+| SDK languages                                       | Python, JS/TS, Java, Go, Rust, .NET (official Elasticsearch clients) | github.com/elastic/elasticsearch-py                  |
+| Required surface                                    | Vector / semantic search + ES                                        | QL tools via Agent Builder                           | rapid-agent.devpost.com/details/elastic-resources |
+| Demo video                                          | ≤3 minutes, English, public link (used as backstop if trial expires) | rapid-agent.devpost.com/rules                        |
+| Judging period                                      | June 22 – July 6, 2026                                               | rapid-agent.devpost.com/rules                        |
 
 ## Opinion: Elastic is the highest-ceiling, highest-risk track for a blockchain solo dev
 
@@ -148,7 +158,7 @@ docker run -i --rm \
 
 **Con (subtler):** Elastic's surface is wide and a blockchain dev has zero exposure to ES|QL, Kibana tool definitions, or semantic_text. Compared to Arize (just instrument and eval) or Fivetran (just connect a source), Elastic has the steepest learning curve.
 
-**Verdict for a blockchain-native solo dev:** Skip Elastic unless you have a *specific* idea where hybrid search is irreplaceable. If you do pick it, your day-1 priority is: open the trial as late as possible (~May 28), index a private corpus immediately, define 3-5 Agent Builder tools, wire ADK + Cloud Run, then iterate.
+**Verdict for a blockchain-native solo dev:** Skip Elastic unless you have a _specific_ idea where hybrid search is irreplaceable. If you do pick it, your day-1 priority is: open the trial as late as possible (~May 28), index a private corpus immediately, define 3-5 Agent Builder tools, wire ADK + Cloud Run, then iterate.
 
 ## Sources
 
