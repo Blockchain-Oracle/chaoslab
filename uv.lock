@@ -1,0 +1,19 @@
+version = 1
+revision = 3
+requires-python = ">=3.12"
+
+[manifest]
+members = [
+    "chaoslab-agent",
+    "target-agent",
+]
+
+[[package]]
+name = "chaoslab-agent"
+version = "0.1.0"
+source = { editable = "apps/chaoslab-agent" }
+
+[[package]]
+name = "target-agent"
+version = "0.1.0"
+source = { editable = "apps/target-agent" }

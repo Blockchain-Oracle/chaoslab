@@ -1,0 +1,32 @@
+ChaosLab
+Copyright 2026 Abu Mostofa (Blockchain-Oracle)
+
+Licensed under the Apache License, Version 2.0 (the "License").
+See LICENSE file at the repo root.
+
+---
+
+## Attributions
+
+### deepankarm/agent-chaos (architectural inspiration only — no code copied)
+
+This project draws architectural inspiration from `deepankarm/agent-chaos`
+(https://github.com/deepankarm/agent-chaos), Apache-2.0 licensed.
+Reference commit: 32beff46a28ca043e252095e6cc62ffe2010e645 (2026-01-02).
+No source code is copied; the fault primitives under
+apps/chaoslab-agent/src/chaoslab_agent/injector/faults/ are implemented
+natively against the Google ADK callback system per docs/architecture.md
+ADR-006 (amended 2026-06-03).
+
+### Frameworks + SDKs
+
+This project depends on (non-exhaustive):
+- Google Agent Development Kit (ADK) — Apache-2.0
+- Arize Phoenix + OpenInference — Apache-2.0/MIT
+- Next.js — MIT
+- shadcn/ui — MIT
+- visx — MIT
+- Framer Motion — MIT
+
+Full license info per dependency is available via `pip-licenses` (Python)
+and `license-checker` (TypeScript).
