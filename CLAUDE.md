@@ -41,7 +41,7 @@ One PR per story. No parallel implementation. Eggs in one basket — your focus 
 
 ## Hard rules (enforced by pre-commit + CI)
 
-- **No file >400 lines** (Python, TS, JSX, Markdown). Split before 350.
+- **No file >400 lines** in `apps/`, `packages/`, `scripts/` (extensions per `scripts/check_max_lines.py`). Split before 350. Skipped paths: `__init__.py`, `.d.ts`, `_vendored/`, generated dirs (`node_modules/`, `.next/`, `dist/`, `build/`). Exempt root dirs: `docs/`, `tests/` (spec completeness > brevity for orchestrator + coding-agent comprehension).
 - **TDD: failing test first.** No exceptions.
 - **Trace-as-assertion** for agent code — assert on Phoenix span tree structure, not natural-language output (see `best-practices/06 §5.1`).
 - **No mocks in submitted hot path** (§14). Real Phoenix, real Gemini, real target.
