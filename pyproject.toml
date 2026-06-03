@@ -39,6 +39,7 @@ ignore = [
 
 [tool.ruff.lint.per-file-ignores]
 "tests/**" = ["S101", "S105", "S106", "PLR2004", "T201"]
+"scripts/**" = ["T201"]  # CLI scripts legitimately print diagnostic output
 "__init__.py" = ["F401"]
 "**/_vendored/**" = ["ALL"]
 
@@ -49,9 +50,11 @@ line-ending = "lf"
 
 # --- ty (Astral type-checker — primary per ADR-001) -------------------------
 
+# ty v0.0.42 schema is still evolving — keep config minimal until it stabilizes.
+# Paths come from CLI args (`uv run ty check apps/chaoslab-agent apps/target-agent`,
+# wired via .pre-commit-config.yaml ty-check hook entry).
+# See audit-notes.md IF-8.
 [tool.ty]
-src = ["apps/chaoslab-agent/src", "apps/target-agent/src"]
-python-version = "3.12"
 
 [tool.ty.terminal]
 output-format = "concise"
@@ -116,4 +119,5 @@ exclude_lines = [
 [dependency-groups]
 dev = [
     "pre-commit>=4.6.0",
+    "ty>=0.0.42",
 ]

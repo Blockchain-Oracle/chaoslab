@@ -183,6 +183,21 @@ paths = [
 
 **Implication for future stories:** Any allowlist change to `.gitleaks.toml` MUST use the singular `[allowlist]` form unless the carve-out is genuinely per-rule (in which case it nests under `[[rules]]`). Add an acceptance test that stages a known-allowed fake secret and asserts gitleaks exits 0 — this would have caught the first migration's silent failure.
 
+### IF-8 — `ty` v0.0.42 schema differs from spec (S1.3, 2026-06-03)
+
+**Discovered in:** S1.3. The ty-check pre-commit hook fails at first commit with `error: Failed to spawn: 'ty'` because ty isn't a dev dep yet (S1.2 only added pre-commit). After `uv add --dev ty` installs `ty==0.0.42`, the config from `docs/coding-standards.md` triggers two schema errors:
+
+- `python-version = "3.12"` as top-level `[tool.ty]` field → `unknown field 'python-version', expected one of 'environment', 'src', 'rules', 'terminal', 'analysis', 'overrides'`. Belongs under `[tool.ty.environment]`.
+- `src = ["apps/chaoslab-agent/src", "apps/target-agent/src"]` as a list → `invalid type: string, expected a boolean`. The `src` field's shape has changed entirely.
+
+**Fix applied:**
+
+1. `uv add --dev ty` (was missing — spec needs an explicit add since pre-commit doesn't transitively install it).
+2. `pyproject.toml` `[tool.ty]` block minimized to just `[tool.ty.terminal]`. Paths come from CLI args via the pre-commit hook entry (`uv run ty check apps/chaoslab-agent apps/target-agent`), which is the canonical invocation.
+3. `[tool.ty.environment]` python-version omitted — ty picks up `requires-python = ">=3.12"` from each app's `[project]` table.
+
+**Implication for future stories:** ty's TOML schema is still pre-1.0 and evolving. Don't pile config into `[tool.ty]` until ty hits 1.0 — pass everything via CLI flags. Re-evaluate after S2.1 introduces actual Python source.
+
 ### IF-7 — 400-line rule scope ambiguity for `docs/` (S1.2, PR #2 code-reviewer)
 
 **Discovered in:** S1.2 PR #2 review. After the prettier reformat (`f87ff0f`), 2 docs crossed the 400-line threshold and 2 already-oversized docs got slightly worse via table-padding. CLAUDE.md L44 says "No file >400 lines (Python, TS, JSX, Markdown)" — Markdown explicitly in scope. But `docs/coding-standards.md` L12 narrows enforcement to `apps/`, `packages/`, `scripts/`.
