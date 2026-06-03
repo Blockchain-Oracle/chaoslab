@@ -183,6 +183,30 @@ paths = [
 
 **Implication for future stories:** Any allowlist change to `.gitleaks.toml` MUST use the singular `[allowlist]` form unless the carve-out is genuinely per-rule (in which case it nests under `[[rules]]`). Add an acceptance test that stages a known-allowed fake secret and asserts gitleaks exits 0 — this would have caught the first migration's silent failure.
 
+### IF-9 — `scripts/check_max_lines.py` hardening + deferred items (S1.3 PR #3 review, 2026-06-03)
+
+**Discovered in:** S1.3 PR #3 review (silent-failure-hunter + pr-test-analyzer cross-confirmation). The canonical script body in `docs/cicd.md` §"400-line enforcement script" has multiple silent-failure surfaces. The PR amend addresses 4 of them; 3 are deferred.
+
+**Fixed in PR #3 amend (commit on `story/max-lines-script`):**
+
+1. **Substring-match exclusion silent-failure** (pr-test-analyzer GAP-1 + silent-failure-hunter F3): `EXCLUDE_PATTERNS = {"build/", ...}` with `pat in str(path)` silently excluded any path containing the substring (e.g., `apps/foo/rebuild/widget.ts` excluded by `build/`). Split into `EXCLUDE_FILENAMES`, `EXCLUDE_SUFFIXES`, `EXCLUDE_DIR_COMPONENTS`; directory exclusions now match path components only.
+2. **Missing-ROOT silent skip** (silent-failure-hunter Q2): missing `apps/`/`packages/`/`scripts/` silently passed. Now returns exit code 2 (config error, distinct from exit 1 rule violation) with a stderr message naming missing roots.
+3. **`errors="ignore"` decode silent-skip** (silent-failure-hunter F1): dropped to strict UTF-8 — non-UTF-8 source files raise UnicodeDecodeError → exit 2.
+4. **Failure output to stderr** (silent-failure-hunter Q6): `[FAIL]` lines now print to stderr, `[PASS]` stays on stdout. Unix discipline + correct behavior when piped (`python3 ... >results.txt`).
+5. **`--strict` argparse** (silent-failure-hunter Q5 + comment-analyzer #5): replaced silent-unknown-arg-ignore with argparse — `--bogus-flag` exits 2 with usage to stderr.
+
+**Deferred to a future infra story (probably S1.x consolidation pass):**
+
+- **Markdown bullet/heading false-strip** (silent-failure-hunter Q1): `LINE_COMMENT_PREFIXES = ("#", "//", "/*", "*", "<!--")` falsely strips Markdown `#` headings and `*` bullets when applied to `.md` files. Today the only `.md` files in ROOTS are `apps/*/README.md` (short); risk is future-tense. Fix requires per-extension comment-prefix tables OR dropping `.md` from `EXTENSIONS`. Needs a focused decision in `docs/cicd.md` §400-line script.
+- **Exhaustive exclusion test coverage** (pr-test-analyzer GAP-2): only `_vendored/` and (new) `rebuild/` are tested. The other 4 dir patterns + `.d.ts` + `__init__.py` are trustless. Cheap to add (~15 lines in acceptance test); deferred to avoid this PR sprawling further.
+- **Mixed blank/comment significant-line counting** (pr-test-analyzer IMP-1): the significant-line predicate has zero adversarial coverage. A file with 600 raw lines / 400 significant should pass; 600 raw / 401 significant should fail. Defer until S2.x lands real source files.
+
+**Implication for future stories:**
+
+- When updating `scripts/check_max_lines.py`, the canonical exit codes are 0/1/2 (rule-pass / rule-fail / config-error). Don't conflate.
+- New entries to the exclusion set: classify as filename, suffix, or dir-component — NEVER add to a single substring-matched set.
+- The script now ALWAYS prints `[PASS]` to stdout on success. CI scripts and test harnesses can assert on this string.
+
 ### IF-8 — `ty` v0.0.42 schema differs from spec (S1.3, 2026-06-03)
 
 **Discovered in:** S1.3. The ty-check pre-commit hook fails at first commit with `error: Failed to spawn: 'ty'` because ty isn't a dev dep yet (S1.2 only added pre-commit). After `uv add --dev ty` installs `ty==0.0.42`, the config from `docs/coding-standards.md` triggers two schema errors:
