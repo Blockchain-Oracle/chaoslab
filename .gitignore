@@ -1,0 +1,65 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+.python-version
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+.ruff_cache/
+.mypy_cache/
+.ty_cache/
+
+# uv
+uv-cache/
+
+# Node / pnpm
+node_modules/
+.next/
+out/
+dist/
+build/
+.turbo/
+*.tsbuildinfo
+next-env.d.ts
+pnpm-debug.log*
+
+# Tests / coverage
+coverage/
+.nyc_output/
+test-results/
+playwright-report/
+playwright/.cache/
+
+# Env (NEVER commit)
+.env
+.env.local
+.env.*.local
+.env.production
+!.env.example
+
+# Secrets
+*.pem
+*.key
+secrets/
+.secret/
+
+# OS
+.DS_Store
+*.swp
+*~
+
+# IDE
+.vscode/
+.idea/
+*.iml
+
+# Local
+/tmp/
+scratch/
+.scratch/
+
+# Build outputs (Cloud Run artifacts produced by gcloud locally)
+.build/
