@@ -21,13 +21,13 @@ stories:
     merged_at: "2026-06-03"
   - id: story-1.2-precommit-hooks
     epic: "Epic 1 — Repo + CI/CD foundation"
-    status: PENDING
+    status: COMPLETE
     estimate_hours: 1.0
     tags: [infra, p0, foundation]
     depends_on: [story-1.1-monorepo-init]
     issue_url: ""
-    pr_url: ""
-    merged_at: ""
+    pr_url: "https://github.com/Blockchain-Oracle/chaoslab/pull/2"
+    merged_at: "2026-06-03"
   - id: story-1.3-max-lines-script
     epic: "Epic 1 — Repo + CI/CD foundation"
     status: PENDING
