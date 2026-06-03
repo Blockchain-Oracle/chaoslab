@@ -182,12 +182,12 @@ class PromptInjectionFault(BaseModel):
 
 ### Why these 4 attacks (OWASP LLM01 + `architecture/04 §1.1`)
 
-| AttackType | OWASP class | Why this maps |
-|---|---|---|
-| `instruction_override` | OWASP LLM01 direct prompt injection | The "ignore all prior instructions" textbook attack |
-| `role_hijacking` | OWASP LLM01 + MS#7 agent impersonation | "You are now admin" persona swap |
-| `payload_smuggling` | Lakera §4.1 obfuscated attacks | Base64 / HTML comment / Unicode control char |
-| `indirect_injection` | OWASP LLM01 indirect + MS#3 XPIA | Payload arrives via retrieved document / tool output |
+| AttackType             | OWASP class                            | Why this maps                                        |
+| ---------------------- | -------------------------------------- | ---------------------------------------------------- |
+| `instruction_override` | OWASP LLM01 direct prompt injection    | The "ignore all prior instructions" textbook attack  |
+| `role_hijacking`       | OWASP LLM01 + MS#7 agent impersonation | "You are now admin" persona swap                     |
+| `payload_smuggling`    | Lakera §4.1 obfuscated attacks         | Base64 / HTML comment / Unicode control char         |
+| `indirect_injection`   | OWASP LLM01 indirect + MS#3 XPIA       | Payload arrives via retrieved document / tool output |
 
 These map 1:1 to Lakera's 5-class taxonomy collapsed to 4 (fragmentation skipped — that's multi-turn, out of MVP scope per `architecture/04 §1.6`).
 

@@ -26,17 +26,20 @@ Total wall-clock time: ~25 minutes (well under the 90-min budget).
 **Script:** `/tmp/phoenix-rat/step1_first_trace.py` + `step1b_verify_server_side.py`
 
 **What worked:**
+
 - `phoenix.otel.register(protocol="http/protobuf", project_name="chaoslab-rat")` registered cleanly
 - Emitted one CHAIN span with input/output/status
 - `tracer_provider.force_flush()` exported synchronously
 - Phoenix Cloud SDK appended `/v1/traces` to the space-scoped URL automatically (no manual path manipulation)
 
 **Server-side evidence:**
+
 - Project `chaoslab-rat` created (id `UHJvamVjdDoz`)
 - Span `rat-step-1-hello-world` visible via `client.spans.get_spans_dataframe()` with `status_code=OK`
 - Trace ID: `8004e993cfb34f2031a89baba0f5f7ae`
 
 **Audit items resolved:**
+
 - 🟢 **C1: Phoenix Cloud space-scoped URL** — `https://app.phoenix.arize.com/s/blockchainoracle-dev` IS the full base URL. SDK handles `/v1/traces` suffix. No env-var surgery needed.
 
 ---
@@ -46,6 +49,7 @@ Total wall-clock time: ~25 minutes (well under the 90-min budget).
 **Script:** `/tmp/phoenix-rat/step2_mcp_tool_discovery.py`
 
 **MCP server info:**
+
 - Package: `@arizeai/phoenix-mcp@4.0.13` (npm)
 - Server reports: `phoenix-mcp-server` v1.1.0
 - Protocol: `2025-11-25`
@@ -55,30 +59,31 @@ Total wall-clock time: ~25 minutes (well under the 90-min budget).
 
 **27 tools enumerated. Read tools all present (14/15 predicted):**
 
-| Read tool | Status |
-|---|:-:|
-| `list-projects`, `get-project` | ✅ |
-| `list-traces`, `get-trace`, `get-spans` (named `get-spans` not `list-spans`) | ✅ |
-| `list-datasets`, `get-dataset`, `get-dataset-examples`, `add-dataset-examples` | ✅ |
-| `list-experiments-for-dataset`, `get-experiment-by-id`, `get-dataset-experiments` | ✅ |
-| `list-prompts`, `get-prompt`, `get-latest-prompt`, `get-prompt-by-identifier`, `get-prompt-version`, `get-prompt-version-by-tag`, `list-prompt-versions`, `list-prompt-version-tags`, `upsert-prompt`, `add-prompt-version-tag` | ✅ |
-| `list-annotation-configs`, `get-span-annotations` (BONUS — we CAN read annotations) | ✅ |
-| `get-session`, `list-sessions` (BONUS) | ✅ |
-| `phoenix-support` (BONUS — help/onboarding) | ✅ |
+| Read tool                                                                                                                                                                                                                       | Status |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | :----: |
+| `list-projects`, `get-project`                                                                                                                                                                                                  |   ✅   |
+| `list-traces`, `get-trace`, `get-spans` (named `get-spans` not `list-spans`)                                                                                                                                                    |   ✅   |
+| `list-datasets`, `get-dataset`, `get-dataset-examples`, `add-dataset-examples`                                                                                                                                                  |   ✅   |
+| `list-experiments-for-dataset`, `get-experiment-by-id`, `get-dataset-experiments`                                                                                                                                               |   ✅   |
+| `list-prompts`, `get-prompt`, `get-latest-prompt`, `get-prompt-by-identifier`, `get-prompt-version`, `get-prompt-version-by-tag`, `list-prompt-versions`, `list-prompt-version-tags`, `upsert-prompt`, `add-prompt-version-tag` |   ✅   |
+| `list-annotation-configs`, `get-span-annotations` (BONUS — we CAN read annotations)                                                                                                                                             |   ✅   |
+| `get-session`, `list-sessions` (BONUS)                                                                                                                                                                                          |   ✅   |
+| `phoenix-support` (BONUS — help/onboarding)                                                                                                                                                                                     |   ✅   |
 
 **All 5 expected WRITE tools confirmed ABSENT (5/5 prediction match):**
 
-| Write tool | Status | Implication |
-|---|:-:|---|
-| `run-experiment` | ❌ absent | Must wrap Python SDK as FunctionTool (ADR-005) |
-| `create-experiment` | ❌ absent | Same |
-| `log-span-annotation` | ❌ absent | Must wrap Python SDK |
-| `write-span-annotation` | ❌ absent | Same |
-| `create-annotation` | ❌ absent | Same |
+| Write tool              |  Status   | Implication                                    |
+| ----------------------- | :-------: | ---------------------------------------------- |
+| `run-experiment`        | ❌ absent | Must wrap Python SDK as FunctionTool (ADR-005) |
+| `create-experiment`     | ❌ absent | Same                                           |
+| `log-span-annotation`   | ❌ absent | Must wrap Python SDK                           |
+| `write-span-annotation` | ❌ absent | Same                                           |
+| `create-annotation`     | ❌ absent | Same                                           |
 
 **ADR-005 verdict: confirmed exactly.** The architecture's "Phoenix MCP is partial" finding is structurally correct. Two custom ADK `FunctionTool` wrappers (S4.3 + S4.4 in the spec) are mandatory.
 
 **Architecture amendments to file:**
+
 - Add `get-span-annotations` to the read-side MCP inventory in `architecture/02 §1` (we CAN read annotations via MCP, just not write them)
 - Add the 13 bonus tools enumerated above (sessions, dataset-experiments, prompt versioning)
 - Note `get-spans` (not `list-spans`) as the correct name
@@ -90,6 +95,7 @@ Total wall-clock time: ~25 minutes (well under the 90-min budget).
 **Script:** `/tmp/phoenix-rat/step3_sdk_experiment.py`
 
 **End-to-end flow exercised:**
+
 1. ✅ Created dataset `rat-step3-dataset` (id `RGF0YXNldDox`) with 3 examples via `client.datasets.create_dataset(name=..., dataframe=..., input_keys=..., output_keys=...)`
 2. ✅ Defined `task(example) -> str` and `length_match(output, expected) -> float` evaluator
 3. ✅ Called `await client.experiments.run_experiment(dataset=ds, task=task, evaluators=[length_match], experiment_name="rat-step3-experiment", concurrency=2)`
@@ -97,6 +103,7 @@ Total wall-clock time: ~25 minutes (well under the 90-min budget).
 5. ✅ Server-side verified via `await client.experiments.list(dataset_id=ds.id)` — found 1 experiment with id `RXhwZXJpbWVudDox`
 
 **Phoenix Cloud experiment URL** (the actual artifact):
+
 ```
 https://app.phoenix.arize.com/s/blockchainoracle-dev/datasets/RGF0YXNldDox/compare?experimentId=RXhwZXJpbWVudDox
 ```
@@ -141,6 +148,7 @@ exps = await client.experiments.list(dataset_id=ds.id)  # NOT dataset=
 **Important: `experiments.run_experiment` returns a `dict` server-side, not a typed `RanExperiment` class in 2026-06.** The FunctionTool wrapper in S4.3 should normalize to a pydantic schema (`PhoenixExperimentResult`) before returning to the agent.
 
 **Audit items resolved:**
+
 - 🟢 **C4: Phoenix `concurrency` default sync vs async** — async client default `concurrency=3`; sync client has NO `concurrency` arg. Use async for ChaosLab.
 - 🟢 **C5: Phoenix Cloud free-tier experiment limits** — experiments execute cleanly on the free tier with the test credentials. No setup required beyond API key.
 - 🟢 **C10: `phoenix.client` package name** — installed as `arize-phoenix-client` (PyPI), imported as `phoenix.client`. Pin in `pyproject.toml`.
@@ -149,15 +157,16 @@ exps = await client.experiments.list(dataset_id=ds.id)  # NOT dataset=
 
 ## Audit items resolved (5 of 41 in `docs/audit-notes.md`)
 
-| # | Item | Resolution |
-|---|---|---|
-| C1 | Phoenix Cloud space-scoped URL | ✅ Use as-is; SDK appends `/v1/traces` |
-| C4 | Phoenix `concurrency` default | ✅ Async client = 3; sync client = N/A |
-| C5 | Phoenix annotation-config auto-create | ✅ Auto on first ingest (no manual provisioning) |
-| C10 | `phoenix.client` package name | ✅ `arize-phoenix-client` on PyPI, `phoenix.client` imports |
-| ADR-005 | Phoenix MCP partial surface | ✅ Confirmed exactly — 0 write tools |
+| #       | Item                                  | Resolution                                                  |
+| ------- | ------------------------------------- | ----------------------------------------------------------- |
+| C1      | Phoenix Cloud space-scoped URL        | ✅ Use as-is; SDK appends `/v1/traces`                      |
+| C4      | Phoenix `concurrency` default         | ✅ Async client = 3; sync client = N/A                      |
+| C5      | Phoenix annotation-config auto-create | ✅ Auto on first ingest (no manual provisioning)            |
+| C10     | `phoenix.client` package name         | ✅ `arize-phoenix-client` on PyPI, `phoenix.client` imports |
+| ADR-005 | Phoenix MCP partial surface           | ✅ Confirmed exactly — 0 write tools                        |
 
 **Still open (will resolve during build):**
+
 - C2, C3 (ADK callback + Runner signatures) — verify when implementing E2/E4
 - C6 (annotation REST path) — verify when implementing S4.4 (Python SDK exposes it via `client.spans.log_span_annotations(...)`, exact REST path can be inspected via SDK source)
 - C7 (`phoenix.evals.LLM.acomplete()`) — verify when implementing S6.4
@@ -190,6 +199,7 @@ Critical path estimate: ~33h sequential + ~12h parallel = ~45h wall-clock. With 
 ## Reproducibility
 
 All RAT scripts under `/tmp/phoenix-rat/`:
+
 - `step1_first_trace.py` — emit one trace
 - `step1b_verify_server_side.py` — verify via SDK
 - `step2_mcp_tool_discovery.py` — MCP tool inventory

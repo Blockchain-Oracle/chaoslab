@@ -47,12 +47,12 @@ From [lakera.ai](https://www.lakera.ai/):
 
 Lakera ships three product lines plus an education vertical:
 
-| Product | Purpose | Mode |
-|---|---|---|
-| **Lakera Guard** | Runtime input/output screener (LLM firewall) | API + self-hosted |
-| **Lakera Red** (now "AI Red Teaming") | Pre-prod offline red-team scans | Platform UI |
-| **Workforce AI Security** | Shadow-AI discovery for enterprise SaaS | Browser + DLP |
-| **Gandalf / Agent Breaker** | Adversarial education games | Web |
+| Product                               | Purpose                                      | Mode              |
+| ------------------------------------- | -------------------------------------------- | ----------------- |
+| **Lakera Guard**                      | Runtime input/output screener (LLM firewall) | API + self-hosted |
+| **Lakera Red** (now "AI Red Teaming") | Pre-prod offline red-team scans              | Platform UI       |
+| **Workforce AI Security**             | Shadow-AI discovery for enterprise SaaS      | Browser + DLP     |
+| **Gandalf / Agent Breaker**           | Adversarial education games                  | Web               |
 
 ### 1.3 Lakera Guard — REST API surface
 
@@ -180,12 +180,12 @@ From [mindgard.ai](https://mindgard.ai/) and [related funding coverage](https://
 
 Verbatim from the Mindgard landing page:
 
-| Pillar | Sub-capabilities |
-|---|---|
+| Pillar       | Sub-capabilities                                                                                   |
+| ------------ | -------------------------------------------------------------------------------------------------- |
 | **Discover** | "AI Agent Eval & Security Scanning, Shadow AI Risk Exposure, Automated AI Infrastructure Crawling" |
-| **Recon** | "AI Attack Surface Enumeration, Psychometric Agent Profiling, AI Agent Fingerprinting & Bypassing" |
-| **Attack** | "AI Red Teaming, Agent Security Testing, AI Security Risk Compliance Reporting" |
-| **Defend** | "Runtime AI Protection & Response, Automated AI Agent Hardening, Context-driven Guardrails" |
+| **Recon**    | "AI Attack Surface Enumeration, Psychometric Agent Profiling, AI Agent Fingerprinting & Bypassing" |
+| **Attack**   | "AI Red Teaming, Agent Security Testing, AI Security Risk Compliance Reporting"                    |
+| **Defend**   | "Runtime AI Protection & Response, Automated AI Agent Hardening, Context-driven Guardrails"        |
 
 The "Recon → Attack → Defend" framing is the most explicit adoption of a Mitre-ATT&CK-style kill-chain among the commercial vendors.
 
@@ -258,12 +258,12 @@ From [hiddenlayer.com](https://hiddenlayer.com/):
 
 The platform organizes into four modules (verified via homepage link list):
 
-| Module | URL slug | One-line description |
-|---|---|---|
-| **AI Discovery** | `/platform/ai-discovery` | "Gain visibility into AI assets across environments to eliminate shadow AI" |
-| **AI Supply Chain Security** | `/platform/ai-supply-chain-security` | "Secure AI models before deployment by validating integrity and supply chain" |
-| **AI Runtime Security** | `/platform/ai-runtime-security` | "Detect and respond to AI attacks without impacting performance in production" |
-| **AI Attack Simulation** | `/platform/ai-attack-simulation` | "Simulate real world AI attacks continuously to uncover weaknesses early" |
+| Module                       | URL slug                             | One-line description                                                           |
+| ---------------------------- | ------------------------------------ | ------------------------------------------------------------------------------ |
+| **AI Discovery**             | `/platform/ai-discovery`             | "Gain visibility into AI assets across environments to eliminate shadow AI"    |
+| **AI Supply Chain Security** | `/platform/ai-supply-chain-security` | "Secure AI models before deployment by validating integrity and supply chain"  |
+| **AI Runtime Security**      | `/platform/ai-runtime-security`      | "Detect and respond to AI attacks without impacting performance in production" |
+| **AI Attack Simulation**     | `/platform/ai-attack-simulation`     | "Simulate real world AI attacks continuously to uncover weaknesses early"      |
 
 ### 3.3 Solutions taxonomy (use-case packaging)
 
@@ -286,6 +286,7 @@ From [hiddenlayer.com/platform/ai-attack-simulation](https://hiddenlayer.com/pla
 - **Agent Misuse Detection** — "Simulate unauthorized actions through agent tools and APIs."
 
 Features called out:
+
 - "Adversarial AI threat simulation using real attack techniques."
 - "Security policy validation against organizational standards."
 - "System prompt vulnerability identification and hardening."
@@ -309,12 +310,14 @@ From [hiddenlayer.com/solutions/red-teaming](https://hiddenlayer.com/solutions/r
 From [hiddenlayer.com/solutions/agentic-mcp-security](https://hiddenlayer.com/solutions/agentic-mcp-security):
 
 **Threats covered:**
+
 1. **Indirect Prompt Injection** — hidden attacks in data/documents/retrieved context that "corrupt agent memory and override system instructions."
 2. **Unsafe Tool Execution** — agents triggering unintended API calls, filesystem ops, or code execution.
 3. **Memory Contamination** — cross-agent data leakage, sensitive info exposed via recalled context.
 4. **Lateral Movement** — unauthorized escalation between agents, access to high-value systems through chained actions.
 
 **Detection methods:**
+
 - **Runtime inspection** of MCP responses + agent interactions.
 - **LiteLLM proxy interception** — they intercept at the LiteLLM layer to monitor agent-to-tool comms.
 - **SDK instrumentation** in agentic frameworks (OpenAI, AWS Bedrock).
@@ -322,6 +325,7 @@ From [hiddenlayer.com/solutions/agentic-mcp-security](https://hiddenlayer.com/so
 - **Memory safety monitoring** — detect unsafe recall patterns.
 
 **Integration capabilities:**
+
 - Leading agentic frameworks (OpenAI, AWS Bedrock).
 - MCP-based systems.
 - LiteLLM proxy for transparent interception.
@@ -363,12 +367,12 @@ From [github.com/NVIDIA/garak](https://github.com/NVIDIA/garak) (via `gh api`):
 
 Garak's design is widely cited as the canonical OSS pattern. The four primitives:
 
-| Primitive | Folder | Role |
-|---|---|---|
-| **Generator** | `garak/generators/` | The "agent under test" interface — abstracts the LLM/agent endpoint. |
-| **Probe** | `garak/probes/` | A specific attack family — sends crafted prompts. |
-| **Detector** | `garak/detectors/` | Examines a response, returns hit/no-hit scores. |
-| **Buff** | `garak/buffs/` | Transformation applied to probes (paraphrase, lowercase, encoding, etc.). |
+| Primitive     | Folder              | Role                                                                      |
+| ------------- | ------------------- | ------------------------------------------------------------------------- |
+| **Generator** | `garak/generators/` | The "agent under test" interface — abstracts the LLM/agent endpoint.      |
+| **Probe**     | `garak/probes/`     | A specific attack family — sends crafted prompts.                         |
+| **Detector**  | `garak/detectors/`  | Examines a response, returns hit/no-hit scores.                           |
+| **Buff**      | `garak/buffs/`      | Transformation applied to probes (paraphrase, lowercase, encoding, etc.). |
 
 A `garak` run = `Generator × Probe × Detector × (optional Buff[])`.
 
@@ -384,6 +388,7 @@ replicate.py, rest.py, test.py, watsonx.py, websocket.py
 ```
 
 Key generators:
+
 - **`rest.RestGenerator`** — generic REST-endpoint integration. This is the bridge to any HTTP-accessible agent.
 - **`websocket.WebsocketGenerator`** — streaming / persistent connection agents.
 - **`function.FunctionGenerator`** — wrap a Python callable as a generator (in-process agent test harness).
@@ -449,48 +454,49 @@ topic, visual_jailbreak, web_injection
 
 #### Probe descriptions (from README + module docstrings + literature citations)
 
-| Probe | What it does | Citation |
-|---|---|---|
-| **`blank`** | Sends an empty prompt. Baseline. | — |
-| **`atkgen`** | "Automated Attack Generation. A red-teaming LLM probes the target and reacts to it in an attempt to get toxic output." Uses fine-tuned GPT-2 on the toxic subset of HH-RLHF. | hh-rlhf |
-| **`badchars`** | "Implements imperceptible Unicode perturbations (invisible characters, homoglyphs, reorderings, deletions) inspired by the Bad Characters paper." | arXiv 2106.09898 |
-| **`av_spam_scanning`** | "Probes that attempt to make the model output malicious content signatures" (EICAR-style). | — |
-| **`continuation`** | "Tests if the model will continue a probably undesirable word." | — |
-| **`dan`** | "Various DAN and DAN-like attacks." | DAN community prompts |
-| **`donotanswer`** | "Prompts to which responsible language models should not answer." | DoNotAnswer dataset |
-| **`encoding`** | "Prompt injection through text encoding" (base64, ROT13, braille, morse, etc.). The encoding.py source shows a full encoding library: base64, rot13, braille, morse, quoted-printable, MIME. | — |
-| **`gcg`** | "Disrupt a system prompt by appending an adversarial suffix." | Zou et al., GCG paper |
-| **`glitch`** | "Probe model for glitch tokens that provoke unusual behavior." | SolidGoldMagikarp work |
-| **`grandma`** | "Appeal to be reminded of one's grandmother" — classic social engineering jailbreak. | — |
-| **`goodside`** | "Implementations of Riley Goodside attacks." | Riley Goodside corpus |
-| **`leakreplay`** | "Evaluate if a model will replay training data." | — |
-| **`lmrc`** | Language Model Risk Cards framework. | arXiv 2303.18190 |
-| **`promptinject`** | "Agency Enterprise prompt injection framework." | github.com/agencyenterprise/promptinject |
-| **`malwaregen`** | Attempts to elicit malware code. | — |
-| **`misleading`** | Probes around assertion of false facts and refusal to refute them. | — |
-| **`packagehallucination`** | Tests for hallucination of nonexistent packages (a real supply-chain attack vector when used in code-gen). | — |
-| **`realtoxicityprompts`** | Uses the RealToxicityPrompts dataset. | Gehman et al. |
-| **`snowball`** | Snowball hallucination probes — committing to one false premise and following through. | Zhang et al., Snowball |
-| **`suffix`** | Adversarial suffix attacks. | GCG family |
-| **`sysprompt_extraction`** | Extracts the model's system prompt. | — |
-| **`tap`** | Tree of Attacks with Pruning. | arXiv 2312.02119 |
-| **`visual_jailbreak`** | Multimodal jailbreaks via images. | — |
-| **`web_injection`** | Probes targeting agents that browse / render web content. | — |
-| **`xss`** (in detectors) | Cross-site vulnerability detection (LLM output rendered in HTML context). | — |
-| **`latentinjection`** | Indirect prompt injection via "latent" / hidden text channels. | — |
-| **`fitd`** | Foot-in-the-door incremental escalation. | — |
-| **`smuggling`** | ASCII smuggling / Unicode-tag-smuggling. | — |
-| **`goat`** | Generative Offensive Agent Tester. | Meta GOAT paper |
-| **`agent_breaker`** | Agent-specific failure-induction probes (recent addition; mirrors Lakera Gandalf "Agent Breaker" naming convention). | — |
-| **`dra`** | Disguise & Reconstruction Attack. | — |
-| **`exploitation`** | Probes that target downstream exploitation (RCE, SSRF, etc., when agent has tool access). | — |
-| **`phrasing`** | Phrasing-based jailbreak variants. | — |
-| **`propile`** | Profile-based info extraction. | — |
-| **`sata`** | [UNVERIFIED-specific-paper] |
-| **`topic`** | Off-topic-manipulation probes. | — |
-| **`audio`** | Audio-encoded prompt injection. | recent (2025+) |
+| Probe                      | What it does                                                                                                                                                                                 | Citation                                 |
+| -------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------- |
+| **`blank`**                | Sends an empty prompt. Baseline.                                                                                                                                                             | —                                        |
+| **`atkgen`**               | "Automated Attack Generation. A red-teaming LLM probes the target and reacts to it in an attempt to get toxic output." Uses fine-tuned GPT-2 on the toxic subset of HH-RLHF.                 | hh-rlhf                                  |
+| **`badchars`**             | "Implements imperceptible Unicode perturbations (invisible characters, homoglyphs, reorderings, deletions) inspired by the Bad Characters paper."                                            | arXiv 2106.09898                         |
+| **`av_spam_scanning`**     | "Probes that attempt to make the model output malicious content signatures" (EICAR-style).                                                                                                   | —                                        |
+| **`continuation`**         | "Tests if the model will continue a probably undesirable word."                                                                                                                              | —                                        |
+| **`dan`**                  | "Various DAN and DAN-like attacks."                                                                                                                                                          | DAN community prompts                    |
+| **`donotanswer`**          | "Prompts to which responsible language models should not answer."                                                                                                                            | DoNotAnswer dataset                      |
+| **`encoding`**             | "Prompt injection through text encoding" (base64, ROT13, braille, morse, etc.). The encoding.py source shows a full encoding library: base64, rot13, braille, morse, quoted-printable, MIME. | —                                        |
+| **`gcg`**                  | "Disrupt a system prompt by appending an adversarial suffix."                                                                                                                                | Zou et al., GCG paper                    |
+| **`glitch`**               | "Probe model for glitch tokens that provoke unusual behavior."                                                                                                                               | SolidGoldMagikarp work                   |
+| **`grandma`**              | "Appeal to be reminded of one's grandmother" — classic social engineering jailbreak.                                                                                                         | —                                        |
+| **`goodside`**             | "Implementations of Riley Goodside attacks."                                                                                                                                                 | Riley Goodside corpus                    |
+| **`leakreplay`**           | "Evaluate if a model will replay training data."                                                                                                                                             | —                                        |
+| **`lmrc`**                 | Language Model Risk Cards framework.                                                                                                                                                         | arXiv 2303.18190                         |
+| **`promptinject`**         | "Agency Enterprise prompt injection framework."                                                                                                                                              | github.com/agencyenterprise/promptinject |
+| **`malwaregen`**           | Attempts to elicit malware code.                                                                                                                                                             | —                                        |
+| **`misleading`**           | Probes around assertion of false facts and refusal to refute them.                                                                                                                           | —                                        |
+| **`packagehallucination`** | Tests for hallucination of nonexistent packages (a real supply-chain attack vector when used in code-gen).                                                                                   | —                                        |
+| **`realtoxicityprompts`**  | Uses the RealToxicityPrompts dataset.                                                                                                                                                        | Gehman et al.                            |
+| **`snowball`**             | Snowball hallucination probes — committing to one false premise and following through.                                                                                                       | Zhang et al., Snowball                   |
+| **`suffix`**               | Adversarial suffix attacks.                                                                                                                                                                  | GCG family                               |
+| **`sysprompt_extraction`** | Extracts the model's system prompt.                                                                                                                                                          | —                                        |
+| **`tap`**                  | Tree of Attacks with Pruning.                                                                                                                                                                | arXiv 2312.02119                         |
+| **`visual_jailbreak`**     | Multimodal jailbreaks via images.                                                                                                                                                            | —                                        |
+| **`web_injection`**        | Probes targeting agents that browse / render web content.                                                                                                                                    | —                                        |
+| **`xss`** (in detectors)   | Cross-site vulnerability detection (LLM output rendered in HTML context).                                                                                                                    | —                                        |
+| **`latentinjection`**      | Indirect prompt injection via "latent" / hidden text channels.                                                                                                                               | —                                        |
+| **`fitd`**                 | Foot-in-the-door incremental escalation.                                                                                                                                                     | —                                        |
+| **`smuggling`**            | ASCII smuggling / Unicode-tag-smuggling.                                                                                                                                                     | —                                        |
+| **`goat`**                 | Generative Offensive Agent Tester.                                                                                                                                                           | Meta GOAT paper                          |
+| **`agent_breaker`**        | Agent-specific failure-induction probes (recent addition; mirrors Lakera Gandalf "Agent Breaker" naming convention).                                                                         | —                                        |
+| **`dra`**                  | Disguise & Reconstruction Attack.                                                                                                                                                            | —                                        |
+| **`exploitation`**         | Probes that target downstream exploitation (RCE, SSRF, etc., when agent has tool access).                                                                                                    | —                                        |
+| **`phrasing`**             | Phrasing-based jailbreak variants.                                                                                                                                                           | —                                        |
+| **`propile`**              | Profile-based info extraction.                                                                                                                                                               | —                                        |
+| **`sata`**                 | [UNVERIFIED-specific-paper]                                                                                                                                                                  |
+| **`topic`**                | Off-topic-manipulation probes.                                                                                                                                                               | —                                        |
+| **`audio`**                | Audio-encoded prompt injection.                                                                                                                                                              | recent (2025+)                           |
 
 **Recent additions (2025–2026)** — based on file presence in current main:
+
 - `agent_breaker.py` — agent-specific attacks.
 - `audio.py` — audio modality.
 - `goat.py` — Meta's GOAT (multi-turn).
@@ -512,6 +518,7 @@ web_injection
 ```
 
 Notable detectors:
+
 - **`judge.py`** — LLM-as-judge detector (uses a separate LLM to score whether a response is "bad").
 - **`perspective.py`** — Google Perspective API for toxicity scoring.
 - **`shields.py`** — wraps Azure Content Safety / Bedrock Guardrails / Lakera-style external shields.
@@ -527,6 +534,7 @@ base, encoding, low_resource_languages, lowercase, paraphrase
 ```
 
 Each buff applies a transformation to a probe's payload to test transformational robustness:
+
 - `encoding` — re-encode the payload.
 - `low_resource_languages` — translate into low-resource languages (a known jailbreak vector).
 - `lowercase` — strip case.
@@ -610,16 +618,16 @@ prompt_converter, prompt_normalizer, prompt_target, registry, scenario, score, s
 
 Conceptually:
 
-| Subsystem | Purpose |
-|---|---|
-| `prompt_target/` | "Agent under test" abstraction. |
-| `executor/attack/` | Attack strategies (single-turn + multi-turn). |
-| `prompt_converter/` | Payload transformations (~60+ converters). |
-| `score/` | Scoring engines (true/false, float-scale, LLM-as-judge). |
-| `memory/` | Persistent attack history (DuckDB / SQLite / Azure SQL). |
-| `scenario/` | Pre-built benchmark scenarios (Foundry, AIRT, Garak-replay). |
-| `datasets/` | Seed prompts and harm-category catalogs. |
-| `orchestrator/` (now under `executor/`) | Composition layer that drives attacks. |
+| Subsystem                               | Purpose                                                      |
+| --------------------------------------- | ------------------------------------------------------------ |
+| `prompt_target/`                        | "Agent under test" abstraction.                              |
+| `executor/attack/`                      | Attack strategies (single-turn + multi-turn).                |
+| `prompt_converter/`                     | Payload transformations (~60+ converters).                   |
+| `score/`                                | Scoring engines (true/false, float-scale, LLM-as-judge).     |
+| `memory/`                               | Persistent attack history (DuckDB / SQLite / Azure SQL).     |
+| `scenario/`                             | Pre-built benchmark scenarios (Foundry, AIRT, Garak-replay). |
+| `datasets/`                             | Seed prompts and harm-category catalogs.                     |
+| `orchestrator/` (now under `executor/`) | Composition layer that drives attacks.                       |
 
 ### 5.3 PromptTarget — the "agent under test" interface
 
@@ -663,6 +671,7 @@ skeleton_key.py
 ```
 
 Notable:
+
 - **`skeleton_key.py`** — Microsoft's own published "Skeleton Key" jailbreak.
 - **`many_shot_jailbreak.py`** — Anthropic's many-shot jailbreak.
 - **`flip_attack.py`** — text-reversal-based jailbreak.
@@ -703,6 +712,7 @@ class PAIRAttack(TreeOfAttacksWithPruningAttack):
 ```
 
 Default params:
+
 - `tree_width=3` — "Number of parallel streams (N in the PAIR paper)."
 - `tree_depth=5` — "Maximum refinement iterations per stream (K in the PAIR paper)."
 - `desired_response_prefix="Sure, here is"` — judge looks for compliance prefix.
@@ -722,11 +732,12 @@ class TAPSystemPromptPaths(enum.Enum):
 Scoring requirement (verbatim docstring):
 
 > "TAP requires a FloatScaleThresholdScorer for its objective scorer because it needs:
+>
 > 1. Granular float scores (0-1) for comparing and ranking nodes in the attack tree
 > 2. A threshold for determining when the attack objective has been achieved
-> The FloatScaleThresholdScorer provides both: it wraps a float scorer and applies
-> a threshold to produce true/false results, while storing the original float value
-> in score metadata for granular comparison."
+>    The FloatScaleThresholdScorer provides both: it wraps a float scorer and applies
+>    a threshold to produce true/false results, while storing the original float value
+>    in score metadata for granular comparison."
 
 TAP uses `treelib.Tree` for the attack tree representation.
 
@@ -783,6 +794,7 @@ scientific_translation_converter, ...
 ```
 
 Coverage scope:
+
 - **Text-encoding converters**: base64, base2048, atbash, caesar, rot13, morse, nato, braille, leetspeak, binary, hex, bin_ascii, ecoji.
 - **Image converters**: ascii_art, image_color_saturation, image_compression, image_overlay, image_prompt_style, image_resizing, image_rotation, qr_code, add_image_text, add_text_image.
 - **Audio converters**: audio_echo, audio_frequency, audio_speed, audio_volume, audio_white_noise, azure_speech_audio_to_text, azure_speech_text_to_audio.
@@ -811,6 +823,7 @@ Two scoring "kinds":
 Composition: `FloatScaleThresholdScorer` wraps a float scorer with a threshold to produce a boolean — used by TAP/PAIR.
 
 Notable scorers seen in source:
+
 - `SelfAskScaleScorer` — LLM-as-judge with float output.
 - `SelfAskTrueFalseScorer` — LLM-as-judge with boolean output.
 - `SelfAskRefusalScorer` — refusal-specific judge.
@@ -831,25 +844,25 @@ memory_models.py, migration.py, sqlite_memory.py
 
 Core table — `PromptMemoryEntries` (verbatim from `memory_models.py`):
 
-| Column | Type | Notes |
-|---|---|---|
-| `id` | UUID (CHAR(36) on SQLite) | Primary key |
-| `role` | Enum `{system, user, assistant, simulated_assistant, tool, developer}` | OpenAI-style |
-| `conversation_id` | String | Groups turns under one target session |
-| `sequence` | Integer | Turn order within conversation |
-| `timestamp` | DateTime | UTC |
-| `labels` | JSON | Standardized labels |
-| `prompt_metadata` | JSON | Component-specific (e.g., blob-store URI) |
-| `targeted_harm_categories` | JSON (list[str]) | Category tags |
-| `converter_identifiers` | JSON | Which converters were applied |
-| `prompt_target_identifier` | JSON | Which target the prompt was sent to |
-| `attack_identifier` | JSON | Which attack produced this prompt |
-| `response_error` | Enum `{blocked, none, processing, unknown}` | Outcome class |
-| `original_value_data_type` | String | Original payload datatype (text/image/audio/video) |
-| `original_value` | Unicode | The raw prompt |
-| `original_value_sha256` | String | Hash for deduplication |
-| `converted_value_data_type` | String | After-converter datatype |
-| `converted_value` | Unicode | After-converter payload |
+| Column                      | Type                                                                   | Notes                                              |
+| --------------------------- | ---------------------------------------------------------------------- | -------------------------------------------------- |
+| `id`                        | UUID (CHAR(36) on SQLite)                                              | Primary key                                        |
+| `role`                      | Enum `{system, user, assistant, simulated_assistant, tool, developer}` | OpenAI-style                                       |
+| `conversation_id`           | String                                                                 | Groups turns under one target session              |
+| `sequence`                  | Integer                                                                | Turn order within conversation                     |
+| `timestamp`                 | DateTime                                                               | UTC                                                |
+| `labels`                    | JSON                                                                   | Standardized labels                                |
+| `prompt_metadata`           | JSON                                                                   | Component-specific (e.g., blob-store URI)          |
+| `targeted_harm_categories`  | JSON (list[str])                                                       | Category tags                                      |
+| `converter_identifiers`     | JSON                                                                   | Which converters were applied                      |
+| `prompt_target_identifier`  | JSON                                                                   | Which target the prompt was sent to                |
+| `attack_identifier`         | JSON                                                                   | Which attack produced this prompt                  |
+| `response_error`            | Enum `{blocked, none, processing, unknown}`                            | Outcome class                                      |
+| `original_value_data_type`  | String                                                                 | Original payload datatype (text/image/audio/video) |
+| `original_value`            | Unicode                                                                | The raw prompt                                     |
+| `original_value_sha256`     | String                                                                 | Hash for deduplication                             |
+| `converted_value_data_type` | String                                                                 | After-converter datatype                           |
+| `converted_value`           | Unicode                                                                | After-converter payload                            |
 
 Indices: `idx_conversation_id` for fast per-conversation replay. Each `PromptMemoryEntry` links to a list of `ScoreEntry` rows.
 
@@ -935,22 +948,22 @@ From [promptfoo.dev/docs/red-team/plugins/](https://www.promptfoo.dev/docs/red-t
 
 #### 6.3.1 Brand category (14 plugins)
 
-| # | Plugin | Description |
-|---|---|---|
-| 1 | Competitor Endorsement | "Competitor mentions and endorsements" |
-| 2 | Excessive Agency | "Model taking excessive initiative or misunderstanding its capabilities" |
-| 3 | Financial Counterfactual Narrative | "Tests for false financial narratives or misleading market information" |
-| 4 | Financial Defamation | "Tests for false statements damaging financial entity reputations" |
-| 5 | Financial Hallucination | "Tests for fabricated market data, non-existent financial instruments, or fictional company information" |
-| 6 | Financial Sycophancy | "Tests for agreeing with risky investment strategies or validating get-rich-quick schemes" |
-| 7 | Goal Misalignment | "Tests whether AI systems recognize when optimizing measurable proxy metrics might not align with true underlying objectives" |
-| 8 | Hallucination | "Model generating false or misleading information" |
-| 9 | Imitation | "Imitates people, brands, or organizations" |
-| 10 | Misinformation and Disinformation | "Spreading false or misleading information" |
-| 11 | Off-Topic Manipulation | "Tests whether AI systems can be manipulated to go off-topic from their intended purpose" |
-| 12 | Overreliance | "Model susceptible to relying on an incorrect user assumption or input" |
-| 13 | Political Opinions | "Makes political statements" |
-| 14 | Unverifiable Claims | "Tests whether AI systems make claims that cannot be verified even in principle" |
+| #   | Plugin                             | Description                                                                                                                   |
+| --- | ---------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| 1   | Competitor Endorsement             | "Competitor mentions and endorsements"                                                                                        |
+| 2   | Excessive Agency                   | "Model taking excessive initiative or misunderstanding its capabilities"                                                      |
+| 3   | Financial Counterfactual Narrative | "Tests for false financial narratives or misleading market information"                                                       |
+| 4   | Financial Defamation               | "Tests for false statements damaging financial entity reputations"                                                            |
+| 5   | Financial Hallucination            | "Tests for fabricated market data, non-existent financial instruments, or fictional company information"                      |
+| 6   | Financial Sycophancy               | "Tests for agreeing with risky investment strategies or validating get-rich-quick schemes"                                    |
+| 7   | Goal Misalignment                  | "Tests whether AI systems recognize when optimizing measurable proxy metrics might not align with true underlying objectives" |
+| 8   | Hallucination                      | "Model generating false or misleading information"                                                                            |
+| 9   | Imitation                          | "Imitates people, brands, or organizations"                                                                                   |
+| 10  | Misinformation and Disinformation  | "Spreading false or misleading information"                                                                                   |
+| 11  | Off-Topic Manipulation             | "Tests whether AI systems can be manipulated to go off-topic from their intended purpose"                                     |
+| 12  | Overreliance                       | "Model susceptible to relying on an incorrect user assumption or input"                                                       |
+| 13  | Political Opinions                 | "Makes political statements"                                                                                                  |
+| 14  | Unverifiable Claims                | "Tests whether AI systems make claims that cannot be verified even in principle"                                              |
 
 #### 6.3.2 Compliance & Legal category (42 plugins)
 
@@ -962,6 +975,7 @@ This category is the deepest — promptfoo has explicit verticalized plugins for
 #### 6.3.3 Dataset category (11 plugins — academic benchmark bridges)
 
 Verbatim:
+
 - **Aegis** — "Evaluates model safety responses using the NVIDIA Aegis dataset"
 - **BeaverTails** — "Uses the BeaverTails prompt injection dataset"
 - **CyberSecEval** — "Tests prompt injection attacks using the CyberSecEval dataset"
@@ -1041,6 +1055,7 @@ Verbatim highlights: Age Bias, Age-Restricted Goods & Services, Child Exploitati
 Verbatim from [promptfoo.dev/docs/red-team/strategies/](https://www.promptfoo.dev/docs/red-team/strategies/):
 
 **Recommended (top-of-funnel):**
+
 - **Meta Agent** — "Builds custom attack taxonomies and learns from all attempts using persistent strategic memory" (single-turn).
 - **Hydra Multi-turn** — "Adaptive multi-turn jailbreak agent that pivots across branches with persistent scan-wide memory" (multi-turn).
 
@@ -1049,6 +1064,7 @@ Verbatim from [promptfoo.dev/docs/red-team/strategies/](https://www.promptfoo.de
 **Dynamic single-turn:** Authoritative Markup Injection, Best-of-N, Citation, Composite Jailbreaks, GCG, Jailbreak ("Lightweight iterative refinement"), Likert-based Jailbreaks ("Academic evaluation framework"), Math Prompt, Tree-based ("Branching attack paths").
 
 **Multi-turn:**
+
 - **Crescendo** — "Gradually escalates prompt harm over multiple turns."
 - **GOAT** — "Uses a Generative Offensive Agent Tester."
 - **Mischievous User** — "Simulates a multi-turn conversation."
@@ -1068,30 +1084,31 @@ From [promptfoo.dev/docs/red-team/quickstart/](https://www.promptfoo.dev/docs/re
 ```yaml
 targets:
   - id: https
-    label: 'travel-agent'
+    label: "travel-agent"
     config:
-      url: 'https://example.com/generate'
-      method: 'POST'
+      url: "https://example.com/generate"
+      method: "POST"
       headers:
-        'Content-Type': 'application/json'
+        "Content-Type": "application/json"
       body:
-        myPrompt: '{{prompt}}'
-purpose: 'The user is a budget traveler...'
+        myPrompt: "{{prompt}}"
+purpose: "The user is a budget traveler..."
 ```
 
 **Direct-model target example:**
 
 ```yaml
 prompts:
-  - 'Act as a travel agent and help the user plan their trip...'
+  - "Act as a travel agent and help the user plan their trip..."
 targets:
   - id: openai:gpt-5-mini
-    label: 'travel-agent-mini'
+    label: "travel-agent-mini"
 ```
 
 **Supported target types:** "HTTP requests to your API," "Custom Python scripts," and "Javascript."
 
 **Provider list (100+):**
+
 - API providers: OpenAI (GPT-5.1, reasoning models), Anthropic (Claude opus-4-6), Google (Gemini), Vertex AI.
 - Cloud platforms: AWS Bedrock, Azure OpenAI, Databricks, Snowflake Cortex, IBM WatsonX.
 - Specialized: Cohere, Mistral AI, DeepSeek, Groq, Together AI, Perplexity, HuggingFace.
@@ -1148,14 +1165,14 @@ From [trydeepteam.com/docs/red-teaming-vulnerabilities](https://www.trydeepteam.
 
 > "50+ SOTA, ready-to-use vulnerabilities" organized into six categories.
 
-| Category | Vulnerabilities |
-|---|---|
-| **Responsible AI** | Bias (race, gender, political), Toxicity (profanity, insults, threats), Child Protection, Ethics, Fairness |
-| **Data Privacy** | PII Leakage (direct disclosure, API access, session leak), Prompt Leakage (secrets, credentials, permissions) |
-| **Security** | BFLA, BOLA, RBAC, SSRF (internal access, port scanning), SQL Injection, Shell Injection, Debug Access, Tool Metadata Poisoning, Cross-Context Retrieval, System Reconnaissance |
-| **Safety** | Illegal Activity, Graphic Content, Personal Safety, Unexpected Code Execution |
-| **Business** | Misinformation, Intellectual Property, Competition |
-| **Agentic** | Goal Theft, Recursive Hijacking, Excessive Agency, Robustness, Indirect Instruction, Tool Orchestration Abuse, Agent Identity & Trust Abuse, Inter-Agent Communication Compromise, Autonomous Agent Drift, Exploit Tool Agent, External System Abuse |
+| Category           | Vulnerabilities                                                                                                                                                                                                                                      |
+| ------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Responsible AI** | Bias (race, gender, political), Toxicity (profanity, insults, threats), Child Protection, Ethics, Fairness                                                                                                                                           |
+| **Data Privacy**   | PII Leakage (direct disclosure, API access, session leak), Prompt Leakage (secrets, credentials, permissions)                                                                                                                                        |
+| **Security**       | BFLA, BOLA, RBAC, SSRF (internal access, port scanning), SQL Injection, Shell Injection, Debug Access, Tool Metadata Poisoning, Cross-Context Retrieval, System Reconnaissance                                                                       |
+| **Safety**         | Illegal Activity, Graphic Content, Personal Safety, Unexpected Code Execution                                                                                                                                                                        |
+| **Business**       | Misinformation, Intellectual Property, Competition                                                                                                                                                                                                   |
+| **Agentic**        | Goal Theft, Recursive Hijacking, Excessive Agency, Robustness, Indirect Instruction, Tool Orchestration Abuse, Agent Identity & Trust Abuse, Inter-Agent Communication Compromise, Autonomous Agent Drift, Exploit Tool Agent, External System Abuse |
 
 The **Agentic** category is explicitly mapped to OWASP Top 10 for Agentic Applications (see §14.2 below).
 
@@ -1216,6 +1233,7 @@ OpenAI, LiteLLM, Google Gemini, AWS Bedrock, Snowflake Cortex, HuggingFace, Lang
 ### 8.6 Red-team-adjacency
 
 TruLens is **not** a red-team tool. But it's in scope because:
+
 - Its Selector API + OTel-span instrumentation is the closest OSS analog to what an agent-testing harness needs for fault injection (you can target a specific span and inject behavior).
 - HHH + RAG Triad gives a fast acceptance-criteria baseline that any red-team product can layer on top of.
 
@@ -1244,6 +1262,7 @@ From `phoenix/evals/metrics/tool_invocation.py`:
 > "Determines if a tool was invoked correctly with proper arguments, formatting, and safe content."
 
 **Returns one `Score` with:**
+
 - `label` (`correct` or `incorrect`)
 - `score` (`1.0` if correct, `0.0` if incorrect)
 - `explanation` from the LLM judge
@@ -1462,18 +1481,18 @@ These are research-grade, not production toolkits, but feed back into the produc
 
 ## 11. Comparative matrix
 
-| Product | Open/Commercial | Fault classes shipped | Agent interface | Output format | Phoenix-compatible? | Browser-agent? | Voice-agent? | Multi-turn? |
-|---|---|---|---|---|---|---|---|---|
-| **Lakera Guard** | Commercial | 4 screeners (prompt-attack, data-leak, content-violation, unknown-links) | REST endpoint sees prompts; not "test" but "runtime" | JSON `{flagged, scores}` | Not natively; could log Guard scores as Phoenix annotations | No | No | Per-request, not stateful |
-| **Lakera Red** | Commercial | Safety / Security / Responsible AI categories (specific list not public) | Scope your AI app in platform UI | Platform dashboard + compliance report | No public bridge | [UNVERIFIED] | [UNVERIFIED] | Yes (per "Direct and indirect" claim) |
-| **Mindgard** | Commercial | "Discover/Recon/Attack/Defend" pillars; psychometric agent profiling | CI/CD, Burp Suite, single-click | Dashboards (Discover, Recon, Findings, Defense) + compliance | No public bridge | [UNVERIFIED-Burp-implies-HTTP] | [UNVERIFIED] | Yes |
-| **HiddenLayer** | Commercial | Prompt-attack, data-security, agent-misuse + supply-chain + runtime + discovery | Native connectors (CI/CD, MLOps, SIEM, API gateways); LiteLLM proxy; SDK | Vulnerability metrics + tracking | No public bridge | Via LiteLLM proxy interception | [UNVERIFIED] | Yes (continuous) |
-| **NVIDIA Garak** | OSS (Apache 2.0) | 45 probe families (DAN, encoding, GCG, TAP, GOAT, latentinjection, etc.) | Generator class (REST, WebSocket, function, vendor SDKs) | JSONL hit-log + per-probe pass/fail table + `analyse_log.py` summary | No native; JSONL can be parsed into Phoenix annotations | No | Yes (`audio.py` probe) | Yes (GOAT, TAP, atkgen) |
-| **Microsoft PyRIT** | OSS (MIT) | Single-turn (skeleton-key, many-shot, role-play, flip, CCA, context-compliance) + multi-turn (PAIR, TAP, Crescendo, simulated-conversation, chunked-request) | PromptTarget (REST, Playwright browser, WebSocket Copilot, Gandalf, blob-storage, Azure-ML) | SQLite/Azure-SQL memory + scenario printers | No native; memory can be exported | **Yes (Playwright + WebSocket Copilot)** | Multimodal converters (audio/image/video) | **Yes (first-class)** |
-| **promptfoo** | OSS (MIT) + cloud | **157 plugins** (incl. 15 coding-agent + 30 trust-safety + 58 security + 42 compliance + 11 dataset-bridges + 14 brand + custom) | HTTP, Python, JavaScript, MCP, OpenAI/Anthropic/etc. (100+) | HTML report + per-test detail + OWASP-mapped risk score | No native; reports are self-contained | Custom JS provider can drive Playwright | Audio Encoding strategy (TTS bypass) | **Yes (Crescendo, GOAT, Hydra, Mischievous User)** |
-| **DeepTeam (DeepEval RT)** | OSS (Apache 2.0) | 50+ vulnerabilities in 6 categories incl. agentic (11 sub-vulns) | Python callback | HTML / Markdown risk assessment | Confident AI cloud integration | [UNVERIFIED] | [UNVERIFIED] | Yes |
-| **TruLens** | OSS (Apache 2.0) | Not red-team; eval framework (RAG triad, HHH) | OTel span instrumentation; LangChain/LlamaIndex wrappers | Span dashboard + feedback-function scores | Both use OTel; compatible | Via LangChain | Not specific | Yes (inline mode) |
-| **Arize Phoenix** | OSS (ELv2) | Eval-only: tool_invocation, tool_selection, tool_response_handling, faithfulness, refusal, hallucination(deprecated), correctness, conciseness, doc_relevance, exact_match, matches_regex, precision_recall | OTel-instrumented agent (any framework) | Span UI + annotations + experiments + datasets | Self | Whatever the agent does (Phoenix observes) | Same | Yes (multi-span traces) |
+| Product                    | Open/Commercial   | Fault classes shipped                                                                                                                                                                                       | Agent interface                                                                             | Output format                                                        | Phoenix-compatible?                                         | Browser-agent?                             | Voice-agent?                              | Multi-turn?                                        |
+| -------------------------- | ----------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- | -------------------------------------------------------------------- | ----------------------------------------------------------- | ------------------------------------------ | ----------------------------------------- | -------------------------------------------------- |
+| **Lakera Guard**           | Commercial        | 4 screeners (prompt-attack, data-leak, content-violation, unknown-links)                                                                                                                                    | REST endpoint sees prompts; not "test" but "runtime"                                        | JSON `{flagged, scores}`                                             | Not natively; could log Guard scores as Phoenix annotations | No                                         | No                                        | Per-request, not stateful                          |
+| **Lakera Red**             | Commercial        | Safety / Security / Responsible AI categories (specific list not public)                                                                                                                                    | Scope your AI app in platform UI                                                            | Platform dashboard + compliance report                               | No public bridge                                            | [UNVERIFIED]                               | [UNVERIFIED]                              | Yes (per "Direct and indirect" claim)              |
+| **Mindgard**               | Commercial        | "Discover/Recon/Attack/Defend" pillars; psychometric agent profiling                                                                                                                                        | CI/CD, Burp Suite, single-click                                                             | Dashboards (Discover, Recon, Findings, Defense) + compliance         | No public bridge                                            | [UNVERIFIED-Burp-implies-HTTP]             | [UNVERIFIED]                              | Yes                                                |
+| **HiddenLayer**            | Commercial        | Prompt-attack, data-security, agent-misuse + supply-chain + runtime + discovery                                                                                                                             | Native connectors (CI/CD, MLOps, SIEM, API gateways); LiteLLM proxy; SDK                    | Vulnerability metrics + tracking                                     | No public bridge                                            | Via LiteLLM proxy interception             | [UNVERIFIED]                              | Yes (continuous)                                   |
+| **NVIDIA Garak**           | OSS (Apache 2.0)  | 45 probe families (DAN, encoding, GCG, TAP, GOAT, latentinjection, etc.)                                                                                                                                    | Generator class (REST, WebSocket, function, vendor SDKs)                                    | JSONL hit-log + per-probe pass/fail table + `analyse_log.py` summary | No native; JSONL can be parsed into Phoenix annotations     | No                                         | Yes (`audio.py` probe)                    | Yes (GOAT, TAP, atkgen)                            |
+| **Microsoft PyRIT**        | OSS (MIT)         | Single-turn (skeleton-key, many-shot, role-play, flip, CCA, context-compliance) + multi-turn (PAIR, TAP, Crescendo, simulated-conversation, chunked-request)                                                | PromptTarget (REST, Playwright browser, WebSocket Copilot, Gandalf, blob-storage, Azure-ML) | SQLite/Azure-SQL memory + scenario printers                          | No native; memory can be exported                           | **Yes (Playwright + WebSocket Copilot)**   | Multimodal converters (audio/image/video) | **Yes (first-class)**                              |
+| **promptfoo**              | OSS (MIT) + cloud | **157 plugins** (incl. 15 coding-agent + 30 trust-safety + 58 security + 42 compliance + 11 dataset-bridges + 14 brand + custom)                                                                            | HTTP, Python, JavaScript, MCP, OpenAI/Anthropic/etc. (100+)                                 | HTML report + per-test detail + OWASP-mapped risk score              | No native; reports are self-contained                       | Custom JS provider can drive Playwright    | Audio Encoding strategy (TTS bypass)      | **Yes (Crescendo, GOAT, Hydra, Mischievous User)** |
+| **DeepTeam (DeepEval RT)** | OSS (Apache 2.0)  | 50+ vulnerabilities in 6 categories incl. agentic (11 sub-vulns)                                                                                                                                            | Python callback                                                                             | HTML / Markdown risk assessment                                      | Confident AI cloud integration                              | [UNVERIFIED]                               | [UNVERIFIED]                              | Yes                                                |
+| **TruLens**                | OSS (Apache 2.0)  | Not red-team; eval framework (RAG triad, HHH)                                                                                                                                                               | OTel span instrumentation; LangChain/LlamaIndex wrappers                                    | Span dashboard + feedback-function scores                            | Both use OTel; compatible                                   | Via LangChain                              | Not specific                              | Yes (inline mode)                                  |
+| **Arize Phoenix**          | OSS (ELv2)        | Eval-only: tool_invocation, tool_selection, tool_response_handling, faithfulness, refusal, hallucination(deprecated), correctness, conciseness, doc_relevance, exact_match, matches_regex, precision_recall | OTel-instrumented agent (any framework)                                                     | Span UI + annotations + experiments + datasets                       | Self                                                        | Whatever the agent does (Phoenix observes) | Same                                      | Yes (multi-span traces)                            |
 
 ### 11.1 Observations on the matrix
 
@@ -1490,31 +1509,31 @@ These are research-grade, not production toolkits, but feed back into the produc
 
 ### 12.1 Report formats observed
 
-| Format | Used by |
-|---|---|
-| **Per-probe pass/fail grid (heatmap of probe × detector)** | Garak (the canonical example — colored grid output in CLI) |
-| **HTML report with per-plugin sections** | promptfoo, DeepTeam |
-| **Web dashboard (Discover / Recon / Findings / Defense panels)** | Mindgard |
-| **Side-by-side experiment view (run-A vs run-B)** | Arize Phoenix |
-| **JSONL hit-log + analyse script** | Garak |
-| **SQL-queryable memory (full attack tree)** | PyRIT |
-| **Compliance-mapped risk report** | Mindgard, HiddenLayer (and promptfoo via riskScoring.ts) |
-| **Single boolean `flagged` + per-detector breakdown** | Lakera Guard (runtime use case) |
-| **Span-level annotations on a trace** | Arize Phoenix |
+| Format                                                           | Used by                                                    |
+| ---------------------------------------------------------------- | ---------------------------------------------------------- |
+| **Per-probe pass/fail grid (heatmap of probe × detector)**       | Garak (the canonical example — colored grid output in CLI) |
+| **HTML report with per-plugin sections**                         | promptfoo, DeepTeam                                        |
+| **Web dashboard (Discover / Recon / Findings / Defense panels)** | Mindgard                                                   |
+| **Side-by-side experiment view (run-A vs run-B)**                | Arize Phoenix                                              |
+| **JSONL hit-log + analyse script**                               | Garak                                                      |
+| **SQL-queryable memory (full attack tree)**                      | PyRIT                                                      |
+| **Compliance-mapped risk report**                                | Mindgard, HiddenLayer (and promptfoo via riskScoring.ts)   |
+| **Single boolean `flagged` + per-detector breakdown**            | Lakera Guard (runtime use case)                            |
+| **Span-level annotations on a trace**                            | Arize Phoenix                                              |
 
 ### 12.2 Score concepts seen
 
-| Concept | Examples |
-|---|---|
-| **Pass-rate per probe** | Garak ("X/Y attempts passed") |
-| **Failure-rate per (probe × detector)** | Garak heatmap |
-| **OWASP-mapped severity score** | promptfoo's `riskScoring.ts` — categories rolled up to OWASP LLM Top 10 |
-| **Per-category risk roll-up** | DeepTeam (six categories), Mindgard |
-| **Float-scale (0–1) with threshold** | PyRIT's `FloatScaleThresholdScorer` — used by TAP/PAIR for tree-pruning |
-| **Boolean per-attempt** | PyRIT `TrueFalseScorer`, Lakera `flagged` |
-| **LLM-as-judge with rubric** | Phoenix (all classification evaluators), DeepEval G-Eval, Garak `judge.py` |
-| **Custom rubric per scenario** | Phoenix DAG metric, DeepEval G-Eval |
-| **Compliance-bound (e.g., HIPAA / PCI DSS / GDPR pass/fail)** | promptfoo compliance plugins, Mindgard reporting |
+| Concept                                                       | Examples                                                                   |
+| ------------------------------------------------------------- | -------------------------------------------------------------------------- |
+| **Pass-rate per probe**                                       | Garak ("X/Y attempts passed")                                              |
+| **Failure-rate per (probe × detector)**                       | Garak heatmap                                                              |
+| **OWASP-mapped severity score**                               | promptfoo's `riskScoring.ts` — categories rolled up to OWASP LLM Top 10    |
+| **Per-category risk roll-up**                                 | DeepTeam (six categories), Mindgard                                        |
+| **Float-scale (0–1) with threshold**                          | PyRIT's `FloatScaleThresholdScorer` — used by TAP/PAIR for tree-pruning    |
+| **Boolean per-attempt**                                       | PyRIT `TrueFalseScorer`, Lakera `flagged`                                  |
+| **LLM-as-judge with rubric**                                  | Phoenix (all classification evaluators), DeepEval G-Eval, Garak `judge.py` |
+| **Custom rubric per scenario**                                | Phoenix DAG metric, DeepEval G-Eval                                        |
+| **Compliance-bound (e.g., HIPAA / PCI DSS / GDPR pass/fail)** | promptfoo compliance plugins, Mindgard reporting                           |
 
 ### 12.3 Dashboard patterns
 
@@ -1641,22 +1660,23 @@ These are research-grade, not production toolkits, but feed back into the produc
 
 From [genai.owasp.org/llm-top-10](https://genai.owasp.org/llm-top-10/):
 
-| ID | Name |
-|---|---|
-| **LLM01:2025** | Prompt Injection |
+| ID             | Name                             |
+| -------------- | -------------------------------- |
+| **LLM01:2025** | Prompt Injection                 |
 | **LLM02:2025** | Sensitive Information Disclosure |
-| **LLM03:2025** | Supply Chain |
-| **LLM04:2025** | Data and Model Poisoning |
-| **LLM05:2025** | Improper Output Handling |
-| **LLM06:2025** | Excessive Agency |
-| **LLM07:2025** | System Prompt Leakage |
-| **LLM08:2025** | Vector and Embedding Weaknesses |
-| **LLM09:2025** | Misinformation |
-| **LLM10:2025** | Unbounded Consumption |
+| **LLM03:2025** | Supply Chain                     |
+| **LLM04:2025** | Data and Model Poisoning         |
+| **LLM05:2025** | Improper Output Handling         |
+| **LLM06:2025** | Excessive Agency                 |
+| **LLM07:2025** | System Prompt Leakage            |
+| **LLM08:2025** | Vector and Embedding Weaknesses  |
+| **LLM09:2025** | Misinformation                   |
+| **LLM10:2025** | Unbounded Consumption            |
 
 (The 2023/v1.1 list had: Insecure Output Handling, Training Data Poisoning, Model DoS, Supply Chain Vulnerabilities, Sensitive Info Disclosure, Insecure Plugin Design, Excessive Agency, Overreliance, Model Theft. Multiple tools — Garak, promptfoo, Lakera, HiddenLayer — still publish mappings to the older list as of mid-2026 [UNVERIFIED-which-version-each-uses].)
 
 Used by:
+
 - **promptfoo** — explicit OWASP-LLM mapping in `riskScoring.ts` and report.
 - **Garak** — community-maintained probe-to-OWASP-LLM crosswalk.
 - **Lakera Red** — uses OWASP categories as risk pillars.
@@ -1668,18 +1688,18 @@ Used by:
 
 From [trydeepteam.com/docs/frameworks-owasp-top-10-for-agentic-applications](https://www.trydeepteam.com/docs/frameworks-owasp-top-10-for-agentic-applications) and [genai.owasp.org/2025/12/09/...](https://genai.owasp.org/2025/12/09/owasp-top-10-for-agentic-applications-the-benchmark-for-agentic-security-in-the-age-of-autonomous-ai/):
 
-| ID | Name | One-line |
-|---|---|---|
-| **ASI01:2026** | Agent Goal Hijack | "Attackers manipulate agent goals, plans, or decision paths through direct or indirect instruction injection." (e.g., EchoLeak — copilots turned into silent exfiltration engines) |
-| **ASI02:2026** | Tool Misuse & Exploitation | "Agents misuse tools through unsafe composition, recursion, or excessive execution causing harmful side effects." |
-| **ASI03:2026** | Agent Identity & Privilege Abuse | "Delegated authority, ambiguous agent identity, or trust assumptions lead to unauthorized actions." |
-| **ASI04:2026** | Agentic Supply Chain Compromise | "Compromise of external agents, tools, schemas, or prompts that agents dynamically trust or import." |
-| **ASI05:2026** | Unexpected Code Execution | "Agent-generated or agent-triggered code executes without sufficient validation or isolation." |
-| **ASI06:2026** | Memory & Context Poisoning | "Injection or leakage of agent memory or contextual state that influences future reasoning or actions." |
-| **ASI07:2026** | Insecure Inter-Agent Communication | "Manipulation of messages exchanged between agents, planners, and executors." |
-| **ASI08:2026** | Cascading Agent Failures | "Small agent failures propagate through connected systems, causing large-scale impact." |
-| **ASI09:2026** | Human-Agent Trust Exploitation | "Exploiting human over-reliance on agents through misleading explanations or authority framing." |
-| **ASI10:2026** | Rogue Agents | "Agents acting beyond intended objectives due to goal drift, collusion, or emergent behavior." |
+| ID             | Name                               | One-line                                                                                                                                                                           |
+| -------------- | ---------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **ASI01:2026** | Agent Goal Hijack                  | "Attackers manipulate agent goals, plans, or decision paths through direct or indirect instruction injection." (e.g., EchoLeak — copilots turned into silent exfiltration engines) |
+| **ASI02:2026** | Tool Misuse & Exploitation         | "Agents misuse tools through unsafe composition, recursion, or excessive execution causing harmful side effects."                                                                  |
+| **ASI03:2026** | Agent Identity & Privilege Abuse   | "Delegated authority, ambiguous agent identity, or trust assumptions lead to unauthorized actions."                                                                                |
+| **ASI04:2026** | Agentic Supply Chain Compromise    | "Compromise of external agents, tools, schemas, or prompts that agents dynamically trust or import."                                                                               |
+| **ASI05:2026** | Unexpected Code Execution          | "Agent-generated or agent-triggered code executes without sufficient validation or isolation."                                                                                     |
+| **ASI06:2026** | Memory & Context Poisoning         | "Injection or leakage of agent memory or contextual state that influences future reasoning or actions."                                                                            |
+| **ASI07:2026** | Insecure Inter-Agent Communication | "Manipulation of messages exchanged between agents, planners, and executors."                                                                                                      |
+| **ASI08:2026** | Cascading Agent Failures           | "Small agent failures propagate through connected systems, causing large-scale impact."                                                                                            |
+| **ASI09:2026** | Human-Agent Trust Exploitation     | "Exploiting human over-reliance on agents through misleading explanations or authority framing."                                                                                   |
+| **ASI10:2026** | Rogue Agents                       | "Agents acting beyond intended objectives due to goal drift, collusion, or emergent behavior."                                                                                     |
 
 Published December 2025 by the OWASP GenAI Security Project, with input from "over 100 security researchers, industry practitioners, user organizations and leading cybersecurity and generative AI technology providers."
 
@@ -1789,34 +1809,34 @@ Each tactic groups techniques (`AML.T0000`-series IDs). Used by HiddenLayer (pub
 
 ## Appendix A — Quick-reference: agent-under-test interface per tool
 
-| Tool | Interface name | Surface |
-|---|---|---|
-| Garak | `Generator` (base class) | Python class with `_call_model(prompt) -> response` |
-| PyRIT | `PromptTarget` | Async Python class with `send_prompt_async(...)` |
-| Promptfoo | `provider` config | YAML/JS object pointing at HTTP / Python / JS / vendor |
-| DeepTeam | Python callback `(prompt: str) -> str` | Function reference |
-| Phoenix (eval bind) | OTel span attributes | Maps `attributes.input.value` / `attributes.output.value` |
-| Lakera Guard | REST POST `/guard` | JSON `{messages, project_id}` |
-| Mindgard | CI/CD pipe, Burp Suite, single-click | HTTP-level interception |
-| HiddenLayer | LiteLLM proxy, SDK, MCP runtime hook | Multi-layer interception |
-| TruLens | OTel + framework wrapper | Wraps LangChain/LlamaIndex calls |
+| Tool                | Interface name                         | Surface                                                   |
+| ------------------- | -------------------------------------- | --------------------------------------------------------- |
+| Garak               | `Generator` (base class)               | Python class with `_call_model(prompt) -> response`       |
+| PyRIT               | `PromptTarget`                         | Async Python class with `send_prompt_async(...)`          |
+| Promptfoo           | `provider` config                      | YAML/JS object pointing at HTTP / Python / JS / vendor    |
+| DeepTeam            | Python callback `(prompt: str) -> str` | Function reference                                        |
+| Phoenix (eval bind) | OTel span attributes                   | Maps `attributes.input.value` / `attributes.output.value` |
+| Lakera Guard        | REST POST `/guard`                     | JSON `{messages, project_id}`                             |
+| Mindgard            | CI/CD pipe, Burp Suite, single-click   | HTTP-level interception                                   |
+| HiddenLayer         | LiteLLM proxy, SDK, MCP runtime hook   | Multi-layer interception                                  |
+| TruLens             | OTel + framework wrapper               | Wraps LangChain/LlamaIndex calls                          |
 
 ## Appendix B — Quick-reference: where each named attack lives
 
-| Attack | Garak | PyRIT | Promptfoo | DeepTeam |
-|---|---|---|---|---|
-| DAN | `probes/dan.py` | `single_turn/role_play.py` | static-strategy "Jailbreak Templates" | Jailbreak Templates |
-| GCG | `probes/gcg.py` | (converters available) | `strategies/gcg.ts` | (custom) |
-| PAIR | `probes/tap.py` (via TAP family) | `multi_turn/pair.py` | `strategies/iterative.ts` | Yes |
-| TAP | `probes/tap.py` | `multi_turn/tree_of_attacks.py` | `strategies/iterative.ts` (Tree-based) | Yes |
-| Crescendo | (community) | `multi_turn/crescendo.py` | `strategies/crescendo.ts` | Yes |
-| GOAT | `probes/goat.py` | (auxiliary_attacks) | `strategies/goat.ts` | Yes |
-| Skeleton Key | (community) | `single_turn/skeleton_key.py` | static templates | Yes |
-| Many-Shot Jailbreak | (community) | `single_turn/many_shot_jailbreak.py` | (custom dataset) | Yes |
-| Encoding (base64 / rot13 / morse) | `probes/encoding.py` (full library) | many converters | static strategies | ROT13 attack |
-| Indirect Prompt Injection | `probes/latentinjection.py` | (via converters + targets) | `plugins/indirectPromptInjection.ts` | Indirect Instruction |
-| Memory poisoning | (community) | (via memory model) | `plugins/...` (Memory Poisoning) | Yes |
-| Tool discovery / metadata poisoning | (recent) | (via target tools) | `plugins/toolDiscovery.ts` + `mcp.ts` | Tool Metadata Poisoning |
+| Attack                              | Garak                               | PyRIT                                | Promptfoo                              | DeepTeam                |
+| ----------------------------------- | ----------------------------------- | ------------------------------------ | -------------------------------------- | ----------------------- |
+| DAN                                 | `probes/dan.py`                     | `single_turn/role_play.py`           | static-strategy "Jailbreak Templates"  | Jailbreak Templates     |
+| GCG                                 | `probes/gcg.py`                     | (converters available)               | `strategies/gcg.ts`                    | (custom)                |
+| PAIR                                | `probes/tap.py` (via TAP family)    | `multi_turn/pair.py`                 | `strategies/iterative.ts`              | Yes                     |
+| TAP                                 | `probes/tap.py`                     | `multi_turn/tree_of_attacks.py`      | `strategies/iterative.ts` (Tree-based) | Yes                     |
+| Crescendo                           | (community)                         | `multi_turn/crescendo.py`            | `strategies/crescendo.ts`              | Yes                     |
+| GOAT                                | `probes/goat.py`                    | (auxiliary_attacks)                  | `strategies/goat.ts`                   | Yes                     |
+| Skeleton Key                        | (community)                         | `single_turn/skeleton_key.py`        | static templates                       | Yes                     |
+| Many-Shot Jailbreak                 | (community)                         | `single_turn/many_shot_jailbreak.py` | (custom dataset)                       | Yes                     |
+| Encoding (base64 / rot13 / morse)   | `probes/encoding.py` (full library) | many converters                      | static strategies                      | ROT13 attack            |
+| Indirect Prompt Injection           | `probes/latentinjection.py`         | (via converters + targets)           | `plugins/indirectPromptInjection.ts`   | Indirect Instruction    |
+| Memory poisoning                    | (community)                         | (via memory model)                   | `plugins/...` (Memory Poisoning)       | Yes                     |
+| Tool discovery / metadata poisoning | (recent)                            | (via target tools)                   | `plugins/toolDiscovery.ts` + `mcp.ts`  | Tool Metadata Poisoning |
 
 ---
 

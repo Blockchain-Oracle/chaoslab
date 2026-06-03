@@ -135,6 +135,7 @@ cd apps/target-agent && uv run ruff check . && uv run ruff format . --check && u
 - **Server entry (S2.2 dependency).** This story does NOT add the `to_a2a()` server or the `[project.scripts]` entry point — that's S2.2. `main.py` here is a minimal module that exposes `root_agent` for ADK discovery only.
 - **Phoenix wiring (S2.3 dependency).** This story does NOT call `phoenix.otel.register()` or `GoogleADKInstrumentor().instrument(...)`. The unit test fixture uses an in-process OTel `SimpleSpanProcessor` + in-memory exporter (`InMemorySpanExporter` from `opentelemetry.sdk.trace.export.in_memory_span_exporter`) so the trace-as-assertion BDD can run without a real Phoenix endpoint.
 - **Sample fixture pattern** for the trace-as-assertion test:
+
   ```python
   from opentelemetry import trace
   from opentelemetry.sdk.trace import TracerProvider
@@ -150,4 +151,5 @@ cd apps/target-agent && uv run ruff check . && uv run ruff format . --check && u
       yield exporter
       exporter.clear()
   ```
+
 - **Cross-reference docs:** `/Users/abu/dev/hackathon/rapid-agents/research/google-cloud-rapid-agent/best-practices/01-python-project-layout.md` §3.4 (canonical agent.py shape) + §3.8 (test patterns). `/Users/abu/dev/hackathon/rapid-agents/research/google-cloud-rapid-agent/architecture/03-multi-agent-patterns.md` §9.A (target ADK agent skeleton — note our weak-prompt + naive-tools variant).

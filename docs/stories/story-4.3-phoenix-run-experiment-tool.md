@@ -37,7 +37,7 @@ Exact files the coding agent creates or modifies for this story:
   - **`respx`-mocked 429 retry path:** Phoenix returns 429 twice, then 200. Tool succeeds; total request count == 3. Verifies `retries=2` config.
   - **`respx`-mocked failure path:** Phoenix returns 500. Tool raises a `PhoenixExperimentError` (custom exception in `chaoslab_agent.errors`) — never bare `Exception`.
   - **`@pytest.mark.online` real Phoenix hit:** if `PHOENIX_API_KEY` is set in env AND the test is invoked with `-m "online"`, the tool runs against a Phoenix-Cloud dataset named `"test-rat"` (must exist — pre-created by Day-1 RAT runbook per ADR-005), with evaluators=`["tool_invocation"]`. Asserts `result.experiment_id` matches the regex AND `result.metrics` contains the `"tool_invocation"` key. Test is skipped if env var is missing.
-  ~200 lines.
+    ~200 lines.
 - `apps/chaoslab-agent/src/chaoslab_agent/errors.py` — NEW (if not already from S4.1) — defines `class ChaosLabError(Exception)` base + `class PhoenixExperimentError(ChaosLabError)` + `class PhoenixAnnotationError(ChaosLabError)` (used in S4.4). ~30 lines.
 
 The coding agent must NOT modify files outside this map without re-checking CLAUDE.md.
@@ -162,6 +162,7 @@ cd apps/chaoslab-agent && uv run ruff check . && uv run ruff format . --check &&
 - **AsyncClient with `concurrency=10`.** Per `architecture/02 §2.3`: "AsyncClient supports `concurrency=N` on `run_experiment`. Default is unverified — likely 1. Pass it explicitly." For ChaosLab's 25-attack runs, `concurrency=10` keeps wall time under 60s on a typical Phoenix-Cloud free-tier rate limit.
 - **`rate_limit_errors=[ResourceExhausted]`.** Per `architecture/02 §2.3`: Phoenix `run_experiment` accepts a list of exception classes that trigger backoff + retry. Pass `[ResourceExhausted, httpx.HTTPStatusError]` — the wrapper internally maps Gemini's `google.api_core.exceptions.ResourceExhausted` for 429 handling.
 - **Reference canonical wrapper shape** (per `architecture/02 §9.5` — adapt, do not paste verbatim):
+
   ```python
   async def run_phoenix_experiment(
       dataset_name: str,
@@ -186,7 +187,9 @@ cd apps/chaoslab-agent && uv run ruff check . && uv run ruff format . --check &&
           raise PhoenixExperimentError(f"experiment failed: dataset={dataset_name}") from e
       return _to_experiment_result(exp, dataset_name, evaluators)
   ```
+
   Body is ~15 LOC of significant code; well under 30.
+
 - **`PhoenixExperimentError` sanitization.** Never include the API key in the error message. Use `from e` to preserve the underlying traceback for debugging but the message itself stays sanitized.
 - **`TASK_REGISTRY` extensibility.** Default `"passthrough"` returns `example.output` as-is (the use case is grading already-observed outputs — same shape as `architecture/02 §9.5`). Future stories (S6.x) will register additional task callables like `"chaoslab_rerun"` that re-invoke the target agent for a fresh response.
 - **`evaluators` parameter is a list of NAMES.** Tools cannot accept Python callables as arguments over JSON (the ADK FunctionTool serializes args to JSON for the LLM to populate). Resolve strings to evaluator instances via `_resolve_evaluators`:

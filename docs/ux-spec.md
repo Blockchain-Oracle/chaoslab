@@ -25,26 +25,26 @@
 
 Defined in `apps/chaoslab-web/app/globals.css` via Tailwind 4 `@theme` (per `best-practices/04 §2`):
 
-| Token | Value | Notes |
-|---|---|---|
-| `--color-background` | `oklch(0.18 0.02 250)` | Deep ink — the chart background |
-| `--color-surface` | `oklch(0.22 0.025 250)` | Card backgrounds, modal |
-| `--color-surface-raised` | `oklch(0.27 0.03 250)` | Hover states, focused cards |
-| `--color-text-primary` | `oklch(0.96 0.005 250)` | Body text |
-| `--color-text-secondary` | `oklch(0.72 0.02 250)` | Helper text, axis labels |
-| `--color-text-muted` | `oklch(0.55 0.015 250)` | Subtle metadata |
-| `--color-attack-red` | `oklch(0.65 0.24 25)` | Failed runs in the Attack Matrix |
-| `--color-pass-green` | `oklch(0.72 0.20 145)` | Passed runs in the Attack Matrix |
-| `--color-patch-line` | `oklch(0.62 0.30 280)` | The vertical PATCH marker — vivid violet, the "wedge" |
-| `--color-agent-orchestrator` | `oklch(0.62 0.25 220)` | Electric blue — primary action color |
-| `--color-agent-injector` | `oklch(0.60 0.20 30)` | Warm orange — attack-coded |
-| `--color-agent-judge` | `oklch(0.65 0.18 285)` | Royal purple |
-| `--color-agent-patcher` | `oklch(0.70 0.22 145)` | Emerald — fix-coded |
-| `--color-agent-target` | `oklch(0.55 0.05 250)` | Slate — neutral victim |
-| `--font-display` | "Geist", system-ui, sans-serif | Headlines, hero |
-| `--font-mono` | "Geist Mono", ui-monospace, monospace | Trace IDs, code, command output |
-| Spacing scale | 4px base: 4/8/12/16/24/32/48/64/96 | Tailwind default |
-| Border radius | `0` for cells, `6px` for cards, `999px` for badges/pills | Sharp cells = grid look; soft cards = breathing |
+| Token                        | Value                                                    | Notes                                                 |
+| ---------------------------- | -------------------------------------------------------- | ----------------------------------------------------- |
+| `--color-background`         | `oklch(0.18 0.02 250)`                                   | Deep ink — the chart background                       |
+| `--color-surface`            | `oklch(0.22 0.025 250)`                                  | Card backgrounds, modal                               |
+| `--color-surface-raised`     | `oklch(0.27 0.03 250)`                                   | Hover states, focused cards                           |
+| `--color-text-primary`       | `oklch(0.96 0.005 250)`                                  | Body text                                             |
+| `--color-text-secondary`     | `oklch(0.72 0.02 250)`                                   | Helper text, axis labels                              |
+| `--color-text-muted`         | `oklch(0.55 0.015 250)`                                  | Subtle metadata                                       |
+| `--color-attack-red`         | `oklch(0.65 0.24 25)`                                    | Failed runs in the Attack Matrix                      |
+| `--color-pass-green`         | `oklch(0.72 0.20 145)`                                   | Passed runs in the Attack Matrix                      |
+| `--color-patch-line`         | `oklch(0.62 0.30 280)`                                   | The vertical PATCH marker — vivid violet, the "wedge" |
+| `--color-agent-orchestrator` | `oklch(0.62 0.25 220)`                                   | Electric blue — primary action color                  |
+| `--color-agent-injector`     | `oklch(0.60 0.20 30)`                                    | Warm orange — attack-coded                            |
+| `--color-agent-judge`        | `oklch(0.65 0.18 285)`                                   | Royal purple                                          |
+| `--color-agent-patcher`      | `oklch(0.70 0.22 145)`                                   | Emerald — fix-coded                                   |
+| `--color-agent-target`       | `oklch(0.55 0.05 250)`                                   | Slate — neutral victim                                |
+| `--font-display`             | "Geist", system-ui, sans-serif                           | Headlines, hero                                       |
+| `--font-mono`                | "Geist Mono", ui-monospace, monospace                    | Trace IDs, code, command output                       |
+| Spacing scale                | 4px base: 4/8/12/16/24/32/48/64/96                       | Tailwind default                                      |
+| Border radius                | `0` for cells, `6px` for cards, `999px` for badges/pills | Sharp cells = grid look; soft cards = breathing       |
 
 **OKLCH is mandatory** — perceptually uniform, gives consistent contrast across the red/green/violet trio of the Attack Matrix. RGB-coded reds and greens don't have matched perceived brightness.
 
@@ -54,15 +54,15 @@ Defined in `apps/chaoslab-web/app/globals.css` via Tailwind 4 `@theme` (per `bes
 
 ## Route shape
 
-| Route | Purpose | Notes |
-|---|---|---|
-| `/` | Demo landing | Header + footer required. Hero: title, one-line pitch, single "Run ChaosLab" CTA. |
-| `/replay` | Canonical pre-recorded run | 22s autoplay. Used when judges want fast gratification. Pre-seeded Phoenix dataset. |
-| `/attack` | Live attack run | 90-180s real-time run. Streams via SSE from chaoslab-agent. Used for the wow demo. |
+| Route         | Purpose                                     | Notes                                                                                                                          |
+| ------------- | ------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| `/`           | Demo landing                                | Header + footer required. Hero: title, one-line pitch, single "Run ChaosLab" CTA.                                              |
+| `/replay`     | Canonical pre-recorded run                  | 22s autoplay. Used when judges want fast gratification. Pre-seeded Phoenix dataset.                                            |
+| `/attack`     | Live attack run                             | 90-180s real-time run. Streams via SSE from chaoslab-agent. Used for the wow demo.                                             |
 | `/agent/[id]` | Per-target-agent setup (Tier 1-3 selection) | Lets advanced users point ChaosLab at their own agent. Beta — included for completeness per Abu's "no MVP skipping" directive. |
-| `/api/run` | POST endpoint → starts a run | Returns `runId` + SSE URL |
-| `/api/stream` | SSE endpoint → live trace updates | Proxies chaoslab-agent's `/stream` |
-| `/api/health` | Liveness probe | Returns 200 if chaoslab-agent reachable |
+| `/api/run`    | POST endpoint → starts a run                | Returns `runId` + SSE URL                                                                                                      |
+| `/api/stream` | SSE endpoint → live trace updates           | Proxies chaoslab-agent's `/stream`                                                                                             |
+| `/api/health` | Liveness probe                              | Returns 200 if chaoslab-agent reachable                                                                                        |
 
 **Demo shape rule:** the canonical demo path is `/` → click "Run" → `/attack?runId=xxx`. The Devpost video shoots this exact flow. The wow frame at 2:15 is the cascade-flip moment on `/attack`.
 
@@ -71,12 +71,14 @@ Defined in `apps/chaoslab-web/app/globals.css` via Tailwind 4 `@theme` (per `bes
 ## Structural requirements (§12)
 
 **Header** (required on every route):
+
 - Project logo "ChaosLab" (left) — wordmark in Geist Display, tracking-tight
 - Centered: state pill (`idle`, `attacking`, `judging`, `patching`, `complete`) with current-agent-color background, brief animation when transitioning
 - Right: GitHub link, "Run against your agent" CTA (links to `/agent/new`)
 - Height: 64px desktop, 56px mobile
 
 **Footer** (required on `/` only):
+
 - "ChaosLab — built at Google Cloud Rapid Agent Hackathon, June 2026"
 - License: Apache-2.0 link
 - Vendoring attribution: "Fault primitives adapted from `deepankarm/agent-chaos` (Apache-2.0)"
@@ -115,19 +117,19 @@ Defined in `apps/chaoslab-web/app/globals.css` via Tailwind 4 `@theme` (per `bes
 
 ### Behavior (timed for the 3-min demo)
 
-| t (sec) | Phase | Matrix state | Curve state | What the judge sees |
-|---:|---|---|---|---|
-| 0:00 | idle | empty 5×5 grid (placeholder dots) | empty | Landing → "Run ChaosLab" CTA |
-| 0:05 | baseline-check | all cells green (24/25) | flat at 96% | "Baseline pass rate 96% ✓" |
-| 0:15 | attack-start | cells flipping red one by one (Framer Motion stagger, ~0.04s delay between cells) | curve drops as cells flip | "Attacking with 4 fault classes..." |
-| 1:30 | attack-complete | 5×5 grid mostly red (~15 fails, ~10 passes) | curve sits at ~40% | "15/25 attacks succeeded" |
-| 1:35 | judging | cells get a slight purple outline (judging in progress) | unchanged | "Clustering failures..." |
-| 1:45 | patching | small "patch generated" badge appears | unchanged | "3 root causes identified, patch generated" |
-| 1:50 | **THE PATCH FIRES** | **cascade-flip starts: cells flip red → green left-to-right, top-to-bottom** | **vertical PATCH line drops at this x-position; curve jumps up** | THE WOW MOMENT |
-| 2:00 | re-attack | cells continue flipping (now mostly green) | curve rises to ~92% | "Re-running 25 attacks against patched agent..." |
-| 2:15 | post-patch hold | grid frozen at final state (22 green / 3 red) | curve plateaus | THE DEVPOST COVER FRAME (1.5s held, slow zoom into the PATCH line) |
-| 2:30 | receipt | matrix fades to 30% opacity | curve persists at full opacity | Receipt card slides up |
-| 2:55 | done | all frozen | all frozen | "Run against your own agent ↗" CTA |
+| t (sec) | Phase               | Matrix state                                                                      | Curve state                                                      | What the judge sees                                                |
+| ------: | ------------------- | --------------------------------------------------------------------------------- | ---------------------------------------------------------------- | ------------------------------------------------------------------ |
+|    0:00 | idle                | empty 5×5 grid (placeholder dots)                                                 | empty                                                            | Landing → "Run ChaosLab" CTA                                       |
+|    0:05 | baseline-check      | all cells green (24/25)                                                           | flat at 96%                                                      | "Baseline pass rate 96% ✓"                                         |
+|    0:15 | attack-start        | cells flipping red one by one (Framer Motion stagger, ~0.04s delay between cells) | curve drops as cells flip                                        | "Attacking with 4 fault classes..."                                |
+|    1:30 | attack-complete     | 5×5 grid mostly red (~15 fails, ~10 passes)                                       | curve sits at ~40%                                               | "15/25 attacks succeeded"                                          |
+|    1:35 | judging             | cells get a slight purple outline (judging in progress)                           | unchanged                                                        | "Clustering failures..."                                           |
+|    1:45 | patching            | small "patch generated" badge appears                                             | unchanged                                                        | "3 root causes identified, patch generated"                        |
+|    1:50 | **THE PATCH FIRES** | **cascade-flip starts: cells flip red → green left-to-right, top-to-bottom**      | **vertical PATCH line drops at this x-position; curve jumps up** | THE WOW MOMENT                                                     |
+|    2:00 | re-attack           | cells continue flipping (now mostly green)                                        | curve rises to ~92%                                              | "Re-running 25 attacks against patched agent..."                   |
+|    2:15 | post-patch hold     | grid frozen at final state (22 green / 3 red)                                     | curve plateaus                                                   | THE DEVPOST COVER FRAME (1.5s held, slow zoom into the PATCH line) |
+|    2:30 | receipt             | matrix fades to 30% opacity                                                       | curve persists at full opacity                                   | Receipt card slides up                                             |
+|    2:55 | done                | all frozen                                                                        | all frozen                                                       | "Run against your own agent ↗" CTA                                 |
 
 ### Why this works
 
@@ -146,16 +148,27 @@ Components in `apps/chaoslab-web/app/_components/` and `apps/chaoslab-web/compon
 
 ```tsx
 interface AttackCell {
-  idx: number          // 0-24
-  passed: boolean      // true = green, false = red
-  faultClass: 'malformed_tool_output' | 'prompt_injection' | 'context_poisoning' | 'latency_spike'
-  spanId: string | null  // Phoenix span ID for click-through
+  idx: number; // 0-24
+  passed: boolean; // true = green, false = red
+  faultClass:
+    | "malformed_tool_output"
+    | "prompt_injection"
+    | "context_poisoning"
+    | "latency_spike";
+  spanId: string | null; // Phoenix span ID for click-through
 }
 
 interface AttackMatrixProps {
-  cells: AttackCell[]
-  revealedCount: number  // 0-25, drives stagger
-  phase: 'idle' | 'baseline' | 'attacking' | 'judging' | 'patching' | 'reattacking' | 'complete'
+  cells: AttackCell[];
+  revealedCount: number; // 0-25, drives stagger
+  phase:
+    | "idle"
+    | "baseline"
+    | "attacking"
+    | "judging"
+    | "patching"
+    | "reattacking"
+    | "complete";
 }
 
 // data-testid="attack-matrix"
@@ -166,12 +179,16 @@ interface AttackMatrixProps {
 ### `<ResilienceCurve>`
 
 ```tsx
-interface ResiliencePoint { x: number; y: number; phase: 'attack' | 'reattack' }
+interface ResiliencePoint {
+  x: number;
+  y: number;
+  phase: "attack" | "reattack";
+}
 
 interface ResilienceCurveProps {
-  attackPoints: ResiliencePoint[]    // pre-patch run sequence
-  reattackPoints: ResiliencePoint[]  // post-patch run sequence
-  patchX: number | null              // x-coordinate of the PATCH line (null until patch fires)
+  attackPoints: ResiliencePoint[]; // pre-patch run sequence
+  reattackPoints: ResiliencePoint[]; // post-patch run sequence
+  patchX: number | null; // x-coordinate of the PATCH line (null until patch fires)
 }
 
 // uses visx LinePath, AxisBottom, AxisLeft, Grid, Marker
@@ -184,8 +201,14 @@ Visualization of the 5 agents and their A2A handoffs. Active agent gets a pulsin
 
 ```tsx
 interface AgentPipelineProps {
-  activeAgent: 'orchestrator' | 'injector' | 'judge' | 'patcher' | 'target' | null
-  edges: Array<{ from: string; to: string; active: boolean }>
+  activeAgent:
+    | "orchestrator"
+    | "injector"
+    | "judge"
+    | "patcher"
+    | "target"
+    | null;
+  edges: Array<{ from: string; to: string; active: boolean }>;
 }
 ```
 
@@ -195,18 +218,18 @@ Final card. Slides up from bottom after re-attack completes.
 
 ```tsx
 interface ReceiptCardProps {
-  runId: string
-  attackCount: number
-  faultClasses: string[]
-  rootCausesFound: number
-  recipeId: string
-  mrUrl: string | null      // GitLab MR URL if emitted
-  markdownUrl: string       // GCS URL for the Markdown artifact
-  costUsd: number
-  durationSeconds: number
-  baselinePassRate: number  // e.g., 0.96
-  postPatchPassRate: number // e.g., 0.92
-  improvement: number       // post-patch - pre-patch attack pass rate
+  runId: string;
+  attackCount: number;
+  faultClasses: string[];
+  rootCausesFound: number;
+  recipeId: string;
+  mrUrl: string | null; // GitLab MR URL if emitted
+  markdownUrl: string; // GCS URL for the Markdown artifact
+  costUsd: number;
+  durationSeconds: number;
+  baselinePassRate: number; // e.g., 0.96
+  postPatchPassRate: number; // e.g., 0.92
+  improvement: number; // post-patch - pre-patch attack pass rate
 }
 ```
 

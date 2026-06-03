@@ -43,7 +43,7 @@ The coding agent must NOT modify files outside this map without re-checking CLAU
 
 ## Acceptance criteria (BDD — machine-verifiable)
 
-```
+````
 Given README.md exists
 When `grep -F '```mermaid' README.md` runs (the gate from story brief, escaped)
 Then exit 0 (Mermaid code block present)
@@ -91,7 +91,7 @@ Then exit 0
 Given all files
 When line counts are checked
 Then `capture-og-image.ts` is ≤ 400 lines AND `og-metadata.test.ts` is ≤ 400 lines AND README.md is ≤ 400 lines
-```
+````
 
 ---
 
@@ -99,7 +99,7 @@ Then `capture-og-image.ts` is ≤ 400 lines AND `og-metadata.test.ts` is ≤ 400
 
 The coding agent runs this to confirm the story is done before opening a PR:
 
-```bash
+````bash
 set -e
 cd /Users/abu/dev/hackathon/rapid-agents
 
@@ -140,7 +140,7 @@ grep -E "^capture-og:" Makefile
 python3 scripts/check_max_lines.py --strict
 
 echo "story-8.3 verification: PASS"
-```
+````
 
 ---
 

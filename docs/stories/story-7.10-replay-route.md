@@ -131,24 +131,26 @@ echo "story-7.10 verification: PASS"
   - 0ms: phase=idle (initial state)
   - 500ms: phase=baseline, activeAgent=injector, 1 baseline point
   - 1500ms: phase=attacking, activeAgent=injector, push cells one at a time
-  - Per cell: ~280ms delay (25 cells * 280ms ≈ 7s), each `updateCells` push extends the matrix + appends an attack point
+  - Per cell: ~280ms delay (25 cells \* 280ms ≈ 7s), each `updateCells` push extends the matrix + appends an attack point
   - 8500ms: phase=judging, activeAgent=judge, slight purple outline on cells
   - 9500ms: phase=patching, activeAgent=patcher, patch badge appears
   - 10000ms: phase=reattacking, activeAgent=injector, `setPatchX(...)` fires
-  - Per re-attack cell: ~280ms delay (cells flip via the phase change re-mounting them with new pass/fail data; 25 * 280ms ≈ 7s)
+  - Per re-attack cell: ~280ms delay (cells flip via the phase change re-mounting them with new pass/fail data; 25 \* 280ms ≈ 7s)
   - 18000ms: phase=complete, `setRecipe(recipe)`, store transitions to complete
   - 19000ms: ReceiptCard visible
   - Final state held until user navigates away
 - Implementation pattern in `replay-orchestrator.tsx`:
   ```tsx
   useEffect(() => {
-    runStore.reset()
-    const timeouts: number[] = []
+    runStore.reset();
+    const timeouts: number[] = [];
     for (const step of REPLAY_STEPS) {
-      timeouts.push(window.setTimeout(() => step.action(runStore, payload), step.at))
+      timeouts.push(
+        window.setTimeout(() => step.action(runStore, payload), step.at),
+      );
     }
-    return () => timeouts.forEach(window.clearTimeout)
-  }, [])
+    return () => timeouts.forEach(window.clearTimeout);
+  }, []);
   ```
 - The static fixture is 25 cells (15 fail / 10 pass for attack; 22 pass / 3 fail for reattack). Pre-computed resilience curve points. Recipe with realistic `recipe_id`, `cost_usd: 0.34`, `duration_seconds: 167`, `baselinePassRate: 0.96`, `postPatchPassRate: 0.92`.
 - The `(demo)` route group shares `layout.tsx` with `/attack` — both get the bare header + state pill, no footer (maximum vertical real estate for the hero visual per ux-spec).

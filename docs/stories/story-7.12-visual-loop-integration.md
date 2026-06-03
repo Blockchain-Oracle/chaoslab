@@ -39,7 +39,12 @@ Exact files the coding agent creates or modifies for this story (per `/Users/abu
   {
     "hooks": {
       "PostToolUse": [
-        { "matcher": "Edit|Write", "hooks": [{ "type": "command", "command": ".claude/hooks/visual-check.sh" }] }
+        {
+          "matcher": "Edit|Write",
+          "hooks": [
+            { "type": "command", "command": ".claude/hooks/visual-check.sh" }
+          ]
+        }
       ]
     }
   }

@@ -75,6 +75,7 @@ All workflows under `.github/workflows/`. Path-based filters in each so unrelate
 Runs on every push to a non-main branch and on every PR.
 
 **Stages (parallel where possible):**
+
 1. **detect-changes** (`dorny/paths-filter@v3`) — outputs `python-changed`, `ts-changed`, `infra-changed`
 2. **python-quality** (depends on detect, fires if python-changed)
    - Setup `uv` (`astral-sh/setup-uv@v3` with cache)
@@ -109,6 +110,7 @@ Runs on every push to `main`.
 **Critical pattern (ADR-008 — build once, promote everywhere):** the image built and tested in staging is the SAME image that gets promoted to prod. Never rebuild.
 
 **Stages:**
+
 1. **detect-changes** — same paths-filter
 2. **auth-gcp** — `google-github-actions/auth@v3` via Workload Identity Federation. Service account: `chaoslab-deploy@PROJECT.iam.gserviceaccount.com`
 3. **build-chaoslab-agent** (if python or shared changed)
@@ -136,6 +138,7 @@ Manually triggered (`workflow_dispatch`) — never automatic. Promotes a specifi
 **Inputs:** `commit_sha` (string), `confirmation` (must equal "PROMOTE")
 
 **Stages:**
+
 1. **validate-input** — assert `confirmation == "PROMOTE"`, else fail
 2. **auth-gcp** — WIF, prod-specific service account `chaoslab-deploy-prod@PROJECT.iam.gserviceaccount.com`
 3. **verify-staging-health** — check staging revision serving 100% traffic and `/health` returning 200
@@ -152,6 +155,7 @@ Manually triggered (`workflow_dispatch`) — never automatic. Promotes a specifi
 Runs after `staging-deploy.yaml` succeeds AND on manual dispatch.
 
 **Stages:**
+
 1. **auth-gcp** — read-only WIF
 2. **fetch-staging-url** — `gcloud run services describe chaoslab-web --format='value(status.url)' --region=us-central1`
 3. **playwright-setup**
@@ -325,6 +329,7 @@ if __name__ == "__main__":
 ```
 
 **Wired into pre-commit** (`.pre-commit-config.yaml`):
+
 ```yaml
 - repo: local
   hooks:
@@ -337,13 +342,14 @@ if __name__ == "__main__":
 ```
 
 **Wired into CI** (`pr-checks.yaml`):
+
 ```yaml
 max-lines-check:
   runs-on: ubuntu-latest
   steps:
     - uses: actions/checkout@v4
     - uses: actions/setup-python@v5
-      with: { python-version: '3.12' }
+      with: { python-version: "3.12" }
     - run: python3 scripts/check_max_lines.py --strict
 ```
 
@@ -352,6 +358,7 @@ max-lines-check:
 ## Branch protection
 
 On `main`:
+
 - Require pull request before merging
 - Require 1 approving review (Abu OR `sahil-pr-audit` bot — automated approval counts)
 - Require status checks to pass: `pr-checks/python-quality`, `pr-checks/ts-quality`, `pr-checks/max-lines-check`, `pr-checks/python-tests`, `pr-checks/ts-tests`, `pr-checks/gitleaks`, `pr-checks/conventional-commits`
@@ -369,6 +376,7 @@ Format: `<type>(<scope>): <subject>` (per `best-practices/03 §13`)
 Types: `feat`, `fix`, `docs`, `style`, `refactor`, `test`, `chore`, `perf`, `ci`, `build`, `revert`
 
 Examples (orchestrator generates these):
+
 - `feat(injector): add malformed_tool_output fault decorator`
 - `fix(phoenix-tools): handle 429 retries in run_experiment wrapper`
 - `chore(deps): bump @visx/scale to 4.x`

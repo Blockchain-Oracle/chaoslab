@@ -6,12 +6,13 @@
 > poisoning surface), (f) where latency can be inserted, (g) how a chaos tool can discover the agent at all,
 > and (h) a real production example.
 >
-> No opinions in this file. No "should". Purely a map of *where the hooks are*. ChaosLab design decisions
+> No opinions in this file. No "should". Purely a map of _where the hooks are_. ChaosLab design decisions
 > live in `architecture/00-synthesis.md` and `architecture/04-fault-injection-eval.md`.
 >
 > `[UNVERIFIED]` is applied generously when a claim comes from a single source or release notes only.
 >
 > Cross-references (do not re-derive in this file):
+>
 > - Phoenix wire format + `register()` API + `arize-phoenix-otel` package → see `architecture/02-phoenix-deep-dive.md`.
 > - Arize partner program / track requirements → see `partner-arize.md`.
 
@@ -86,9 +87,9 @@ remote_agent = agent_engines.create(
 
 Why each flag matters:
 
-| Flag | Effect | What breaks without it |
-| --- | --- | --- |
-| `batch=False` | Switches Phoenix register to `SimpleSpanProcessor` (sync export). | Agent Engine freezes the request thread after returning the response — a batch processor's background thread never gets to flush, traces vanish. |
+| Flag                               | Effect                                                                      | What breaks without it                                                                                                                                                                 |
+| ---------------------------------- | --------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `batch=False`                      | Switches Phoenix register to `SimpleSpanProcessor` (sync export).           | Agent Engine freezes the request thread after returning the response — a batch processor's background thread never gets to flush, traces vanish.                                       |
 | `set_global_tracer_provider=False` | Phoenix returns a provider but does not call `trace.set_tracer_provider()`. | Vertex Agent Engine installs its OWN global provider for Cloud Trace export; setting Phoenix's provider as global causes Vertex to "shut down" the Phoenix pipeline, per Phoenix docs. |
 
 Source: `arize.com/docs/phoenix/integrations/python/google-adk/google-adk-tracing` (verified).
@@ -923,8 +924,9 @@ export function register() {
       new OpenInferenceSimpleSpanProcessor({
         exporter: new OTLPTraceExporter({
           headers: { api_key: process.env["PHOENIX_API_KEY"] || "" },
-          url: process.env["PHOENIX_COLLECTOR_ENDPOINT"]
-            || "https://app.phoenix.arize.com/v1/traces",
+          url:
+            process.env["PHOENIX_COLLECTOR_ENDPOINT"] ||
+            "https://app.phoenix.arize.com/v1/traces",
         }),
         spanFilter: (span) => isOpenInferenceSpan(span),
       }),
@@ -952,7 +954,10 @@ const sdk = new NodeSDK({
     new OpenInferenceSimpleSpanProcessor({
       exporter: new OTLPTraceExporter({
         url: "https://otlp.arize.com/v1/traces",
-        headers: { space_id: process.env.ARIZE_SPACE_ID, api_key: process.env.ARIZE_API_KEY },
+        headers: {
+          space_id: process.env.ARIZE_SPACE_ID,
+          api_key: process.env.ARIZE_API_KEY,
+        },
       }),
       spanFilter: isOpenInferenceSpan,
     }),
@@ -972,13 +977,15 @@ inspection/mutation.
 ```typescript
 const result = await generateText({
   model: openai("gpt-4o"),
-  tools: { weather: tool({
-    inputSchema: z.object({ city: z.string() }),
-    execute: async ({ city }) => {
-      // chaos: malformed JSON injection
-      return '{"temp": "broken json';
-    },
-  }) },
+  tools: {
+    weather: tool({
+      inputSchema: z.object({ city: z.string() }),
+      execute: async ({ city }) => {
+        // chaos: malformed JSON injection
+        return '{"temp": "broken json';
+      },
+    }),
+  },
   onStepFinish: ({ toolCalls, toolResults, finishReason }) => {
     // wedge: mutate toolResults here before next model call
   },
@@ -1059,6 +1066,7 @@ from agents.tracing.processors import OTLPTracingProcessor  # if available [UNVE
 ```
 
 Toggles:
+
 - `set_tracing_disabled(True)` — kill all tracing.
 - `set_tracing_export_api_key(...)` — switch the OpenAI backend key.
 - `enable_verbose_stdout_logging()` — debug dump.
@@ -1087,6 +1095,7 @@ signature (use `functools.wraps`).
 ### 10.5 Prompt-mutation surface
 
 `Agent(instructions=...)` is set at construction. For per-call mutation, the SDK supports:
+
 - `Agent` clones with `agent.clone(instructions=...)`.
 - Custom model providers — pass a `ModelProvider` to `Runner.run(..., model=...)`. A chaos provider mutates
   `messages` before forwarding to the underlying chat completion.
@@ -1278,8 +1287,8 @@ a direct mutation point — return whatever you want; Vapi feeds it back to the 
 // chaos response to Vapi tool-call event
 {
   "results": [
-    {"toolCallId": "abc", "result": "MALFORMED \"json injection"},
-    {"toolCallId": "def", "result": "Account balance is -$99999.00"}
+    { "toolCallId": "abc", "result": "MALFORMED \"json injection" },
+    { "toolCallId": "def", "result": "Account balance is -$99999.00" }
   ]
 }
 ```
@@ -1308,6 +1317,7 @@ analytics.
 `call_ended`, `call_analyzed`.
 
 **Tool / function-call surface.** Two paths:
+
 1. Built-in tool types (Transfer Call, End Call, Extract Dynamic Variables, Send SMS, Press Digit, Code Tool,
    Custom Function) — Custom Functions hit an HTTP endpoint you control. **Direct mutation point.**
 2. Code Tool (JavaScript) — runs in Retell's sandbox; harder to wedge externally.
@@ -1441,6 +1451,7 @@ span `n8n.{workflow_name}` (also referenced as `workflow.execute`) and one child
 node version, item count.
 
 Config (verified from SigNoz integration article, exact env vars are deployment-specific):
+
 - `N8N_OPENTELEMETRY_ENABLED=true`
 - Standard OTEL env vars: `OTEL_EXPORTER_OTLP_ENDPOINT`, `OTEL_EXPORTER_OTLP_HEADERS`,
   `OTEL_SERVICE_NAME` [UNVERIFIED — exact env var names need confirmation].
@@ -1451,6 +1462,7 @@ OpenTelemetry tracing is **self-hosted only**, not available on n8n Cloud.
 
 The `AI Agent` node (LangChain-backed) supports six agent types: Conversational, OpenAI Functions, Plan and
 Execute, ReAct, SQL, Tools. Sub-nodes:
+
 - **LLM**: OpenAI, Anthropic, Azure OpenAI, Google Gemini, Cohere, Ollama, plus more.
 - **Memory**: Simple, Motorhead, MongoDB, Redis, Postgres, Xata, Zep.
 - **Tools**: Calculator, Custom Code Tool, MCP Client Tool, SearXNG, SerpApi, Wikipedia, Wolfram|Alpha,
@@ -1471,6 +1483,7 @@ admin point a tool at an HTTP endpoint — flip that endpoint to a chaos server.
 ### 14.5 Prompt-mutation surface
 
 The AI Agent node's "System Message" field is editable but static. Mid-execution mutation requires either:
+
 - A pre-node that sets a workflow variable used in the System Message (Jinja-templated).
 - An external LLM provider configuration pointed at LiteLLM proxy.
 
@@ -1691,6 +1704,7 @@ Injection requires crafted user inputs that exploit instruction-following weakne
 ### 18.5 Discovery via GPT URL
 
 A custom GPT URL `https://chat.openai.com/g/g-<id>` exposes:
+
 - The GPT's name + description publicly.
 - The action OpenAPI spec is NOT publicly fetchable [UNVERIFIED — varies by GPT settings].
 - The GPT's instructions are NOT publicly fetchable but are extractable via prompt injection.
@@ -1764,20 +1778,21 @@ chat, mystery vendor agents), the chaos tool can only probe externally.
 
 ### 20.2 Discovery via public-facing chat surface
 
-| Signal | What it reveals |
-| --- | --- |
-| Response time histogram | Suggests model class (Claude / GPT-4o / Gemini latency profiles differ) |
-| Token-streaming behaviour | Streaming vs chunked vs whole-response indicates the underlying SDK |
-| Error message format | "I encountered an error invoking..." / "tool_use_error" → suggests Anthropic Tool Use |
-| Refusal phrasing | Distinctive per-model (GPT-4: "I can't help with that"; Claude: "I'm not able to") |
-| Response-header fingerprints | `cf-ray`, `x-vercel-id`, `x-amzn-RequestId` → CDN + cloud |
-| OpenAPI auto-publish | Some agents expose `/openapi.json` accidentally |
-| Robots.txt / sitemap | Sometimes reveals admin URLs |
-| Auth flow | OAuth client_id often identifies provider (Vapi, Retell, Cognigy) |
+| Signal                       | What it reveals                                                                       |
+| ---------------------------- | ------------------------------------------------------------------------------------- |
+| Response time histogram      | Suggests model class (Claude / GPT-4o / Gemini latency profiles differ)               |
+| Token-streaming behaviour    | Streaming vs chunked vs whole-response indicates the underlying SDK                   |
+| Error message format         | "I encountered an error invoking..." / "tool_use_error" → suggests Anthropic Tool Use |
+| Refusal phrasing             | Distinctive per-model (GPT-4: "I can't help with that"; Claude: "I'm not able to")    |
+| Response-header fingerprints | `cf-ray`, `x-vercel-id`, `x-amzn-RequestId` → CDN + cloud                             |
+| OpenAPI auto-publish         | Some agents expose `/openapi.json` accidentally                                       |
+| Robots.txt / sitemap         | Sometimes reveals admin URLs                                                          |
+| Auth flow                    | OAuth client_id often identifies provider (Vapi, Retell, Cognigy)                     |
 
 ### 20.3 Behavioral fingerprinting
 
 A taxonomy of probes:
+
 - Prompt-injection canary strings to determine the agent's instruction adherence.
 - "What model are you?" canary — many agents leak.
 - Adversarial Unicode (zalgo, RTL override) to test input sanitization.
@@ -1800,35 +1815,36 @@ trace surfaces externally.
 
 ## 21. Cross-framework summary matrix
 
-| Framework | Phoenix native via OpenInference? | OI auto-instrument package | Tool injection surface | Prompt injection surface | Latency injection surface | Trace export format | Discovery mechanism |
-| --- | --- | --- | --- | --- | --- | --- | --- |
-| ADK Python | yes | `openinference-instrumentation-google-adk` | `before_tool_callback` / `after_tool_callback` | `before_model_callback` / `after_model_callback` | sleep in any callback | OpenInference OTEL | `adk web` HTTP, Vertex Agent Engine REST |
-| ADK JS (`adk-js`) | no | none | wrap tool callable | custom model provider | sleep in tool | underlying LLM instrumentor only | `adk web` HTTP |
-| ADK Java | no | none (LangChain4j only) | unclear in API surface | unclear | sleep in tool | underlying LLM instrumentor only | embedded |
-| ADK Go | no | none | unclear | unclear | sleep in tool | underlying LLM instrumentor only | embedded |
-| LangChain (Python) | yes | `openinference-instrumentation-langchain` | wrap `BaseTool._run`/`_arun` | custom `BaseChatModel`, LiteLLM proxy | sleep in callback / wrapper | OpenInference OTEL | LangServe `/invoke`, `/openapi.json` |
-| LangChain (JS) | yes | `@arizeai/openinference-instrumentation-langchain` | wrap tool | custom model | sleep | OpenInference OTEL | LangServe-JS |
-| LangGraph | yes (via LangChain instrumentor) | same package | wrap tool / custom node / `interrupt()` | custom node mutates `state["messages"]` | sleep in node, checkpointer write | OpenInference OTEL | LangGraph Platform REST, `/openapi.json` |
-| CrewAI | yes | `openinference-instrumentation-crewai` | `@before_tool_call` / `@after_tool_call` | LiteLLM proxy, swap `Agent.llm` | sleep in hook | OpenInference OTEL | Enterprise REST or custom |
-| AutoGen / AG2 | yes | `openinference-instrumentation-autogen-agentchat` | wrap tool callable | custom `ChatCompletionClient` | sleep in client/tool | OpenInference OTEL | embedded / AutoGen Studio |
-| Mastra | partial (OTLP) | none dedicated | wrap `createTool({execute})` | custom step / custom model | sleep | native OTEL via `@mastra/observability` | Mastra HTTP server, `/openapi.json` |
-| Vercel AI SDK | yes | `@arizeai/openinference-vercel` | wrap `tool({execute})`, `onStepFinish` | `wrapLanguageModel` middleware | sleep in execute/middleware | OpenInference OTEL via `@vercel/otel` | Next.js `/api/chat` SSE |
-| OpenAI Agents SDK | yes (native + bridge) | `openinference-instrumentation-openai-agents` | wrap `@function_tool` | custom `ModelProvider` | sleep | OpenInference OTEL | embedded |
-| Anthropic direct | yes (LLM-only) | `openinference-instrumentation-anthropic` | wrap tool fn | monkey-patch `messages.create` | sleep / proxy | OpenInference OTEL | embedded |
-| browser-use | no dedicated; OpenLIT/Laminar | none (use OpenLIT) | wrap `@tools.action` | custom `llm` (LangChain compat) | sleep / Playwright route | OpenLIT OTEL / Laminar | embedded |
-| Vapi | no | none | Server URL `tool-calls` response | Custom LLM URL | stall Server URL or Custom LLM | dashboard only | `POST api.vapi.ai/call`, phone |
-| Retell | no | none | Custom Function URL, Code Tool | Custom LLM WebSocket | stall WS / function | dashboard only | REST + webhooks |
-| LiveKit Agents | partial — native OTEL, not OI | none dedicated | wrap `@function_tool` | custom LLM plugin subclass | sleep in tool / LLM plugin | native OTEL via `set_tracer_provider` | LiveKit room (no HTTP) |
-| Pipecat | yes | `openinference-instrumentation-pipecat` | insert `FrameProcessor` | `FrameProcessor` before LLM stage | sleep in processor | OpenInference OTEL | embedded |
-| n8n AI nodes | partial (self-hosted OTEL) | none dedicated | Custom Code Tool / Webhook tool URL | LiteLLM proxy via custom endpoint | Wait node | native OTEL (self-hosted only) | `/webhook/<id>`, REST |
-| Zapier AI Actions | no | none | the action's HTTP endpoint | n/a (closed runtime) | Delay action / endpoint stall | none | `actions.zapier.com/.../openapi.json` |
-| Make.com | no | none | HTTP module URL | LiteLLM via module URL | Sleep module / endpoint stall | none | webhook URL |
-| Custom Python loop | yes | `openinference-instrumentation-openai` / `-anthropic` etc. | monkey-patch tool dict | monkey-patch `*.create` | sleep / LiteLLM proxy | OpenInference OTEL | deployment-specific |
-| ChatGPT GPT Actions | no | none | the action's HTTP endpoint | n/a (closed runtime) | endpoint stall | none | GPT URL, OpenAPI sometimes |
-| Claude.ai + MCP | yes (context propagation) | `openinference-instrumentation-mcp` | MCP server `tools/call` handler | n/a (closed runtime) | MCP server stall | OpenInference OTEL via context | MCP server URL |
-| Closed-source black-box | no | none | n/a | only adversarial inputs | n/a | none | HTTP probing + behavioral fingerprinting |
+| Framework               | Phoenix native via OpenInference? | OI auto-instrument package                                 | Tool injection surface                         | Prompt injection surface                         | Latency injection surface         | Trace export format                     | Discovery mechanism                      |
+| ----------------------- | --------------------------------- | ---------------------------------------------------------- | ---------------------------------------------- | ------------------------------------------------ | --------------------------------- | --------------------------------------- | ---------------------------------------- |
+| ADK Python              | yes                               | `openinference-instrumentation-google-adk`                 | `before_tool_callback` / `after_tool_callback` | `before_model_callback` / `after_model_callback` | sleep in any callback             | OpenInference OTEL                      | `adk web` HTTP, Vertex Agent Engine REST |
+| ADK JS (`adk-js`)       | no                                | none                                                       | wrap tool callable                             | custom model provider                            | sleep in tool                     | underlying LLM instrumentor only        | `adk web` HTTP                           |
+| ADK Java                | no                                | none (LangChain4j only)                                    | unclear in API surface                         | unclear                                          | sleep in tool                     | underlying LLM instrumentor only        | embedded                                 |
+| ADK Go                  | no                                | none                                                       | unclear                                        | unclear                                          | sleep in tool                     | underlying LLM instrumentor only        | embedded                                 |
+| LangChain (Python)      | yes                               | `openinference-instrumentation-langchain`                  | wrap `BaseTool._run`/`_arun`                   | custom `BaseChatModel`, LiteLLM proxy            | sleep in callback / wrapper       | OpenInference OTEL                      | LangServe `/invoke`, `/openapi.json`     |
+| LangChain (JS)          | yes                               | `@arizeai/openinference-instrumentation-langchain`         | wrap tool                                      | custom model                                     | sleep                             | OpenInference OTEL                      | LangServe-JS                             |
+| LangGraph               | yes (via LangChain instrumentor)  | same package                                               | wrap tool / custom node / `interrupt()`        | custom node mutates `state["messages"]`          | sleep in node, checkpointer write | OpenInference OTEL                      | LangGraph Platform REST, `/openapi.json` |
+| CrewAI                  | yes                               | `openinference-instrumentation-crewai`                     | `@before_tool_call` / `@after_tool_call`       | LiteLLM proxy, swap `Agent.llm`                  | sleep in hook                     | OpenInference OTEL                      | Enterprise REST or custom                |
+| AutoGen / AG2           | yes                               | `openinference-instrumentation-autogen-agentchat`          | wrap tool callable                             | custom `ChatCompletionClient`                    | sleep in client/tool              | OpenInference OTEL                      | embedded / AutoGen Studio                |
+| Mastra                  | partial (OTLP)                    | none dedicated                                             | wrap `createTool({execute})`                   | custom step / custom model                       | sleep                             | native OTEL via `@mastra/observability` | Mastra HTTP server, `/openapi.json`      |
+| Vercel AI SDK           | yes                               | `@arizeai/openinference-vercel`                            | wrap `tool({execute})`, `onStepFinish`         | `wrapLanguageModel` middleware                   | sleep in execute/middleware       | OpenInference OTEL via `@vercel/otel`   | Next.js `/api/chat` SSE                  |
+| OpenAI Agents SDK       | yes (native + bridge)             | `openinference-instrumentation-openai-agents`              | wrap `@function_tool`                          | custom `ModelProvider`                           | sleep                             | OpenInference OTEL                      | embedded                                 |
+| Anthropic direct        | yes (LLM-only)                    | `openinference-instrumentation-anthropic`                  | wrap tool fn                                   | monkey-patch `messages.create`                   | sleep / proxy                     | OpenInference OTEL                      | embedded                                 |
+| browser-use             | no dedicated; OpenLIT/Laminar     | none (use OpenLIT)                                         | wrap `@tools.action`                           | custom `llm` (LangChain compat)                  | sleep / Playwright route          | OpenLIT OTEL / Laminar                  | embedded                                 |
+| Vapi                    | no                                | none                                                       | Server URL `tool-calls` response               | Custom LLM URL                                   | stall Server URL or Custom LLM    | dashboard only                          | `POST api.vapi.ai/call`, phone           |
+| Retell                  | no                                | none                                                       | Custom Function URL, Code Tool                 | Custom LLM WebSocket                             | stall WS / function               | dashboard only                          | REST + webhooks                          |
+| LiveKit Agents          | partial — native OTEL, not OI     | none dedicated                                             | wrap `@function_tool`                          | custom LLM plugin subclass                       | sleep in tool / LLM plugin        | native OTEL via `set_tracer_provider`   | LiveKit room (no HTTP)                   |
+| Pipecat                 | yes                               | `openinference-instrumentation-pipecat`                    | insert `FrameProcessor`                        | `FrameProcessor` before LLM stage                | sleep in processor                | OpenInference OTEL                      | embedded                                 |
+| n8n AI nodes            | partial (self-hosted OTEL)        | none dedicated                                             | Custom Code Tool / Webhook tool URL            | LiteLLM proxy via custom endpoint                | Wait node                         | native OTEL (self-hosted only)          | `/webhook/<id>`, REST                    |
+| Zapier AI Actions       | no                                | none                                                       | the action's HTTP endpoint                     | n/a (closed runtime)                             | Delay action / endpoint stall     | none                                    | `actions.zapier.com/.../openapi.json`    |
+| Make.com                | no                                | none                                                       | HTTP module URL                                | LiteLLM via module URL                           | Sleep module / endpoint stall     | none                                    | webhook URL                              |
+| Custom Python loop      | yes                               | `openinference-instrumentation-openai` / `-anthropic` etc. | monkey-patch tool dict                         | monkey-patch `*.create`                          | sleep / LiteLLM proxy             | OpenInference OTEL                      | deployment-specific                      |
+| ChatGPT GPT Actions     | no                                | none                                                       | the action's HTTP endpoint                     | n/a (closed runtime)                             | endpoint stall                    | none                                    | GPT URL, OpenAPI sometimes               |
+| Claude.ai + MCP         | yes (context propagation)         | `openinference-instrumentation-mcp`                        | MCP server `tools/call` handler                | n/a (closed runtime)                             | MCP server stall                  | OpenInference OTEL via context          | MCP server URL                           |
+| Closed-source black-box | no                                | none                                                       | n/a                                            | only adversarial inputs                          | n/a                               | none                                    | HTTP probing + behavioral fingerprinting |
 
 Legend for "Phoenix native via OpenInference?":
+
 - **yes** = there is a first-party `openinference-instrumentation-<framework>` package that auto-emits
   Phoenix-shaped spans.
 - **partial** = OTEL-compatible spans exist but require a translator (or are not in OpenInference
@@ -1839,63 +1855,72 @@ Legend for "Phoenix native via OpenInference?":
 
 ## 22. The minimum "agent under test" interface
 
-This section is a strict factual matrix. No recommendation about which level a tool *should* require —
+This section is a strict factual matrix. No recommendation about which level a tool _should_ require —
 just what each level rules in and out.
 
 ### Level A — Strictest: "Agent must emit OpenInference spans to a configurable OTLP endpoint."
 
 Supported frameworks (the chaos tool can both inject faults AND read trace evidence of how the agent
 reacted):
+
 - ADK Python, LangChain (Py/JS), LangGraph, CrewAI, AutoGen, Vercel AI SDK, OpenAI Agents SDK,
   Anthropic direct (LLM-only), Pipecat, Custom Python loop with OpenAI/Anthropic/Gemini SDK.
 
 Unsupported at this level:
+
 - ADK JS/Java/Go, Mastra (native OTEL not OI), browser-use, Vapi, Retell, LiveKit (OTEL not OI),
   n8n, Zapier, Make, GPT Actions, Claude.ai+MCP except via MCPInstrumentor, closed black-box.
 
 ### Level B — "Agent must emit OpenTelemetry spans (any semantic convention) to a configurable OTLP endpoint."
 
 Adds to Level A:
+
 - Mastra, LiveKit Agents (with `set_tracer_provider`), n8n (self-hosted).
 
 Still unsupported:
+
 - ADK JS/Java/Go (need to wrap underlying LLM SDK), browser-use (OpenLIT bridge possible),
   Vapi/Retell/Zapier/Make/GPT Actions/closed black-box.
 
 ### Level C — "Agent must expose a callable surface (Python class, JS function, HTTP endpoint) under chaos tool's process control."
 
 Adds to Level B:
+
 - ADK JS/Java/Go (wrap tool callables / LLM provider), browser-use (decorator wrap), custom Python loops
   (monkey-patch).
 
 Still unsupported:
+
 - Vapi (need to own Server URL), Retell (need to own Custom LLM WS or Custom Function), n8n cloud,
   Zapier/Make/GPT Actions/closed black-box.
 
 ### Level D — "Agent must accept a webhook / server URL that the chaos tool controls."
 
 Adds to Level C:
+
 - Vapi (Server URL), Retell (Custom Function URL + Custom LLM WebSocket), n8n (Custom Code Tool URL),
   Zapier (action endpoint), Make (HTTP module URL), GPT Actions (action endpoint), Claude.ai + MCP
   (MCP server URL).
 
 Still unsupported:
+
 - Closed black-box.
 
 ### Level E — Loosest: "Agent must be reachable at an HTTP endpoint and accept JSON or text input."
 
 Adds to Level D:
+
 - Closed black-box production agents (input mutation only; no trace observability).
 
 ### Coverage table
 
-| Level | Requirement | Frameworks covered | Frameworks NOT covered |
-| --- | --- | --- | --- |
-| A | OpenInference OTLP | 10 of 24 | 14 of 24 |
-| B | Any OTLP | 13 of 24 | 11 of 24 |
-| C | Callable wrap | 17 of 24 | 7 of 24 |
-| D | Webhook control | 23 of 24 | 1 of 24 |
-| E | HTTP only | 24 of 24 | 0 |
+| Level | Requirement        | Frameworks covered | Frameworks NOT covered |
+| ----- | ------------------ | ------------------ | ---------------------- |
+| A     | OpenInference OTLP | 10 of 24           | 14 of 24               |
+| B     | Any OTLP           | 13 of 24           | 11 of 24               |
+| C     | Callable wrap      | 17 of 24           | 7 of 24                |
+| D     | Webhook control    | 23 of 24           | 1 of 24                |
+| E     | HTTP only          | 24 of 24           | 0                      |
 
 (Note: "24" counts ADK Python, ADK JS, ADK Java, ADK Go, LangChain (Py), LangChain (JS), LangGraph,
 CrewAI, AutoGen, Mastra, Vercel AI SDK, OpenAI Agents SDK, Anthropic direct, browser-use, Vapi, Retell,

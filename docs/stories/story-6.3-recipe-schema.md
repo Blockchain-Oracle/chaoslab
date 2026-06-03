@@ -296,7 +296,7 @@ if __name__ == "__main__":
 - **Cross-language type sharing:** `packages/shared-types/hardening-recipe.json` is consumed by `chaoslab-web` to generate TypeScript types via `json-schema-to-typescript` (deferred to a later frontend story). Commit the generated JSON so the frontend build doesn't need Python.
 - **`new_recipe_id()` uses `secrets.token_hex(6)` = 12 hex chars** matching the `recipe_[a-z0-9]{12}$` regex. Do NOT use `uuid.uuid4()` — UUIDs have hyphens and `[a-f0-9]` mixed-case in some libraries.
 - **`PromptPatch.before` is nullable for `insert`/`append` ops, required for `replace`.** The `model_validator` enforces this. Per `architecture.md`: `before: str | None  # for replace ops` — this annotation is preserved.
-- **`ToolValidationDiff.code_patch` is unified-diff format.** Story 6.5 (Markdown emitter) renders this in a `\`\`\`diff` code block; Story 6.6 (GitLab emitter) commits the patch as a real diff applied via `git apply`. The schema enforces non-empty but does NOT validate the diff format — that's a runtime concern.
+- **`ToolValidationDiff.code_patch` is unified-diff format.** Story 6.5 (Markdown emitter) renders this in a `\`\`\`diff`code block; Story 6.6 (GitLab emitter) commits the patch as a real diff applied via`git apply`. The schema enforces non-empty but does NOT validate the diff format — that's a runtime concern.
 - **`regression_test_cases: list[dict[str, Any]]`** is intentionally loose-typed. These get serialized to a Phoenix dataset (per `architecture/04 §6.3`), so the schema is determined downstream by the Phoenix dataset format. The pydantic model just says "any dict."
 - **§14 gate:** zero mocks. The schema validators are real pydantic; the export script is real I/O.
 

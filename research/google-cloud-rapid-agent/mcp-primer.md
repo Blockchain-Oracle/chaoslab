@@ -17,6 +17,7 @@ Verbatim from the spec ([modelcontextprotocol.io](https://modelcontextprotocol.i
 > "MCP (Model Context Protocol) is an open-source standard for connecting AI applications to external systems… Think of MCP like a USB-C port for AI applications."
 
 **Adoption signal as of 2026-06-02:**
+
 - Anthropic (creator) — Claude Desktop, Claude Code
 - OpenAI — ChatGPT MCP connectors
 - Google — Agent Development Kit (ADK) ships `McpToolset`
@@ -69,15 +70,16 @@ Source: [Architecture overview](https://modelcontextprotocol.io/docs/learn/archi
 
 Three **primitives**. Memorize these — judges will ask.
 
-| Primitive  | What it is                                                  | Example                                                                                          |
-| ---------- | ----------------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
-| **Tools**  | Executable functions the LLM can invoke (verbs / actions)   | `query_database(sql)`, `send_slack_message(channel, text)`, `mongodb.find(collection, filter)`   |
-| **Resources** | Read-only data sources, addressable by URI (nouns / context) | `file:///etc/config.json`, `mongodb://schema/users`, `arize://trace/abc123`                  |
-| **Prompts**  | Reusable templates the server suggests to the host        | "Investigate this trace" template that pre-fills system prompt + few-shot examples               |
+| Primitive     | What it is                                                   | Example                                                                                        |
+| ------------- | ------------------------------------------------------------ | ---------------------------------------------------------------------------------------------- |
+| **Tools**     | Executable functions the LLM can invoke (verbs / actions)    | `query_database(sql)`, `send_slack_message(channel, text)`, `mongodb.find(collection, filter)` |
+| **Resources** | Read-only data sources, addressable by URI (nouns / context) | `file:///etc/config.json`, `mongodb://schema/users`, `arize://trace/abc123`                    |
+| **Prompts**   | Reusable templates the server suggests to the host           | "Investigate this trace" template that pre-fills system prompt + few-shot examples             |
 
 Discovery methods: `tools/list`, `resources/list`, `prompts/list`. Execution: `tools/call`, `resources/read`, `prompts/get`.
 
 Servers can also use **client-exposed primitives** going the other direction:
+
 - **Sampling** — server asks host to run an LLM completion (so the server doesn't need its own model)
 - **Elicitation** — server asks the user for input mid-flight (confirmation, missing field)
 - **Logging** — server streams logs to host
@@ -90,13 +92,14 @@ Source: [Architecture overview](https://modelcontextprotocol.io/docs/learn/archi
 
 The spec defines **two standard transports** as of protocol version 2025-11-25. SSE-only is deprecated.
 
-| Transport            | When to use                                                                                                  | Notes                                                                                              |
-| -------------------- | ------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------- |
-| **stdio**            | Server runs as a local subprocess on the same machine as the host. Newline-delimited JSON-RPC over stdin/stdout. | Lowest latency. No auth needed (process-level trust). Best for dev / local tools / npm-installed servers. |
-| **Streamable HTTP**  | Remote servers. Multi-client. HTTP POST for client→server, optional SSE for server→client streaming.        | Auth via bearer / API key / OAuth. Session ID via `MCP-Session-Id` header. Replaces old HTTP+SSE transport from 2024-11-05. |
-| ~~HTTP+SSE (legacy)~~ | Deprecated. Still supported for backward-compat (servers may host both endpoints).                          | Don't build new code on this.                                                                      |
+| Transport             | When to use                                                                                                      | Notes                                                                                                                       |
+| --------------------- | ---------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| **stdio**             | Server runs as a local subprocess on the same machine as the host. Newline-delimited JSON-RPC over stdin/stdout. | Lowest latency. No auth needed (process-level trust). Best for dev / local tools / npm-installed servers.                   |
+| **Streamable HTTP**   | Remote servers. Multi-client. HTTP POST for client→server, optional SSE for server→client streaming.             | Auth via bearer / API key / OAuth. Session ID via `MCP-Session-Id` header. Replaces old HTTP+SSE transport from 2024-11-05. |
+| ~~HTTP+SSE (legacy)~~ | Deprecated. Still supported for backward-compat (servers may host both endpoints).                               | Don't build new code on this.                                                                                               |
 
 **Rule of thumb:**
+
 - Local CLI MCP server → **stdio** (`StdioServerParameters(command='npx', args=[...])`)
 - Cloud-hosted partner MCP server (MongoDB, Arize, etc.) → **Streamable HTTP** with API-key header
 
@@ -111,6 +114,7 @@ Source: [Transport specification](https://modelcontextprotocol.io/specification/
 The Agent Development Kit (ADK) is Google's open-source agent framework. It is the **expected stack for this hackathon** (Devpost overview says "build with Gemini 3 using Google Cloud Agent Builder and integrate partner MCP servers").
 
 ADK supports MCP in **both directions**:
+
 1. **Consume** — an ADK agent acts as MCP host, talking to partner MCP servers
 2. **Expose** — wrap ADK tools so other clients can call them via MCP
 
@@ -185,6 +189,7 @@ Internally ADK uses **FastMCP** for server-side plumbing.
 **Production deployment caveat** (from ADK docs): "Agent definitions must be synchronous for production deployments — asynchronous patterns don't work when deploying to Cloud Run, GKE, or Agent Runtime environments." [UNVERIFIED whether this still holds in 2026 ADK release — check before submission].
 
 Sources:
+
 - [ADK MCP overview](https://adk.dev/mcp/)
 - [ADK MCP tools detailed](https://adk.dev/tools-custom/mcp-tools/)
 - [Codelab: Getting Started with MCP, ADK and A2A](https://codelabs.developers.google.com/codelabs/currency-agent)
@@ -196,14 +201,14 @@ Sources:
 
 Every partner has an MCP server. The rules implicitly say "use it via MCP, not via raw API". Concretely:
 
-| Track     | Partner MCP server (expected)         | What it likely exposes                                       |
-| --------- | ------------------------------------- | ------------------------------------------------------------ |
-| Arize     | observability MCP                     | tools: get_trace, query_evals; resources: model_versions     |
-| Elastic   | search MCP                            | tools: search, kql_query; resources: indices                 |
-| Fivetran  | data-pipeline MCP                     | tools: trigger_sync, get_connector_status                    |
-| GitLab    | git/issues MCP                        | tools: create_issue, list_merge_requests, run_pipeline        |
-| MongoDB   | document-DB MCP                       | tools: find, aggregate, insert; resources: collections, schemas |
-| Dynatrace | observability MCP                     | tools: get_problems, query_metrics; resources: entities      |
+| Track     | Partner MCP server (expected) | What it likely exposes                                          |
+| --------- | ----------------------------- | --------------------------------------------------------------- |
+| Arize     | observability MCP             | tools: get_trace, query_evals; resources: model_versions        |
+| Elastic   | search MCP                    | tools: search, kql_query; resources: indices                    |
+| Fivetran  | data-pipeline MCP             | tools: trigger_sync, get_connector_status                       |
+| GitLab    | git/issues MCP                | tools: create_issue, list_merge_requests, run_pipeline          |
+| MongoDB   | document-DB MCP               | tools: find, aggregate, insert; resources: collections, schemas |
+| Dynatrace | observability MCP             | tools: get_problems, query_metrics; resources: entities         |
 
 [UNVERIFIED — confirm exact tool names by reading each partner's MCP server docs once the hackathon resources page is fully populated.]
 

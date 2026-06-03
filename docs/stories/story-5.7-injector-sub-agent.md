@@ -321,7 +321,7 @@ async def test_broken_baseline_aborts_before_any_attack(
   - F2 → `target.agent.before_model_callback = fault.as_callback()`
   - F3 → `fault.install(target.agent)` (monkey-patches retrievers in place)
   - F4 → `target.agent.before_tool_callback = fault.as_callback()` AND optionally inject `fault.httpx_transport()` into the target's httpx client
-  Implement a per-class dispatch table; don't pretend they share a common interface.
+    Implement a per-class dispatch table; don't pretend they share a common interface.
 - **Concurrent fault attempts:** the Injector runs attacks SEQUENTIALLY (not `asyncio.gather`) because fault installations mutate target state. Parallel attacks would race on `before_tool_callback`. Keep sequential.
 - **`span_id` capture:** `AdapterResult.span_ids[0]` works for Tier 1 ADK adapters that populate span_ids. For Tier 3 HTTP black-box adapters, span_ids may be empty — handle by falling back to OTel's `trace.get_current_span().get_span_context().span_id` formatted as a hex string.
 - **DO NOT bypass BaselineCheck.** Even in test mode. If a story 5.7 test wants to skip baseline, configure the target to actually pass baseline (use scripted healthy AdapterResult outcomes) rather than commenting out the check.

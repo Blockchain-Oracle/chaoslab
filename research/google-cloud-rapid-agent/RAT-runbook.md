@@ -108,6 +108,7 @@ print(result)
 - [ ] Run it. Verify the agent lists Phoenix MCP tools.
 
 **CHECKLIST — confirm these tools exist (or equivalents):**
+
 - [ ] `phoenix_get_traces` (or `list_traces`, `get_spans`) — read traces from a project
 - [ ] `phoenix_create_dataset` (or `add_dataset`) — write a dataset
 - [ ] `phoenix_run_experiment` (or `run_experiment`) — kick off an evaluation
@@ -174,19 +175,20 @@ print(result)
 
 ## Decision tree
 
-| Outcome | Action |
-|---|---|
-| ✅ All 3 steps pass in ≤90 min | **COMMIT W1.** Tell Claude to fire `sahil-spec-writer` immediately. |
-| ⚠️ Pass with caveats (e.g., one tool missing but workaround exists) | Tell Claude the caveats; we adjust the spec accordingly. |
-| ❌ Hard fail on Step 1 (Phoenix not reachable) | Pivot to W8 DataContract Sentinel. Same brainstorm folder applies. |
-| ❌ Hard fail on Step 2 (MCP tools missing) | Pivot to W8. ChaosLab's loop structurally can't close without these primitives. |
-| ❌ Hard fail on Step 3 (can't run experiment) | Pivot to W8. Same reason. |
+| Outcome                                                             | Action                                                                          |
+| ------------------------------------------------------------------- | ------------------------------------------------------------------------------- |
+| ✅ All 3 steps pass in ≤90 min                                      | **COMMIT W1.** Tell Claude to fire `sahil-spec-writer` immediately.             |
+| ⚠️ Pass with caveats (e.g., one tool missing but workaround exists) | Tell Claude the caveats; we adjust the spec accordingly.                        |
+| ❌ Hard fail on Step 1 (Phoenix not reachable)                      | Pivot to W8 DataContract Sentinel. Same brainstorm folder applies.              |
+| ❌ Hard fail on Step 2 (MCP tools missing)                          | Pivot to W8. ChaosLab's loop structurally can't close without these primitives. |
+| ❌ Hard fail on Step 3 (can't run experiment)                       | Pivot to W8. Same reason.                                                       |
 
 ---
 
 ## Open questions Claude couldn't pre-verify (RAT must answer)
 
 These come from `CONTEXT.md` §7 (Open questions):
+
 - Phoenix MCP write-access to span annotations from inside an agent run — needed for clustering output
 - Whether Phoenix MCP `streamable_http` keep-alive survives Cloud Run cold start
 - Whether `phoenix_run_experiment` blocks or returns async (affects ChaosLab's 7-day continuous reasoning design)

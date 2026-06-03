@@ -22,27 +22,27 @@ Devpost: https://devpost.com/software/salesshortcut
 
 ### Regional Winners
 
-| Region | Project | Builder(s) | One-liner |
-| ------ | ------- | ---------- | --------- |
-| North America | **Energy Agent AI** | David Babu | Multi-agent AI transforming energy customer management via ADK orchestration. [Link](https://devpost.com/software/energy-agent-ai) |
-| Latin America | **Edu.AI** | Giovanna Moeller | Multi-agent educational system for Brazil — evaluates essays, generates study plans, builds interdisciplinary mock exams. [Link](https://devpost.com/software/edu-ai-multi-agent-educational-system-for-brazil) |
-| Asia Pacific  | **GreenOps** | Aishwarya Nathani, Nikhil Mankani | AI team that audits, forecasts, and optimizes cloud infrastructure for sustainability. [Link](https://devpost.com/software/greenops-gzp4aj) |
-| EMEA | **Nexora-AI** | Matthias Meierlohr, Luca Bozzetti, Erliassystems, Markus Huber | Personalized education with interactive visual lessons + quizzes + AI tutor. [Link](https://devpost.com/software/teachai-upzofa) / [nexora-ai.de](https://nexora-ai.de) |
+| Region        | Project             | Builder(s)                                                     | One-liner                                                                                                                                                                                                       |
+| ------------- | ------------------- | -------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| North America | **Energy Agent AI** | David Babu                                                     | Multi-agent AI transforming energy customer management via ADK orchestration. [Link](https://devpost.com/software/energy-agent-ai)                                                                              |
+| Latin America | **Edu.AI**          | Giovanna Moeller                                               | Multi-agent educational system for Brazil — evaluates essays, generates study plans, builds interdisciplinary mock exams. [Link](https://devpost.com/software/edu-ai-multi-agent-educational-system-for-brazil) |
+| Asia Pacific  | **GreenOps**        | Aishwarya Nathani, Nikhil Mankani                              | AI team that audits, forecasts, and optimizes cloud infrastructure for sustainability. [Link](https://devpost.com/software/greenops-gzp4aj)                                                                     |
+| EMEA          | **Nexora-AI**       | Matthias Meierlohr, Luca Bozzetti, Erliassystems, Markus Huber | Personalized education with interactive visual lessons + quizzes + AI tutor. [Link](https://devpost.com/software/teachai-upzofa) / [nexora-ai.de](https://nexora-ai.de)                                         |
 
 ### Honorable Mentions
 
-| # | Project | Builder(s) | One-liner | Tech Stack |
-| - | ------- | ---------- | --------- | ---------- |
-| 1 | **Particle Physics Agent** | ZX Jin, Tianyu Zhang | Converts natural language into validated Feynman diagrams using real physical laws + symbolic reasoning. [Link](https://devpost.com/software/particle-physics-agent) | ADK |
-| 2 | **TradeSageAI** | Suds Kumar | Multi-agent financial analysis for trading hypothesis evaluation. [Link](https://devpost.com/software/tradesage-ai) | ADK, Agent Engine, Cloud Run, Vertex AI |
-| 3 | **Bleach** | Vivek Shukla | Visual AI agent builder for ADK — describe agents in plain English, design visually, test instantly. [Link](https://devpost.com/software/bleach-7tqdmo) | ADK, open-source UI |
+| #   | Project                    | Builder(s)           | One-liner                                                                                                                                                            | Tech Stack                              |
+| --- | -------------------------- | -------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------- |
+| 1   | **Particle Physics Agent** | ZX Jin, Tianyu Zhang | Converts natural language into validated Feynman diagrams using real physical laws + symbolic reasoning. [Link](https://devpost.com/software/particle-physics-agent) | ADK                                     |
+| 2   | **TradeSageAI**            | Suds Kumar           | Multi-agent financial analysis for trading hypothesis evaluation. [Link](https://devpost.com/software/tradesage-ai)                                                  | ADK, Agent Engine, Cloud Run, Vertex AI |
+| 3   | **Bleach**                 | Vivek Shukla         | Visual AI agent builder for ADK — describe agents in plain English, design visually, test instantly. [Link](https://devpost.com/software/bleach-7tqdmo)              | ADK, open-source UI                     |
 
 ### Other notable top-10 (gallery-featured)
 
-| Project | Builder(s) | Engagement | Description |
-| ------- | ---------- | ---------- | ----------- |
-| Voltaros | Jade Sampaguita Lee | 3 likes | Chaos engineering automation — stress-tests GKE apps via pod crashes + latency triggers using ADK agents. |
-| Owlspeak | Tyler Wu, Taravat Sharafat, Alan Zhang | 7 likes | Professional communication practice — safe environment to articulate experiences. |
+| Project  | Builder(s)                             | Engagement | Description                                                                                               |
+| -------- | -------------------------------------- | ---------- | --------------------------------------------------------------------------------------------------------- |
+| Voltaros | Jade Sampaguita Lee                    | 3 likes    | Chaos engineering automation — stress-tests GKE apps via pod crashes + latency triggers using ADK agents. |
+| Owlspeak | Tyler Wu, Taravat Sharafat, Alan Zhang | 7 likes    | Professional communication practice — safe environment to articulate experiences.                         |
 
 ---
 
@@ -62,12 +62,12 @@ Tech: Vertex AI
 
 ### Category Winners
 
-| Category | Project | Builder | One-liner |
-| -------- | ------- | ------- | --------- |
-| Lifestyle Bot | **Garden Genie** | Angus Macapella | AI gardening companion — tailored advice on plants, soil, pest management |
-| Customer-Facing Bot | **Smart Graahak** | Sumit Kumar | Sustainability-focused product search + informed purchasing tool |
-| Productivity Booster | **Moresales** | Fabian Perez | "Revolutionizing business intelligence with AI-driven SQL interactions" |
-| Knowledge Bot | **GenQuery** | Aniket Andhale | AI-powered data discovery platform |
+| Category             | Project           | Builder         | One-liner                                                                 |
+| -------------------- | ----------------- | --------------- | ------------------------------------------------------------------------- |
+| Lifestyle Bot        | **Garden Genie**  | Angus Macapella | AI gardening companion — tailored advice on plants, soil, pest management |
+| Customer-Facing Bot  | **Smart Graahak** | Sumit Kumar     | Sustainability-focused product search + informed purchasing tool          |
+| Productivity Booster | **Moresales**     | Fabian Perez    | "Revolutionizing business intelligence with AI-driven SQL interactions"   |
+| Knowledge Bot        | **GenQuery**      | Aniket Andhale  | AI-powered data discovery platform                                        |
 
 Second-place overall: **Volker Janz** ([UNVERIFIED] project name).
 
@@ -81,17 +81,17 @@ Second-place overall: **Volker Janz** ([UNVERIFIED] project name).
 
 ### Winners
 
-| Award | Project | One-liner | Tech | Demo |
-| ----- | ------- | --------- | ---- | ---- |
-| Best Overall App | **Jayu** | AI personal assistant integrating with browsers, code editors, music apps, games; does visual interpretation + real-time translation | Gemini API | [YouTube](https://www.youtube.com/watch?v=shnW3VerkiM) |
-| Most Impactful + People's Choice | **Vite Vere (Real Lives)** | Step-by-step visual guidance for individuals with cognitive disabilities | Gemini API (visual) | [YouTube](https://www.youtube.com/watch?v=yul0L5YWBp0) |
-| Most Creative | **Outdraw AI** | Game where players draw images recognizable to humans but confusing to AI vision | Gemini API (visual) | [YouTube](https://www.youtube.com/watch?v=e16IQA1GGw4) |
-| Most Useful + Best Flutter | **Prospera** | Real-time sales coaching — analyzes conversations, gives performance feedback | Gemini, Flutter | [YouTube](https://www.youtube.com/watch?v=ZTFKbhmGcUo) |
-| Best Android | **Gaze Link** | Eye-tracking for ALS patients — single words → full sentence responses | Gemini, Android | [YouTube](https://www.youtube.com/watch?v=y_U1vkEC9PA) |
-| Best Firebase | **Trippy** | Personalized travel planning via NL understanding | Gemini, Firebase | [YouTube](https://www.youtube.com/watch?v=Rbh7CWsF1C8) |
-| Best Web | **ViddyScribe** | Auto-generates audio descriptions for videos (accessibility for visually impaired) | Gemini, web | [YouTube](https://www.youtube.com/watch?v=MsN_YbwviUU) |
-| Best Game | **Pen Apple** | Online deck builder where card effects are interpreted via NL | Gemini Flash | [YouTube](https://www.youtube.com/watch?v=I1tEa5poHl0) |
-| Best ARCore | **Everies** | AR app that animates ordinary objects with facial features | Gemini, ARCore | [YouTube](https://www.youtube.com/watch?v=S_c4d0Fcy-U) |
+| Award                            | Project                    | One-liner                                                                                                                            | Tech                | Demo                                                   |
+| -------------------------------- | -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ | ------------------- | ------------------------------------------------------ |
+| Best Overall App                 | **Jayu**                   | AI personal assistant integrating with browsers, code editors, music apps, games; does visual interpretation + real-time translation | Gemini API          | [YouTube](https://www.youtube.com/watch?v=shnW3VerkiM) |
+| Most Impactful + People's Choice | **Vite Vere (Real Lives)** | Step-by-step visual guidance for individuals with cognitive disabilities                                                             | Gemini API (visual) | [YouTube](https://www.youtube.com/watch?v=yul0L5YWBp0) |
+| Most Creative                    | **Outdraw AI**             | Game where players draw images recognizable to humans but confusing to AI vision                                                     | Gemini API (visual) | [YouTube](https://www.youtube.com/watch?v=e16IQA1GGw4) |
+| Most Useful + Best Flutter       | **Prospera**               | Real-time sales coaching — analyzes conversations, gives performance feedback                                                        | Gemini, Flutter     | [YouTube](https://www.youtube.com/watch?v=ZTFKbhmGcUo) |
+| Best Android                     | **Gaze Link**              | Eye-tracking for ALS patients — single words → full sentence responses                                                               | Gemini, Android     | [YouTube](https://www.youtube.com/watch?v=y_U1vkEC9PA) |
+| Best Firebase                    | **Trippy**                 | Personalized travel planning via NL understanding                                                                                    | Gemini, Firebase    | [YouTube](https://www.youtube.com/watch?v=Rbh7CWsF1C8) |
+| Best Web                         | **ViddyScribe**            | Auto-generates audio descriptions for videos (accessibility for visually impaired)                                                   | Gemini, web         | [YouTube](https://www.youtube.com/watch?v=MsN_YbwviUU) |
+| Best Game                        | **Pen Apple**              | Online deck builder where card effects are interpreted via NL                                                                        | Gemini Flash        | [YouTube](https://www.youtube.com/watch?v=I1tEa5poHl0) |
+| Best ARCore                      | **Everies**                | AR app that animates ordinary objects with facial features                                                                           | Gemini, ARCore      | [YouTube](https://www.youtube.com/watch?v=S_c4d0Fcy-U) |
 
 ---
 
@@ -130,6 +130,7 @@ Cross-referencing all winners across ADK Hackathon (2025), Vertex AI Agent Build
 ### Pattern A: Hyper-specific real-world domain
 
 Generic "AI assistant" or "chatbot for X" did NOT win. Every winner picks a **named, narrow, defensible domain**:
+
 - Energy customer management (Energy Agent AI)
 - Brazilian K-12 essay evaluation (Edu.AI)
 - Trading hypothesis evaluation (TradeSageAI)
@@ -144,6 +145,7 @@ Generic "AI assistant" or "chatbot for X" did NOT win. Every winner picks a **na
 ### Pattern B: Multi-step workflow with autonomous action (not retrieval)
 
 Winners DO things, not retrieve things. The judging rubric's "Technological Implementation" rewards visible orchestration of multiple steps:
+
 - SalesShortcut: lead discovery → research → proposal generation → outreach (4-step pipeline)
 - Edu.AI: essay evaluation + study plan generation + mock exam creation (3-agent orchestration)
 - ArthaRaksha: live transcription → translation → scam classification → user alert (4-step real-time pipeline)
@@ -155,6 +157,7 @@ Winners DO things, not retrieve things. The judging rubric's "Technological Impl
 ### Pattern C: Demo video shows the agent ACTING, not the developer narrating
 
 ADK Hackathon judges explicitly weighted demo quality. Winners' videos:
+
 - Show real autonomous execution (not pre-recorded slides)
 - Demonstrate the multi-agent handoffs visibly (e.g., agent A planning → agent B executing → agent C verifying)
 - Are tight (~3 min) and lead with the user-visible "wow"
@@ -166,6 +169,7 @@ ADK Hackathon judges explicitly weighted demo quality. Winners' videos:
 ### Pattern D: Production-feeling polish at hackathon scope
 
 Winners had:
+
 - Custom UI (not a Streamlit/Gradio default skin)
 - Their own domain or polished landing page (e.g., nexora-ai.de)
 - Clean GitHub README with architecture diagram

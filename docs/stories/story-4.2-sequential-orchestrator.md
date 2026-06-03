@@ -40,7 +40,7 @@ Exact files the coding agent creates or modifies for this story:
   - **Trace-as-assertion:** when the orchestrator runs against a stubbed-LLM (use `respx` to intercept the Gemini API call OR ADK's `InMemoryLlm` if it exists in v1.x — verify; otherwise use `unittest.mock.patch` on the `LlmAgent._generate_content` async method to return a canned response), the captured span list contains a span named `"ChaosLabOrchestrator"` with exactly 3 child spans whose names are `["Injector", "Judge", "Patcher"]` in that order.
   - The child spans' `openinference.span.kind` attribute equals `"CHAIN"` (per OpenInference ADK conventions).
   - The `Patcher` span starts AFTER the `Judge` span ends (asserted via `start_time` comparison) — proves sequential execution, not parallel.
-  ~200 lines.
+    ~200 lines.
 - `apps/chaoslab-agent/tests/unit/test_main.py` — UPDATE — add 3 cases: `POST /run` now creates an entry in `_RUN_REGISTRY` with `phase` field; `GET /stream?runId=X` emits a `phase_change` event when the background task transitions phases (mockable by patching the orchestrator with a stub that yields phase updates); cancellation: closing the SSE client mid-stream cancels the background task. ~50 added lines.
 
 The coding agent must NOT modify files outside this map without re-checking CLAUDE.md.
@@ -150,6 +150,7 @@ cd apps/chaoslab-agent && uv run ruff check . && uv run ruff format . --check &&
 
 - **Stubs are real `LlmAgent` instances, not mocks.** Per §14 + ADR-002, the sub-agents must be real `LlmAgent` instances backed by real Gemini. The trace-as-assertion tests stub the LLM RESPONSE (via `respx` against the Gemini REST endpoint) but never replace the `LlmAgent` class itself. The string `"STUB:"` in the instruction is documentation, not a §14 violation — the test grep explicitly carves it out.
 - **`SequentialAgent` shape.** Reference `architecture/03-multi-agent-patterns.md §3.1`:
+
   ```python
   from google.adk.agents.sequential_agent import SequentialAgent
   from google.adk.agents.llm_agent import LlmAgent
@@ -163,8 +164,9 @@ cd apps/chaoslab-agent && uv run ruff check . && uv run ruff format . --check &&
       sub_agents=[injector, judge, patcher],
   )
   ```
+
 - **State passing via `output_key` + `{key}` template.** This is THE mechanism that makes downstream sub-agents read upstream results without manual context plumbing. The Judge instruction MUST contain the literal `{injector_result}` substring or state will not flow. Tests assert on this exact substring.
-- **`description` is load-bearing.** Per `architecture/03 §1.1`: "The `description` field on each sub-agent is **load-bearing** — the parent's LLM reads it to decide *when* to delegate." For `SequentialAgent` the description is less critical for routing (sequential is deterministic) but Epic 6 may upgrade to a hierarchical supervisor — keep descriptions ≥20 chars and informative.
+- **`description` is load-bearing.** Per `architecture/03 §1.1`: "The `description` field on each sub-agent is **load-bearing** — the parent's LLM reads it to decide _when_ to delegate." For `SequentialAgent` the description is less critical for routing (sequential is deterministic) but Epic 6 may upgrade to a hierarchical supervisor — keep descriptions ≥20 chars and informative.
 - **Trace-as-assertion is the primary correctness signal.** Per `best-practices/06 §5.1`. Assert on the SPAN TREE, not on natural-language LLM output. Sample assertion shape:
   ```python
   span_names = [s.name for s in exporter.get_finished_spans()]

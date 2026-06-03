@@ -74,7 +74,7 @@ A quick map for orientation before the candidate dossier — what FLAVOR of winn
 - **Original tech stack:** Google ADK, Gemini, custom frontend.
 - **Why it won:** Specific domain (Brazilian K-12 ENEM prep), specific population (public school students without tutors), tangible artifact (graded essay + study plan + mock exam). Pattern A + B fit.
 - **Why it ports to Google Cloud Agent Platform:** Already on it, but the port is **switching the persona from student → textbook publisher / curriculum designer** and adding **MongoDB MCP** for the structured curriculum DB. Publishers want to know "which questions in my catalog correlate with concept mastery? Which study plans actually move the needle?" That's RAG + analytical queries over their catalog — MongoDB Atlas Vector Search territory.
-- **Material differentiator:** **Better domain** (B2B publisher pain vs B2C student) — publishers PAY for tools, students don't. Plus the agent acts on the *catalog metadata layer* not the student layer, which is a fresher, less crowded angle. The student-tutor agent space is now saturated; the *curriculum-design-loop agent* space is barely touched.
+- **Material differentiator:** **Better domain** (B2B publisher pain vs B2C student) — publishers PAY for tools, students don't. Plus the agent acts on the _catalog metadata layer_ not the student layer, which is a fresher, less crowded angle. The student-tutor agent space is now saturated; the _curriculum-design-loop agent_ space is barely touched.
 - **Rebuild time:** 7 days. The 8-agent shape is heavy but most can be collapsed into 3 — generator, evaluator, optimizer.
 - **Track fit:** **MongoDB** (RED lane per CONTEXT.md §2 — but with a B2B angle that most submissions won't have, lane saturation matters less).
 - **Risk:** MongoDB lane is the most crowded; the differentiator has to be loud. Without real publisher data, demo authenticity suffers. **Mitigation:** synthesize a realistic textbook catalog using public OpenStax content as the source.
@@ -94,7 +94,7 @@ A quick map for orientation before the candidate dossier — what FLAVOR of winn
   - **95%+ success rate at producing compilable diagrams.** ([Devpost](https://devpost.com/software/particle-physics-agent))
 - **Original tech stack:** Google ADK, Gemini, LaTeX toolchain, custom Particle-Data-Group validation against authoritative source.
 - **Why it won (honorable mention):** Pattern A excellence (physics PhDs writing papers — hyper-specific buyer with name and face). Pattern B (multi-agent w/ auto-correction loop = visible orchestration). Tangible artifact (compilable LaTeX diagram — instantly demoable, binarily valid or not). Pattern D (deep ADK use). Authoritative-source-validation is the secret sauce (Shape 3 from Appendix A).
-- **Why it ports to Google Cloud Agent Platform:** Same platform; the PORT is the *pattern*, not the project. Pattern = NL → compilable/validated output, with auto-correction against an authoritative source. Pivot the domain to:
+- **Why it ports to Google Cloud Agent Platform:** Same platform; the PORT is the _pattern_, not the project. Pattern = NL → compilable/validated output, with auto-correction against an authoritative source. Pivot the domain to:
   - **Kubernetes manifests validated against the cluster's actual schema:** Dynatrace MCP tells you what services exist, what their actual config schemas look like, what other services depend on them.
   - **Legal-citation-correct contract clauses:** Elastic MCP indexes statutes/case law; the validator checks every cited case is real and applicable.
   - **SQL queries validated against MongoDB collection schema:** MongoDB MCP exposes the live schema; validator checks the agent's emitted query against actual collections + types.
@@ -172,7 +172,7 @@ A quick map for orientation before the candidate dossier — what FLAVOR of winn
 - **Material differentiator:** **Better protocol composition** (UCP — Unified Context Protocol — gives the shell standardized context to make decisions; AP2 lets approved actions trigger payments). **Better domain** (devops, not crypto — bigger market). The crypto version was niche; the dev/data tools version is universal.
 - **Rebuild time:** 6-7 days. The shell pattern is small; the policy DAG is the work.
 - **Track fit:** **GitLab** (RED lane per CONTEXT.md, but the angle is differentiated). Could also be Dynatrace (policy = runtime tracing) or Arize (policy = trace-based eval).
-- **Risk:** GitLab lane is saturated; the "AI safety / agent shell" angle has been built before (in crypto, by enterprise AI safety startups). **Mitigation:** lean hard on the *demo* — show a live prompt injection in a Gemini agent that ATTEMPTS to drop a production table; ENShell stops it; without ENShell, table gone. That visceral side-by-side is winning material.
+- **Risk:** GitLab lane is saturated; the "AI safety / agent shell" angle has been built before (in crypto, by enterprise AI safety startups). **Mitigation:** lean hard on the _demo_ — show a live prompt injection in a Gemini agent that ATTEMPTS to drop a production table; ENShell stops it; without ENShell, table gone. That visceral side-by-side is winning material.
 
 ---
 
@@ -201,7 +201,7 @@ A quick map for orientation before the candidate dossier — what FLAVOR of winn
   - The "exec dashboard truth-verify" framing is fresh, but easy to dismiss as a clever wrapper around analytics tools.
   - 14-day Fivetran trial squeeze.
 - **Mitigation:**
-  - Lean on the AGENTIC angle — multiple agents *debating* each other and emitting a confidence interval is genuinely new vs the static-rule-engine incumbents (Monte Carlo is rule-based, not agentic).
+  - Lean on the AGENTIC angle — multiple agents _debating_ each other and emitting a confidence interval is genuinely new vs the static-rule-engine incumbents (Monte Carlo is rule-based, not agentic).
   - Demo SHOULD show divergence: agent A says ARR is up 22%, agent B says 18%, agent C says 25%, Reconciler agent goes "wait — the difference is revenue recognition on multi-year contracts; here's the audit trail." That's the wow.
 
 ---
@@ -263,7 +263,7 @@ A quick map for orientation before the candidate dossier — what FLAVOR of winn
 - **Mitigation:**
   - Ship single-MCP first (Fivetran + MongoDB), wire Dynatrace as a stretch goal Day 7+.
   - For Dynatrace, deploy a small "fake prod" demo app (Node.js with intentionally-vulnerable deps) on Cloud Run, instrument with OneAgent, and use that as the "this is what my real prod telemetry looks like" demo target. ~4 hours of setup.
-  - Differentiate from Snyk/Endor by stressing the *agentic + runtime-grounded* combo — they're static or rule-based, ChaosLab-style RiskWise is reasoning over runtime evidence.
+  - Differentiate from Snyk/Endor by stressing the _agentic + runtime-grounded_ combo — they're static or rule-based, ChaosLab-style RiskWise is reasoning over runtime evidence.
 
 ---
 
@@ -273,7 +273,7 @@ A quick map for orientation before the candidate dossier — what FLAVOR of winn
 - **What it did:** Smart pet collar → Kafka streaming pipeline → TiDB SQL Sink → multi-agent system (vitals agent using Chat2Query API on TiDB; skin-disease agent doing image-vector-search; report agent generating health summaries). Vector embeddings of pet images stored alongside structured time-series vitals. Real-time, multi-modal, owner-facing. ([Devpost](https://devpost.com/software/petfit-ai))
 - **Original tech stack:** TiDB (vector + time-series), Kafka, multi-agent ADK-like orchestration, embeddings + Chat2Query API for NL→SQL, Python visualization for report agent.
 - **Why it won:** Real-time streaming + multi-modal (vitals + images), tangible artifact (health report), demo-friendly (cute pet collar angle), TiDB-platform-deep (Pattern D platform-breadth signal for TiDB judges).
-- **Why it ports to Google Cloud Agent Platform:** Strip the pet domain; keep the *real-time multi-modal streaming health-signal* pattern. Apply it to **SaaS product-metric monitoring**:
+- **Why it ports to Google Cloud Agent Platform:** Strip the pet domain; keep the _real-time multi-modal streaming health-signal_ pattern. Apply it to **SaaS product-metric monitoring**:
   - Every product event (signup, churn, error, support ticket, screenshot upload) flows through **Pub/Sub** → **MongoDB Atlas** (storing both structured events AND embeddings of error messages + dashboard screenshots).
   - Multi-agent: vitals agent watches MRR / DAU / NPS, anomaly agent watches error logs (semantic search via Atlas Vector Search), screenshot agent processes dashboard screenshots via Gemini Vision, report agent emits weekly summary.
 - **Material differentiator:**
@@ -290,6 +290,7 @@ A quick map for orientation before the candidate dossier — what FLAVOR of winn
 ### 11b. ENS-DIVE-Smol convergence note (ETHGlobal pattern)
 
 A pattern across multiple ETHGlobal 2025/2026 finalists is **agent-as-on-chain-identity**: agents have wallets, names (via ENS), reputation, payment rails. This translates to Google Cloud Agent Platform via:
+
 - **GitLab MCP** as identity layer (every dev/agent has a GitLab account → GitLab ID → permissions DAG)
 - **AP2** as payment rail
 - **A2A** as agent-mesh / discovery
@@ -334,13 +335,13 @@ These are projects mined during this research pass that the multiplicative-floor
 
 Scoring on the 5 axes (1-5 each), multiplied. Higher = better.
 
-| # | Candidate | Demo-ability | Differentiator | Build feasibility | Track fit / EV | Pain sharpness | Score |
-|---|-----------|---:|---:|---:|---:|---:|---:|
-| 1 | **#9 Voltaros → Chaos for AI Agents** | 5 | 5 | 4 | 5 | 4 | **2000** |
-| 2 | **#6 ENShell → Prompt-Injection Shell** | 5 | 4 | 4 | 3 | 5 | **1200** |
-| 3 | **#3 Particle Physics Agent → Domain-Pivot Compilable-Output** | 4 | 4 | 5 | 5 | 3 | **1200** |
-| 4 | **#4 TradeSage → Hypothesis-Tester for Incident RCA** | 4 | 4 | 4 | 5 | 4 | **1280** |
-| 5 | **#10 RiskWise → Cyber-Supply-Chain Risk Agent** | 4 | 5 | 3 | 4 | 5 | **1200** |
+| #   | Candidate                                                      | Demo-ability | Differentiator | Build feasibility | Track fit / EV | Pain sharpness |    Score |
+| --- | -------------------------------------------------------------- | -----------: | -------------: | ----------------: | -------------: | -------------: | -------: |
+| 1   | **#9 Voltaros → Chaos for AI Agents**                          |            5 |              5 |                 4 |              5 |              4 | **2000** |
+| 2   | **#6 ENShell → Prompt-Injection Shell**                        |            5 |              4 |                 4 |              3 |              5 | **1200** |
+| 3   | **#3 Particle Physics Agent → Domain-Pivot Compilable-Output** |            4 |              4 |                 5 |              5 |              3 | **1200** |
+| 4   | **#4 TradeSage → Hypothesis-Tester for Incident RCA**          |            4 |              4 |                 4 |              5 |              4 | **1280** |
+| 5   | **#10 RiskWise → Cyber-Supply-Chain Risk Agent**               |            4 |              5 |                 3 |              4 |              5 | **1200** |
 
 ### Per-candidate scoring rationale
 
@@ -405,7 +406,7 @@ Scoring on the 5 axes (1-5 each), multiplied. Higher = better.
 
 **Pitch sentence (the Q2 wedge from `07-pre-commit-checklist.md`):**
 
-> *"ChaosLab is an Arize-graded chaos-engineering agent: every team shipping an agent in 2026 lacks confidence the agent will hold up in prod; ChaosLab autonomously injects 12 classes of LLM-specific faults (malformed tool outputs, latent context poisoning, MCP server flakiness, prompt-leak attempts), records every span in Phoenix, runs eval-as-judge on the response, and emits a per-fault-class resilience score with a hardening recipe."*
+> _"ChaosLab is an Arize-graded chaos-engineering agent: every team shipping an agent in 2026 lacks confidence the agent will hold up in prod; ChaosLab autonomously injects 12 classes of LLM-specific faults (malformed tool outputs, latent context poisoning, MCP server flakiness, prompt-leak attempts), records every span in Phoenix, runs eval-as-judge on the response, and emits a per-fault-class resilience score with a hardening recipe."_
 
 **Target track:** **Arize**. The bonus criterion explicitly rewards agents that "use observability data to improve over time" — ChaosLab IS that loop.
 
@@ -423,7 +424,7 @@ Scoring on the 5 axes (1-5 each), multiplied. Higher = better.
 
 **The material differentiator:**
 
-- **Cross-ecosystem novelty:** chaos-eng-for-agents has been thought-about (Anthropic talks about agent red-teaming; OpenAI evals exist) but nobody has shipped the *closed-loop autonomous fault-inject + Phoenix-grade + auto-harden* pattern.
+- **Cross-ecosystem novelty:** chaos-eng-for-agents has been thought-about (Anthropic talks about agent red-teaming; OpenAI evals exist) but nobody has shipped the _closed-loop autonomous fault-inject + Phoenix-grade + auto-harden_ pattern.
 - **Multi-protocol composition:** MCP (Phoenix wires) + A2A (parallel test agents) + UCP (the hardening recipe is a structured context object).
 - **Demo wow:** the before/after curve is visceral — agent fails 60% of fault classes, after one ChaosLab loop it fails 8%. Plus a live "watch the chaos agent break the agent" subscreen.
 - **Recursive judging fit:** Arize judges are the people most likely to value chaos-eng-for-LLMs as a primitive. They'll feel seen.
@@ -511,13 +512,13 @@ Winners feel like "v1 of a startup," not "hackathon prototype." Edu.AI had nexor
 
 The hackathon's 5 open protocols (MCP, A2A, A2UI, AP2, UCP) are 2026-new. Every refactor in this file can claim novelty by composing protocols the original couldn't. Mapping:
 
-| Protocol | What it enables | Refactor candidates that benefit |
-|----------|-----------------|----------------------------------|
-| **MCP** (Model Context Protocol) | Tool-server interop | All 12 candidates — required by hackathon rules anyway. |
-| **A2A** (Agent-to-Agent) | Parallel agent invocation, agent-discovery, agent-mesh | #4 TradeSage (parallel bull/bear agents), #9 Voltaros/ChaosLab (parallel fault-injection runs), #12 Guardian Army (specialist fleet), #7 DIVE (swarm consensus) |
-| **A2UI** (Agent-to-UI) | Agent renders structured UI components, not just text | #8 TrialIQ (regulatory officer co-edits annotated doc), #5 AegisAgent (claim adjuster co-edits the decision), #1 SalesShortcut (sales rep approves outreach in a structured form) |
-| **AP2** (Agent Payments Protocol) | Agent can issue + receive payments inline | #1 SalesShortcut (charge for the proposal), #5 AegisAgent (disburse claim), #10 RiskWise (auto-pay for premium threat intel feeds) |
-| **UCP** (Unified Context Protocol) | Standardized context object passed between agents/tools | #6 ENShell (policy = UCP-formed context), #12 Guardian Army (each specialist gets a UCP-shaped task brief), #9 ChaosLab (hardening recipe is a UCP artifact) |
+| Protocol                           | What it enables                                         | Refactor candidates that benefit                                                                                                                                                  |
+| ---------------------------------- | ------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **MCP** (Model Context Protocol)   | Tool-server interop                                     | All 12 candidates — required by hackathon rules anyway.                                                                                                                           |
+| **A2A** (Agent-to-Agent)           | Parallel agent invocation, agent-discovery, agent-mesh  | #4 TradeSage (parallel bull/bear agents), #9 Voltaros/ChaosLab (parallel fault-injection runs), #12 Guardian Army (specialist fleet), #7 DIVE (swarm consensus)                   |
+| **A2UI** (Agent-to-UI)             | Agent renders structured UI components, not just text   | #8 TrialIQ (regulatory officer co-edits annotated doc), #5 AegisAgent (claim adjuster co-edits the decision), #1 SalesShortcut (sales rep approves outreach in a structured form) |
+| **AP2** (Agent Payments Protocol)  | Agent can issue + receive payments inline               | #1 SalesShortcut (charge for the proposal), #5 AegisAgent (disburse claim), #10 RiskWise (auto-pay for premium threat intel feeds)                                                |
+| **UCP** (Unified Context Protocol) | Standardized context object passed between agents/tools | #6 ENShell (policy = UCP-formed context), #12 Guardian Army (each specialist gets a UCP-shaped task brief), #9 ChaosLab (hardening recipe is a UCP artifact)                      |
 
 **Strategic implication:** mentioning protocol composition in the wedge sentence is cheap differentiation. Most submissions will use only MCP. Submissions that use MCP + A2A + one of (A2UI / AP2 / UCP) signal "this person read the platform docs all the way through." That's a 2026-fresh shibboleth the judges will notice.
 
@@ -527,18 +528,18 @@ The hackathon's 5 open protocols (MCP, A2A, A2UI, AP2, UCP) are 2026-new. Every 
 
 If Abu commits to ChaosLab Day 0 (2026-06-02 today), here's the back-of-envelope cadence to hit the 2026-06-11 14:00 PT deadline. Lifted patterns from `02b-gemini-enterprise-agent-platform.md` decision matrix and `02a-google-cloud-stack.md` ADK quickstart.
 
-| Day | Date | Focus | Concrete deliverable |
-|----:|------|-------|----------------------|
-| 0   | 2026-06-02 | Spec lock + scaffold | Q1-Q7 from `07-pre-commit-checklist.md` answered. Repo init. ADK installed. `$100 GCP credit` claimed (deadline 06-04). Phoenix Cloud account live. |
-| 1   | 2026-06-03 | Naive target agent + Phoenix wiring | Customer-support agent (3 tools, no validation) on Cloud Run. OpenInference auto-instrumented. First traces flowing into Phoenix Cloud. |
-| 2   | 2026-06-04 | Fault catalog v1 (2 fault classes) | Malformed-tool-output decorator + prompt-injection probe. Run target agent through each fault 10x. Phoenix shows red. |
-| 3   | 2026-06-05 | Phoenix MCP wired + eval-as-judge | `@arizeai/phoenix-mcp` registered via ADK MCPToolset. ChaosLab can list spans, fetch traces. 3 LLM-as-judge eval rubrics deployed. Per-fault-class score visible. |
-| 4   | 2026-06-06 | Add 2 more fault classes + clustering | Context-poisoning + MCP-server-flakiness faults. ChaosLab clusters failures using Gemini 3.1 Pro. |
-| 5   | 2026-06-07 | Hardening recipe generator | ChaosLab reads failed spans → generates prompt edit + tool-validation code patch. Saves to artifact storage. |
-| 6   | 2026-06-08 | Re-test loop + UI | Patched-agent re-test. Before/after dashboard (Streamlit or Next.js). Resilience curve plotted. |
-| 7   | 2026-06-09 | GitLab MCP wire (stretch) + polish | Optional: open PR via GitLab MCP. Custom domain, README, architecture diagram. |
-| 8   | 2026-06-10 | Demo video shoot + cuts | Record the 3-min demo. Tight, agent-acting-not-narrating per Pattern C. |
-| 9   | 2026-06-11 | Submit + safety margin | Submit by 12:00 PT (2h margin before 14:00 PT). |
+| Day | Date       | Focus                                 | Concrete deliverable                                                                                                                                              |
+| --: | ---------- | ------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+|   0 | 2026-06-02 | Spec lock + scaffold                  | Q1-Q7 from `07-pre-commit-checklist.md` answered. Repo init. ADK installed. `$100 GCP credit` claimed (deadline 06-04). Phoenix Cloud account live.               |
+|   1 | 2026-06-03 | Naive target agent + Phoenix wiring   | Customer-support agent (3 tools, no validation) on Cloud Run. OpenInference auto-instrumented. First traces flowing into Phoenix Cloud.                           |
+|   2 | 2026-06-04 | Fault catalog v1 (2 fault classes)    | Malformed-tool-output decorator + prompt-injection probe. Run target agent through each fault 10x. Phoenix shows red.                                             |
+|   3 | 2026-06-05 | Phoenix MCP wired + eval-as-judge     | `@arizeai/phoenix-mcp` registered via ADK MCPToolset. ChaosLab can list spans, fetch traces. 3 LLM-as-judge eval rubrics deployed. Per-fault-class score visible. |
+|   4 | 2026-06-06 | Add 2 more fault classes + clustering | Context-poisoning + MCP-server-flakiness faults. ChaosLab clusters failures using Gemini 3.1 Pro.                                                                 |
+|   5 | 2026-06-07 | Hardening recipe generator            | ChaosLab reads failed spans → generates prompt edit + tool-validation code patch. Saves to artifact storage.                                                      |
+|   6 | 2026-06-08 | Re-test loop + UI                     | Patched-agent re-test. Before/after dashboard (Streamlit or Next.js). Resilience curve plotted.                                                                   |
+|   7 | 2026-06-09 | GitLab MCP wire (stretch) + polish    | Optional: open PR via GitLab MCP. Custom domain, README, architecture diagram.                                                                                    |
+|   8 | 2026-06-10 | Demo video shoot + cuts               | Record the 3-min demo. Tight, agent-acting-not-narrating per Pattern C.                                                                                           |
+|   9 | 2026-06-11 | Submit + safety margin                | Submit by 12:00 PT (2h margin before 14:00 PT).                                                                                                                   |
 
 **Critical-path risks per day:**
 

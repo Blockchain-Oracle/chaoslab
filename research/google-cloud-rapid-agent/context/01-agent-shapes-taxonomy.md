@@ -5,6 +5,7 @@
 > **Scope:** Pure description. No architectural decisions. No "we should…" or "ChaosLab should…". Downstream agents make those calls.
 >
 > **Companion files:**
+>
 > - `brainstorm/03-agent-landscape.md` — initial product landscape (read first; this file goes deeper)
 > - `02b-gemini-enterprise-agent-platform.md` — Google's specific agent platform stack
 > - `mcp-primer.md` — MCP protocol details
@@ -33,59 +34,59 @@ An agent in mid-2026 is best characterized as a tuple of values across eight ort
 
 The dominant functional categories observed in 2026 production deployments:
 
-| Function | Representative products | Typical workload |
-|---|---|---|
-| Customer support (CX) | Sierra, Decagon, Maven AGI, Fin (Intercom), Ada, Cresta | Resolve user questions, file tickets, issue refunds within policy |
-| Coding (IDE-pair) | Cursor, Windsurf, Claude Code, GitHub Copilot Agent | Inline edit suggestions, agent-mode multi-file changes |
-| Coding (autonomous) | Devin, Replit Agent, Bolt, Lovable, OpenHands | Take a ticket, produce a PR, no human in the loop until review |
-| Sales / SDR / CRM | Clay/Claygent, Apollo, Outreach, 11x.ai (Alice), Artisan | Enrich leads, generate outbound, qualify replies |
-| Research (web) | Perplexity Spaces, ChatGPT Deep Research, Elicit, Exa, You.com | Crawl, synthesize, cite sources, produce a report |
-| Research (private corpus) | Glean, Inkeep, Asimov (Reflection AI), Notion AI | Answer questions over Slack/wiki/tickets with provenance |
-| Browser / computer-use | OpenAI Operator (sunset), ChatGPT Agent, Manus, Claude Computer Use, Anthropic Cowork | Drive a real browser/desktop on the user's behalf |
-| Voice agent (inbound) | Sierra Voice, Avoca, Retell, Vapi-built apps, Bland.ai | Answer incoming calls, perform tasks via voice |
-| Voice agent (outbound) | Bland, Air.ai (controversial), Avoca outbound | Place outbound calls to leads or for tasks |
-| Multi-agent pipeline | CrewAI crews, AutoGen group chats, ADK SequentialAgent, LangGraph multi-graphs | Coordinate specialized sub-agents on a complex task |
-| RAG-over-docs | Inkeep, Mendable, Glean, custom on Pinecone/pgvector | Embedding retrieval + LLM answer with citations |
-| Workflow automation | n8n AI nodes, Zapier Agents, Make, Lindy | Event-driven multi-step business logic with AI steps |
-| DevOps / SRE | Honeycomb Canvas Agent, Datadog Bits AI, PagerDuty AIOps, Cleric.io | Incident triage, runbook execution, root-cause analysis |
-| Healthcare (clinical) | Hippocratic AI, Ambience, Abridge, OpenEvidence | Patient education, ambient scribing, evidence Q&A |
-| Healthcare (admin) | Paratus, Cohere Health, Olive AI (defunct) | Prior auth, scheduling, intake, RCM |
-| Financial / analyst | TradeSage AI (hackathon winner), Domo, BloombergGPT-derived | Hypothesis evaluation, report generation, deal screening |
-| Legal | Harvey, Spellbook, EvenUp, CaseText | Contract review, drafting, e-discovery |
-| HR / recruiting | HireVue, Eightfold, Mercor, Greenhouse Smart Sourcing | Sourcing, screening, interview scheduling |
-| Marketing | Jasper, Copy.ai, ContentHaven, Iterable AI | Content gen, campaign optimization, segmentation |
-| Personal / hobbyist | Lindy personal agents, custom Mastra builds, indie ChatGPT GPTs | Inbox triage, calendar, life ops |
-| Education | Khanmigo, Magic School, MathGPT, Edu.AI Brazil (ADK winner) | Tutoring, content generation, grading |
-| Trades / field service | Avoca (HVAC/plumbing), BuildOps, Simpro Lightning | Dispatch, voice intake, parts/scheduling |
+| Function                  | Representative products                                                               | Typical workload                                                  |
+| ------------------------- | ------------------------------------------------------------------------------------- | ----------------------------------------------------------------- |
+| Customer support (CX)     | Sierra, Decagon, Maven AGI, Fin (Intercom), Ada, Cresta                               | Resolve user questions, file tickets, issue refunds within policy |
+| Coding (IDE-pair)         | Cursor, Windsurf, Claude Code, GitHub Copilot Agent                                   | Inline edit suggestions, agent-mode multi-file changes            |
+| Coding (autonomous)       | Devin, Replit Agent, Bolt, Lovable, OpenHands                                         | Take a ticket, produce a PR, no human in the loop until review    |
+| Sales / SDR / CRM         | Clay/Claygent, Apollo, Outreach, 11x.ai (Alice), Artisan                              | Enrich leads, generate outbound, qualify replies                  |
+| Research (web)            | Perplexity Spaces, ChatGPT Deep Research, Elicit, Exa, You.com                        | Crawl, synthesize, cite sources, produce a report                 |
+| Research (private corpus) | Glean, Inkeep, Asimov (Reflection AI), Notion AI                                      | Answer questions over Slack/wiki/tickets with provenance          |
+| Browser / computer-use    | OpenAI Operator (sunset), ChatGPT Agent, Manus, Claude Computer Use, Anthropic Cowork | Drive a real browser/desktop on the user's behalf                 |
+| Voice agent (inbound)     | Sierra Voice, Avoca, Retell, Vapi-built apps, Bland.ai                                | Answer incoming calls, perform tasks via voice                    |
+| Voice agent (outbound)    | Bland, Air.ai (controversial), Avoca outbound                                         | Place outbound calls to leads or for tasks                        |
+| Multi-agent pipeline      | CrewAI crews, AutoGen group chats, ADK SequentialAgent, LangGraph multi-graphs        | Coordinate specialized sub-agents on a complex task               |
+| RAG-over-docs             | Inkeep, Mendable, Glean, custom on Pinecone/pgvector                                  | Embedding retrieval + LLM answer with citations                   |
+| Workflow automation       | n8n AI nodes, Zapier Agents, Make, Lindy                                              | Event-driven multi-step business logic with AI steps              |
+| DevOps / SRE              | Honeycomb Canvas Agent, Datadog Bits AI, PagerDuty AIOps, Cleric.io                   | Incident triage, runbook execution, root-cause analysis           |
+| Healthcare (clinical)     | Hippocratic AI, Ambience, Abridge, OpenEvidence                                       | Patient education, ambient scribing, evidence Q&A                 |
+| Healthcare (admin)        | Paratus, Cohere Health, Olive AI (defunct)                                            | Prior auth, scheduling, intake, RCM                               |
+| Financial / analyst       | TradeSage AI (hackathon winner), Domo, BloombergGPT-derived                           | Hypothesis evaluation, report generation, deal screening          |
+| Legal                     | Harvey, Spellbook, EvenUp, CaseText                                                   | Contract review, drafting, e-discovery                            |
+| HR / recruiting           | HireVue, Eightfold, Mercor, Greenhouse Smart Sourcing                                 | Sourcing, screening, interview scheduling                         |
+| Marketing                 | Jasper, Copy.ai, ContentHaven, Iterable AI                                            | Content gen, campaign optimization, segmentation                  |
+| Personal / hobbyist       | Lindy personal agents, custom Mastra builds, indie ChatGPT GPTs                       | Inbox triage, calendar, life ops                                  |
+| Education                 | Khanmigo, Magic School, MathGPT, Edu.AI Brazil (ADK winner)                           | Tutoring, content generation, grading                             |
+| Trades / field service    | Avoca (HVAC/plumbing), BuildOps, Simpro Lightning                                     | Dispatch, voice intake, parts/scheduling                          |
 
 ### Axis B: By framework / SDK
 
 The framework an agent is built ON dictates a great deal about its trace shape, state model, and tool-invocation idiom. Public population numbers as of mid-2026:
 
-| Framework | Language(s) | GitHub stars | Monthly downloads | Status |
-|---|---|---|---|---|
-| **LangChain (classic)** | Python, JS | ~95k (langchain-ai/langchain) | ~50M+ | AgentExecutor deprecated; migrating to LangGraph |
-| **LangGraph** | Python, JS | ~24.8k | ~34.5M | Production winner; durable state-machine; ~400 enterprise deployments cited (Cisco, Uber, LinkedIn, BlackRock, JPMorgan, Klarna) |
-| **CrewAI** | Python | ~44.3k | ~5.2M | Role-based; 100k+ certified devs claim; named users include DocuSign, PwC |
-| **Google ADK** | Python primary, TS/Java/Go also | ~17.8k | ~3.3M | First-party for the Rapid Agent hackathon; SequentialAgent, LoopAgent, ParallelAgent, custom workflow agents |
-| **OpenAI Agents SDK** | Python, JS | ~19k | ~10.3M | Lightweight; competes with ADK |
-| **AutoGen (microsoft/autogen)** | Python | ~36k+ | n/a | Split as of March 2026 into 3 lines: Microsoft Agent Framework (MAF), AutoGen v0.7.x maintenance, and AG2 community fork |
-| **AG2 (ag2ai/ag2)** | Python | ~3k+ [UNVERIFIED] | n/a | Community fork preserving v0.2 GroupChat |
-| **Microsoft Agent Framework (MAF)** | Python, .NET | n/a (new repo) | n/a | Enterprise successor to AutoGen, merged with Semantic Kernel |
-| **Claude Agent SDK** | Python, TS | n/a | n/a | Anthropic's official SDK; powers Claude Code |
-| **Mastra** | TypeScript | ~22k+ | ~300k weekly | Ex-Gatsby team; 1.0 Jan 2026; first-class Vercel/Netlify/Cloudflare/Hono deployers |
-| **VoltAgent** | TypeScript | smaller [UNVERIFIED] | n/a | TS framework with VoltOps console for observability |
-| **Inkeep** | TypeScript | n/a | n/a | No-code visual builder + TS SDK with 2-way sync |
-| **Composio** | Python, JS, TS | n/a | n/a | Tool-integration layer; 850-1000+ pre-built connectors; recently launched orchestrator |
-| **Vercel AI SDK** | TypeScript | n/a (vercel/ai) | very high | v6 ships ToolLoopAgent, streaming primitives, ChatSDK for Slack/Discord/Teams |
-| **Vapi** | platform (not OSS framework) | n/a | n/a | Voice agent orchestration |
-| **Retell AI** | platform | n/a | n/a | Voice agent platform; ~600ms latency claim |
-| **n8n** | self-host or cloud | ~70k+ | n/a | $60M Series C in 2025-2026; 70+ AI nodes; MCP server node |
-| **Zapier Agents** | proprietary | n/a | n/a | 8000+ apps, 40k+ actions via MCP |
-| **Make.com / Integromat** | proprietary | n/a | n/a | Visual automation with AI assistant nodes |
-| **Lindy** | proprietary | n/a | n/a | 3000-5000+ integrations claim; voice + chat + email |
-| **ChatGPT Custom GPTs** | proprietary | n/a | n/a | Locked ecosystem; Actions = OpenAPI JSON/YAML schemas |
-| **Claude Projects** | proprietary | n/a | n/a | Files + system prompt; no tool support natively beyond MCP add-ons |
+| Framework                           | Language(s)                     | GitHub stars                  | Monthly downloads | Status                                                                                                                           |
+| ----------------------------------- | ------------------------------- | ----------------------------- | ----------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| **LangChain (classic)**             | Python, JS                      | ~95k (langchain-ai/langchain) | ~50M+             | AgentExecutor deprecated; migrating to LangGraph                                                                                 |
+| **LangGraph**                       | Python, JS                      | ~24.8k                        | ~34.5M            | Production winner; durable state-machine; ~400 enterprise deployments cited (Cisco, Uber, LinkedIn, BlackRock, JPMorgan, Klarna) |
+| **CrewAI**                          | Python                          | ~44.3k                        | ~5.2M             | Role-based; 100k+ certified devs claim; named users include DocuSign, PwC                                                        |
+| **Google ADK**                      | Python primary, TS/Java/Go also | ~17.8k                        | ~3.3M             | First-party for the Rapid Agent hackathon; SequentialAgent, LoopAgent, ParallelAgent, custom workflow agents                     |
+| **OpenAI Agents SDK**               | Python, JS                      | ~19k                          | ~10.3M            | Lightweight; competes with ADK                                                                                                   |
+| **AutoGen (microsoft/autogen)**     | Python                          | ~36k+                         | n/a               | Split as of March 2026 into 3 lines: Microsoft Agent Framework (MAF), AutoGen v0.7.x maintenance, and AG2 community fork         |
+| **AG2 (ag2ai/ag2)**                 | Python                          | ~3k+ [UNVERIFIED]             | n/a               | Community fork preserving v0.2 GroupChat                                                                                         |
+| **Microsoft Agent Framework (MAF)** | Python, .NET                    | n/a (new repo)                | n/a               | Enterprise successor to AutoGen, merged with Semantic Kernel                                                                     |
+| **Claude Agent SDK**                | Python, TS                      | n/a                           | n/a               | Anthropic's official SDK; powers Claude Code                                                                                     |
+| **Mastra**                          | TypeScript                      | ~22k+                         | ~300k weekly      | Ex-Gatsby team; 1.0 Jan 2026; first-class Vercel/Netlify/Cloudflare/Hono deployers                                               |
+| **VoltAgent**                       | TypeScript                      | smaller [UNVERIFIED]          | n/a               | TS framework with VoltOps console for observability                                                                              |
+| **Inkeep**                          | TypeScript                      | n/a                           | n/a               | No-code visual builder + TS SDK with 2-way sync                                                                                  |
+| **Composio**                        | Python, JS, TS                  | n/a                           | n/a               | Tool-integration layer; 850-1000+ pre-built connectors; recently launched orchestrator                                           |
+| **Vercel AI SDK**                   | TypeScript                      | n/a (vercel/ai)               | very high         | v6 ships ToolLoopAgent, streaming primitives, ChatSDK for Slack/Discord/Teams                                                    |
+| **Vapi**                            | platform (not OSS framework)    | n/a                           | n/a               | Voice agent orchestration                                                                                                        |
+| **Retell AI**                       | platform                        | n/a                           | n/a               | Voice agent platform; ~600ms latency claim                                                                                       |
+| **n8n**                             | self-host or cloud              | ~70k+                         | n/a               | $60M Series C in 2025-2026; 70+ AI nodes; MCP server node                                                                        |
+| **Zapier Agents**                   | proprietary                     | n/a                           | n/a               | 8000+ apps, 40k+ actions via MCP                                                                                                 |
+| **Make.com / Integromat**           | proprietary                     | n/a                           | n/a               | Visual automation with AI assistant nodes                                                                                        |
+| **Lindy**                           | proprietary                     | n/a                           | n/a               | 3000-5000+ integrations claim; voice + chat + email                                                                              |
+| **ChatGPT Custom GPTs**             | proprietary                     | n/a                           | n/a               | Locked ecosystem; Actions = OpenAPI JSON/YAML schemas                                                                            |
+| **Claude Projects**                 | proprietary                     | n/a                           | n/a               | Files + system prompt; no tool support natively beyond MCP add-ons                                                               |
 
 Some agents are written in **raw SDK** (just OpenAI Python SDK, Anthropic Python SDK, google-genai) with no framework — this is the "LangChain exit" trend documented for late-2025/2026: teams rewriting framework-coupled code to direct SDK loops for predictability.
 
@@ -93,40 +94,40 @@ Sources: framework comparison and adoption stats from [Best Multi-Agent Framewor
 
 ### Axis C: By interface (how external systems talk to the agent)
 
-| Interface | What it looks like | Examples |
-|---|---|---|
-| **HTTP/JSON REST** | POST /chat with JSON body; sync or streamed response | Most custom Python/Node agents, FastAPI endpoints |
-| **HTTP/SSE streaming** | Server-sent events for token-by-token delivery | ChatGPT-compatible endpoints, ai-sdk.dev defaults |
-| **WebSocket** | Persistent bidirectional channel | Voice agents (audio frames), Discord bots, in-app chat widgets |
-| **A2A peer (agent-to-agent)** | Spec at a2a-protocol.org; `/.well-known/agent-card.json` discovery, JSON-RPC over HTTP | ADK A2A skills, Google Cloud-published A2A agents |
-| **MCP server (as agent)** | Some agents expose themselves as MCP servers consumable by other agents | Inkeep, Composio sub-agents, custom in-house |
-| **MCP client (uses tools)** | Agent calls external MCP servers as tools | Most modern agents in 2026 |
-| **Voice / PSTN** | Phone number; Twilio/Telnyx for telephony; LiveKit/Daily for WebRTC | Vapi, Retell, Sierra Voice, Bland, Avoca |
-| **Voice / WebRTC** | Browser audio without PSTN | Most voice agent demo modes |
-| **Email-driven** | Forward an email to agent@example.com or addressed bot; agent replies | Lindy email agents, Superhuman AI, Shortwave AI |
-| **Slack / Teams / Discord bot** | Mentions, slash commands, DMs; webhook + Events API + Socket Mode (Slack) or Gateway WebSocket (Discord) | Internal team bots, Glean, Inkeep |
-| **Browser-driven** | Agent renders a browser (Playwright/Chromium); user views/intervenes | Operator (sunset), Manus Browser Operator, browser-use, Anthropic Computer Use |
-| **CLI / terminal** | stdin/stdout; tools via shell exec | Claude Code, Gemini CLI, Aider, codex CLI |
-| **IDE extension** | Embedded in VS Code / JetBrains / Cursor | Cursor, Windsurf, Copilot, Claude Code (VS Code variant) |
-| **Embedded SDK in another product** | The agent is a library inside a host app | Vercel AI SDK chats inside Next.js, Mastra in Hono server |
-| **No-code visual UI** | Drag-drop in a vendor's web UI | Lindy, Inkeep visual, Zapier, n8n, Agent Studio |
-| **Webhook trigger** | A third-party event (Stripe, GitHub, calendar) invokes the agent | n8n, Zapier, Make, Lindy |
-| **Custom Cron / scheduled** | Scheduled by a runner (Cloud Scheduler, GitHub Actions, Temporal) | "Loop" mode in Claude Code, batch report agents |
+| Interface                           | What it looks like                                                                                       | Examples                                                                       |
+| ----------------------------------- | -------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------ |
+| **HTTP/JSON REST**                  | POST /chat with JSON body; sync or streamed response                                                     | Most custom Python/Node agents, FastAPI endpoints                              |
+| **HTTP/SSE streaming**              | Server-sent events for token-by-token delivery                                                           | ChatGPT-compatible endpoints, ai-sdk.dev defaults                              |
+| **WebSocket**                       | Persistent bidirectional channel                                                                         | Voice agents (audio frames), Discord bots, in-app chat widgets                 |
+| **A2A peer (agent-to-agent)**       | Spec at a2a-protocol.org; `/.well-known/agent-card.json` discovery, JSON-RPC over HTTP                   | ADK A2A skills, Google Cloud-published A2A agents                              |
+| **MCP server (as agent)**           | Some agents expose themselves as MCP servers consumable by other agents                                  | Inkeep, Composio sub-agents, custom in-house                                   |
+| **MCP client (uses tools)**         | Agent calls external MCP servers as tools                                                                | Most modern agents in 2026                                                     |
+| **Voice / PSTN**                    | Phone number; Twilio/Telnyx for telephony; LiveKit/Daily for WebRTC                                      | Vapi, Retell, Sierra Voice, Bland, Avoca                                       |
+| **Voice / WebRTC**                  | Browser audio without PSTN                                                                               | Most voice agent demo modes                                                    |
+| **Email-driven**                    | Forward an email to agent@example.com or addressed bot; agent replies                                    | Lindy email agents, Superhuman AI, Shortwave AI                                |
+| **Slack / Teams / Discord bot**     | Mentions, slash commands, DMs; webhook + Events API + Socket Mode (Slack) or Gateway WebSocket (Discord) | Internal team bots, Glean, Inkeep                                              |
+| **Browser-driven**                  | Agent renders a browser (Playwright/Chromium); user views/intervenes                                     | Operator (sunset), Manus Browser Operator, browser-use, Anthropic Computer Use |
+| **CLI / terminal**                  | stdin/stdout; tools via shell exec                                                                       | Claude Code, Gemini CLI, Aider, codex CLI                                      |
+| **IDE extension**                   | Embedded in VS Code / JetBrains / Cursor                                                                 | Cursor, Windsurf, Copilot, Claude Code (VS Code variant)                       |
+| **Embedded SDK in another product** | The agent is a library inside a host app                                                                 | Vercel AI SDK chats inside Next.js, Mastra in Hono server                      |
+| **No-code visual UI**               | Drag-drop in a vendor's web UI                                                                           | Lindy, Inkeep visual, Zapier, n8n, Agent Studio                                |
+| **Webhook trigger**                 | A third-party event (Stripe, GitHub, calendar) invokes the agent                                         | n8n, Zapier, Make, Lindy                                                       |
+| **Custom Cron / scheduled**         | Scheduled by a runner (Cloud Scheduler, GitHub Actions, Temporal)                                        | "Loop" mode in Claude Code, batch report agents                                |
 
 ### Axis D: By state shape (memory & persistence)
 
 The agent's memory model is one of the most fault-relevant axes — different state shapes admit different bug classes.
 
-| State shape | Description | Examples |
-|---|---|---|
-| **Pure stateless** | Each request fully self-contained; no memory between calls | RAG endpoints, Q&A bots, GPT Actions on a custom GPT with no thread |
-| **In-memory single-session** | State held in process memory for one conversation; lost on process restart | Default LangGraph MemorySaver in dev, in-process chains |
-| **Per-session persistent** | Each conversation thread stored externally (Postgres, Redis, vector DB); resumable | LangGraph checkpointer with Postgres, ADK Agent Sessions, OpenAI Assistants threads |
-| **Cross-session per-user** | Long-term memory belonging to a single user across sessions | Memory Bank (ADK), mem0, Letta (formerly MemGPT), Cursor's "long-term memory" experiments |
-| **Multi-tenant per-org** | Memory partitioned by enterprise tenant; ACL aware | Sierra, Decagon, Glean — required for B2B |
-| **Cross-tenant shared knowledge** | A knowledge corpus shared across tenants but with tenant-private queries | RAG over public docs (e.g., Stripe docs in every Stripe-using agent) |
-| **Episodic + semantic memory** | Distinguishes "what happened" from "what is known" | Letta, mem0, custom Memory Bank wrappers |
-| **Working / scratchpad** | Short-term notes the agent maintains during a task; deleted on completion | ADK working memory, LangGraph state per node |
+| State shape                       | Description                                                                        | Examples                                                                                  |
+| --------------------------------- | ---------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
+| **Pure stateless**                | Each request fully self-contained; no memory between calls                         | RAG endpoints, Q&A bots, GPT Actions on a custom GPT with no thread                       |
+| **In-memory single-session**      | State held in process memory for one conversation; lost on process restart         | Default LangGraph MemorySaver in dev, in-process chains                                   |
+| **Per-session persistent**        | Each conversation thread stored externally (Postgres, Redis, vector DB); resumable | LangGraph checkpointer with Postgres, ADK Agent Sessions, OpenAI Assistants threads       |
+| **Cross-session per-user**        | Long-term memory belonging to a single user across sessions                        | Memory Bank (ADK), mem0, Letta (formerly MemGPT), Cursor's "long-term memory" experiments |
+| **Multi-tenant per-org**          | Memory partitioned by enterprise tenant; ACL aware                                 | Sierra, Decagon, Glean — required for B2B                                                 |
+| **Cross-tenant shared knowledge** | A knowledge corpus shared across tenants but with tenant-private queries           | RAG over public docs (e.g., Stripe docs in every Stripe-using agent)                      |
+| **Episodic + semantic memory**    | Distinguishes "what happened" from "what is known"                                 | Letta, mem0, custom Memory Bank wrappers                                                  |
+| **Working / scratchpad**          | Short-term notes the agent maintains during a task; deleted on completion          | ADK working memory, LangGraph state per node                                              |
 
 ### Axis E: By LLM backend
 
@@ -140,6 +141,7 @@ The frontier-model field as of mid-2026 (consult `02b-gemini-enterprise-agent-pl
 - **Multi-model routed:** Agent picks the right model per step. AntiGravity (Google IDE) routes across Claude Sonnet/Opus, Gemini, and OSS-GPT. Mastra and Vercel AI SDK both ship router primitives.
 
 A given agent's backend choice changes:
+
 - **Tool-call grammar** (OpenAI function-calling vs Anthropic tool-use vs Gemini function-calling — close but not identical JSON schemas)
 - **Streaming protocol** (SSE event names differ across providers, especially for tool_call deltas)
 - **Token budgets** (Gemini 3 Pro 1M context; Claude Sonnet 4.6 200k native, 1M with expanded mode; GPT-5 256k)
@@ -147,42 +149,42 @@ A given agent's backend choice changes:
 
 ### Axis F: By tool exposure
 
-| Exposure level | Description | Examples |
-|---|---|---|
-| **None** | Pure conversation, no external action | "ChatGPT writing a poem", basic Q&A bot |
-| **In-process function tools** | The agent can call host-process Python/JS functions registered with the framework | LangChain `@tool`, ADK `FunctionTool`, OpenAI Agents SDK tools, CrewAI tools |
-| **HTTP REST tools** | Agent can call out to arbitrary HTTP endpoints | Custom GPT Actions, Vapi tools, Composio HTTP toolkits |
-| **MCP tools** | Agent connects to MCP server(s) and lists available tools dynamically | ADK MCPToolset, Claude Code, Cursor's MCP support, n8n MCP node |
-| **A2A peer tools** | Agent invokes other agents as collaborators via A2A | Multi-agent ADK setups, A2A purchasing concierge codelab |
-| **Sub-agent invocation** | Calling another agent via in-process composition (not protocol) | CrewAI crews, LangGraph subgraphs, ADK sub-agents |
-| **Browser actions** | Click, type, scroll on a rendered DOM | Operator-class, browser-use library, Playwright-based |
-| **Computer-use** | Pixel-level mouse/keyboard control of a virtual desktop | Anthropic Computer Use API, Manus VM operator |
-| **Code execution** | Sandbox for running generated code (Python, JS, shell) | E2B Firecracker, Modal sandbox, ADK Agent Sandbox (= "Code Execution"), Claude Code's bash |
-| **Specialized SDKs** | First-party SDK wrappers (Stripe agent toolkit, Linear SDK, etc.) | OpenAI Stripe toolkit, Vercel AI SDK tools libraries |
+| Exposure level                | Description                                                                       | Examples                                                                                   |
+| ----------------------------- | --------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
+| **None**                      | Pure conversation, no external action                                             | "ChatGPT writing a poem", basic Q&A bot                                                    |
+| **In-process function tools** | The agent can call host-process Python/JS functions registered with the framework | LangChain `@tool`, ADK `FunctionTool`, OpenAI Agents SDK tools, CrewAI tools               |
+| **HTTP REST tools**           | Agent can call out to arbitrary HTTP endpoints                                    | Custom GPT Actions, Vapi tools, Composio HTTP toolkits                                     |
+| **MCP tools**                 | Agent connects to MCP server(s) and lists available tools dynamically             | ADK MCPToolset, Claude Code, Cursor's MCP support, n8n MCP node                            |
+| **A2A peer tools**            | Agent invokes other agents as collaborators via A2A                               | Multi-agent ADK setups, A2A purchasing concierge codelab                                   |
+| **Sub-agent invocation**      | Calling another agent via in-process composition (not protocol)                   | CrewAI crews, LangGraph subgraphs, ADK sub-agents                                          |
+| **Browser actions**           | Click, type, scroll on a rendered DOM                                             | Operator-class, browser-use library, Playwright-based                                      |
+| **Computer-use**              | Pixel-level mouse/keyboard control of a virtual desktop                           | Anthropic Computer Use API, Manus VM operator                                              |
+| **Code execution**            | Sandbox for running generated code (Python, JS, shell)                            | E2B Firecracker, Modal sandbox, ADK Agent Sandbox (= "Code Execution"), Claude Code's bash |
+| **Specialized SDKs**          | First-party SDK wrappers (Stripe agent toolkit, Linear SDK, etc.)                 | OpenAI Stripe toolkit, Vercel AI SDK tools libraries                                       |
 
 ### Axis G: By autonomy level
 
-| Autonomy | Description | Examples |
-|---|---|---|
-| **Chat-only** | Agent answers; user does the action | Plain ChatGPT, Claude.ai conversation |
-| **Suggest-then-confirm** | Agent proposes actions; user clicks approve | Cursor edits (Accept/Reject), Devin's plan view, GitHub Copilot suggestions |
-| **Trust-boundary handoff** | Agent acts autonomously, hands control to user at credential/payment/irreversible steps | Operator's "watch me work" with takeover, Manus Browser Operator |
-| **Partial autonomous with policy** | Agent acts within policy bounds; escalates above threshold | Sierra refund agents (auto-refund under $X), Anomaly Detection guardrails |
-| **Fully autonomous bounded** | Agent executes end-to-end on a well-scoped task; human reviews after | Devin PR-to-merge, Manus on a research task, Agent Garden templates |
-| **Fully autonomous open-ended** | Agent runs continuously, no scoping | Hobbyist twitter-bots, BabyAGI-class experiments, AntiGravity Manager dispatched runs |
+| Autonomy                           | Description                                                                             | Examples                                                                              |
+| ---------------------------------- | --------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
+| **Chat-only**                      | Agent answers; user does the action                                                     | Plain ChatGPT, Claude.ai conversation                                                 |
+| **Suggest-then-confirm**           | Agent proposes actions; user clicks approve                                             | Cursor edits (Accept/Reject), Devin's plan view, GitHub Copilot suggestions           |
+| **Trust-boundary handoff**         | Agent acts autonomously, hands control to user at credential/payment/irreversible steps | Operator's "watch me work" with takeover, Manus Browser Operator                      |
+| **Partial autonomous with policy** | Agent acts within policy bounds; escalates above threshold                              | Sierra refund agents (auto-refund under $X), Anomaly Detection guardrails             |
+| **Fully autonomous bounded**       | Agent executes end-to-end on a well-scoped task; human reviews after                    | Devin PR-to-merge, Manus on a research task, Agent Garden templates                   |
+| **Fully autonomous open-ended**    | Agent runs continuously, no scoping                                                     | Hobbyist twitter-bots, BabyAGI-class experiments, AntiGravity Manager dispatched runs |
 
 ### Axis H: By trust boundary and deployment
 
-| Where it runs | Implications |
-|---|---|
-| User's own machine (CLI, IDE extension) | Direct file/shell access; credentials in local env; minimal sandbox |
-| User's browser (extension) | DOM access; cookies; chrome.runtime APIs; same-origin restrictions |
-| Vendor SaaS multi-tenant | Vendor controls runtime; tenant isolation via auth |
-| Customer VPC | Self-hosted in customer's cloud; full data sovereignty |
-| Sandboxed cloud VM per task | E2B / Modal Firecracker; isolated; auto-destroyed | (Manus pattern)
-| Serverless function | Cloud Run, Vercel Functions, Lambda; cold-start latency; stateless by default |
-| Managed agent runtime | ADK Agent Runtime, OpenAI Assistants v2, Anthropic Skills — <1s cold start, billed per request |
-| On-prem / air-gapped | LLM weights local (Ollama, vLLM); no external API calls |
+| Where it runs                           | Implications                                                                                   |
+| --------------------------------------- | ---------------------------------------------------------------------------------------------- | --------------- |
+| User's own machine (CLI, IDE extension) | Direct file/shell access; credentials in local env; minimal sandbox                            |
+| User's browser (extension)              | DOM access; cookies; chrome.runtime APIs; same-origin restrictions                             |
+| Vendor SaaS multi-tenant                | Vendor controls runtime; tenant isolation via auth                                             |
+| Customer VPC                            | Self-hosted in customer's cloud; full data sovereignty                                         |
+| Sandboxed cloud VM per task             | E2B / Modal Firecracker; isolated; auto-destroyed                                              | (Manus pattern) |
+| Serverless function                     | Cloud Run, Vercel Functions, Lambda; cold-start latency; stateless by default                  |
+| Managed agent runtime                   | ADK Agent Runtime, OpenAI Assistants v2, Anthropic Skills — <1s cold start, billed per request |
+| On-prem / air-gapped                    | LLM weights local (Ollama, vLLM); no external API calls                                        |
 
 A single agent typically picks one or two cells. The cells differ in observability (an on-prem agent rarely sends traces to a SaaS observability platform; a managed-runtime agent typically does).
 
@@ -742,28 +744,33 @@ Sources: [GPT Actions getting started](https://platform.openai.com/docs/actions/
 ### Additional shapes worth knowing (briefer)
 
 #### Shape 21: Vercel AI SDK chat agent (TypeScript embedded)
+
 - AI SDK v6 (2026) with `ToolLoopAgent`, streaming, ChatSDK for Slack/Discord/Teams; default for in-product AI features.
 - Failure surface: streaming break, tool approval flow misfires, provider switch breaks tool-call schema.
 - Instrumentation: OTel + OpenInference compatible.
 - Fault-injection accessibility: full (TypeScript, open source SDK).
 
 #### Shape 22: Claude Projects with MCP attached
+
 - Anthropic's Projects feature; user attaches a system prompt + files + MCP servers; conversation runs in claude.ai or via API.
 - Failure surface: MCP server connection drop, project-file staleness, system-prompt extraction.
 - Instrumentation: limited from outside; vendor-internal.
 - Fault-injection accessibility: medium — MCP server can be poisoned if you control it; project files controllable if you author them.
 
 #### Shape 23: Voice "outbound campaign" agent
+
 - Bland AI, Air.ai patterns. Lists of leads + prompt + voice persona; agent makes outbound calls in parallel.
 - Failure surface: voicemail-vs-human detection error, list contamination (wrong numbers), TCPA / compliance violation if not configured for opt-in lists.
 - Instrumentation: per-call recordings, dashboards.
 - Fault-injection accessibility: receive-side controllable (target a phone number you own; observe agent behavior). LLM step injectable on self-hosted; opaque on Bland/Air.
 
 #### Shape 24: Agentic search / browser agent for paid research (Exa, You.com Agents)
+
 - Different from Shape 5 because the agent runs server-side, not in a visible browser; emits a research report as output.
 - Failure surface: source-citation hallucination, paywall blockage, irrelevant result drift.
 
 #### Shape 25: Embedded SDK agent inside a SaaS product
+
 - The agent ships as part of a SaaS feature (Notion AI, Linear's Triage, Figma's Make, etc.) but is invoked through the host product UI.
 - Failure surface: tight coupling to host product's data model; opaque to outside observers; vendor controls all instrumentation.
 
@@ -787,7 +794,10 @@ The **A2A protocol** defines a canonical agent discovery mechanism at `https://<
   "version": "1.2.0",
   "documentationUrl": "https://docs.example.com/thermostat-agent",
   "supported_interfaces": [
-    { "transport": "JSONRPC", "url": "https://smart-thermostat.example.com/a2a" }
+    {
+      "transport": "JSONRPC",
+      "url": "https://smart-thermostat.example.com/a2a"
+    }
   ],
   "capabilities": {
     "streaming": true,
@@ -805,11 +815,16 @@ The **A2A protocol** defines a canonical agent discovery mechanism at `https://<
   ],
   "default_input_modes": ["text"],
   "default_output_modes": ["text"],
-  "provider": { "organization": "Acme Corp", "url": "https://acme.example.com" },
+  "provider": {
+    "organization": "Acme Corp",
+    "url": "https://acme.example.com"
+  },
   "securitySchemes": {
     "oauth2": {
       "type": "oauth2",
-      "flows": { "authorizationCode": { "authorizationUrl": "...", "tokenUrl": "..." } }
+      "flows": {
+        "authorizationCode": { "authorizationUrl": "...", "tokenUrl": "..." }
+      }
     }
   },
   "security": [{ "oauth2": ["read:thermostat", "write:thermostat"] }]
@@ -857,6 +872,7 @@ Agents that require user-authorized access expose standard OAuth 2.0 discovery (
 ### 3.6 Behavioral fingerprinting
 
 When an agent exposes no metadata, you can still fingerprint by behavior:
+
 - Response latency profile (cascade architecture vs direct LLM call has different P50/P99)
 - Token usage signature (specific models have distinguishable verbosity)
 - Refusal language ("I cannot help with that" vs "I'm not able to..." — model-specific patterns)
@@ -872,46 +888,46 @@ What information does an outside system need to test an arbitrary agent? This se
 
 ### 4.1 Required vs optional handshake elements
 
-| Element | Required for any test | How obtained |
-|---|---|---|
-| **Endpoint URL** | Required | Vendor docs, agent-card.json, manual provisioning |
-| **Auth mechanism** | Required | OAuth, API key, JWT, bearer token, none |
-| **Auth credentials** | Required for non-public | Provisioned by agent owner; impossible for closed agents |
-| **Request schema** | Required to send valid input | OpenAPI spec, A2A skill, MCP tool schema, vendor docs |
-| **Response schema** | Highly desirable | Same sources as above |
-| **Streaming protocol (if any)** | Required if streaming used | SSE, WebSocket, A2A streaming |
-| **Trace export endpoint (OTLP)** | Optional but valuable | Vendor-specific; rarely exposed publicly |
-| **Tool list** | Useful for fault planning | A2A skill list, MCP `tools/list`, GPT Actions OpenAPI, agent-self-introspection |
-| **System prompt** | Useful but rarely available | Vendor docs, prompt-injection extraction |
-| **Session / thread model** | Useful for memory tests | Vendor docs |
+| Element                          | Required for any test        | How obtained                                                                    |
+| -------------------------------- | ---------------------------- | ------------------------------------------------------------------------------- |
+| **Endpoint URL**                 | Required                     | Vendor docs, agent-card.json, manual provisioning                               |
+| **Auth mechanism**               | Required                     | OAuth, API key, JWT, bearer token, none                                         |
+| **Auth credentials**             | Required for non-public      | Provisioned by agent owner; impossible for closed agents                        |
+| **Request schema**               | Required to send valid input | OpenAPI spec, A2A skill, MCP tool schema, vendor docs                           |
+| **Response schema**              | Highly desirable             | Same sources as above                                                           |
+| **Streaming protocol (if any)**  | Required if streaming used   | SSE, WebSocket, A2A streaming                                                   |
+| **Trace export endpoint (OTLP)** | Optional but valuable        | Vendor-specific; rarely exposed publicly                                        |
+| **Tool list**                    | Useful for fault planning    | A2A skill list, MCP `tools/list`, GPT Actions OpenAPI, agent-self-introspection |
+| **System prompt**                | Useful but rarely available  | Vendor docs, prompt-injection extraction                                        |
+| **Session / thread model**       | Useful for memory tests      | Vendor docs                                                                     |
 
 ### 4.2 Input formats (per shape)
 
-| Shape | Primary input format |
-|---|---|
-| HTTP REST agent | JSON body (often `{"messages": [...]}`) |
-| A2A agent | JSON-RPC `tasks/send` with task object |
-| MCP-server-as-agent | JSON-RPC `tools/call` with structured arguments |
-| Chat widget | Plain text via embedded SDK or WebSocket |
-| Voice agent | Audio frames (μ-law / PCM / Opus) over WebSocket OR PSTN audio |
-| Slack/Discord bot | Slack Events API JSON / Discord Gateway events |
-| Email agent | RFC 5322 email; Gmail Pub/Sub or IMAP push |
-| Browser-use agent | Task prompt + (optional) starting URL |
-| Custom GPT | Plain text in ChatGPT UI |
-| n8n webhook | JSON payload to trigger URL |
+| Shape               | Primary input format                                           |
+| ------------------- | -------------------------------------------------------------- |
+| HTTP REST agent     | JSON body (often `{"messages": [...]}`)                        |
+| A2A agent           | JSON-RPC `tasks/send` with task object                         |
+| MCP-server-as-agent | JSON-RPC `tools/call` with structured arguments                |
+| Chat widget         | Plain text via embedded SDK or WebSocket                       |
+| Voice agent         | Audio frames (μ-law / PCM / Opus) over WebSocket OR PSTN audio |
+| Slack/Discord bot   | Slack Events API JSON / Discord Gateway events                 |
+| Email agent         | RFC 5322 email; Gmail Pub/Sub or IMAP push                     |
+| Browser-use agent   | Task prompt + (optional) starting URL                          |
+| Custom GPT          | Plain text in ChatGPT UI                                       |
+| n8n webhook         | JSON payload to trigger URL                                    |
 
 ### 4.3 Output formats
 
-| Shape | Primary output format |
-|---|---|
-| HTTP REST | JSON (often with `choices[0].message.content` shape) |
-| Streaming HTTP | SSE events; tool-call deltas; final message |
-| A2A | JSON-RPC response with `Task` containing `artifacts` |
-| MCP | JSON-RPC response with structured tool result |
-| Voice | Audio frames + (optional) action-log JSON |
-| Slack/Discord | Message post to channel; thread reply |
-| Email | RFC 5322 reply |
-| Browser-use | Final report text + (optional) action history |
+| Shape          | Primary output format                                |
+| -------------- | ---------------------------------------------------- |
+| HTTP REST      | JSON (often with `choices[0].message.content` shape) |
+| Streaming HTTP | SSE events; tool-call deltas; final message          |
+| A2A            | JSON-RPC response with `Task` containing `artifacts` |
+| MCP            | JSON-RPC response with structured tool result        |
+| Voice          | Audio frames + (optional) action-log JSON            |
+| Slack/Discord  | Message post to channel; thread reply                |
+| Email          | RFC 5322 reply                                       |
+| Browser-use    | Final report text + (optional) action history        |
 
 ### 4.4 Trace export contracts
 
@@ -930,105 +946,105 @@ Cross-cutting fault classes that recur, indexed for reference. Each fault has an
 
 ### 5.1 LLM-call faults (cross-shape)
 
-| ID | Name | Description | Shapes affected |
-|---|---|---|---|
-| F-LLM-TIMEOUT | LLM timeout | LLM API call exceeds timeout; partial response or none | All |
-| F-LLM-RATE-LIMIT | Rate limit (429) | Too many requests; cascade through retries | All |
-| F-LLM-CONTENT-FILTER | Content filter refusal | Provider safety system blocks the call | All |
-| F-LLM-MALFORMED-JSON | Malformed tool-call JSON | Model emits invalid JSON; downstream parsing fails | All with tools |
-| F-LLM-HALLUCINATED-TOOL | Tool name hallucination | Model emits `Action: NonExistentTool` | Shape 10 especially |
-| F-LLM-HALLUCINATED-ARGS | Tool arg hallucination | Model invents arguments not in schema | All with tools |
-| F-LLM-CONTEXT-OVERFLOW | Context window overflow | Total prompt + history > model limit | All long-conversation |
-| F-LLM-COST-EXPLOSION | Cost runaway | Model + tool loop burns budget | Shapes 7, 9, 11 |
-| F-LLM-LATENCY-SPIKE | First-token latency spike | LLM TTFT goes from 400ms → 5s; voice agents break | Shape 2 critical |
-| F-LLM-DRIFT | Long-context drift | Quality degrades on long contexts; ~35-min cliff documented | Shapes 3, 4 |
+| ID                      | Name                      | Description                                                 | Shapes affected       |
+| ----------------------- | ------------------------- | ----------------------------------------------------------- | --------------------- |
+| F-LLM-TIMEOUT           | LLM timeout               | LLM API call exceeds timeout; partial response or none      | All                   |
+| F-LLM-RATE-LIMIT        | Rate limit (429)          | Too many requests; cascade through retries                  | All                   |
+| F-LLM-CONTENT-FILTER    | Content filter refusal    | Provider safety system blocks the call                      | All                   |
+| F-LLM-MALFORMED-JSON    | Malformed tool-call JSON  | Model emits invalid JSON; downstream parsing fails          | All with tools        |
+| F-LLM-HALLUCINATED-TOOL | Tool name hallucination   | Model emits `Action: NonExistentTool`                       | Shape 10 especially   |
+| F-LLM-HALLUCINATED-ARGS | Tool arg hallucination    | Model invents arguments not in schema                       | All with tools        |
+| F-LLM-CONTEXT-OVERFLOW  | Context window overflow   | Total prompt + history > model limit                        | All long-conversation |
+| F-LLM-COST-EXPLOSION    | Cost runaway              | Model + tool loop burns budget                              | Shapes 7, 9, 11       |
+| F-LLM-LATENCY-SPIKE     | First-token latency spike | LLM TTFT goes from 400ms → 5s; voice agents break           | Shape 2 critical      |
+| F-LLM-DRIFT             | Long-context drift        | Quality degrades on long contexts; ~35-min cliff documented | Shapes 3, 4           |
 
 ### 5.2 Tool-call faults
 
-| ID | Name | Description | Shapes affected |
-|---|---|---|---|
-| F-TOOL-TIMEOUT | Tool execution timeout | Tool call hangs; agent waits or times out | All with tools |
-| F-TOOL-ERROR | Tool returns error | Tool raises exception; agent may misinterpret stack trace as result | All |
-| F-TOOL-OUTPUT-CORRUPTION | Tool output corrupted | Tool returns malformed JSON / wrong type | All |
-| F-TOOL-POISONING | Tool description poisoned | Malicious directives in tool descriptor coerce agent | All with MCP / dynamic tools |
-| F-TOOL-AUTH-EXPIRY | OAuth token expired mid-run | Tool calls start failing 401 | Shapes 15, 18 |
-| F-TOOL-RATE-LIMIT | Tool API rate limited | Downstream API 429s | All with external tools |
-| F-TOOL-SILENT-FAILURE | Tool succeeds but returns wrong data | Vendor returns wrong customer record etc. | Shape 1 especially |
-| F-TOOL-SCHEMA-DRIFT | Tool schema changed under agent | Description vs reality mismatch | All |
+| ID                       | Name                                 | Description                                                         | Shapes affected              |
+| ------------------------ | ------------------------------------ | ------------------------------------------------------------------- | ---------------------------- |
+| F-TOOL-TIMEOUT           | Tool execution timeout               | Tool call hangs; agent waits or times out                           | All with tools               |
+| F-TOOL-ERROR             | Tool returns error                   | Tool raises exception; agent may misinterpret stack trace as result | All                          |
+| F-TOOL-OUTPUT-CORRUPTION | Tool output corrupted                | Tool returns malformed JSON / wrong type                            | All                          |
+| F-TOOL-POISONING         | Tool description poisoned            | Malicious directives in tool descriptor coerce agent                | All with MCP / dynamic tools |
+| F-TOOL-AUTH-EXPIRY       | OAuth token expired mid-run          | Tool calls start failing 401                                        | Shapes 15, 18                |
+| F-TOOL-RATE-LIMIT        | Tool API rate limited                | Downstream API 429s                                                 | All with external tools      |
+| F-TOOL-SILENT-FAILURE    | Tool succeeds but returns wrong data | Vendor returns wrong customer record etc.                           | Shape 1 especially           |
+| F-TOOL-SCHEMA-DRIFT      | Tool schema changed under agent      | Description vs reality mismatch                                     | All                          |
 
 ### 5.3 State / memory faults
 
-| ID | Name | Description | Shapes affected |
-|---|---|---|---|
-| F-STATE-COLLISION | State key collision | Two agents/nodes write same key | Shapes 7, 8, 11 |
-| F-STATE-CORRUPTION | Checkpoint corruption | Bad serialization; resume fails | Shape 11 |
-| F-MEMORY-PERSISTENCE-LOSS | In-memory state lost on restart | MemorySaver in prod; restart drops all sessions | Shape 11 |
-| F-MEMORY-LEAK | Unbounded memory growth | Buffer memory grows forever | Shape 10 |
-| F-MEMORY-CROSS-USER-BLEED | Cross-tenant memory bleed | Tenant A's memory served to Tenant B | Shape 1 enterprise |
-| F-MEMORY-STALE | Memory outdated | Stored fact contradicts current reality | Shapes 1, 6 |
-| F-STATE-RACE | State write race | Concurrent edges write same field | Shape 11 |
+| ID                        | Name                            | Description                                     | Shapes affected    |
+| ------------------------- | ------------------------------- | ----------------------------------------------- | ------------------ |
+| F-STATE-COLLISION         | State key collision             | Two agents/nodes write same key                 | Shapes 7, 8, 11    |
+| F-STATE-CORRUPTION        | Checkpoint corruption           | Bad serialization; resume fails                 | Shape 11           |
+| F-MEMORY-PERSISTENCE-LOSS | In-memory state lost on restart | MemorySaver in prod; restart drops all sessions | Shape 11           |
+| F-MEMORY-LEAK             | Unbounded memory growth         | Buffer memory grows forever                     | Shape 10           |
+| F-MEMORY-CROSS-USER-BLEED | Cross-tenant memory bleed       | Tenant A's memory served to Tenant B            | Shape 1 enterprise |
+| F-MEMORY-STALE            | Memory outdated                 | Stored fact contradicts current reality         | Shapes 1, 6        |
+| F-STATE-RACE              | State write race                | Concurrent edges write same field               | Shape 11           |
 
 ### 5.4 Routing / orchestration faults (multi-agent)
 
-| ID | Name | Description | Shapes affected |
-|---|---|---|---|
-| F-LG-INFINITE-DELEGATION | Infinite delegation loop | Supervisor keeps routing back; 47-iter $180 case documented | Shapes 7, 9, 11, 12 |
-| F-ROUTE-WRONG-AGENT | Routing to wrong sub-agent | Selector picks wrong specialist | Shapes 7, 12 |
-| F-LOOP-NO-EXIT | Loop never exits | LoopAgent / GroupChat with no exit signal hits max_iter | Shapes 9, 12 |
-| F-LOOP-PREMATURE-EXIT | Loop exits too early | Critic prematurely says "good" | Shape 9 |
-| F-ROLE-BLEED | Role bleed | Agent A does work meant for Agent B | Shape 7 |
+| ID                       | Name                       | Description                                                 | Shapes affected     |
+| ------------------------ | -------------------------- | ----------------------------------------------------------- | ------------------- |
+| F-LG-INFINITE-DELEGATION | Infinite delegation loop   | Supervisor keeps routing back; 47-iter $180 case documented | Shapes 7, 9, 11, 12 |
+| F-ROUTE-WRONG-AGENT      | Routing to wrong sub-agent | Selector picks wrong specialist                             | Shapes 7, 12        |
+| F-LOOP-NO-EXIT           | Loop never exits           | LoopAgent / GroupChat with no exit signal hits max_iter     | Shapes 9, 12        |
+| F-LOOP-PREMATURE-EXIT    | Loop exits too early       | Critic prematurely says "good"                              | Shape 9             |
+| F-ROLE-BLEED             | Role bleed                 | Agent A does work meant for Agent B                         | Shape 7             |
 
 ### 5.5 Voice-specific faults
 
-| ID | Name | Description | Shapes affected |
-|---|---|---|---|
-| F-V-TURN-DETECTION | Turn detection error | Agent talks over user OR waits too long | Shape 2 |
-| F-V-STT-MISHEARING | STT mishearing | Numbers / homophones confused | Shape 2 |
-| F-V-LATENCY-CASCADE | Cascade latency spike | STT + LLM + TTS sum exceeds 1.5s P50 | Shape 2 |
-| F-V-DTMF-MISS | DTMF press missed | Agent ignores keypad input | Shape 2 |
-| F-V-DEADAIR | Dead air after STT | LLM hung; user thinks call dropped | Shape 2 |
+| ID                  | Name                  | Description                             | Shapes affected |
+| ------------------- | --------------------- | --------------------------------------- | --------------- |
+| F-V-TURN-DETECTION  | Turn detection error  | Agent talks over user OR waits too long | Shape 2         |
+| F-V-STT-MISHEARING  | STT mishearing        | Numbers / homophones confused           | Shape 2         |
+| F-V-LATENCY-CASCADE | Cascade latency spike | STT + LLM + TTS sum exceeds 1.5s P50    | Shape 2         |
+| F-V-DTMF-MISS       | DTMF press missed     | Agent ignores keypad input              | Shape 2         |
+| F-V-DEADAIR         | Dead air after STT    | LLM hung; user thinks call dropped      | Shape 2         |
 
 ### 5.6 Browser / computer-use faults
 
-| ID | Name | Description | Shapes affected |
-|---|---|---|---|
-| F-B-PROMPT-INJECTION | Indirect prompt injection from page | Adversarial text on page hijacks agent; 80-100% success vs major agents in literature | Shapes 5, 16 |
-| F-B-TOCTOU | Time-of-check / time-of-use | DOM mutates between plan and click | Shapes 5, 16 |
-| F-B-VISUAL-INJECTION | Visual prompt injection | Adversarial pixels carry instructions | Shape 5 |
-| F-B-SILENT-BRIDGE | Silent bridge (Manus class) | Untrusted content bridges into privileged path | Shape 5 |
-| F-B-CAPTCHA-FAIL | CAPTCHA failure | Agent can't solve; halts | Shape 5 |
-| F-B-PAYWALL | Paywall / login wall | Agent has no credentials; halts | Shape 5 |
-| F-B-ANTIBOT | Anti-bot block | Cloudflare/Akamai detects automation | Shape 5 |
-| F-B-INFINITE-LOAD | Infinite page load | SPA never "settles" | Shape 5 |
-| F-B-WRONG-ELEMENT | Hallucinated click target | Agent clicks where no element exists | Shape 5 |
+| ID                   | Name                                | Description                                                                           | Shapes affected |
+| -------------------- | ----------------------------------- | ------------------------------------------------------------------------------------- | --------------- |
+| F-B-PROMPT-INJECTION | Indirect prompt injection from page | Adversarial text on page hijacks agent; 80-100% success vs major agents in literature | Shapes 5, 16    |
+| F-B-TOCTOU           | Time-of-check / time-of-use         | DOM mutates between plan and click                                                    | Shapes 5, 16    |
+| F-B-VISUAL-INJECTION | Visual prompt injection             | Adversarial pixels carry instructions                                                 | Shape 5         |
+| F-B-SILENT-BRIDGE    | Silent bridge (Manus class)         | Untrusted content bridges into privileged path                                        | Shape 5         |
+| F-B-CAPTCHA-FAIL     | CAPTCHA failure                     | Agent can't solve; halts                                                              | Shape 5         |
+| F-B-PAYWALL          | Paywall / login wall                | Agent has no credentials; halts                                                       | Shape 5         |
+| F-B-ANTIBOT          | Anti-bot block                      | Cloudflare/Akamai detects automation                                                  | Shape 5         |
+| F-B-INFINITE-LOAD    | Infinite page load                  | SPA never "settles"                                                                   | Shape 5         |
+| F-B-WRONG-ELEMENT    | Hallucinated click target           | Agent clicks where no element exists                                                  | Shape 5         |
 
 ### 5.7 RAG-specific faults
 
-| ID | Name | Description | Shapes affected |
-|---|---|---|---|
-| F-R-SILENT-MISS | Silent retrieval failure | Wrong content served high similarity | Shape 14 |
-| F-R-THRASH | Retrieval thrash | Keeps searching, never converges | Shape 14 |
-| F-R-CHUNK-BOUNDARY | Key fact split across chunks | Neither chunk retrieved | Shape 14 |
-| F-R-STALE-INDEX | Index outdated | Docs changed; embeddings old | Shape 14 |
-| F-R-RERANKER-MISS | Reranker discards correct chunk | Top retrieved, then dropped by reranker | Shape 14 |
-| F-R-HALLUC-DESPITE-RAG | Hallucination despite retrieval | LLM adds facts not in chunks; 17-33% in legal AI tools | Shape 14 |
+| ID                     | Name                            | Description                                            | Shapes affected |
+| ---------------------- | ------------------------------- | ------------------------------------------------------ | --------------- |
+| F-R-SILENT-MISS        | Silent retrieval failure        | Wrong content served high similarity                   | Shape 14        |
+| F-R-THRASH             | Retrieval thrash                | Keeps searching, never converges                       | Shape 14        |
+| F-R-CHUNK-BOUNDARY     | Key fact split across chunks    | Neither chunk retrieved                                | Shape 14        |
+| F-R-STALE-INDEX        | Index outdated                  | Docs changed; embeddings old                           | Shape 14        |
+| F-R-RERANKER-MISS      | Reranker discards correct chunk | Top retrieved, then dropped by reranker                | Shape 14        |
+| F-R-HALLUC-DESPITE-RAG | Hallucination despite retrieval | LLM adds facts not in chunks; 17-33% in legal AI tools | Shape 14        |
 
 ### 5.8 Email / inbox faults
 
-| ID | Name | Description | Shapes affected |
-|---|---|---|---|
-| F-E-WRONG-THREAD | Wrong-thread reply | Replies to A with content meant for B | Shape 18 |
-| F-E-PII-LEAK | PII leak in draft | Cross-sender info included | Shape 18 |
-| F-E-TONE-MISMATCH | Tone mismatch | Wrong register vs recipient | Shape 18 |
-| F-E-AUTO-SEND-MISFIRE | Auto-send when draft intended | Config error | Shape 18 |
+| ID                    | Name                          | Description                           | Shapes affected |
+| --------------------- | ----------------------------- | ------------------------------------- | --------------- |
+| F-E-WRONG-THREAD      | Wrong-thread reply            | Replies to A with content meant for B | Shape 18        |
+| F-E-PII-LEAK          | PII leak in draft             | Cross-sender info included            | Shape 18        |
+| F-E-TONE-MISMATCH     | Tone mismatch                 | Wrong register vs recipient           | Shape 18        |
+| F-E-AUTO-SEND-MISFIRE | Auto-send when draft intended | Config error                          | Shape 18        |
 
 ### 5.9 Discovery / interface faults (less commonly tested)
 
-| ID | Name | Description | Shapes affected |
-|---|---|---|---|
-| F-D-A2A-CARD-LIES | AgentCard claims skills it can't do | Honest discovery → bad routing | Any A2A |
-| F-D-MCP-LIST-CHANGE | tools/list_changed not propagated | Client uses stale tool schema | Any MCP-consumer |
-| F-D-OAUTH-MISCONFIG | OAuth scopes too narrow / wide | Permission denial or overreach | Shapes 18, 20 |
+| ID                  | Name                                | Description                    | Shapes affected  |
+| ------------------- | ----------------------------------- | ------------------------------ | ---------------- |
+| F-D-A2A-CARD-LIES   | AgentCard claims skills it can't do | Honest discovery → bad routing | Any A2A          |
+| F-D-MCP-LIST-CHANGE | tools/list_changed not propagated   | Client uses stale tool schema  | Any MCP-consumer |
+| F-D-OAUTH-MISCONFIG | OAuth scopes too narrow / wide      | Permission denial or overreach | Shapes 18, 20    |
 
 ### 5.10 Industry-wide statistics
 
@@ -1047,32 +1063,32 @@ Order-of-magnitude estimates as of mid-2026. Mark [UNVERIFIED] where the underly
 
 ### 6.1 Framework / SDK installations (monthly downloads)
 
-| Framework | Monthly downloads | GitHub stars | Approx population (agents in production) |
-|---|---|---|---|
-| LangChain (core) | ~50M+ | ~95k | very large (legacy + new) |
-| LangGraph | ~34.5M | ~24.8k | ~400 named enterprise customers; thousands of OSS deployments |
-| OpenAI Agents SDK | ~10.3M | ~19k | large; dominant in OpenAI-shop teams |
-| CrewAI | ~5.2M | ~44.3k | medium-large; 100k+ certified devs claim |
-| Google ADK | ~3.3M | ~17.8k | growing fast; hackathon adoption + enterprise |
-| Mastra | ~300k weekly (~1.2M monthly) | ~22k | small but fast-growing; TypeScript-side |
-| AutoGen / AG2 | n/a [UNVERIFIED] | combined ~40k+ | medium; in flux due to MAF split |
+| Framework         | Monthly downloads            | GitHub stars   | Approx population (agents in production)                      |
+| ----------------- | ---------------------------- | -------------- | ------------------------------------------------------------- |
+| LangChain (core)  | ~50M+                        | ~95k           | very large (legacy + new)                                     |
+| LangGraph         | ~34.5M                       | ~24.8k         | ~400 named enterprise customers; thousands of OSS deployments |
+| OpenAI Agents SDK | ~10.3M                       | ~19k           | large; dominant in OpenAI-shop teams                          |
+| CrewAI            | ~5.2M                        | ~44.3k         | medium-large; 100k+ certified devs claim                      |
+| Google ADK        | ~3.3M                        | ~17.8k         | growing fast; hackathon adoption + enterprise                 |
+| Mastra            | ~300k weekly (~1.2M monthly) | ~22k           | small but fast-growing; TypeScript-side                       |
+| AutoGen / AG2     | n/a [UNVERIFIED]             | combined ~40k+ | medium; in flux due to MAF split                              |
 
 ### 6.2 Vendor / SaaS agent platform users
 
-| Platform | Public adoption signal |
-|---|---|
-| **Cursor** | "Over 1M paid users by mid-2025"; broad indie + enterprise [UNVERIFIED specific 2026 number] |
-| **GitHub Copilot** | 1.5M+ paid subscribers reported 2024; presumably much higher by 2026 [UNVERIFIED 2026] |
-| **Devin** | ~25% of Cognition's own code is Devin-written; external customer count not public |
-| **ChatGPT Custom GPTs** | Marketplace measured in 100k+ to 1M+ GPTs since 2023 [UNVERIFIED specific count] |
-| **Sierra** | $15.8B valuation; large B2C enterprise base (SiriusXM, WeightWatchers, Sonos) |
-| **Decagon** | $4.5B valuation; ~30+ named SaaS customers public |
-| **Vapi** | Large indie + enterprise; "4M+ production calls" cited in latency analyses |
-| **Retell AI** | Large; specific user count not public |
-| **Lindy** | "5000+ integrations" claim; user count not public |
-| **n8n** | $60M Series C; estimated 100k+ self-hosted instances [UNVERIFIED specific] |
-| **Zapier** | 8000+ apps; tens of millions of users on platform total (not all using AI agents) |
-| **Manus** | Acquired by Meta ~$2B Q4 2025; large public-launch numbers |
+| Platform                | Public adoption signal                                                                       |
+| ----------------------- | -------------------------------------------------------------------------------------------- |
+| **Cursor**              | "Over 1M paid users by mid-2025"; broad indie + enterprise [UNVERIFIED specific 2026 number] |
+| **GitHub Copilot**      | 1.5M+ paid subscribers reported 2024; presumably much higher by 2026 [UNVERIFIED 2026]       |
+| **Devin**               | ~25% of Cognition's own code is Devin-written; external customer count not public            |
+| **ChatGPT Custom GPTs** | Marketplace measured in 100k+ to 1M+ GPTs since 2023 [UNVERIFIED specific count]             |
+| **Sierra**              | $15.8B valuation; large B2C enterprise base (SiriusXM, WeightWatchers, Sonos)                |
+| **Decagon**             | $4.5B valuation; ~30+ named SaaS customers public                                            |
+| **Vapi**                | Large indie + enterprise; "4M+ production calls" cited in latency analyses                   |
+| **Retell AI**           | Large; specific user count not public                                                        |
+| **Lindy**               | "5000+ integrations" claim; user count not public                                            |
+| **n8n**                 | $60M Series C; estimated 100k+ self-hosted instances [UNVERIFIED specific]                   |
+| **Zapier**              | 8000+ apps; tens of millions of users on platform total (not all using AI agents)            |
+| **Manus**               | Acquired by Meta ~$2B Q4 2025; large public-launch numbers                                   |
 
 ### 6.3 Shape-volume estimates (rough)
 
@@ -1115,19 +1131,19 @@ What's universal across all shapes vs framework-specific? This section catalogs 
 
 2. **There is some I/O surface.** Every agent has an input and output channel — even if it's just a CLI.
 
-3. **There is *some* decision logic.** Whether explicit (LangGraph state machine) or implicit (a single LLM call deciding what to do).
+3. **There is _some_ decision logic.** Whether explicit (LangGraph state machine) or implicit (a single LLM call deciding what to do).
 
-4. **There is *some* tool execution path.** Even chat-only agents often have at least one (memory lookup, retrieval).
+4. **There is _some_ tool execution path.** Even chat-only agents often have at least one (memory lookup, retrieval).
 
 ### 7.2 LLM-call interception points (universal)
 
-| Interception point | Available? | Method |
-|---|---|---|
-| **Before LLM (prompt mutation)** | Always (when running the agent) | Modify the input messages before they hit the API |
-| **In flight (provider response intercept)** | Always (proxy LLM API) | Route LLM calls through a proxy (LiteLLM, Helicone, custom); inject failures or modify responses |
-| **After LLM (response post-process)** | Always | Modify the response before the agent reads it |
-| **At streaming chunk level** | Sometimes | Intercept SSE chunks; harder via vendor proxies |
-| **Within tool-call result chain** | Always | Mock tools; return adversarial outputs |
+| Interception point                          | Available?                      | Method                                                                                           |
+| ------------------------------------------- | ------------------------------- | ------------------------------------------------------------------------------------------------ |
+| **Before LLM (prompt mutation)**            | Always (when running the agent) | Modify the input messages before they hit the API                                                |
+| **In flight (provider response intercept)** | Always (proxy LLM API)          | Route LLM calls through a proxy (LiteLLM, Helicone, custom); inject failures or modify responses |
+| **After LLM (response post-process)**       | Always                          | Modify the response before the agent reads it                                                    |
+| **At streaming chunk level**                | Sometimes                       | Intercept SSE chunks; harder via vendor proxies                                                  |
+| **Within tool-call result chain**           | Always                          | Mock tools; return adversarial outputs                                                           |
 
 ### 7.3 Universal fault classes (injectable for any agent)
 
@@ -1157,18 +1173,18 @@ For every shape from 1 to 25, the following fault classes are theoretically inje
 
 These are NOT universally available:
 
-| Capability | Available when… |
-|---|---|
-| **Inspect agent's decision graph** | Open-source framework (LangGraph, CrewAI, ADK, Mastra, AG2, VoltAgent); not vendor SaaS (Sierra, Decagon, Lindy, ChatGPT Custom GPT) |
-| **Replace state checkpointer** | LangGraph, ADK custom; not vendor SaaS |
-| **Read internal memory** | Open-source framework; varies in SaaS (some expose via export) |
-| **Modify routing logic** | Open-source framework only |
-| **Tamper with prompt template** | Code-level access only |
-| **Capture full OpenInference trace** | Instrumented frameworks; vendor SaaS varies |
-| **Modify embedding vectors** | RAG access required |
-| **Inject browser-DOM mutations** | Browser-use shapes only |
-| **Inject audio adversarial frames** | Voice shapes only; very hard |
-| **Replay traces** | LangSmith / Phoenix / vendor-specific |
+| Capability                           | Available when…                                                                                                                      |
+| ------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------ |
+| **Inspect agent's decision graph**   | Open-source framework (LangGraph, CrewAI, ADK, Mastra, AG2, VoltAgent); not vendor SaaS (Sierra, Decagon, Lindy, ChatGPT Custom GPT) |
+| **Replace state checkpointer**       | LangGraph, ADK custom; not vendor SaaS                                                                                               |
+| **Read internal memory**             | Open-source framework; varies in SaaS (some expose via export)                                                                       |
+| **Modify routing logic**             | Open-source framework only                                                                                                           |
+| **Tamper with prompt template**      | Code-level access only                                                                                                               |
+| **Capture full OpenInference trace** | Instrumented frameworks; vendor SaaS varies                                                                                          |
+| **Modify embedding vectors**         | RAG access required                                                                                                                  |
+| **Inject browser-DOM mutations**     | Browser-use shapes only                                                                                                              |
+| **Inject audio adversarial frames**  | Voice shapes only; very hard                                                                                                         |
+| **Replay traces**                    | LangSmith / Phoenix / vendor-specific                                                                                                |
 
 ### 7.5 The "outside-in vs inside-out" distinction
 
@@ -1200,28 +1216,28 @@ Sources: [OpenInference repo](https://github.com/Arize-ai/openinference), [What 
 
 Mapping shape → injectability of the major fault classes:
 
-| Shape | Outside-in prompt | LLM-call proxy | Tool-mock | State tamper | Trace export | Frame/audio injection |
-|---|---|---|---|---|---|---|
-| 1 Support chat | Easy | Hard (vendor) | Hard | Hard | Vendor-dependent | n/a |
-| 2 Voice agent | Hard (audio) | Hard (vendor) | Hard | Hard | Sometimes | Theoretically |
-| 3 Cursor IDE | Easy | Possible (proxy) | Easy (tools live in IDE) | Hard | Limited | n/a |
-| 4 Devin/Replit | Easy | Hard (cloud) | Easy (planted repo) | Hard | Vendor dashboards | n/a |
-| 5 Browser-use | Trivial | Possible | n/a (browser tools) | Possible | Sometimes | Page-content/DOM |
-| 6 SDR agent | Easy | Hard (vendor) | Possible (mock CRM) | Hard | Vendor | n/a |
-| 7 CrewAI | Easy | Easy | Easy | Easy | Native Phoenix | n/a |
-| 8 ADK Sequential | Easy | Easy | Easy | Easy | Native | n/a |
-| 9 ADK Loop | Easy | Easy | Easy | Easy | Native | n/a |
-| 10 LangChain legacy | Easy | Easy | Easy | Easy | LangSmith / OpenInference | n/a |
-| 11 LangGraph | Easy | Easy | Easy | **Easy (checkpointer)** | LangSmith / OpenInference | n/a |
-| 12 AutoGen/AG2 | Easy | Easy | Easy | Easy | OpenInference | n/a |
-| 13 Mastra | Easy | Easy | Easy | Easy | OpenInference | n/a |
-| 14 RAG | Easy | Easy | Easy (mock retriever) | Easy (poison corpus) | OpenInference | n/a |
-| 15 n8n/Zapier | Easy (webhook) | Possible | Easy (node) | Possible | Native trace viewer | n/a |
-| 16 Browser extension | Easy (page) | Hard | n/a | Possible (storage) | None | Page content |
-| 17 Slack/Discord bot | Easy (mention) | Easy if self-host | Easy | Easy | OpenInference | n/a |
-| 18 Email agent | Easy (send email) | Hard (vendor) | Possible | Hard | Vendor | n/a |
-| 19 Custom loop | Easy | Easy (proxy) | Easy (it's your code) | Easy | OpenInference | n/a |
-| 20 Custom GPT | Easy (chat) | n/a (OpenAI internal) | Easy (your API) | n/a | None | n/a |
+| Shape                | Outside-in prompt | LLM-call proxy        | Tool-mock                | State tamper            | Trace export              | Frame/audio injection |
+| -------------------- | ----------------- | --------------------- | ------------------------ | ----------------------- | ------------------------- | --------------------- |
+| 1 Support chat       | Easy              | Hard (vendor)         | Hard                     | Hard                    | Vendor-dependent          | n/a                   |
+| 2 Voice agent        | Hard (audio)      | Hard (vendor)         | Hard                     | Hard                    | Sometimes                 | Theoretically         |
+| 3 Cursor IDE         | Easy              | Possible (proxy)      | Easy (tools live in IDE) | Hard                    | Limited                   | n/a                   |
+| 4 Devin/Replit       | Easy              | Hard (cloud)          | Easy (planted repo)      | Hard                    | Vendor dashboards         | n/a                   |
+| 5 Browser-use        | Trivial           | Possible              | n/a (browser tools)      | Possible                | Sometimes                 | Page-content/DOM      |
+| 6 SDR agent          | Easy              | Hard (vendor)         | Possible (mock CRM)      | Hard                    | Vendor                    | n/a                   |
+| 7 CrewAI             | Easy              | Easy                  | Easy                     | Easy                    | Native Phoenix            | n/a                   |
+| 8 ADK Sequential     | Easy              | Easy                  | Easy                     | Easy                    | Native                    | n/a                   |
+| 9 ADK Loop           | Easy              | Easy                  | Easy                     | Easy                    | Native                    | n/a                   |
+| 10 LangChain legacy  | Easy              | Easy                  | Easy                     | Easy                    | LangSmith / OpenInference | n/a                   |
+| 11 LangGraph         | Easy              | Easy                  | Easy                     | **Easy (checkpointer)** | LangSmith / OpenInference | n/a                   |
+| 12 AutoGen/AG2       | Easy              | Easy                  | Easy                     | Easy                    | OpenInference             | n/a                   |
+| 13 Mastra            | Easy              | Easy                  | Easy                     | Easy                    | OpenInference             | n/a                   |
+| 14 RAG               | Easy              | Easy                  | Easy (mock retriever)    | Easy (poison corpus)    | OpenInference             | n/a                   |
+| 15 n8n/Zapier        | Easy (webhook)    | Possible              | Easy (node)              | Possible                | Native trace viewer       | n/a                   |
+| 16 Browser extension | Easy (page)       | Hard                  | n/a                      | Possible (storage)      | None                      | Page content          |
+| 17 Slack/Discord bot | Easy (mention)    | Easy if self-host     | Easy                     | Easy                    | OpenInference             | n/a                   |
+| 18 Email agent       | Easy (send email) | Hard (vendor)         | Possible                 | Hard                    | Vendor                    | n/a                   |
+| 19 Custom loop       | Easy              | Easy (proxy)          | Easy (it's your code)    | Easy                    | OpenInference             | n/a                   |
+| 20 Custom GPT        | Easy (chat)       | n/a (OpenAI internal) | Easy (your API)          | n/a                     | None                      | n/a                   |
 
 Reading this table: **"Easy"** means an outside tool can inject this fault class without agent-owner cooperation. **"Hard"** means it requires vendor cooperation or internal access. **"Possible"** means doable but requires setup.
 
@@ -1230,6 +1246,7 @@ Reading this table: **"Easy"** means an outside tool can inject this fault class
 ## 8. Sources
 
 ### Frameworks and SDKs
+
 - LangGraph docs: https://docs.langchain.com/oss/python/langgraph/overview
 - LangGraph postmortem (infinite delegation): https://dev.to/johalputt/postmortem-how-a-langgraph-01-multi-agent-bug-broke-our-2026-customer-support-bot-37pp
 - LangGraph state management 2026: https://eastondev.com/blog/en/posts/ai/20260424-langgraph-agent-architecture/
@@ -1260,6 +1277,7 @@ Reading this table: **"Easy"** means an outside tool can inject this fault class
 - AI SDK Slack agent: https://vercel.com/kb/guide/how-to-build-an-ai-agent-for-slack-with-chat-sdk-and-ai-sdk
 
 ### Agent products and shapes
+
 - Sierra vs Decagon 2026: https://www.retellai.com/blog/sierra-vs-decagon
 - Decagon ZenML LLMOps case study: https://www.zenml.io/llmops-database/building-a-production-ai-agent-system-for-customer-support
 - Sierra vs Decagon (eesel): https://www.eesel.ai/blog/decagon-vs-sierra
@@ -1284,6 +1302,7 @@ Reading this table: **"Easy"** means an outside tool can inject this fault class
 - GKE hackathon highlights: https://cloud.google.com/blog/topics/developers-practitioners/winners-and-highlights-from-gke-hackathon
 
 ### Voice agents
+
 - Voice agent latency (Hamming AI): https://hamming.ai/resources/voice-ai-latency-whats-fast-whats-slow-how-to-fix-it
 - Voice agent evaluation framework: https://hamming.ai/resources/how-to-evaluate-voice-agents-2026
 - AssemblyAI low-latency Vapi build: https://www.assemblyai.com/blog/how-to-build-lowest-latency-voice-agent-vapi
@@ -1291,6 +1310,7 @@ Reading this table: **"Easy"** means an outside tool can inject this fault class
 - Vapi speech latency: https://vapi.ai/blog/speech-latency
 
 ### Browser / computer-use security
+
 - RedTeamCUA: https://arxiv.org/pdf/2505.21936
 - Browser agents security risks (Netwrix): https://netwrix.com/en/resources/blog/browser-agent-security-risks/
 - TOCTOU vulnerabilities in browser agents: https://arxiv.org/pdf/2603.00476
@@ -1302,6 +1322,7 @@ Reading this table: **"Easy"** means an outside tool can inject this fault class
 - Context manipulation attacks: https://arxiv.org/pdf/2506.17318
 
 ### Protocols (A2A, MCP)
+
 - A2A specification: https://a2a-protocol.org/latest/specification/
 - A2A agent discovery: https://a2a-protocol.org/v0.2.5/topics/agent-discovery/
 - A2A agent card v1.0 schema: https://gist.github.com/SecureAgentTools/0815a2de9cc31c71468afd3d2eef260a
@@ -1317,6 +1338,7 @@ Reading this table: **"Easy"** means an outside tool can inject this fault class
 - Developer's guide to AI agent protocols: https://developers.googleblog.com/developers-guide-to-ai-agent-protocols/
 
 ### Observability
+
 - OpenInference repo: https://github.com/Arize-ai/openinference
 - OpenInference docs: https://arize-ai.github.io/openinference/
 - Phoenix repo: https://github.com/arize-ai/phoenix
@@ -1330,6 +1352,7 @@ Reading this table: **"Easy"** means an outside tool can inject this fault class
 - ADK evaluation 2026: https://futureagi.com/blog/evaluating-google-adk-agents-2026/
 
 ### RAG failure modes
+
 - Why most RAG systems fail (Tommy Adeliyi): https://medium.com/@tommyadeliyi/why-most-rag-systems-fail-in-production-and-how-to-fix-them-82cde6782b50
 - Why RAG fails in production (Salesforce): https://www.salesforce.com/blog/ai-agent-rag/
 - Agentic RAG failure modes (Towards Data Science): https://towardsdatascience.com/agentic-rag-failure-modes-retrieval-thrash-tool-storms-and-context-bloat-and-how-to-spot-them-early/
@@ -1339,6 +1362,7 @@ Reading this table: **"Easy"** means an outside tool can inject this fault class
 - Knolli on RAG vs compilation: https://www.knolli.ai/post/rag-failing-agentic-ai
 
 ### Prompt injection / agent security taxonomies
+
 - Prompt injection production taxonomy 2026: https://www.digitalapplied.com/blog/prompt-injection-production-agents-2026-taxonomy
 - Prompt injection in agentic coding assistants: https://arxiv.org/pdf/2601.17548
 - Prompt injection taxonomy exposing defenses: https://ibsecurity.medium.com/the-prompt-injection-taxonomy-that-exposes-how-shallow-most-defenses-are-e75b7b569fb2
@@ -1346,18 +1370,21 @@ Reading this table: **"Easy"** means an outside tool can inject this fault class
 - Prompt injection & context poisoning topic page: https://www.emergentmind.com/topics/prompt-injection-and-context-poisoning
 
 ### Workflow / no-code platforms
+
 - n8n guide 2026: https://hatchworks.com/blog/ai-agents/n8n-guide/
 - n8n vs Zapier 2026: https://tech-insider.org/n8n-vs-zapier-2026-2/
 - Marketing automation AI agents (Make/Zapier/n8n): https://www.digitalapplied.com/blog/marketing-automation-ai-agents-make-zapier-n8n-2026
 - Zapier vs Make vs n8n 2026: https://medium.com/@automation.labs/zapier-vs-make-vs-n8n-in-2026-where-ai-agents-actually-fit-1edbbeff85f3
 
 ### Slack/Discord/Teams bots
+
 - Slack/Discord integration patterns (Render): https://render.com/articles/how-do-i-integrate-my-ai-agent-with-slack-or-discord-as-a-bot
 - Building AI agents for Slack/Discord: https://dev.to/versadev/building-ai-agents-for-slack-and-discord-using-llms-2nji
 - NVIDIA custom Slackbot LLM agent: https://developer.nvidia.com/blog/create-a-custom-slackbot-llm-agent-with-nvidia-nim-and-langchain/
 - Slackbot agent guide (AI SDK): https://ai-sdk.dev/cookbook/guides/slackbot
 
 ### Framework adoption / population data
+
 - Best multi-agent frameworks 2026: https://gurusup.com/blog/best-multi-agent-frameworks-2026
 - 10 AI agent frameworks 2026 (ATNO Medium): https://medium.com/@atnoforgenai/10-ai-agent-frameworks-you-should-know-in-2026-langgraph-crewai-autogen-more-2e0be4055556
 - Top 10 AI agent frameworks: https://www.xpay.sh/blog/article/top-ai-agent-frameworks/
@@ -1366,6 +1393,7 @@ Reading this table: **"Easy"** means an outside tool can inject this fault class
 - Best open-source agent frameworks (Firecrawl): https://www.firecrawl.dev/blog/best-open-source-agent-frameworks
 
 ### Companion files (in this repo)
+
 - `brainstorm/03-agent-landscape.md` — initial product landscape
 - `02b-gemini-enterprise-agent-platform.md` — Google's stack
 - `02a-google-cloud-stack.md` — Google Cloud SDK code + deployment patterns

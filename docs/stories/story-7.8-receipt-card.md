@@ -23,7 +23,7 @@ Exact files the coding agent creates or modifies for this story:
 
 - `apps/chaoslab-web/app/_components/receipt-card.tsx` — NEW — Client component per `docs/ux-spec.md` `<ReceiptCard>` contract. Props per the locked TS interface (runId, attackCount, faultClasses, rootCausesFound, recipeId, mrUrl, markdownUrl, costUsd, durationSeconds, baselinePassRate, postPatchPassRate, improvement). Renders a shadcn/ui `<Card>` with sections: header (recipe_id badge + run stats), fault classes list, root causes count, recipe links (Markdown link + GitLab MR link if mrUrl is non-null), cost+duration row, baseline → post-patch headline number with improvement %. Slide-up animation via Framer Motion (`initial={{ y: 40, opacity: 0 }} animate={{ y: 0, opacity: 1 }}`). Reduced-motion gated. data-testid="receipt-card". ≤200 LOC.
 - `apps/chaoslab-web/lib/format.ts` — NEW — Pure formatters: `formatUsd(n: number)`, `formatDuration(seconds: number)` ("2m 47s"), `formatPercent(n: number)` ("92%"), `formatImprovement(delta: number)` ("+52pp"). ≤60 LOC.
-- `apps/chaoslab-web/tests/unit/receipt-card.test.tsx` — NEW — Vitest + RTL. ≥7 test cases: (1) renders `[data-testid="receipt-card"]`; (2) shows the recipe_id text; (3) when mrUrl is non-null, renders an `<a>` with `href={mrUrl}` and target="_blank"; (4) when mrUrl is null, NO GitLab MR link is rendered; (5) markdownUrl link is always rendered; (6) shows cost formatted as USD ("$0.34"); (7) shows duration formatted ("2m 47s"); (8) shows baseline → post-patch improvement; (9) reduced motion → no slide-up animation.
+- `apps/chaoslab-web/tests/unit/receipt-card.test.tsx` — NEW — Vitest + RTL. ≥7 test cases: (1) renders `[data-testid="receipt-card"]`; (2) shows the recipe_id text; (3) when mrUrl is non-null, renders an `<a>` with `href={mrUrl}` and target="\_blank"; (4) when mrUrl is null, NO GitLab MR link is rendered; (5) markdownUrl link is always rendered; (6) shows cost formatted as USD ("$0.34"); (7) shows duration formatted ("2m 47s"); (8) shows baseline → post-patch improvement; (9) reduced motion → no slide-up animation.
 
 The coding agent must NOT modify files outside this map without re-checking CLAUDE.md.
 
@@ -123,7 +123,7 @@ echo "story-7.8 verification: PASS"
 
 - Card structure (top-to-bottom):
   1. Header row: "RUN COMPLETE" label + `<Badge variant="outline">{recipeId}</Badge>` (shadcn badge)
-  2. Headline: "{baselinePassRate*100}% → {postPatchPassRate*100}%" with "+{improvement*100}pp" in pass-green
+  2. Headline: "{baselinePassRate*100}% → {postPatchPassRate*100}%" with "+{improvement\*100}pp" in pass-green
   3. Stats grid (3 cols): `attackCount` runs / `faultClasses.length` fault classes / `rootCausesFound` root causes
   4. Recipe section: "Hardening recipe" header + (a) Markdown link (always present) + (b) GitLab MR link (if mrUrl non-null)
   5. Footer row: `formatUsd(costUsd)` cost · `formatDuration(durationSeconds)` duration

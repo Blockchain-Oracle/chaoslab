@@ -11,6 +11,7 @@
 The spec's wedge, architecture shape, judging-criteria alignment, and demo plan are **all sound**. But ~11 specific claims about external libraries / SDK versions / API surfaces have drifted from current reality. Each is addressable with a targeted spec edit; none invalidate the wedge or the build plan. **Apply the 13 critical amendments below, then fire `sahil-hackathon-orchestrator`.**
 
 **Aggregate counts** across all 7 audits:
+
 - ✅ **~48 claims CONFIRMED** as accurate
 - 🟡 **~17 claims NEEDS-FIX** (doc-hygiene, minor amendments — non-blocking)
 - 🔴 **~11 claims WRONG** (load-bearing — must amend before orchestrator dispatch)
@@ -21,15 +22,15 @@ The RAT (executed earlier today) already validated 5 separate items from the ori
 
 ## Per-domain results
 
-| # | Domain | Verdict | ✅ | 🟡 | 🔴 | Critical finding |
-|---|---|---|---:|---:|---:|---|
-| 01 | ADK + A2A source | AMEND | 6 | 4 | 1 | `a2a-sdk` version pin breaks `uv sync` (S2.2 line 134) |
-| 02 | OpenInference packages | AMEND | 7 | 2 | 1 | `openinference.instrumentation.library` attribute is FABRICATED |
-| 03 | `deepankarm/agent-chaos` vendoring | PIVOT | 7 | 3 | 2 | "Saves 3-4 days" claim is wrong — actual savings ≈ 0 |
-| 04 | GitLab MCP endpoint | PIVOT | 4 | 2 | 3 | Official MCP lacks `create_branch` + `create_or_update_file` — S6.6 not viable as written |
-| 05 | Frontend stack | AMEND | 11 | 3 | 2 | Next.js 15 is stale; npm `latest` is 16.2.7 |
-| 06 | Gemini + Cloud Run + WIF | AMEND | many | 1 | 4 | `google-github-actions/*@v2` is 9 months stale → `@v3` |
-| 07 | 8 critical stories | CLEAN | 6 | 2 | 0 | 12 file-path duplicates (NEW vs UPDATE conflict) |
+| #   | Domain                             | Verdict |   ✅ |  🟡 |  🔴 | Critical finding                                                                          |
+| --- | ---------------------------------- | ------- | ---: | --: | --: | ----------------------------------------------------------------------------------------- |
+| 01  | ADK + A2A source                   | AMEND   |    6 |   4 |   1 | `a2a-sdk` version pin breaks `uv sync` (S2.2 line 134)                                    |
+| 02  | OpenInference packages             | AMEND   |    7 |   2 |   1 | `openinference.instrumentation.library` attribute is FABRICATED                           |
+| 03  | `deepankarm/agent-chaos` vendoring | PIVOT   |    7 |   3 |   2 | "Saves 3-4 days" claim is wrong — actual savings ≈ 0                                      |
+| 04  | GitLab MCP endpoint                | PIVOT   |    4 |   2 |   3 | Official MCP lacks `create_branch` + `create_or_update_file` — S6.6 not viable as written |
+| 05  | Frontend stack                     | AMEND   |   11 |   3 |   2 | Next.js 15 is stale; npm `latest` is 16.2.7                                               |
+| 06  | Gemini + Cloud Run + WIF           | AMEND   | many |   1 |   4 | `google-github-actions/*@v2` is 9 months stale → `@v3`                                    |
+| 07  | 8 critical stories                 | CLEAN   |    6 |   2 |   0 | 12 file-path duplicates (NEW vs UPDATE conflict)                                          |
 
 ---
 
@@ -38,9 +39,11 @@ The RAT (executed earlier today) already validated 5 separate items from the ori
 These 13 amendments fix the WRONG claims and prevent coding agents from burning cycles on bad assumptions. All are surgical (line-level edits, no architecture rewrites).
 
 ### A1. GitLab MR emitter pivot (audit-04, S6.6)
+
 **Fix:** ADR-011 in `architecture.md` + `story-6.6-gitlab-mr-emitter.md` + `partner-gitlab.md`.
 
 **Specific change:**
+
 - **Keep** the official `https://gitlab.com/api/v4/mcp` for `create_merge_request` ONLY (preserves judging credit)
 - **Move** branch creation + file commits to the `python-gitlab` SDK (already in deps at `architecture.md` L173). Use `POST /projects/:id/repository/branches` and `POST /projects/:id/repository/files/:file_path`.
 - Update `_gitlab_mcp_client.py` to call ONLY the verified-real 16 tools the official server exposes.
@@ -49,6 +52,7 @@ These 13 amendments fix the WRONG claims and prevent coding agents from burning 
 **Free-tier vs Premium:** Official docs say Premium/Ultimate; hackathon FAQ says trial. Test with a fresh trial account on Day 1.
 
 ### A2. `google-github-actions/*` major version bump v2 → v3 (audit-06)
+
 **Fix:** `docs/architecture.md` ADR-009; `docs/cicd.md` lines 240, 247; `docs/stories/story-1.6-staging-deploy-workflow.md` line 56; `research/.../best-practices/02-cicd-github-actions.md` (every yaml example).
 
 **Specific change:** sed-style replace `google-github-actions/auth@v2` → `@v3`, same for `setup-gcloud@v2`, `deploy-cloudrun@v2`. The v2 actions have been backport-only since 2025-08-28.
@@ -56,16 +60,19 @@ These 13 amendments fix the WRONG claims and prevent coding agents from burning 
 ⚠ S1.6 hardcodes `@v2` in a regex-checked BDD acceptance criterion — coding agent would write v2 workflows on day 1 if not fixed.
 
 ### A3. Drop `a2a-sdk` explicit version pin (audit-01, S2.2)
+
 **Fix:** `docs/stories/story-2.2-target-a2a-exposure.md` line 134.
 
 **Specific change:** Remove `a2a-sdk>=1.1.0,<2.0.0` from the dependency list. `google-adk[a2a]` 2.1.0 transitively requires `a2a-sdk<0.4,>=0.3.4` — pinning explicitly causes a guaranteed `uv sync` resolver conflict. Let the `[a2a]` extra resolve transitively.
 
 ### A4. Next.js version: pin `^15` explicitly OR bump to 16 (audit-05)
+
 **Fix:** `docs/architecture.md` TS library table; `docs/stories/story-7.1-nextjs-scaffold.md`.
 
 **Recommended: bump to Next.js 16.** All patterns the spec uses (`output: 'standalone'`, App Router, `next/font`, `next/image`, SSE route handlers) work identically on 16. v16 has been mainline ~8 months. Sticking with `^15` requires explicit `next@15` pins everywhere because `pnpm add next` resolves to `^16` today.
 
 ### A5. Drop `deepankarm/agent-chaos` vendoring; use attribution-only (audit-03, S5.1)
+
 **Fix:** ADR-006 in `architecture.md`; `docs/stories/story-5.1-vendor-agent-chaos.md`; `research/.../architecture/01-reference-implementations.md` § "Move 2".
 
 **Specific change:** Convert S5.1 from "copy 3 files + add NOTICE" to "add NOTICE entry + module-docstring attribution credits in F1-F4 source files." Why: F1-F4 stories already reimplement against ADK callbacks directly; the vendored `llm.py` is Anthropic-only with a Gemini `NotImplementedError` stub. Net effort drops from ~1.5h to ~20 min.
@@ -73,43 +80,52 @@ These 13 amendments fix the WRONG claims and prevent coding agents from burning 
 **Update ADR-006 narrative:** "We considered vendoring but the upstream is Anthropic-only and dormant. Architecture/code patterns inspired by `deepankarm/agent-chaos` (Apache-2.0, attributed in NOTICE) but reimplemented natively against ADK."
 
 ### A6. Fix fabricated OpenInference attribute name (audit-02, S3.3)
+
 **Fix:** `docs/stories/story-3.3-langchain-adapter.md` BDD criterion.
 
 **Specific change:** Replace `span.attributes["openinference.instrumentation.library"] == "langchain"` with `instrumentation_scope.name == "openinference.instrumentation.langchain"` (the OTEL span-record field) OR `attributes["openinference.span.kind"] in {"LLM","TOOL","CHAIN"}` (the canonical OpenInference attribute).
 
 ### A7. Fix fabricated tool-call attribute name (audit-02)
+
 **Fix:** any BDD criterion across stories that uses `tool_call.name`.
 
 **Specific change:** Replace `tool_call.name` with `tool_call.function.name` (the real OpenInference semantic-convention attribute).
 
 ### A8. Remove `--startup-cpu-boost` fallback (audit-06, S1.6)
+
 **Fix:** `docs/stories/story-1.6-staging-deploy-workflow.md` Notes section.
 
 **Specific change:** Drop the "fallback to `--startup-cpu-boost` if `--cpu-boost` fails" path — the fallback flag doesn't exist in current gcloud. `--cpu-boost` is the only correct flag. Remove the "drift" failure mode from `cicd.md` §13 #5 and replace with the OIDC issuer URI trailing-slash pitfall.
 
 ### A9. Fix `gemini-3.1-pro` identifier (audit-06)
+
 **Fix:** any reference to `gemini-3.1-pro` in spec.
 
 **Specific change:** Replace with `gemini-3.1-pro-preview` (the current Vertex AI model ID). Note: this only affects fallback model documentation — JUDGE_LLM stays `gemini-3.5-flash` per ADR-007.
 
 ### A10. Rewrite ADR-007 cost rationale (audit-06)
+
 **Fix:** `docs/architecture.md` ADR-007.
 
 **Specific change:** The "17× cheaper than Pro" rationale is wrong — Pro is currently only 1.33× more than Flash. **Flash-Lite (`gemini-3.1-flash-lite`) is the real 8-11× delta vs Flash.** Two options:
+
 - **A10a (keep current):** Update ADR-007 narrative to "Flash chosen for quality+cost balance; Pro is only ~1.3× more so the cost rationale is weaker than originally stated, but Flash is sufficient quality and avoids per-eval surprise costs."
 - **A10b (consider Flash-Lite):** Switch JUDGE_LLM to `gemini-3.1-flash-lite` for the LLM-as-judge layer; saves real money. Risk: Flash-Lite quality on `tool_invocation` eval rubrics is unverified. **Recommend A10a (keep Flash) for safety; revisit Flash-Lite if cost overruns appear.**
 
 ### A11. Acknowledge ADK workflow-class deprecation (audit-01)
+
 **Fix:** add a new ADR (ADR-012) to `architecture.md`.
 
 **Specific change:** Document that `SequentialAgent`, `LoopAgent`, `ParallelAgent` are `@deprecated` in ADK 2.1.0 (replaced by `google.adk.workflow.Workflow`). Acknowledge: "We use the deprecated classes for hackathon speed and ADK's `filterwarnings` config suppresses the deprecation warning. Migration to `Workflow` is post-hackathon work."
 
 ### A12. Convert 12 duplicate `— NEW —` file paths to `UPDATE` (audit-07)
+
 **Fix:** 12 story files (the later story in each pair).
 
 **Specific change:** Audit-07 enumerated 12 file paths declared `— NEW —` by two stories each (stub-then-real lifecycle pattern). Convert the later story's `NEW` to `UPDATE` to prevent orchestrator "file already exists" conflicts. Primarily affects Dockerfiles, `pyproject.toml`, and the patcher/judge/injector `__init__.py` + `agent.py` stub-then-real chain (S4.2 → S5.7 → S6.1 → S6.3 → S6.4).
 
 ### A13. Fix S5.2's `before_tool_callback` raise pattern (audit-01)
+
 **Fix:** `docs/stories/story-5.2-fault-malformed-tool.md`.
 
 **Specific change:** Raising from `before_tool_callback` is undefined behavior in ADK 2.1.0. Use `on_tool_error_callback` instead. Also: the `invalid_json` malformation mode currently returns a raw string but the callback's return type is `Optional[dict]` — return `{"_invalid_json_payload": "<bad string>"}` or similar typed envelope.
@@ -137,6 +153,7 @@ These 13 amendments fix the WRONG claims and prevent coding agents from burning 
 ## ✅ Strongly confirmed (no changes needed)
 
 The spec is correct about:
+
 - **Wedge selection** (W1 ChaosLab Arize track) — RAT validated, novelty gate clean
 - **Architecture shape** — 3 Cloud Run services + hybrid orchestrator + A2A target peer (Candidate B); SalesShortcut won with this exact shape
 - **ADK API surface** — `LlmAgent` (with singular `instruction` field), all 4 callbacks (+ 2 bonus error callbacks), `to_a2a()`, `RemoteA2aAgent`, `Runner` all exist as documented
@@ -170,15 +187,15 @@ The spec is correct about:
 
 If we had skipped this audit and fired the orchestrator with the unamended spec:
 
-| # | Failure mode | Impact |
-|---|---|---|
-| 1 | `uv sync` hard-fails on day 1 due to `a2a-sdk` version conflict (A3) | Coding agent stuck; whole build blocked |
-| 2 | S1.6 generates v2 GitHub Actions workflows (9 months stale) (A2) | Workflows technically work but accumulate deprecation warnings + drift |
-| 3 | S6.6 implementation hits "unknown MCP tool" errors at runtime (A1) | Patcher loop broken; demo's "MR-emission" wow moment fails |
-| 4 | S5.2 raises from `before_tool_callback` (undefined behavior) (A13) | F1 fault class silently misbehaves; demo fails |
-| 5 | S3.3 BDD asserts on a fabricated attribute name (A6) | Test passes against mock, fails against real LangChain trace |
-| 6 | S5.1 spends 1.5h vendoring code that gets used nowhere (A5) | Day 2 wasted |
-| 7 | `pnpm add next` writes `"next": "^16"` not `"^15"` (A4) | Stack mismatch; some patterns silently wrong |
+| #   | Failure mode                                                         | Impact                                                                 |
+| --- | -------------------------------------------------------------------- | ---------------------------------------------------------------------- |
+| 1   | `uv sync` hard-fails on day 1 due to `a2a-sdk` version conflict (A3) | Coding agent stuck; whole build blocked                                |
+| 2   | S1.6 generates v2 GitHub Actions workflows (9 months stale) (A2)     | Workflows technically work but accumulate deprecation warnings + drift |
+| 3   | S6.6 implementation hits "unknown MCP tool" errors at runtime (A1)   | Patcher loop broken; demo's "MR-emission" wow moment fails             |
+| 4   | S5.2 raises from `before_tool_callback` (undefined behavior) (A13)   | F1 fault class silently misbehaves; demo fails                         |
+| 5   | S3.3 BDD asserts on a fabricated attribute name (A6)                 | Test passes against mock, fails against real LangChain trace           |
+| 6   | S5.1 spends 1.5h vendoring code that gets used nowhere (A5)          | Day 2 wasted                                                           |
+| 7   | `pnpm add next` writes `"next": "^16"` not `"^15"` (A4)              | Stack mismatch; some patterns silently wrong                           |
 
 That's ~5 hours of debugging + ~1 day of wasted scope-creep. The audit cost ~25 minutes of parallel wall-clock + this synthesis. Net save: ~5-8 hours.
 

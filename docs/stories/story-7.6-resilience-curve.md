@@ -148,9 +148,9 @@ echo "story-7.6 verification: PASS"
   </ParentSize>
   ```
 - Wrap the entire thing in `<ParentSize>` so it auto-sizes. Default min height in tests: 320px (Playwright sets parent dimensions).
-- The PATCH marker animation: Framer Motion `<motion.line>` with `initial={{ pathLength: 0 }} animate={{ pathLength: 1 }} transition={{ duration: 0.8, ease: 'easeInOut' }}`. SVG `<line>` doesn't natively support pathLength — use a `<motion.path>` with `d={\`M ${x} 0 L ${x} ${height}\`}` instead. Style with `strokeDasharray="4 4"` for the dashed look.
+- The PATCH marker animation: Framer Motion `<motion.line>` with `initial={{ pathLength: 0 }} animate={{ pathLength: 1 }} transition={{ duration: 0.8, ease: 'easeInOut' }}`. SVG `<line>` doesn't natively support pathLength — use a `<motion.path>` with `d={\`M ${x} 0 L ${x} ${height}\`}`instead. Style with`strokeDasharray="4 4"` for the dashed look.
 - Color tokens: `stroke="var(--color-attack-red)"` works in SVG via CSS-var binding. Verify by running `pnpm build` then `curl` the page and inspect the rendered SVG. Tailwind 4 + visx + CSS variables play nicely.
-- Domain handling: x-axis is "run index" (0..N total runs). y-axis is "pass rate" (0..1, displayed as 0%..100%). `tickFormat={(v) => \`${Math.round(Number(v) * 100)}%\`}` on AxisLeft.
+- Domain handling: x-axis is "run index" (0..N total runs). y-axis is "pass rate" (0..1, displayed as 0%..100%). `tickFormat={(v) => \`${Math.round(Number(v) \* 100)}%\`}` on AxisLeft.
 - The two series share an x-axis but represent DIFFERENT runs (attackPoints = pre-patch runs, reattackPoints = post-patch runs). The PATCH line at `patchX` sits between them visually — it's the boundary.
 - Reduced motion: in `resilience-curve-marker.tsx`, `const shouldReduceMotion = useReducedMotion(); transition={{ duration: shouldReduceMotion ? 0 : 0.8 }}`. The marker still appears, just instantly.
 - visx is a CLIENT-ONLY library — DOM-dependent. `'use client'` mandatory at the top of both .tsx files.

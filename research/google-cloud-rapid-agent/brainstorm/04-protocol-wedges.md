@@ -1,7 +1,7 @@
 # Protocol Wedges: A2UI, AP2, UCP
 
 **Target hackathon:** Google Cloud Rapid Agent Hackathon (rapid-agent.devpost.com), deadline 2026-06-11.
-**Thesis:** 99% of entrants will ship "Gemini + MCP + Streamlit." The judges have seen 400 of those. The differentiated build leverages the underexplored Google protocols — A2UI, AP2, UCP — where reference impl, SDK, and partner ecosystem are *just* good enough to demo, but obscure enough that nobody else will use them.
+**Thesis:** 99% of entrants will ship "Gemini + MCP + Streamlit." The judges have seen 400 of those. The differentiated build leverages the underexplored Google protocols — A2UI, AP2, UCP — where reference impl, SDK, and partner ecosystem are _just_ good enough to demo, but obscure enough that nobody else will use them.
 
 This document goes deep on each of the three, lists reference implementations with URLs, identifies 6–10 hackathon wedges per protocol, then identifies 5–8 composition wedges that are only possible when two or more of these protocols are stacked.
 
@@ -11,7 +11,7 @@ This document goes deep on each of the three, lists reference implementations wi
 
 ### What it is, deeply
 
-A2UI is **not** a generic templating engine. It is a *declarative JSON protocol* in which an agent emits messages that describe a UI's intent — not its code. The client maintains a **catalog** of pre-approved native components (Card, Button, TextField, Image, Form, List...), and the agent can only request renders of components from that catalog. The agent never ships JSX, HTML, or executable code across the trust boundary. This is the core security argument: the LLM cannot exfiltrate `<script>` or do prompt-injection-driven DOM attacks because the renderer literally cannot execute anything outside its component allowlist. (Source: https://a2ui.org)
+A2UI is **not** a generic templating engine. It is a _declarative JSON protocol_ in which an agent emits messages that describe a UI's intent — not its code. The client maintains a **catalog** of pre-approved native components (Card, Button, TextField, Image, Form, List...), and the agent can only request renders of components from that catalog. The agent never ships JSX, HTML, or executable code across the trust boundary. This is the core security argument: the LLM cannot exfiltrate `<script>` or do prompt-injection-driven DOM attacks because the renderer literally cannot execute anything outside its component allowlist. (Source: https://a2ui.org)
 
 The wire format is a **flat adjacency list** of components keyed by ID, designed for incremental streaming. Four core message types:
 
@@ -20,25 +20,27 @@ The wire format is a **flat adjacency list** of components keyed by ID, designed
 3. `updateDataModel` — push state changes at JSON paths
 4. `deleteSurface` — tear down
 
-The flat adjacency list (vs. nested JSON tree) is deliberate — it's *exactly* the shape LLMs generate well incrementally, and it streams progressively so the UI renders as tokens arrive. (Source: https://atamel.dev/posts/2026/03-30_a2ui_with_adk/)
+The flat adjacency list (vs. nested JSON tree) is deliberate — it's _exactly_ the shape LLMs generate well incrementally, and it streams progressively so the UI renders as tokens arrive. (Source: https://atamel.dev/posts/2026/03-30_a2ui_with_adk/)
 
 **Spec versions:**
+
 - **v0.8** — stable, production. Surfaces, components, data binding, adjacency list. (Source: https://a2ui.org/, specification/v0.8-a2ui/)
 - **v0.9** — current draft. Adds `createSurface`, client-side functions, custom catalogs, extension spec. (Source: https://developers.googleblog.com/a2ui-v0-9-generative-ui/)
 
 **Renderers shipping today (the catalog of "where can the agent send a UI?"):**
+
 - **Lit** (web, primary reference) — used in the official Restaurant Finder demo
 - **Flutter** (via the Flutter GenUI SDK, shipped to production by Google Opal)
 - **React** — via CopilotKit's AG-UI bridge (docs.copilotkit.ai/google-adk/generative-ui/a2ui)
 - **Angular** — listed on a2ui.org
 - **Markdown** — fallback renderer for chat-only surfaces
-- *Roadmap:* SwiftUI, Jetpack Compose, REST/SSE transport
+- _Roadmap:_ SwiftUI, Jetpack Compose, REST/SSE transport
 
 **Transport-agnostic.** Today A2UI flows over A2A and AG-UI. WebSockets/SSE/REST listed as proposed. (Source: https://a2ui.org/guides/a2ui-with-any-agent-framework/)
 
 **Maturity reality:** 15.1k GitHub stars, 776 commits, 201 open issues, 100 PRs. Google is dogfooding A2UI in **Opal (AI mini-apps)** and **Gemini Enterprise** in production. Apache 2.0. (Source: https://github.com/google/A2UI)
 
-**Critical nuance for hackathon judging:** A2UI is *not* the same as "agent draws a chart." It is "agent decides *what shape of UI is correct for this moment in the conversation* and emits exactly that, incrementally, with bidirectional state." The differentiator vs. a normal chat UI is that the **agent picks the widget type per response** — sometimes a form, sometimes a map, sometimes a payment confirmation modal — and the UI restructures itself live.
+**Critical nuance for hackathon judging:** A2UI is _not_ the same as "agent draws a chart." It is "agent decides _what shape of UI is correct for this moment in the conversation_ and emits exactly that, incrementally, with bidirectional state." The differentiator vs. a normal chat UI is that the **agent picks the widget type per response** — sometimes a form, sometimes a map, sometimes a payment confirmation modal — and the UI restructures itself live.
 
 ### Reference implementations
 
@@ -57,21 +59,21 @@ The flat adjacency list (vs. nested JSON tree) is deliberate — it's *exactly* 
 
 - **Wedge:** Pediatric urgent-care intake agent that reshapes its UI per symptom path — sometimes a body-map picker, sometimes a sliders-and-timers panel, sometimes a "call 911 now" modal.
 - **Persona + pain:** Parent at 2am with a sick kid. Static intake forms force them to scroll through 40 irrelevant questions. Voice-only is too slow and scary at 2am.
-- **Why A2UI specifically:** A normal UI has to anticipate every branch up front. A2UI lets the agent emit *only* the next correct widget — body-map → severity slider → photo-upload — based on what the LLM just inferred. Zero pre-built forms. Catalog: BodyMap, SeveritySlider, PhotoCapture, EmergencyBanner, TimerInput.
+- **Why A2UI specifically:** A normal UI has to anticipate every branch up front. A2UI lets the agent emit _only_ the next correct widget — body-map → severity slider → photo-upload — based on what the LLM just inferred. Zero pre-built forms. Catalog: BodyMap, SeveritySlider, PhotoCapture, EmergencyBanner, TimerInput.
 - **MCP partner pairing:** **Box** (for hospital intake docs/policies) or **Elastic** (for clinical knowledge lookup).
 - **3-min demo arc:** "My toddler swallowed something" → agent renders body-map → parent taps mouth → agent renders timeline picker → parent enters "20 min ago" → agent renders red EmergencyBanner with "call poison control" button + auto-dialed number. No two demo runs look the same.
 
 #### 2. **The Field Service Inspector**
 
-- **Wedge:** HVAC/electrician inspector agent that generates the *exact* inspection form for the unit model in front of the tech — pulled from the manual at runtime.
-- **Persona + pain:** Tech standing in front of a 2014 Carrier rooftop unit. The mobile app has one generic checklist for 4,000 unit types. Tech fills 80% irrelevant fields, misses the 3 that matter for *this* unit.
+- **Wedge:** HVAC/electrician inspector agent that generates the _exact_ inspection form for the unit model in front of the tech — pulled from the manual at runtime.
+- **Persona + pain:** Tech standing in front of a 2014 Carrier rooftop unit. The mobile app has one generic checklist for 4,000 unit types. Tech fills 80% irrelevant fields, misses the 3 that matter for _this_ unit.
 - **Why A2UI specifically:** Agent reads model number, fetches the manual, generates a model-specific checklist UI on the fly. Catalog: NumberInput with bounded ranges, PhotoCapture-with-label, Pass/Fail/NA chips, SignaturePad.
 - **MCP partner pairing:** **Box** (manuals + service history) + **Dynatrace** (if unit is IoT-connected, pull real telemetry).
 - **3-min demo arc:** Tech snaps photo of nameplate → agent OCRs model → renders inspection form with 12 items specific to that compressor → tech fills via touch → agent renders summary card → signs and submits.
 
 #### 3. **The Compliance Officer's Quarterly Filing UI**
 
-- **Wedge:** Regulatory filing assistant that renders the exact form schema required by the agency *this quarter* — agency rules change quarterly, the UI has to follow.
+- **Wedge:** Regulatory filing assistant that renders the exact form schema required by the agency _this quarter_ — agency rules change quarterly, the UI has to follow.
 - **Persona + pain:** Small bank compliance officer doing FDIC/OCC filings. Fields change every regulatory cycle. Vendor SaaS lags 3 quarters behind.
 - **Why A2UI specifically:** The agent reads the agency's published schema and emits the form. When the agency updates the schema, no app deploy needed.
 - **MCP partner pairing:** **Box** (FDIC docs) + **MongoDB** (filing history).
@@ -81,7 +83,7 @@ The flat adjacency list (vs. nested JSON tree) is deliberate — it's *exactly* 
 
 - **Wedge:** Will & trust assistant that grows the form as the user reveals complexity. Step 1: name + state. Step 2 (only if user said "I have kids"): minor-children section. Step 3 (only if user said "I have crypto"): digital-asset clauses.
 - **Persona + pain:** First-time estate planner. LegalZoom asks 200 questions upfront, 90% irrelevant.
-- **Why A2UI specifically:** Progressive disclosure that's *truly* adaptive — agent decides which sections exist, not a static branching tree.
+- **Why A2UI specifically:** Progressive disclosure that's _truly_ adaptive — agent decides which sections exist, not a static branching tree.
 - **MCP partner pairing:** **Elastic** (legal precedent search) + **Box** (uploaded docs).
 - **3-min demo arc:** User types "I have a small business and want my niece to inherit it." Agent renders business-valuation section, then niece-as-minor section, then a beneficiary-shield clause — three sections that wouldn't have appeared otherwise.
 
@@ -97,12 +99,12 @@ The flat adjacency list (vs. nested JSON tree) is deliberate — it's *exactly* 
 
 - **Wedge:** New-hire training agent that detects skill level via Q&A and dynamically renders the next training module's UI — quiz, video, interactive simulation, or code editor — never the wrong one.
 - **Persona + pain:** Day-1 new hire at a 50k-person enterprise. LMS forces everyone through identical "Sexual Harassment Module 1 of 12" regardless of role.
-- **Why A2UI specifically:** Each learner gets a *bespoke* training UI per session. Agent picks the widget type based on what the human just struggled with.
+- **Why A2UI specifically:** Each learner gets a _bespoke_ training UI per session. Agent picks the widget type based on what the human just struggled with.
 - **MCP partner pairing:** **Box** (training content) + **Elastic** (internal wiki search).
 
 #### 7. **The Doctor's "Patient-in-the-Room" Note**
 
-- **Wedge:** Ambient clinical scribe that renders the chart UI the doctor needs *next*, mid-encounter — vitals card during examination, Rx form when prescribing, follow-up scheduler when wrapping up.
+- **Wedge:** Ambient clinical scribe that renders the chart UI the doctor needs _next_, mid-encounter — vitals card during examination, Rx form when prescribing, follow-up scheduler when wrapping up.
 - **Persona + pain:** PCP juggling EMR clicks during a 12-min visit. Loses eye contact with patient.
 - **Why A2UI specifically:** The agent infers from conversation what view the doctor needs and emits just that. No tab-clicking.
 - **MCP partner pairing:** **MongoDB** (patient history) + **Box** (clinical guidelines).
@@ -134,30 +136,31 @@ The flat adjacency list (vs. nested JSON tree) is deliberate — it's *exactly* 
 
 ### What it is, deeply
 
-AP2 is the **trust layer for agent-initiated transactions**. It exists because traditional payment rails assume a human at checkout — agents break the "card-present + 3DS + customer-pressed-button" assumption. AP2 fixes this with **Verifiable Digital Credentials (VDCs)**: tamper-evident, cryptographically signed objects that *prove* an agent has user-granted authority to spend, for a specific intent, within specific constraints. (Source: https://ap2-protocol.org)
+AP2 is the **trust layer for agent-initiated transactions**. It exists because traditional payment rails assume a human at checkout — agents break the "card-present + 3DS + customer-pressed-button" assumption. AP2 fixes this with **Verifiable Digital Credentials (VDCs)**: tamper-evident, cryptographically signed objects that _prove_ an agent has user-granted authority to spend, for a specific intent, within specific constraints. (Source: https://ap2-protocol.org)
 
 **The mandate model — this is the actual primitive:**
 
 Two mandate types, each in two stages:
 
 - **Checkout Mandate** (shared with merchants)
-  - *Open:* "I authorize an agent to buy a flight to LAX next week under $400."
-  - *Closed:* "I authorize this specific cart from United at $387.42."
+  - _Open:_ "I authorize an agent to buy a flight to LAX next week under $400."
+  - _Closed:_ "I authorize this specific cart from United at $387.42."
 - **Payment Mandate** (shared with payment networks/PSPs)
-  - *Open:* "Use my Chase card, max $500/day, no gambling MCC codes."
-  - *Closed:* "Charge $387.42 to my Chase card for this specific transaction now."
+  - _Open:_ "Use my Chase card, max $500/day, no gambling MCC codes."
+  - _Closed:_ "Charge $387.42 to my Chase card for this specific transaction now."
 
 The dual-mandate **double signature** model means the merchant cannot overcharge (because the cart mandate locks the price) AND the agent cannot spend without the user (because the payment mandate requires user authorization). (Source: https://codelabs.developers.google.com/next26/adk-agent-commerce)
 
 **Payment rails supported today (in code, not just spec):**
+
 - **Cards** — full Python + Go + Android samples for both human-present and human-not-present
 - **x402** — Coinbase's stablecoin-over-HTTP rail, in `human-not-present/x402/` Python sample. This is the **agent-to-agent settlement** path and the big sleeper. (Sources: https://github.com/google-agentic-commerce/AP2, https://www.coinbase.com/developer-platform/discover/launches/google_x402)
 - **Digital Payment Credentials (DPC)** — Android sample exists, uses the Android wallet
-- *Roadmap:* e-wallets, push payments (UPI, PIX, real-time bank rails)
+- _Roadmap:_ e-wallets, push payments (UPI, PIX, real-time bank rails)
 
 **SDK:** Python is primary (`code/sdk/python/ap2/`), Go follows, Android for native wallet. Pydantic models, canonical JSON schemas. Apache 2.0.
 
-**Standardization track:** Donated to **FIDO Alliance** Agentic Authentication and Payments WGs. This matters — it tells you AP2 is being shaped to become a *real* W3C-class standard, not a Google-only project.
+**Standardization track:** Donated to **FIDO Alliance** Agentic Authentication and Payments WGs. This matters — it tells you AP2 is being shaped to become a _real_ W3C-class standard, not a Google-only project.
 
 **Partner ecosystem (the credibility play):** Co-launched with Coinbase, Mastercard, American Express, PayPal, Stripe, Adyen, Visa, Klarna, Affirm. (Source: https://blog.google/products-and-platforms/platforms/google-pay/agent-payments-protocol-fido-alliance/)
 
@@ -184,7 +187,7 @@ The dual-mandate **double signature** model means the merchant cannot overcharge
 
 - **Wedge:** B2B agent that buys office supplies, SaaS renewals, AWS credits with a budget mandate, no human approval per-PO.
 - **Persona + pain:** Ops manager at a 100-person startup. Spends 6 hrs/week approving $200 staples orders.
-- **Why AP2 specifically:** The mandate model is *literally designed* for "agent buys without me each time, within these rules." Audit trail = signed mandates, every purchase cryptographically attributable.
+- **Why AP2 specifically:** The mandate model is _literally designed_ for "agent buys without me each time, within these rules." Audit trail = signed mandates, every purchase cryptographically attributable.
 - **MCP partner pairing:** **MongoDB** (purchase history, vendor list) + **Box** (invoices auto-filed).
 - **3-min demo arc:** Manager creates open mandate "buy any office supply under $500, prefer Amazon Business, no luxury items." Agent later autonomously reorders printer toner, returns signed payment mandate, files invoice in Box.
 
@@ -192,7 +195,7 @@ The dual-mandate **double signature** model means the merchant cannot overcharge
 
 - **Wedge:** Marketplace where agents pay each other in USDC over x402 for specific tasks — "agent A pays agent B $0.05 to summarize this PDF."
 - **Persona + pain:** Indie agent developers can't monetize their agents because the only revenue model is "user subscribes." Per-call pricing for inter-agent calls doesn't exist.
-- **Why AP2 specifically:** AP2 + x402 is the *only* protocol pair that handles sub-cent agent-to-agent settlement with cryptographic intent verification. No card rails work at this size.
+- **Why AP2 specifically:** AP2 + x402 is the _only_ protocol pair that handles sub-cent agent-to-agent settlement with cryptographic intent verification. No card rails work at this size.
 - **MCP partner pairing:** **MongoDB** (agent registry) + **Elastic** (agent capability search).
 - **3-min demo arc:** Buyer agent posts "summarize 100 PDFs for $5 total." Seller agent claims job. As each PDF finishes, x402 micro-payment settles in USDC. Buyer's wallet drops $0.05/PDF live on screen.
 
@@ -200,7 +203,7 @@ The dual-mandate **double signature** model means the merchant cannot overcharge
 
 - **Wedge:** Agent that watches flight prices and books autonomously when its mandate conditions hit.
 - **Persona + pain:** "I want to fly LAX → JFK any Tuesday in October under $250. Book it the moment that exists. Don't bug me."
-- **Why AP2 specifically:** This use case literally *requires* an open mandate with constraints + a closed mandate when conditions hit. AP2 is the spec for this exact shape.
+- **Why AP2 specifically:** This use case literally _requires_ an open mandate with constraints + a closed mandate when conditions hit. AP2 is the spec for this exact shape.
 - **MCP partner pairing:** **Elastic** (price history corpus) + **MongoDB** (user preferences).
 - **3-min demo arc:** User sets mandate. Demo fast-forwards a price drop. Agent identifies match → emits closed cart mandate → user gets a "purchase pending — auto-approves in 60s" notification (could be A2UI rendered too) → mandate signs → flight booked.
 
@@ -208,7 +211,7 @@ The dual-mandate **double signature** model means the merchant cannot overcharge
 
 - **Wedge:** Agent that scans your card statements, identifies zombie subscriptions, and cancels (or downgrades) them with AP2 mandates — including paying any pro-rated cancellation fees autonomously.
 - **Persona + pain:** Average consumer pays $273/mo for forgotten subscriptions. Manual cancellation requires 14 different account logins.
-- **Why AP2 specifically:** The mandate authorizes the agent to *spend on cancellation fees* up to a cap. You can't do that with a normal card on file.
+- **Why AP2 specifically:** The mandate authorizes the agent to _spend on cancellation fees_ up to a cap. You can't do that with a normal card on file.
 - **MCP partner pairing:** **MongoDB** (subscription registry) + **Box** (statement uploads).
 
 #### 5. **The Construction Subcontractor Pay-When-Done Agent**
@@ -222,7 +225,7 @@ The dual-mandate **double signature** model means the merchant cannot overcharge
 
 - **Wedge:** Consumer agent that fights refund denials autonomously — knows return policies, escalates through dispute channels, and accepts/rejects partial offers within a user mandate.
 - **Persona + pain:** Average consumer abandons 60% of merited refunds because the process is too painful.
-- **Why AP2 specifically:** The agent has authority to *accept* a partial refund (a payment-in) within constraints — that's a closed mandate accepting an incoming credit.
+- **Why AP2 specifically:** The agent has authority to _accept_ a partial refund (a payment-in) within constraints — that's a closed mandate accepting an incoming credit.
 - **MCP partner pairing:** **Box** (receipts, dispute docs) + **Elastic** (merchant policy DB).
 
 #### 7. **The DAO Treasury Auto-Spender**
@@ -269,18 +272,19 @@ UCP is **the open standard for how agents discover, negotiate with, and transact
 
 **The API surface (GA in shopping vertical):**
 
-| API | Purpose |
-|---|---|
-| **Catalog & Search** | product discovery, lookup |
-| **Cart** | basket building |
-| **Checkout** | sessions, line items, tax, payment, with state machine (`incomplete` → `requires_escalation` → `ready_for_complete`) |
-| **Identity Linking** | OAuth merchant↔user binding |
-| **Order Management** | async webhooks for status, tracking, returns |
-| **Payment Handlers** | tokenization, three-party trust (Platform / Business / Credential Provider) |
+| API                  | Purpose                                                                                                              |
+| -------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| **Catalog & Search** | product discovery, lookup                                                                                            |
+| **Cart**             | basket building                                                                                                      |
+| **Checkout**         | sessions, line items, tax, payment, with state machine (`incomplete` → `requires_escalation` → `ready_for_complete`) |
+| **Identity Linking** | OAuth merchant↔user binding                                                                                          |
+| **Order Management** | async webhooks for status, tracking, returns                                                                         |
+| **Payment Handlers** | tokenization, three-party trust (Platform / Business / Credential Provider)                                          |
 
 **Extensions today:** Fulfillment, Discounts, Buyer Consent, AP2 Mandates. (Source: https://ucp.dev/latest/specification/overview/)
 
 **Verticals:**
+
 - **Shopping** — GA, mature spec
 - **Lodging** — co-developed with Amadeus, Booking, Expedia, Hilton, Marriott, Trip.com — spec coming soon
 - **Food** — co-developed with DoorDash, Square, Toast, Uber Eats — spec coming soon
@@ -288,6 +292,7 @@ UCP is **the open standard for how agents discover, negotiate with, and transact
 **The critical partner reality:** UCP is **already live in Google Search's AI Mode and Gemini apps in the US** — Shopify, Etsy, Target, Walmart, Wayfair are reachable today through this protocol. That's not vaporware. That's a transaction surface bigger than most national economies. (Sources: https://blog.google/products/ads-commerce/agentic-commerce-ai-tools-protocol-retailers-platforms/, https://shopify.engineering/ucp)
 
 **Shopify integration:**
+
 - Install `@shopify/ucp-cli` npm package
 - Install Shopify AI Toolkit Claude/Cursor/Gemini plugin
 - Use Cart MCP, Order MCP, Global Catalog, Storefront Catalog
@@ -295,6 +300,7 @@ UCP is **the open standard for how agents discover, negotiate with, and transact
 - (Source: https://shopify.dev/docs/agents)
 
 **Community open-source UCP merchant implementations (CRITICAL for hackathon):**
+
 - **`Shopify/ucp-proxy`** — Shopify's own demo proxy with curl-able test endpoints — `https://github.com/Shopify/ucp-proxy`
 - **`samuelvinay91/ucp-merchant-server`** — UCP+AP2+MCP bound merchant — `https://github.com/samuelvinay91/ucp-merchant-server`
 - **`steven2030/ucp-merchant`** — open-source UCP merchant sandbox with real products — `https://github.com/steven2030/ucp-merchant`
@@ -342,7 +348,7 @@ UCP is **the open standard for how agents discover, negotiate with, and transact
 
 - **Wedge:** Birthday gift agent assembles a single basket across Etsy + Target + Wayfair, single AP2 checkout, single delivery date.
 - **Persona + pain:** User wants a curated gift but has to make 3 separate orders, 3 receipts, 3 shipping windows.
-- **Why UCP specifically:** Cross-merchant cart was the entire problem UCP was designed to solve. This is the *canonical* UCP demo.
+- **Why UCP specifically:** Cross-merchant cart was the entire problem UCP was designed to solve. This is the _canonical_ UCP demo.
 - **MCP partner pairing:** **MongoDB** (gift-recipient profile) + **Elastic** (taste/preference search).
 - **3-min demo arc:** "Birthday gift for my sister, $150 budget, she's into ceramics and gardening." Agent assembles items from 3 retailers → user previews via A2UI cart card → confirms AP2 mandate → all three orders fire.
 
@@ -404,12 +410,12 @@ These are agent shapes that **cannot exist** without two or three of the protoco
 ### Composition Wedge 2: **The Cross-Border Freelance Marketplace** (AP2 + A2UI + MCP partner = Elastic)
 
 - **Wedge:** Two agents (buyer + freelancer) negotiate a gig via A2A. AP2 + x402 settles the payment in USDC. A2UI renders the contract acceptance flow per side. Elastic indexes the freelancer's deliverables for future search.
-- **Why it wins:** Agent-to-agent commerce is the bleeding edge. Sub-dollar settlement (x402) + cryptographic intent (AP2) + adaptive UI per role (A2UI) is genuinely *new*.
+- **Why it wins:** Agent-to-agent commerce is the bleeding edge. Sub-dollar settlement (x402) + cryptographic intent (AP2) + adaptive UI per role (A2UI) is genuinely _new_.
 - **Demo:** Buyer agent posts task → freelancer agent claims → A2UI renders identical contract on both sides → both mandate-sign → work begins → milestone hits → x402 settles in real time on screen.
 
 ### Composition Wedge 3: **The "Receipt-to-Refund-to-Restock" Closed Loop** (UCP + AP2 + A2UI)
 
-- **Wedge:** Consumer photographs a defective product → agent identifies merchant via OCR'd receipt → opens UCP return → negotiates partial refund or full → renders the negotiation as an A2UI inline back-and-forth → if successful, places UCP reorder to a *different* merchant.
+- **Wedge:** Consumer photographs a defective product → agent identifies merchant via OCR'd receipt → opens UCP return → negotiates partial refund or full → renders the negotiation as an A2UI inline back-and-forth → if successful, places UCP reorder to a _different_ merchant.
 - **Why it wins:** End-to-end remediation in one agent loop, across two merchants, with cryptographic authority. Demonstrates all four judging criteria in 3 minutes.
 - **Demo:** User photo of broken blender. Agent finds Wayfair order. Files return via UCP order mgmt. Renders A2UI negotiation card showing "Wayfair offers 80% credit." User taps "accept." AP2 mandate signs. Agent reorders identical model from Target via UCP (lower price). Total time: 90 seconds.
 
@@ -458,30 +464,30 @@ The Devpost criteria (typical Google Cloud rapid-agent template):
 
 ### Top Pick #1: The Retail Operations Command Bridge (A2UI + AP2 + UCP)
 
-| Criterion | Why it wins |
-|---|---|
-| **Tech Implementation** | Uses *all three* underexplored Google protocols + a partner MCP (Dynatrace). No other entrant will. Demonstrably hard-to-fake. |
-| **Design** | A2UI = the UI is *generated* per situation. Judges literally cannot find a "templated dashboard" because each run is different. This is the strongest possible design story. |
-| **Potential Impact** | Every mall, every grocery chain, every retail group has this exact pain. TAM: hundreds of billions. |
-| **Quality of Idea** | Composition wedge that's impossible in any other 2026 stack. AWS doesn't have UCP. Azure doesn't have A2UI. |
+| Criterion               | Why it wins                                                                                                                                                                  |
+| ----------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Tech Implementation** | Uses _all three_ underexplored Google protocols + a partner MCP (Dynatrace). No other entrant will. Demonstrably hard-to-fake.                                               |
+| **Design**              | A2UI = the UI is _generated_ per situation. Judges literally cannot find a "templated dashboard" because each run is different. This is the strongest possible design story. |
+| **Potential Impact**    | Every mall, every grocery chain, every retail group has this exact pain. TAM: hundreds of billions.                                                                          |
+| **Quality of Idea**     | Composition wedge that's impossible in any other 2026 stack. AWS doesn't have UCP. Azure doesn't have A2UI.                                                                  |
 
 ### Top Pick #2: Receipt-to-Refund-to-Restock Closed Loop (UCP + AP2 + A2UI)
 
-| Criterion | Why it wins |
-|---|---|
+| Criterion               | Why it wins                                                                                                                                   |
+| ----------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
 | **Tech Implementation** | Cleanly demonstrates UCP discovery + UCP order mgmt + AP2 mandate + A2UI negotiation render. Compact demo, all four protocols visible in 90s. |
-| **Design** | The "negotiation card" rendered in A2UI is a memorable visual moment — judges remember it. |
-| **Potential Impact** | Returns + refunds is a *$761B problem* in US retail. The status quo (manual portals) is a national tax on consumer time. |
-| **Quality of Idea** | Closed-loop autonomous remediation is a story almost no other entrant will tell. Most will demo one-shot agents. |
+| **Design**              | The "negotiation card" rendered in A2UI is a memorable visual moment — judges remember it.                                                    |
+| **Potential Impact**    | Returns + refunds is a _$761B problem_ in US retail. The status quo (manual portals) is a national tax on consumer time.                      |
+| **Quality of Idea**     | Closed-loop autonomous remediation is a story almost no other entrant will tell. Most will demo one-shot agents.                              |
 
 ### Top Pick #3: Agent-Pays-Agent SaaS Marketplace (AP2 + x402)
 
-| Criterion | Why it wins |
-|---|---|
+| Criterion               | Why it wins                                                                                                   |
+| ----------------------- | ------------------------------------------------------------------------------------------------------------- |
 | **Tech Implementation** | x402 stablecoin settlement is on-trend, judges will reward it. Real cryptographic mandates demoable in 3 min. |
-| **Design** | "Watch the USDC balance tick down per task" is hypnotic on screen. Live settlement demos always win. |
-| **Potential Impact** | The agentic economy is the platform shift. Inter-agent payments are the missing primitive. |
-| **Quality of Idea** | Almost zero hackathon entries will go x402. This is the highest-novelty per dollar of effort. |
+| **Design**              | "Watch the USDC balance tick down per task" is hypnotic on screen. Live settlement demos always win.          |
+| **Potential Impact**    | The agentic economy is the platform shift. Inter-agent payments are the missing primitive.                    |
+| **Quality of Idea**     | Almost zero hackathon entries will go x402. This is the highest-novelty per dollar of effort.                 |
 
 ---
 
@@ -497,7 +503,7 @@ The Devpost criteria (typical Google Cloud rapid-agent template):
 
 ### AP2 risks
 
-- **v0.2 is *very* early.** Mandates are mocked with SHA-256 in the codelab, not sd-jwt-vc. Judges may not know the difference; PR people will.
+- **v0.2 is _very_ early.** Mandates are mocked with SHA-256 in the codelab, not sd-jwt-vc. Judges may not know the difference; PR people will.
 - **No live card-network production rail yet.** Stripe sandbox + USDC testnet is your floor. Don't claim you "did a real Mastercard transaction" — you didn't.
 - **x402 stablecoin path is reliable on Base testnet, fragile elsewhere.** Stellar/Solana x402 variants exist but are less proven.
 - **Mandate UX is hard.** "Sign this mandate" is a foreign concept to users. You will spend disproportionate demo time explaining it. Bake the mandate UI into A2UI for clean storytelling.

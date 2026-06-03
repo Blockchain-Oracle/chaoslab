@@ -148,6 +148,7 @@ cd apps/target-agent && uv run ruff check . && uv run ruff format . --check && u
 ## Notes for coding agent
 
 - **Import order is load-bearing (ADR-005).** `setup_observability()` MUST be called BEFORE any `google.adk.*` import. Reason: `GoogleADKInstrumentor().instrument()` patches ADK module attributes; if ADK is already imported and used by other modules at the time of instrumentation, those modules hold pre-patch references and emit no spans. The pattern in `server.py` must be:
+
   ```python
   """Target agent A2A server entrypoint."""
   from __future__ import annotations
@@ -167,7 +168,9 @@ cd apps/target-agent && uv run ruff check . && uv run ruff format . --check && u
       import uvicorn
       uvicorn.run(a2a_app, host=os.environ.get("HOST", "0.0.0.0"), port=int(os.environ.get("PORT", "8001")))
   ```
+
   The CI grep step (shell verification #3) hard-asserts this ordering.
+
 - **`set_global_tracer_provider=False` + `batch=False`.** Per `research/.../architecture/02-phoenix-deep-dive.md` §3.5 (Agent Engine caveat) and the prompt's explicit ADR-005 reference, these flags are mandatory. While Cloud Run does not strictly require `batch=False`, using it here means traces flush synchronously — critical for the 90-second demo where the Attack Matrix must show spans land in real time. Tradeoff: slightly higher per-request latency (200-500ms p99). Acceptable for demo-scale traffic.
 - **Phoenix register() call shape:**
   ```python
@@ -179,7 +182,7 @@ cd apps/target-agent && uv run ruff check . && uv run ruff format . --check && u
       auto_instrument=False,  # we manually wire GoogleADKInstrumentor below
   )
   ```
-  Set `auto_instrument=False` to avoid the trap in `architecture/02-phoenix-deep-dive.md` §8.3 #8 (auto_instrument blindly hooks every installed openinference-* package, polluting spans).
+  Set `auto_instrument=False` to avoid the trap in `architecture/02-phoenix-deep-dive.md` §8.3 #8 (auto_instrument blindly hooks every installed openinference-\* package, polluting spans).
 - **GoogleADKInstrumentor wiring:**
   ```python
   from openinference.instrumentation.google_adk import GoogleADKInstrumentor

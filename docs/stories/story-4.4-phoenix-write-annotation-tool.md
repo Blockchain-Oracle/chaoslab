@@ -36,7 +36,7 @@ Exact files the coding agent creates or modifies for this story:
   - **`respx`-mocked 500 path:** Phoenix returns 500. Tool raises `PhoenixAnnotationError`; message does not leak the API key.
   - **Annotator kind mapping:** `annotator="human"` produces a `SpanAnnotationData` with `annotator_kind="HUMAN"`; `annotator="chaoslab_judge"` produces `"LLM"`; `annotator="code"` produces `"CODE"`. Assert via inspecting the request body captured by respx.
   - **`@pytest.mark.online` real Phoenix hit:** if `PHOENIX_API_KEY` is set, the tool writes an annotation to a known existing span (env var `PHOENIX_TEST_SPAN_ID`, pre-created during Day-1 RAT runbook). Then a follow-up `client.spans.get_span(...)` call asserts the annotation is server-side visible. Skipped if env vars missing.
-  ~180 lines.
+    ~180 lines.
 
 The coding agent must NOT modify files outside this map without re-checking CLAUDE.md.
 
@@ -163,6 +163,7 @@ cd apps/chaoslab-agent && uv run ruff check . && uv run ruff format . --check &&
 - **Why this wrapper exists.** Per ADR-005 + `architecture/02 §9.6`: the Phoenix MCP server exposes `list-annotation-configs` but NOT `log-span-annotation`. To close the recursive observability loop (the explicit Arize-track bonus, per PRD "Sponsor-native fit"), ChaosLab MUST wrap the Python SDK as a custom ADK `FunctionTool`. This + S4.3 are the two keystone tools of ADR-005.
 - **The 30-LOC budget is a hard rule.** Same as S4.3 — the wrapper body itself ≤30 significant LOC. Pydantic models, annotator-kind mapping, and `SpanAnnotationData` construction live above the function or as a small helper.
 - **Reference canonical wrapper shape** (per `architecture/02 §9.6` — adapt, do not paste verbatim):
+
   ```python
   ANNOTATOR_KIND = {"chaoslab_judge": "LLM", "human": "HUMAN", "code": "CODE"}
 
@@ -196,7 +197,9 @@ cd apps/chaoslab-agent && uv run ruff check . && uv run ruff format . --check &&
       return AnnotationResult(status="ok", span_id=span_id, annotation_name="chaoslab_cluster",
                               score=score, wrote_at=datetime.utcnow().isoformat() + "Z")
   ```
+
   Body is ~20 LOC significant; well under 30.
+
 - **Score bounds via pydantic `Field(ge=0.0, le=1.0)`** on the `AnnotationResult` model — but the input `score` parameter on the function also needs validation. Use a `@pydantic.validate_call` decorator on the function OR an explicit `if not 0.0 <= score <= 1.0: raise ValueError(...)` early-return. Either works; pick one and document it. The BDD asserts the score-out-of-bounds case raises BEFORE any HTTP call.
 - **Empty reason validation.** The BDD asserts empty `reason` raises. Per `architecture/02 §9.6` the annotation's `explanation` field is the primary semantic content — empty is useless. Raise `ValueError("reason must be non-empty")` early.
 - **`annotator_kind` mapping is load-bearing.** Phoenix's `SpanAnnotationData` accepts exactly `"LLM" | "HUMAN" | "CODE"` per `architecture/02 §1, §9.6`. The mapping dict makes ChaosLab's internal vocabulary stable while letting Phoenix get the strings it wants. Tests assert on the actual request body (via respx capture) — implementation must produce the canonical Phoenix strings.

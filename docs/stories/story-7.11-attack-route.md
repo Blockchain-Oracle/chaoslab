@@ -21,7 +21,7 @@
 
 Exact files the coding agent creates or modifies for this story:
 
-- `apps/chaoslab-web/app/(demo)/attack/page.tsx` — NEW — Client component (uses `useRunStore` + `useTraceStream`). On mount: calls `useRunStore.reset()`, POSTs to `/api/run`, gets `runId`, opens SSE via `useTraceStream(runId)`. Renders the 4 hero components (`<AttackMatrix>` + `<ResilienceCurve>` + `<AgentPipeline>` + conditionally `<ReceiptCard>`). Orchestrates the timeline per ux-spec §"Behavior (timed for the 3-min demo)" — cascade-flip is driven by the `phase` prop on `<AttackMatrix>` transitioning to `reattacking`. data-testid="attack-route". ≤350 LOC (max — close to limit; helpers extracted below). 
+- `apps/chaoslab-web/app/(demo)/attack/page.tsx` — NEW — Client component (uses `useRunStore` + `useTraceStream`). On mount: calls `useRunStore.reset()`, POSTs to `/api/run`, gets `runId`, opens SSE via `useTraceStream(runId)`. Renders the 4 hero components (`<AttackMatrix>` + `<ResilienceCurve>` + `<AgentPipeline>` + conditionally `<ReceiptCard>`). Orchestrates the timeline per ux-spec §"Behavior (timed for the 3-min demo)" — cascade-flip is driven by the `phase` prop on `<AttackMatrix>` transitioning to `reattacking`. data-testid="attack-route". ≤350 LOC (max — close to limit; helpers extracted below).
 - `apps/chaoslab-web/lib/use-attack-run.ts` — NEW — Client hook extracting the run-kickoff side effects (POST /api/run, retry on 503, cleanup on unmount). Exports `useAttackRun()` returning `{ runId, status, error }`. Helps keep `attack/page.tsx` under 350 LOC. ≤120 LOC.
 - `apps/chaoslab-web/lib/use-phase-derived-agent.ts` — NEW — Client hook mapping `phase` → `activeAgent` for the AgentPipeline. Pure mapping helper. ≤40 LOC.
 - `apps/chaoslab-web/app/(demo)/attack/attack-error-state.tsx` — NEW — Client component shown when SSE fails or backend is unreachable. Friendly retry UI. ≤80 LOC.
@@ -146,7 +146,7 @@ echo "story-7.11 verification: PASS"
   3. Read state slice from store: `const { state, cells, resilienceCurve, patchX, recipe, activeAgent } = useRunStore()`
   4. Derive `phase` for the matrix from `state` (1:1 mapping)
   5. Conditional rendering of `<ReceiptCard>` only when `state === 'complete' && recipe`
-- The cascade-flip is DRIVEN by the `phase` prop on `<AttackMatrix>` changing from `attacking` to `reattacking`. The matrix component (story-7.5) handles the re-mount via `key={\`${phase}-${idx}\`}` internally. This route just changes the prop value when SSE delivers a `phase` event with `phase: 'reattacking'`.
+- The cascade-flip is DRIVEN by the `phase` prop on `<AttackMatrix>` changing from `attacking` to `reattacking`. The matrix component (story-7.5) handles the re-mount via `key={\`${phase}-${idx}\`}`internally. This route just changes the prop value when SSE delivers a`phase`event with`phase: 'reattacking'`.
 - POST /api/run payload shape: `{ target: 'naive-customer-support', faults: ['malformed_tool_output', 'prompt_injection', 'context_poisoning', 'latency_spike'], count: 25 }`. Locked with backend story-4.1. Response: `{ runId: string }`.
 - SSE connection failure handling: if `useTraceStream` reports an error within 5s of opening, render `<AttackErrorState />` instead of the hero. Show a "Retry" button that re-mounts the page.
 - Connection retry pattern: if POST /api/run returns 503, retry with exponential backoff (1s, 2s, 4s), max 3 attempts. After that, show AttackErrorState. Logic lives in `use-attack-run.ts`.

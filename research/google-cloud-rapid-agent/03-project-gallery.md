@@ -24,13 +24,13 @@ This is expected pre-deadline behavior on Devpost — most hackathon hosts gate 
 
 ## URLs attempted
 
-| URL                                                  | Status                                              |
-| ---------------------------------------------------- | --------------------------------------------------- |
-| https://rapid-agent.devpost.com/submissions          | Loads → gallery message: not yet published          |
-| https://rapid-agent.devpost.com/project-gallery      | Loads → gallery message: not yet published          |
-| https://rapid-agent.devpost.com/                     | Loads → overview, no gallery embed                  |
-| https://rapid-agent.devpost.com/participants         | Loads → login required ("Please log in to browse")  |
-| https://devpost.com/submit-to/29711-google-cloud-rapid-agent-hackathon/manage/submissions | Submitter-only management UI (auth-gated)  |
+| URL                                                                                       | Status                                             |
+| ----------------------------------------------------------------------------------------- | -------------------------------------------------- |
+| https://rapid-agent.devpost.com/submissions                                               | Loads → gallery message: not yet published         |
+| https://rapid-agent.devpost.com/project-gallery                                           | Loads → gallery message: not yet published         |
+| https://rapid-agent.devpost.com/                                                          | Loads → overview, no gallery embed                 |
+| https://rapid-agent.devpost.com/participants                                              | Loads → login required ("Please log in to browse") |
+| https://devpost.com/submit-to/29711-google-cloud-rapid-agent-hackathon/manage/submissions | Submitter-only management UI (auth-gated)          |
 
 ---
 
@@ -48,22 +48,22 @@ This is expected pre-deadline behavior on Devpost — most hackathon hosts gate 
 
 ## Projects table (gallery template — empty)
 
-| Name | Track | Description | GitHub | Website |
-| ---- | ----- | ----------- | ------ | ------- |
-| _(no submissions visible yet)_ | — | — | — | — |
+| Name                           | Track | Description | GitHub | Website |
+| ------------------------------ | ----- | ----------- | ------ | ------- |
+| _(no submissions visible yet)_ | —     | —           | —      | —       |
 
 ---
 
 ## Per-track submission counts
 
-| Track     | Visible submissions | Notes                                  |
-| --------- | ------------------- | -------------------------------------- |
-| Arize     | 0 [UNVERIFIED]      | Gallery unpublished                    |
-| Elastic   | 0 [UNVERIFIED]      | Gallery unpublished                    |
-| Fivetran  | 0 [UNVERIFIED]      | Gallery unpublished                    |
-| GitLab    | 0 [UNVERIFIED]      | Gallery unpublished                    |
-| MongoDB   | 0 [UNVERIFIED]      | Gallery unpublished                    |
-| Dynatrace | 0 [UNVERIFIED]      | Gallery unpublished                    |
+| Track     | Visible submissions | Notes               |
+| --------- | ------------------- | ------------------- |
+| Arize     | 0 [UNVERIFIED]      | Gallery unpublished |
+| Elastic   | 0 [UNVERIFIED]      | Gallery unpublished |
+| Fivetran  | 0 [UNVERIFIED]      | Gallery unpublished |
+| GitLab    | 0 [UNVERIFIED]      | Gallery unpublished |
+| MongoDB   | 0 [UNVERIFIED]      | Gallery unpublished |
+| Dynatrace | 0 [UNVERIFIED]      | Gallery unpublished |
 
 ---
 
@@ -83,14 +83,14 @@ Not available. Gallery unpublished.
 
 **All six tracks visibly GREEN — but this is a measurement artifact, not real signal.**
 
-| Track     | Verdict          | Reasoning                                                  |
-| --------- | ---------------- | ---------------------------------------------------------- |
-| Arize     | GREEN [artifact] | 0 visible, gallery hidden                                  |
-| Elastic   | GREEN [artifact] | 0 visible, gallery hidden                                  |
-| Fivetran  | GREEN [artifact] | 0 visible, gallery hidden                                  |
-| GitLab    | GREEN [artifact] | 0 visible, gallery hidden                                  |
-| MongoDB   | GREEN [artifact] | 0 visible, gallery hidden                                  |
-| Dynatrace | GREEN [artifact] | 0 visible, gallery hidden                                  |
+| Track     | Verdict          | Reasoning                 |
+| --------- | ---------------- | ------------------------- |
+| Arize     | GREEN [artifact] | 0 visible, gallery hidden |
+| Elastic   | GREEN [artifact] | 0 visible, gallery hidden |
+| Fivetran  | GREEN [artifact] | 0 visible, gallery hidden |
+| GitLab    | GREEN [artifact] | 0 visible, gallery hidden |
+| MongoDB   | GREEN [artifact] | 0 visible, gallery hidden |
+| Dynatrace | GREEN [artifact] | 0 visible, gallery hidden |
 
 ### Real saturation prediction (priors-based, since gallery is dark)
 
@@ -98,20 +98,21 @@ With 12,582 registered participants and a typical Devpost completion rate of 4�
 
 Assuming track selection skews toward well-known brands, predicted per-track distribution:
 
-| Track     | Predicted submissions | Predicted saturation | Reasoning                                                                 |
-| --------- | --------------------- | -------------------- | ------------------------------------------------------------------------- |
+| Track     | Predicted submissions | Predicted saturation | Reasoning                                                                          |
+| --------- | --------------------- | -------------------- | ---------------------------------------------------------------------------------- |
 | MongoDB   | 150–300               | RED (predicted)      | Largest dev mindshare among the six; documented common use case (RAG, agent state) |
-| GitLab    | 100–200               | RED (predicted)      | Familiar, plus active GitLab AI Hackathon community already on Devpost     |
-| Elastic   | 80–150                | YELLOW (predicted)   | Mid-tier name recognition; search/RAG angle is well-trodden                |
-| Dynatrace | 50–100                | YELLOW (predicted)   | Observability is niche but trending in agent ops                           |
-| Fivetran  | 40–80                 | YELLOW (predicted)   | Data-pipeline angle is narrow; fewer hackers will know it                  |
-| Arize     | 30–70                 | GREEN (predicted)    | Smallest dev mindshare of the six; specialist tool (LLM observability/evals) |
+| GitLab    | 100–200               | RED (predicted)      | Familiar, plus active GitLab AI Hackathon community already on Devpost             |
+| Elastic   | 80–150                | YELLOW (predicted)   | Mid-tier name recognition; search/RAG angle is well-trodden                        |
+| Dynatrace | 50–100                | YELLOW (predicted)   | Observability is niche but trending in agent ops                                   |
+| Fivetran  | 40–80                 | YELLOW (predicted)   | Data-pipeline angle is narrow; fewer hackers will know it                          |
+| Arize     | 30–70                 | GREEN (predicted)    | Smallest dev mindshare of the six; specialist tool (LLM observability/evals)       |
 
 ### Least-crowded recommendation
 
 **Arize** is the least-crowded predicted lane.
 
 Why it's interesting for Abu specifically:
+
 - Arize = LLM observability + eval tooling. Their MCP server likely exposes trace inspection, eval result querying, and root-cause analysis tools.
 - "Agent that uses Arize to debug agents" is a natural recursive wedge (agent meta-tooling) — judges love this kind of conceptual cleanness.
 - Smaller crowd means lower bar to top-3 ($5K/$3K/$2K still gives the same per-track payout as MongoDB).
