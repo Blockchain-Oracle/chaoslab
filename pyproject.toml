@@ -1,0 +1,114 @@
+## Workspace root — uv workspace + tool configs.
+## NOTE: this file has NO [project] table by design — uv-workspace pattern.
+## Each app under apps/<name>/ has its own [project] table.
+
+[tool.uv]
+package = false
+
+[tool.uv.workspace]
+members = ["apps/chaoslab-agent", "apps/target-agent"]
+
+# --- ruff -------------------------------------------------------------------
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+src = ["apps/chaoslab-agent/src", "apps/target-agent/src"]
+
+[tool.ruff.lint]
+select = [
+  "E", "F", "W",   # pyflakes + pycodestyle
+  "I",             # isort
+  "N",             # pep8-naming
+  "B",             # bugbear
+  "A",             # builtins shadowing
+  "C4",            # comprehensions
+  "T20",           # print statements (banned in src/)
+  "UP",            # pyupgrade
+  "S",             # bandit (security)
+  "PT",            # pytest-style
+  "RET",           # return statements
+  "SIM",           # simplify
+  "PL",            # pylint family
+  "RUF",           # ruff-specific
+]
+ignore = [
+  "S101",          # assert (allowed in tests)
+  "PLR0913",       # too-many-arguments (sometimes needed for ADK signatures)
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["S101", "S105", "S106", "PLR2004", "T201"]
+"__init__.py" = ["F401"]
+"**/_vendored/**" = ["ALL"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+line-ending = "lf"
+
+# --- ty (Astral type-checker — primary per ADR-001) -------------------------
+
+[tool.ty]
+src = ["apps/chaoslab-agent/src", "apps/target-agent/src"]
+python-version = "3.12"
+
+[tool.ty.terminal]
+output-format = "concise"
+
+# --- mypy fallback (only invoked if `TY_FALLBACK=1` env set per ADR-001) ----
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+disallow_untyped_defs = true
+warn_return_any = true
+warn_unreachable = true
+plugins = ["pydantic.mypy"]
+
+[[tool.mypy.overrides]]
+module = "google.adk.*"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "openinference.*"
+ignore_missing_imports = true
+
+# --- pytest -----------------------------------------------------------------
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["apps/chaoslab-agent/tests", "apps/target-agent/tests"]
+markers = [
+  "slow: tests that take >5s",
+  "online: tests that hit real Gemini/Phoenix (cost-impacting; nightly only)",
+  "integration: tests that span multiple components",
+  "e2e: end-to-end against deployed Cloud Run",
+]
+addopts = "-ra --strict-markers --strict-config"
+filterwarnings = [
+  "error",
+  "ignore::DeprecationWarning:google.*",
+  "ignore::DeprecationWarning:opentelemetry.*",
+]
+
+# --- coverage ---------------------------------------------------------------
+
+[tool.coverage.run]
+source = ["apps/chaoslab-agent/src", "apps/target-agent/src"]
+branch = true
+omit = [
+  "*/_vendored/*",
+  "*/tests/*",
+  "*/__init__.py",
+]
+
+[tool.coverage.report]
+fail_under = 80
+show_missing = true
+skip_covered = false
+exclude_lines = [
+  "pragma: no cover",
+  "raise NotImplementedError",
+  "if TYPE_CHECKING:",
+]

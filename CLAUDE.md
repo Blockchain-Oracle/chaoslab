@@ -28,8 +28,12 @@ For domain depth: `research/google-cloud-rapid-agent/READING-ORDER.md`.
 5. **Implement** until tests pass.
 6. **Run all gates locally** before committing (commands below).
 7. **Open PR** via `gh pr create` with conventional-commit title; reference the story file.
-8. **Merge when CI green.** Squash + merge.
-9. **Update `docs/sprint-status.yaml`** — flip story `status: PENDING` → `COMPLETE`; commit on main.
+8. **Run PR review via subagent** — invoke `pr-review-toolkit:review-pr` skill (or `sahil-pr-audit` as fresh-context fallback) against the open PR. Review surfaces silent-failure / type-design / test-coverage / comment-accuracy issues a fresh context catches that you miss.
+9. **Address findings** — for each finding: either (a) amend the PR with a fix commit, or (b) document explicit rejection in a follow-up PR comment with rationale (some findings are noise; use judgment).
+10. **Merge** — `gh pr merge --squash --delete-branch` once CI green (when CI exists post-S1.5) AND PR review verdict acceptable.
+11. **Pull main, update sprint-status** — `git checkout main && git pull && <edit sprint-status.yaml flipping story to COMPLETE> && git commit -am "chore(spec): mark story-<id> COMPLETE" && git push`. Then start the next story.
+
+**Autonomy rule:** don't ask Abu permission for each PR. Run the review subagent, address findings, merge, advance. **Escalate to Abu only when**: (a) the PR review surfaces a BLOCKER you can't address without project-level judgment, (b) a fix would touch an amended ADR (005/006/007/011/012), (c) a hot-path mock would be required to ship (forbidden — re-research and find the real path), or (d) something genuinely contradicts the spec.
 
 One PR per story. No parallel implementation. Eggs in one basket — your focus stays on the story you're in.
 

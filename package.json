@@ -1,0 +1,23 @@
+{
+  "name": "chaoslab-workspace",
+  "version": "0.1.0",
+  "private": true,
+  "description": "ChaosLab — chaos engineering for AI agents. Workspace root.",
+  "license": "Apache-2.0",
+  "author": "Blockchain-Oracle",
+  "packageManager": "pnpm@9.15.4",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "lint": "pnpm -r --if-present lint",
+    "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,md,css,yaml,yml}\" \"!**/node_modules/**\" \"!**/.next/**\" \"!**/dist/**\" \"!**/build/**\" \"!pnpm-lock.yaml\" \"!uv.lock\"",
+    "format:check": "prettier --check \"**/*.{ts,tsx,js,jsx,json,md,css,yaml,yml}\" \"!**/node_modules/**\" \"!**/.next/**\" \"!**/dist/**\" \"!**/build/**\" \"!pnpm-lock.yaml\" \"!uv.lock\"",
+    "typecheck": "pnpm -r --if-present typecheck",
+    "test": "pnpm -r --if-present test",
+    "build": "pnpm -r --if-present build"
+  },
+  "devDependencies": {
+    "prettier": "^3.4.0"
+  }
+}
