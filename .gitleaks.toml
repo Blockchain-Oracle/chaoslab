@@ -1,0 +1,18 @@
+[extend]
+useDefault = true
+
+[[allowlist.paths]]
+description = "Apache-2.0 license text triggers false-positive matches on standard URLs"
+path = '''^LICENSE$'''
+
+[[allowlist.paths]]
+description = "Research corpus contains discussions/transcripts of API surfaces — no live secrets"
+path = '''^research/'''
+
+[[allowlist.paths]]
+description = "Spec files reference example keys / URLs in code blocks"
+path = '''^docs/'''
+
+[[allowlist.paths]]
+description = "Generated lockfiles never contain secrets"
+path = '''(uv\.lock|pnpm-lock\.yaml|package-lock\.json)$'''

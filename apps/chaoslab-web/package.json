@@ -1,0 +1,7 @@
+{
+  "name": "chaoslab-web",
+  "version": "0.1.0",
+  "private": true,
+  "description": "ChaosLab frontend — Next.js dashboard with Attack Matrix + Resilience Curve hero visual. Real scaffold lands in S7.1.",
+  "license": "Apache-2.0"
+}
