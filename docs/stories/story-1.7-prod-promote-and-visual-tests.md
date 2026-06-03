@@ -12,6 +12,7 @@
 
 **As a** ChaosLab maintainer
 **I want to** have two workflows:
+
 1. `prod-promote.yaml` — manually triggered (`workflow_dispatch`) with `commit_sha` + `confirmation=PROMOTE` inputs, that promotes the SAME image hash from staging → prod (never rebuilds) using the blue/green `--no-traffic --tag=candidate-prod` pattern
 2. `visual-tests.yaml` — fires automatically after `staging-deploy.yaml` succeeds (via `workflow_run`) and runs Playwright against the live staging URL with anchor-screenshot diffs
 

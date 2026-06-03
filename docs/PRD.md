@@ -14,6 +14,7 @@
 **ChaosLab is chaos engineering for AI agents.** Solo developers ship LLM agents in days using AI coding tools, but those agents break in unknown ways in production — wrong tool selection under malformed input, prompt-injection cascades, context poisoning that silently corrupts answers, latency spikes that trip retries. Every chaos-engineering tool today (Chaos Mesh, Gremlin, Litmus) attacks infrastructure; every red-team tool today (Lakera, Mindgard, Garak, PyRIT) attacks a single LLM endpoint. **No product targets multi-agent agentic systems with closed-loop hardening.** ChaosLab does. Point it at any agent (ADK, LangChain, CrewAI, browser-use, voice, or HTTP black-box) and it runs 4 LLM-specific fault classes, watches the agent fail in Phoenix traces, LLM-as-judges to cluster failures, generates a hardening recipe (prompt patch + tool validation diff), and emits a regression-tested GitLab MR — autonomously, overnight.
 
 **One-line pitch (judge-facing):**
+
 > ChaosLab — adversarial resilience testing for AI agents. Inject 4 fault classes, watch them fail, harden automatically.
 
 **Sponsor-native fit:**
@@ -39,7 +40,7 @@ ChaosLab is the only Arize-track submission that uses Phoenix as the substrate f
 5. **The wow moment at 2:15:** ChaosLab runs the same 25 attacks against the patched agent. The Attack Matrix cells cascade-flip red → green (Framer Motion stagger). The Resilience Curve jumps from 40% to 92%. The PATCH marker is literally the wedge in the chart. A 1.5-second hold + slow zoom into the PATCH line is the Devpost cover screenshot.
 6. **The receipt at 2:45.** Final card: "Agent ran 50 attacks. 4 fault classes. Identified 3 root causes. Generated 1 hardening recipe (MR #42 opened on GitLab). Total cost: $0.34. Time: 2m 47s." Plus a "Run against your own agent" CTA.
 
-**The wow moment:** *The cascade-flip from red to green at 2:15 — same agent, same attacks, completely different outcome, with the PATCH line as the literal wedge in the chart. Tells the entire story in one frame.*
+**The wow moment:** _The cascade-flip from red to green at 2:15 — same agent, same attacks, completely different outcome, with the PATCH line as the literal wedge in the chart. Tells the entire story in one frame._
 
 ---
 
@@ -59,18 +60,19 @@ Per Abu's directive: "no MVP-vs-stretch framing — ship everything." But these 
 
 ## Judging criteria alignment
 
-| Criterion | Weight | How we score |
-|---|---|---|
-| **Technological Implementation** | 25% | Phoenix MCP + Phoenix Python SDK + Google ADK + Agent Runtime/Cloud Run + A2A peer + GitLab MCP + OpenInference instrumentation + LLM-as-judge clustering. 7+ Google + partner primitives composed in one closed loop. Judges (Arize + Google DevRel) have written half these SDKs. |
-| **Design** | 25% | Trace-as-UI hero pattern (per `architecture/05` §2). Attack Matrix + Resilience Curve hybrid, generated-per-anomaly. Per-agent color palette. Framer Motion cascade-flip. No template look — Pattern D production polish (per `brainstorm/05-prior-winners.md`). |
-| **Potential Impact** | 25% | Every team building agents in 2026 has this pain. Real-world incidents (Air Canada chatbot, Replit prod DB delete, Cursor unintended edits — see `context/02-production-failures.md`) would have been caught by pre-prod fault injection. Market gap: no existing red-team product (Lakera, Mindgard, HiddenLayer, Garak, PyRIT) treats multi-agent A2A topology as first-class (per `context/03 §13`). |
-| **Quality of Idea** | 25% | 4-source convergence in the brainstorm (first-principles, landscape, protocol, ecosystem refactor — all surfaced variants of "agent breaks agent"). Novelty gate top match: 0.062 in 17,000+ project corpus — zero close duplicates. Arize-track-aligned recursive angle. |
+| Criterion                        | Weight | How we score                                                                                                                                                                                                                                                                                                                                                                                            |
+| -------------------------------- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Technological Implementation** | 25%    | Phoenix MCP + Phoenix Python SDK + Google ADK + Agent Runtime/Cloud Run + A2A peer + GitLab MCP + OpenInference instrumentation + LLM-as-judge clustering. 7+ Google + partner primitives composed in one closed loop. Judges (Arize + Google DevRel) have written half these SDKs.                                                                                                                     |
+| **Design**                       | 25%    | Trace-as-UI hero pattern (per `architecture/05` §2). Attack Matrix + Resilience Curve hybrid, generated-per-anomaly. Per-agent color palette. Framer Motion cascade-flip. No template look — Pattern D production polish (per `brainstorm/05-prior-winners.md`).                                                                                                                                        |
+| **Potential Impact**             | 25%    | Every team building agents in 2026 has this pain. Real-world incidents (Air Canada chatbot, Replit prod DB delete, Cursor unintended edits — see `context/02-production-failures.md`) would have been caught by pre-prod fault injection. Market gap: no existing red-team product (Lakera, Mindgard, HiddenLayer, Garak, PyRIT) treats multi-agent A2A topology as first-class (per `context/03 §13`). |
+| **Quality of Idea**              | 25%    | 4-source convergence in the brainstorm (first-principles, landscape, protocol, ecosystem refactor — all surfaced variants of "agent breaks agent"). Novelty gate top match: 0.062 in 17,000+ project corpus — zero close duplicates. Arize-track-aligned recursive angle.                                                                                                                               |
 
 ---
 
 ## README shape (§13 — required ordering)
 
 The shipped `README.md` must contain in this order:
+
 1. Project name + one-line pitch
 2. Demo URL (Cloud Run-hosted, NOT localhost)
 3. Screenshot/GIF of the cascade-flip moment (above the fold) — auto-generated from the Devpost OG image

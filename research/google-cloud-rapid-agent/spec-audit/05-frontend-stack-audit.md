@@ -8,21 +8,21 @@
 
 ## Verdicts at a glance
 
-| # | Claim | Verdict | Severity |
-|---|---|---|---|
-| 1 | Next.js 15 is shipping (not beta) | ⚠️ **STALE — Next.js 16 is the `latest` tag (16.2.7, 2026-06-01); 15.5.19 is `backport` only** | **BLOCKING** |
-| 2 | Tailwind 4 is shipping (not beta) | ✅ PASS — Tailwind 4.3.0 is `latest`, CSS-first `@theme` is canonical | none |
-| 3 | `@tailwindcss/postcss` is the correct PostCSS plugin name | ✅ PASS — `@tailwindcss/postcss@4.3.0`, exact plugin name spec'd | none |
-| 4 | shadcn/ui CLI works with Tailwind 4 | ✅ PASS — shadcn CLI ships Tailwind-4-aware templates since 2.x; current `latest` = 4.10.0 | none |
-| 5 | `pnpm dlx shadcn@latest init` is canonical install | ✅ PASS — confirmed against shadcn docs | none |
-| 6 | shadcn "New York" style exists | ✅ PASS — one of two officially documented styles (default + new-york) | none |
-| 7 | `@visx/*` packages exist + co-versioned | ⚠️ **CAVEAT — all at v3.12.0 (`latest`); v3.x peerDeps DO NOT list React 19 (`^16 || ^17 || ^18` only). v4.0.0-alpha.11 adds React 19. Stable v4 not yet released.** | **BLOCKING for React 19** |
-| 8 | `framer-motion` v12 is shipping; `motion.div`, stagger via per-index delays, `useReducedMotion()` are stable v12 APIs | ✅ PASS — `framer-motion@12.40.0` (2026-05-21) is `latest`; all three APIs documented in v12 | none |
-| 9 | `zustand` v5 exists + API stable | ✅ PASS — `zustand@5.0.14` is `latest`, React 18+ peer | none |
-| 10 | `@tanstack/react-query` v5 + `nuqs` exist | ✅ PASS — `@tanstack/react-query@5.101.0`, `nuqs@2.8.9` (note: nuqs peer is `next>=14.2.0`, fine for 15+ and 16) | none |
-| 11 | `@playwright/test` current + `toHaveScreenshot()` API stable | ✅ PASS — `@playwright/test@1.60.0`, `toHaveScreenshot()` is GA since 1.31 | none |
-| 12 | `output: 'standalone'` in `next.config.ts` produces `server.js` for Cloud Run | ✅ PASS — documented in Next.js docs; pattern unchanged from 15 → 16 | none |
-| 13 | `sahil-visual-loop` skill exists + integration path matches | ✅ PASS — `/Users/abu/.claude/skills/sahil-visual-loop/SKILL.md` exists; all 8 templates present; S7.12 file map matches verbatim | none |
+| #   | Claim                                                                                                                 | Verdict                                                                                                                           | Severity     |
+| --- | --------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- | ------------ | --- | --- | -------------------------------------------------------------------------- | ------------------------- |
+| 1   | Next.js 15 is shipping (not beta)                                                                                     | ⚠️ **STALE — Next.js 16 is the `latest` tag (16.2.7, 2026-06-01); 15.5.19 is `backport` only**                                    | **BLOCKING** |
+| 2   | Tailwind 4 is shipping (not beta)                                                                                     | ✅ PASS — Tailwind 4.3.0 is `latest`, CSS-first `@theme` is canonical                                                             | none         |
+| 3   | `@tailwindcss/postcss` is the correct PostCSS plugin name                                                             | ✅ PASS — `@tailwindcss/postcss@4.3.0`, exact plugin name spec'd                                                                  | none         |
+| 4   | shadcn/ui CLI works with Tailwind 4                                                                                   | ✅ PASS — shadcn CLI ships Tailwind-4-aware templates since 2.x; current `latest` = 4.10.0                                        | none         |
+| 5   | `pnpm dlx shadcn@latest init` is canonical install                                                                    | ✅ PASS — confirmed against shadcn docs                                                                                           | none         |
+| 6   | shadcn "New York" style exists                                                                                        | ✅ PASS — one of two officially documented styles (default + new-york)                                                            | none         |
+| 7   | `@visx/*` packages exist + co-versioned                                                                               | ⚠️ \*\*CAVEAT — all at v3.12.0 (`latest`); v3.x peerDeps DO NOT list React 19 (`^16                                               |              | ^17 |     | ^18` only). v4.0.0-alpha.11 adds React 19. Stable v4 not yet released.\*\* | **BLOCKING for React 19** |
+| 8   | `framer-motion` v12 is shipping; `motion.div`, stagger via per-index delays, `useReducedMotion()` are stable v12 APIs | ✅ PASS — `framer-motion@12.40.0` (2026-05-21) is `latest`; all three APIs documented in v12                                      | none         |
+| 9   | `zustand` v5 exists + API stable                                                                                      | ✅ PASS — `zustand@5.0.14` is `latest`, React 18+ peer                                                                            | none         |
+| 10  | `@tanstack/react-query` v5 + `nuqs` exist                                                                             | ✅ PASS — `@tanstack/react-query@5.101.0`, `nuqs@2.8.9` (note: nuqs peer is `next>=14.2.0`, fine for 15+ and 16)                  | none         |
+| 11  | `@playwright/test` current + `toHaveScreenshot()` API stable                                                          | ✅ PASS — `@playwright/test@1.60.0`, `toHaveScreenshot()` is GA since 1.31                                                        | none         |
+| 12  | `output: 'standalone'` in `next.config.ts` produces `server.js` for Cloud Run                                         | ✅ PASS — documented in Next.js docs; pattern unchanged from 15 → 16                                                              | none         |
+| 13  | `sahil-visual-loop` skill exists + integration path matches                                                           | ✅ PASS — `/Users/abu/.claude/skills/sahil-visual-loop/SKILL.md` exists; all 8 templates present; S7.12 file map matches verbatim | none         |
 
 **Totals:** 11 PASS, 2 BLOCKING amendments needed.
 
@@ -56,13 +56,15 @@ nuqs                       latest=2.8.9   peer: next>=14.2.0, react>=18.2.0
 **Spec says:** Next.js 15 (App Router), pin `next@15.x`, `react@19.x`. (architecture.md L14, L184; story-7.1 L24/L157.)
 
 **Reality (2026-06-03):**
+
 - `npm view next dist-tags` → `latest=16.2.7`, `backport=15.5.19`, `beta=16.0.0-beta.0`.
 - Next.js 16 has been the default `latest` since 2025-Q3 (16.0.x). 16.2.7 shipped 2026-06-01.
 - Next.js 15 is in long-term backport mode. The `next-15-5`, `next-15-3`, `next-15-2`, `next-15-0` dist-tags are all pinned to old patches.
 - `pnpm add next` today **resolves to 16.2.7, not 15.x.** Story-7.1's verification step `node -e "...p.dependencies.next..."` only checks presence, not major — it will silently install 16.
 
 **Impact:**
-- The spec's package pin `^next@15.x` is a *downgrade* requirement against the registry default. The coding agent must explicitly request `next@^15` (or `next@~15.5`) — otherwise `pnpm add next` writes `"next": "^16"`.
+
+- The spec's package pin `^next@15.x` is a _downgrade_ requirement against the registry default. The coding agent must explicitly request `next@^15` (or `next@~15.5`) — otherwise `pnpm add next` writes `"next": "^16"`.
 - App Router shape is broadly compatible 15→16, but breaking changes exist (async `cookies()`/`headers()`/`params`/`searchParams` enforced; `next/dynamic` defaults; Turbopack default for `dev` and `build`). Specifically:
   - `params` and `searchParams` props in pages MUST be `await`ed in 16 (already enforced).
   - `cookies()`, `headers()`, `draftMode()` are async in 15+ (carried into 16).
@@ -72,6 +74,7 @@ nuqs                       latest=2.8.9   peer: next>=14.2.0, react>=18.2.0
 **Required amendment (architecture.md + story-7.1):**
 
 Either:
+
 - **Option A (recommended for hackathon scope):** Bump to Next.js 16 throughout. Rationale: 16 has been `latest` for ~8 months, ecosystem is on it, React 19 fully supported, Turbopack default speeds up the visual loop. Spec is stale, not the registry.
 - **Option B:** Keep 15 explicitly. Then story-7.1's install command must be `pnpm add next@~15.5 react@~19 react-dom@~19` and verification must `grep -E '"next":\s*"~?\^?15'`. Risk: 15.5.x is in maintenance mode, not feature mode — no new App Router improvements, slower bug fixes.
 
@@ -109,12 +112,14 @@ Exact package name. Versioned in lockstep with `tailwindcss` (`4.3.0` matches). 
 **Spec says:** install `@visx/{group,scale,shape,grid,axis,responsive,text}` (architecture.md L188; story-7.6 L29).
 
 **Reality:**
+
 - All 7 packages at **3.12.0** (`latest`). Co-versioned, no version skew.
 - **BUT:** visx 3.x peerDependencies are `react: ^16.0.0-0 || ^17.0.0-0 || ^18.0.0-0` — **React 19 NOT listed.**
 - Spec also pins `react@19.x` (architecture.md L185).
 - visx 4.0.0-alpha.11 adds React 19 to peerDeps (`^16.14 || ^17 || ^18 || ^19`) but it's **alpha** — `4.0.0` stable not yet released. The Airbnb visx repo has been in maintenance mode through 2026.
 
 **Impact:**
+
 - `pnpm install` with strict-peer-deps will WARN or FAIL on the visx + react@19 combination. `pnpm` defaults to `auto-install-peers=true` and `strict-peer-dependencies=false` in newer versions, so installs usually succeed but emit `WARN unmet peer dependency` — silent at install, a real risk in CI if `--strict-peer-dependencies` is on.
 - At runtime visx 3.12.0 + React 19 works in practice (visx uses standard React APIs, no concurrent-rendering hazards). The community has run this combo on React 19 since late 2024. But it's UNDOCUMENTED COMPATIBILITY.
 
@@ -123,6 +128,7 @@ Exact package name. Versioned in lockstep with `tailwindcss` (`4.3.0` matches). 
 Add an `.npmrc` override OR a `package.json#pnpm.overrides` entry to silence the peer warning, OR pin visx to `4.0.0-alpha.11` and accept alpha risk.
 
 **Recommendation:** Use visx 3.12.0 and add to `apps/chaoslab-web/package.json`:
+
 ```json
 "pnpm": {
   "peerDependencyRules": {
@@ -132,6 +138,7 @@ Add an `.npmrc` override OR a `package.json#pnpm.overrides` entry to silence the
   }
 }
 ```
+
 And document this in `architecture.md` ADR (or under "Required external libraries"). Story-7.6 should call out the override in "Notes for coding agent."
 
 ---

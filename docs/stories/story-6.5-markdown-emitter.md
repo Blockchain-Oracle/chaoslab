@@ -35,7 +35,7 @@ The coding agent must NOT modify files outside this map without re-checking CLAU
 
 ## Acceptance criteria (BDD — machine-verifiable)
 
-```
+````
 Given apps/chaoslab-agent/src/chaoslab_agent/patcher/markdown_emitter.py exists
 When  `uv run python -c "from chaoslab_agent.patcher.markdown_emitter import MarkdownEmitter, EmitResult; print('ok')"` runs
 Then  stdout contains "ok" and exit code is 0
@@ -104,7 +104,7 @@ Then  exit code is 0 (markdown_emitter.py ≤250 LOC, _markdown_renderer.py ≤2
 Given `grep -rE "(mock|fake|dummy|hardcoded|simulated)" apps/chaoslab-agent/src/chaoslab_agent/patcher/markdown_emitter.py apps/chaoslab-agent/src/chaoslab_agent/patcher/_markdown_renderer.py` runs
 When  output is checked
 Then  zero results appear (§14 gate clean)
-```
+````
 
 ---
 
@@ -231,7 +231,7 @@ class MarkdownEmitter:
 
 ### `render_recipe` pure-function shape
 
-```python
+````python
 # apps/chaoslab-agent/src/chaoslab_agent/patcher/_markdown_renderer.py
 """Pure-function Markdown rendering for HardeningRecipe. NO I/O.
 
@@ -295,7 +295,7 @@ def render_recipe(recipe: HardeningRecipe) -> str:
                  f"validated by re-attack phase in ChaosLab's closed loop)\n")
 
     return "\n".join(parts)
-```
+````
 
 ### Architecture context
 

@@ -41,6 +41,7 @@ Exact files the coding agent creates or modifies for this story:
   - `__all__` list explicitly enumerates every export so a `from chaoslab_agent.adk_types import *` is safe (it's banned in src/ but tests use it).
   - ~150 lines.
 - `apps/chaoslab-agent/src/chaoslab_agent/main.py` — UPDATE — replace the S4.1 `try/except ImportError` guard with a proper startup sequence:
+
   ```python
   from chaoslab_agent.config import get_settings
   from chaoslab_agent.observability import setup_logging, setup_phoenix_otel
@@ -51,7 +52,9 @@ Exact files the coding agent creates or modifies for this story:
   # NOW it's safe to import google.adk.* (via chaoslab_agent.adk_types)
   from chaoslab_agent.adk_types import LlmAgent, SequentialAgent, RunState, RunEvent
   ```
+
   Replace direct `google.adk.*` imports throughout `main.py` with imports from `chaoslab_agent.adk_types`. ~30 lines net change.
+
 - `apps/chaoslab-agent/src/chaoslab_agent/orchestrator.py` — UPDATE — replace direct `google.adk.*` imports with `from chaoslab_agent.adk_types import LlmAgent, SequentialAgent`. ~5 lines changed.
 - `apps/chaoslab-agent/src/chaoslab_agent/injector/agent.py` — UPDATE — same import-rewrite.
 - `apps/chaoslab-agent/src/chaoslab_agent/judge/agent.py` — UPDATE — same import-rewrite.
@@ -67,7 +70,7 @@ Exact files the coding agent creates or modifies for this story:
   - `get_logger("chaoslab_agent.test")` returns a bound logger with the correct name in its output.
   - `setup_logging` is idempotent (calling twice does not double-process events).
   - Log level filtering: `setup_logging(env="production")` → INFO+; `log.debug("x")` produces no output.
-  ~180 lines.
+    ~180 lines.
 - `apps/chaoslab-agent/tests/unit/test_adk_types.py` — NEW — at least 8 pytest cases:
   - `from chaoslab_agent.adk_types import LlmAgent, SequentialAgent, FunctionTool` — all import without error.
   - `AgentSpec(name="x", description="a"*25, model="gemini-3.5-flash")` validates.
@@ -78,7 +81,7 @@ Exact files the coding agent creates or modifies for this story:
   - `RunEvent(event_type="hello", data={"x":1}, emitted_at="...")` validates.
   - `RunEvent(event_type="invalid_kind", ...)` raises (Literal mismatch).
   - **Quarantine assertion:** `grep -lE "^(from|import) google\.adk" apps/chaoslab-agent/src/chaoslab_agent/` returns exactly 1 file (`adk_types.py`). This is the load-bearing architectural invariant — enforced by the test via `subprocess.run(["grep", "-lE", ...])`.
-  ~140 lines.
+    ~140 lines.
 
 The coding agent must NOT modify files outside this map without re-checking CLAUDE.md.
 
@@ -219,6 +222,7 @@ cd apps/chaoslab-agent && uv run ruff check . && uv run ruff format . --check &&
 
 - **Why two files, not one.** The prompt explicitly splits into `observability.py` (~80 LOC) and `adk_types.py` (~150 LOC) — two files, each well under 400. Do not merge them — the 400-line rule is a hard ceiling and the quarantine architectural invariant deserves its own file with a clear purpose statement at the top.
 - **`_add_phoenix_trace_id` is the load-bearing processor.** Per `best-practices/03 §11`:
+
   ```python
   from opentelemetry import trace
 
@@ -230,7 +234,9 @@ cd apps/chaoslab-agent && uv run ruff check . && uv run ruff format . --check &&
           event_dict["span_id"] = format(ctx.span_id, "016x")
       return event_dict
   ```
+
   The `is_recording()` check is critical — outside a span, `get_current_span()` returns a NonRecordingSpan with `trace_id=0`, and we DON'T want zero-padded fake trace IDs in logs. The BDD asserts both the in-span and outside-span paths.
+
 - **Idempotence of `setup_logging`.** structlog's `cache_logger_on_first_use=True` means the first `get_logger` call freezes the processor chain. Subsequent `setup_logging` calls technically reconfigure but cached loggers don't pick it up. The test asserts no crash; do not over-engineer (this matches the structlog docs' guidance).
 - **Quarantine invariant is THE architectural guarantee.** Per ADR-001 + `best-practices/03 §3`: `google.adk.*` ships partial type stubs and dynamic types. By funneling EVERY `google.adk` import through one file, type-check failures land in one well-known place, SDK upgrades touch one file, and business-logic modules stay strict-typed against the local pydantic shape. The grep-based BDD enforces this — if any other src file imports `google.adk.*` at module top level, the gate fails. **Function-local imports inside `if TYPE_CHECKING:` blocks are allowed** (they don't execute at runtime); the grep regex `^(from|import) google\.adk` is anchored to BOL so leading whitespace is fine.
 - **`AgentSpec.model: Literal["gemini-3.5-flash"]`** enforces ADR-007 at the type level — pydantic raises on construction if any other string. Belt-and-suspenders with the runtime validator in `config.py`. The BDD has both checks.

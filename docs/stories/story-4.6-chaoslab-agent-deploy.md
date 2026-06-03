@@ -42,13 +42,13 @@ Exact files the coding agent creates or modifies for this story:
   - `gcloud run deploy chaoslab-agent --image=... --region=$REGION --platform=managed --service-account=chaoslab-agent-runtime@$PROJECT_ID.iam.gserviceaccount.com --min-instances=1 --max-instances=3 --memory=1Gi --cpu=1 --port=8080 --no-allow-unauthenticated --set-secrets="PHOENIX_API_KEY=phoenix-api-key:latest,GEMINI_API_KEY=gemini-api-key:latest,GITLAB_TOKEN=gitlab-token:latest" --set-env-vars="ENVIRONMENT=staging,JUDGE_LLM=gemini-3.5-flash,SERVICE_VERSION=${{ github.sha }},TARGET_DEFAULT_URL=https://target-agent-${PROJECT_HASH}.run.app" --tag=candidate --no-traffic`
   - Smoke test: `curl -fsS https://candidate---chaoslab-agent-$PROJECT_HASH.run.app/health` retries 5x
   - On smoke pass: `gcloud run services update-traffic chaoslab-agent --to-latest=100 --region=$REGION`
-  ~50 added lines (workflow file may grow but stays under 400).
+    ~50 added lines (workflow file may grow but stays under 400).
 - `apps/chaoslab-agent/tests/integration/test_dockerfile.py` — NEW — at least 4 pytest cases marked `@pytest.mark.slow`:
   - `Dockerfile` exists at the expected path and starts with `FROM python:3.12-slim`.
   - `subprocess.run(["docker", "build", ...])` exits 0 (skipped if `DOCKER_AVAILABLE` env var unset — for CI dispatch on a labeled runner).
   - Built image size is < 800MB: `docker images --format "{{.Size}}"` parsed.
   - `docker run -d -p 8080:8080 -e PHOENIX_API_KEY=dummy -e GEMINI_API_KEY=dummy ...` starts the container; `curl http://localhost:8080/health` returns 200; container stops cleanly. (Validates the full Dockerfile contract end-to-end.)
-  ~120 lines.
+    ~120 lines.
 
 The coding agent must NOT modify files outside this map without re-checking CLAUDE.md.
 

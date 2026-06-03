@@ -1,6 +1,6 @@
 # Python Project Layout & Library Best Practices (2026)
 
-> **Scope.** This document captures *what's true in 2026* about Python project structure and library selection for production agent projects. It is purely descriptive — no decisions or opinions about any specific project. Downstream agents read this and make their own choices.
+> **Scope.** This document captures _what's true in 2026_ about Python project structure and library selection for production agent projects. It is purely descriptive — no decisions or opinions about any specific project. Downstream agents read this and make their own choices.
 >
 > **Date of research.** 2026-06-02. Versions valid as of this date and may drift.
 >
@@ -27,7 +27,7 @@ myproj/                                myproj/
 
 **PyPA guidance (https://packaging.python.org/en/latest/discussions/src-layout-vs-flat-layout/):** PyPA presents both as viable, but enumerates three concrete benefits of `src/`:
 
-1. **Prevents accidental imports of the in-tree copy.** Because Python prepends CWD to `sys.path`, a flat layout can silently import the working-copy package instead of the *installed* one — masking packaging bugs. `src/` removes that ambiguity. `[VERIFIED — PyPA guide]`
+1. **Prevents accidental imports of the in-tree copy.** Because Python prepends CWD to `sys.path`, a flat layout can silently import the working-copy package instead of the _installed_ one — masking packaging bugs. `src/` removes that ambiguity. `[VERIFIED — PyPA guide]`
 2. **Forces editable install during development.** You can't `python -c "import mypkg"` from the project root without `pip install -e .` first. This catches packaging-config bugs early.
 3. **Catches packaging errors.** Files not properly listed in the build config simply aren't importable, surfacing configuration drift before publish.
 
@@ -35,14 +35,14 @@ myproj/                                myproj/
 
 ### 1.2 Package vs application distinction
 
-| | Library (publishable) | Application (deployable) |
-|---|---|---|
-| Distributed via | PyPI wheel | Container image / source bundle |
-| Layout favoured | `src/` (PyPA-recommended) | Flat is common and accepted |
-| `pyproject.toml [project] name` | The PyPI dist name | Just a project name (e.g., `my-agent`) |
-| Entry points | `[project.scripts]` for CLI tools | Often via uvicorn/adk/gunicorn invocation |
-| Dependency style | Loose lower-bounds (`>=`) | Pinned with lockfile (`uv.lock`) |
-| Build backend | Required (hatchling, setuptools, poetry-core) | Required only if containerised wheel build |
+|                                 | Library (publishable)                         | Application (deployable)                   |
+| ------------------------------- | --------------------------------------------- | ------------------------------------------ |
+| Distributed via                 | PyPI wheel                                    | Container image / source bundle            |
+| Layout favoured                 | `src/` (PyPA-recommended)                     | Flat is common and accepted                |
+| `pyproject.toml [project] name` | The PyPI dist name                            | Just a project name (e.g., `my-agent`)     |
+| Entry points                    | `[project.scripts]` for CLI tools             | Often via uvicorn/adk/gunicorn invocation  |
+| Dependency style                | Loose lower-bounds (`>=`)                     | Pinned with lockfile (`uv.lock`)           |
+| Build backend                   | Required (hatchling, setuptools, poetry-core) | Required only if containerised wheel build |
 
 The `agent-starter-pack` template is interesting because the generated project is shaped like an application (deployed to Cloud Run / Agent Engine) but still ships with `[build-system] requires = ["hatchling"]` so the agent module can be wheel-built for deployment. `[VERIFIED — agent-starter-pack base template pyproject.toml]`
 
@@ -78,25 +78,26 @@ tests/
     └── evalsets/
         └── basic.evalset.json
 ```
+
 `[VERIFIED — gh api inspection]`
 
 ### 1.4 Config file conventions
 
 A 2026 production Python project typically ships:
 
-| File | Role | Required? |
-|---|---|---|
-| `pyproject.toml` | PEP 517/518 build config + tool config | Yes |
-| `uv.lock` (or `poetry.lock`) | Pinned dependency graph | Yes for apps |
-| `.python-version` | pyenv / uv reads to pin interpreter | Yes |
-| `.env.example` | Documented env var template (no secrets) | Yes |
-| `.env` | Local-only secrets, gitignored | Yes (gitignored) |
-| `.gitignore` | Standard Python + tool exclusions | Yes |
-| `.dockerignore` | Slim container builds | If containerized |
-| `Makefile` | Common dev commands (install / test / lint / deploy) | Common, not required |
-| `README.md` | Project overview, quickstart, links | Yes |
-| `CLAUDE.md` / `GEMINI.md` / `AGENTS.md` | Agent-driven dev guidance | Optional, increasingly common |
-| `LICENSE` | OSS license file | If open source |
+| File                                    | Role                                                 | Required?                     |
+| --------------------------------------- | ---------------------------------------------------- | ----------------------------- |
+| `pyproject.toml`                        | PEP 517/518 build config + tool config               | Yes                           |
+| `uv.lock` (or `poetry.lock`)            | Pinned dependency graph                              | Yes for apps                  |
+| `.python-version`                       | pyenv / uv reads to pin interpreter                  | Yes                           |
+| `.env.example`                          | Documented env var template (no secrets)             | Yes                           |
+| `.env`                                  | Local-only secrets, gitignored                       | Yes (gitignored)              |
+| `.gitignore`                            | Standard Python + tool exclusions                    | Yes                           |
+| `.dockerignore`                         | Slim container builds                                | If containerized              |
+| `Makefile`                              | Common dev commands (install / test / lint / deploy) | Common, not required          |
+| `README.md`                             | Project overview, quickstart, links                  | Yes                           |
+| `CLAUDE.md` / `GEMINI.md` / `AGENTS.md` | Agent-driven dev guidance                            | Optional, increasingly common |
+| `LICENSE`                               | OSS license file                                     | If open source                |
 
 **`pyproject.toml` as the single source of truth.** PEP 621 (`[project]` table) + PEP 518 (`[build-system]`) + tool-specific tables (`[tool.ruff]`, `[tool.pytest.ini_options]`, `[tool.mypy]`, `[tool.uv]`, `[tool.hatch.build.targets.wheel]`) all live in one file. Standalone `setup.py`, `setup.cfg`, `requirements.txt`, `Pipfile`, `tox.ini` are legacy in 2026 — most new projects skip them.
 
@@ -117,6 +118,7 @@ mypkg-core = { workspace = true }
 ```
 
 Key facts (from uv workspaces docs):
+
 - **Single shared `uv.lock`** at the workspace root. All members lock to the same dependency versions. `[VERIFIED]`
 - **Per-package `pyproject.toml`** with its own dependencies + tool config.
 - **Shared `requires-python`** — uv takes the intersection of all members' Python version requirements. `[VERIFIED]`
@@ -170,6 +172,7 @@ Key facts (from uv workspaces docs):
 ### 2.5 Recommended default in 2026
 
 Signal: every major template I inspected in this research pass uses uv:
+
 - `agent-starter-pack` (Google Cloud) — `uvx agent-starter-pack create ...`, `uv sync`, `uv run`, `uv.lock` in repo. `[VERIFIED]`
 - ADK template Makefile bootstraps uv if missing: `curl -LsSf https://astral.sh/uv/0.8.13/install.sh | sh`. `[VERIFIED]`
 - Tooling installations: `uv tool install ruff`, `uvx ty check`. `[VERIFIED — official docs of each tool]`
@@ -224,6 +227,7 @@ agent-starter-pack/
 ├── llm.txt                     # Machine-readable LLM-onboarding doc
 └── README.md
 ```
+
 `[VERIFIED — gh api repos/GoogleCloudPlatform/agent-starter-pack/contents inspection]`
 
 ### 3.3 The Python base template (`agent_starter_pack/base_templates/python/`)
@@ -259,6 +263,7 @@ This is what gets rendered when a user runs `uvx agent-starter-pack create my-ag
 │           └── basic.evalset.json
 └── {{cookiecutter.agent_guidance_filename}}    # default: `GEMINI.md`
 ```
+
 `[VERIFIED — base_templates/python directory listing + Makefile + pyproject.toml fetches]`
 
 ### 3.4 Canonical `agent.py` shape (ADK template)
@@ -308,6 +313,7 @@ app = App(
     name="app",
 )
 ```
+
 `[VERIFIED — agents/adk/app/agent.py in repo]`
 
 Key observations:
@@ -408,20 +414,24 @@ session_type = "in_memory"
 cicd_runner = "google_cloud_build"
 include_data_ingestion = false
 ```
+
 `[VERIFIED — base_templates/python/pyproject.toml]`
 
 ### 3.6 How `adk web` discovers agents
 
 From the generated Makefile:
+
 ```make
 playground:
     uv run adk web . --port 8501 --reload_agents
 ```
+
 `[VERIFIED — Makefile]`
 
 The `adk web` CLI is invoked with a **directory argument**. It walks that directory looking for subdirectories that contain a module exposing an `App` (or `root_agent`). The base template's instructions reinforce this: "Select the 'app' folder to interact with your agent." `[VERIFIED — Makefile echo]`
 
 So the discovery contract is:
+
 1. A subdirectory matching the agent's name (e.g., `app/`).
 2. An `app/__init__.py` re-exporting an `App` instance (e.g., `from .agent import app; __all__ = ["app"]`).
 3. `adk web <parent-dir>` is launched from the project root.
@@ -432,12 +442,12 @@ So the discovery contract is:
 
 Subcommands surfaced by the starter-pack Makefile and ADK docs:
 
-| Command | Purpose |
-|---|---|
-| `adk web <dir>` | Launches local web playground that auto-discovers agents in `<dir>`. |
-| `adk eval <agent_path> <evalset.json>` | Runs evaluation suite against a defined agent. The Makefile's `eval` target uses this. `[VERIFIED]` |
-| `adk run <module>` | Local single-agent CLI run (per ADK docs). `[UNVERIFIED via direct fetch in this pass — adk.dev landing didn't expose CLI details]` |
-| `adk deploy ...` | Some deployment-helper subcommands exist depending on ADK version. `[UNVERIFIED for current API]` |
+| Command                                | Purpose                                                                                                                             |
+| -------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| `adk web <dir>`                        | Launches local web playground that auto-discovers agents in `<dir>`.                                                                |
+| `adk eval <agent_path> <evalset.json>` | Runs evaluation suite against a defined agent. The Makefile's `eval` target uses this. `[VERIFIED]`                                 |
+| `adk run <module>`                     | Local single-agent CLI run (per ADK docs). `[UNVERIFIED via direct fetch in this pass — adk.dev landing didn't expose CLI details]` |
+| `adk deploy ...`                       | Some deployment-helper subcommands exist depending on ADK version. `[UNVERIFIED for current API]`                                   |
 
 ### 3.8 Tests organization in the ADK template
 
@@ -485,9 +495,11 @@ def test_agent_stream() -> None:
         for event in events
     )
 ```
+
 `[VERIFIED — tests/integration/test_agent.py in repo]`
 
 Pytest config (from pyproject.toml):
+
 ```toml
 [tool.pytest.ini_options]
 pythonpath = "."                              # so `from app.agent import ...` works
@@ -495,11 +507,13 @@ asyncio_default_fixture_loop_scope = "function"
 ```
 
 The Makefile's `test` target:
+
 ```make
 test:
     uv sync --dev
     uv run pytest tests/unit && uv run pytest tests/integration
 ```
+
 `[VERIFIED]`
 
 ### 3.9 Lint target conventions
@@ -514,6 +528,7 @@ lint:
     uv run ruff format . --check --diff   # formatter check
     uv run ty check .                # type checker
 ```
+
 `[VERIFIED — base template Makefile]`
 
 Note: the template uses **`ty`** (Astral's Rust type checker), not mypy or pyright. See §4 for tradeoffs.
@@ -526,11 +541,12 @@ All versions verified against PyPI on 2026-06-02 unless noted.
 
 ### 4.1 Core ADK
 
-| Library | Version | Notes |
-|---|---|---|
+| Library      | Version                | Notes                                                                                                                                                                                                                                                                                               |
+| ------------ | ---------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `google-adk` | **2.1.0** (2026-05-23) | `pip install google-adk`. Python ≥3.10. Optional extras: `a2a`, `eval`, `extensions`, `gcp`, `mcp`, `otel-gcp`, `slack`, `test`, `tools`, `toolbox`. `[VERIFIED — pypi.org/project/google-adk]`. Note: the agent-starter-pack template still pins `>=1.15.0,<2.0.0` because templates lag releases. |
 
 Common extras-pin pattern in pyproject:
+
 ```toml
 dependencies = ["google-adk>=2.1.0,<3.0.0"]
 [project.optional-dependencies]
@@ -541,14 +557,15 @@ mcp = ["google-adk[mcp]>=2.1.0,<3.0.0"]
 
 ### 4.2 Phoenix observability
 
-| Library | Version | Notes |
-|---|---|---|
-| `arize-phoenix` | **17.0.0** (2026-06-02) | The full Phoenix UI + server. Python `>=3.10,<3.15`. Elastic License 2.0. `[VERIFIED — pypi.org/project/arize-phoenix]` |
-| `arize-phoenix-otel` | (latest) | Lightweight OTel SDK wrapper. Install when you only need to emit traces, not host the UI. `[UNVERIFIED for current pinned version]` |
-| `arize-phoenix-client` | (latest) | Programmatic client for the Phoenix REST API (experiments, datasets, annotations). `[UNVERIFIED for current pinned version]` |
+| Library                                    | Version                 | Notes                                                                                                                                                      |
+| ------------------------------------------ | ----------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `arize-phoenix`                            | **17.0.0** (2026-06-02) | The full Phoenix UI + server. Python `>=3.10,<3.15`. Elastic License 2.0. `[VERIFIED — pypi.org/project/arize-phoenix]`                                    |
+| `arize-phoenix-otel`                       | (latest)                | Lightweight OTel SDK wrapper. Install when you only need to emit traces, not host the UI. `[UNVERIFIED for current pinned version]`                        |
+| `arize-phoenix-client`                     | (latest)                | Programmatic client for the Phoenix REST API (experiments, datasets, annotations). `[UNVERIFIED for current pinned version]`                               |
 | `openinference-instrumentation-google-adk` | **0.1.15** (2026-05-22) | Auto-instruments ADK calls into OpenInference span format. Python `>=3.10,<3.15`. `[VERIFIED — pypi.org/project/openinference-instrumentation-google-adk]` |
 
 Setup boilerplate (per openinference-instrumentation-google-adk docs):
+
 ```python
 from openinference.instrumentation.google_adk import GoogleADKInstrumentor
 from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
@@ -566,62 +583,64 @@ GoogleADKInstrumentor().instrument(tracer_provider=provider)
 
 ### 4.3 HTTP client
 
-| Library | Version | Notes |
-|---|---|---|
-| `httpx` | **0.28.1** (2024-12-06) | Sync + async API, HTTP/2, requests-compatible. `[VERIFIED — pypi.org/project/httpx]` |
-| `requests` | 2.x | Sync only; legacy. Don't pick for new async code. |
-| `aiohttp` | 3.x | Async-first, larger; httpx is preferred for new projects in 2026. |
+| Library    | Version                 | Notes                                                                                |
+| ---------- | ----------------------- | ------------------------------------------------------------------------------------ |
+| `httpx`    | **0.28.1** (2024-12-06) | Sync + async API, HTTP/2, requests-compatible. `[VERIFIED — pypi.org/project/httpx]` |
+| `requests` | 2.x                     | Sync only; legacy. Don't pick for new async code.                                    |
+| `aiohttp`  | 3.x                     | Async-first, larger; httpx is preferred for new projects in 2026.                    |
 
 Recommended pattern: `httpx.AsyncClient` for async, `httpx.Client` for sync. Single dependency covers both.
 
 ### 4.4 Schema validation
 
-| Library | Version | Notes |
-|---|---|---|
-| `pydantic` | **2.13.4** (latest v2) | Rust core (`pydantic-core`), 5-50x faster than v1. `pip install pydantic`. `[VERIFIED — pydantic.dev landing]` |
+| Library             | Version                 | Notes                                                                                                                                                                                                  |
+| ------------------- | ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `pydantic`          | **2.13.4** (latest v2)  | Rust core (`pydantic-core`), 5-50x faster than v1. `pip install pydantic`. `[VERIFIED — pydantic.dev landing]`                                                                                         |
 | `pydantic-settings` | **2.14.1** (2026-05-08) | `BaseSettings` for env-driven config. Optional extras: `aws-secrets-manager`, `azure-key-vault`, `gcp-secret-manager`, `toml`, `yaml`. Python ≥3.10. `[VERIFIED — pypi.org/project/pydantic-settings]` |
 
 The `gcp-secret-manager` extra is relevant for Cloud Run apps that load secrets from Secret Manager:
+
 ```bash
 pip install "pydantic-settings[gcp-secret-manager]"
 ```
 
 ### 4.5 Async runtime
 
-| Choice | Notes |
-|---|---|
-| **`anyio`** | Backend-agnostic async (works with asyncio or trio). The official MCP Python SDK depends on anyio. Good for libraries that want to be runtime-agnostic. `[VERIFIED — modelcontextprotocol/python-sdk uses anyio]` |
-| **Raw `asyncio`** | Standard library; simpler if you're only ever running on asyncio. Used by FastAPI, Uvicorn, and the ADK Runner. |
-| `trio` | Smaller community share in 2026; pick anyio if you want trio-compatibility. |
+| Choice            | Notes                                                                                                                                                                                                             |
+| ----------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **`anyio`**       | Backend-agnostic async (works with asyncio or trio). The official MCP Python SDK depends on anyio. Good for libraries that want to be runtime-agnostic. `[VERIFIED — modelcontextprotocol/python-sdk uses anyio]` |
+| **Raw `asyncio`** | Standard library; simpler if you're only ever running on asyncio. Used by FastAPI, Uvicorn, and the ADK Runner.                                                                                                   |
+| `trio`            | Smaller community share in 2026; pick anyio if you want trio-compatibility.                                                                                                                                       |
 
 The ADK ecosystem itself is asyncio-native (`Runner.run` returns an async iterator). MCP clients are anyio-based but interoperate with asyncio cleanly.
 
 ### 4.6 Testing
 
-| Library | Version | Notes |
-|---|---|---|
-| `pytest` | **9.0.3** (2026-04-07) | Python ≥3.10. `[VERIFIED — pypi.org/project/pytest]` |
-| `pytest-asyncio` | 0.23+ | Required for `async def test_*` functions. Set `asyncio_default_fixture_loop_scope = "function"` (the starter pack does this). |
-| `pytest-cov` | 5.x+ | Coverage reporter. Pin loosely. |
-| `pytest-mock` | 3.x+ | `mocker` fixture wrapping `unittest.mock`. |
-| `pytest-xdist` | 3.x+ | Parallel test execution. |
-| `pytest-rerunfailures` | 15.x+ | Retry flaky tests. Used by agent-starter-pack itself. `[VERIFIED]` |
+| Library                | Version                | Notes                                                                                                                          |
+| ---------------------- | ---------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| `pytest`               | **9.0.3** (2026-04-07) | Python ≥3.10. `[VERIFIED — pypi.org/project/pytest]`                                                                           |
+| `pytest-asyncio`       | 0.23+                  | Required for `async def test_*` functions. Set `asyncio_default_fixture_loop_scope = "function"` (the starter pack does this). |
+| `pytest-cov`           | 5.x+                   | Coverage reporter. Pin loosely.                                                                                                |
+| `pytest-mock`          | 3.x+                   | `mocker` fixture wrapping `unittest.mock`.                                                                                     |
+| `pytest-xdist`         | 3.x+                   | Parallel test execution.                                                                                                       |
+| `pytest-rerunfailures` | 15.x+                  | Retry flaky tests. Used by agent-starter-pack itself. `[VERIFIED]`                                                             |
 
 ### 4.7 HTTP mocking
 
-| Library | Version | Notes |
-|---|---|---|
-| `respx` | **0.23.1** (2026-04-08) | httpx-specific request mocking. Requires httpx ≥0.25. `[VERIFIED — pypi.org/project/respx]` |
-| `pytest-httpx` | latest | Alternative pytest fixture style for httpx mocking. |
-| `responses` | latest | For `requests` library only — pick respx if you're using httpx. |
+| Library        | Version                 | Notes                                                                                       |
+| -------------- | ----------------------- | ------------------------------------------------------------------------------------------- |
+| `respx`        | **0.23.1** (2026-04-08) | httpx-specific request mocking. Requires httpx ≥0.25. `[VERIFIED — pypi.org/project/respx]` |
+| `pytest-httpx` | latest                  | Alternative pytest fixture style for httpx mocking.                                         |
+| `responses`    | latest                  | For `requests` library only — pick respx if you're using httpx.                             |
 
 ### 4.8 Linting + formatting
 
-| Library | Version | Notes |
-|---|---|---|
-| `ruff` | **0.15.15** (2026-05-28) | Replaces black + isort + flake8 + pyupgrade + autoflake + pydocstyle. 900+ rules. Rust. `[VERIFIED — pypi.org/project/ruff]` |
+| Library | Version                  | Notes                                                                                                                        |
+| ------- | ------------------------ | ---------------------------------------------------------------------------------------------------------------------------- |
+| `ruff`  | **0.15.15** (2026-05-28) | Replaces black + isort + flake8 + pyupgrade + autoflake + pydocstyle. 900+ rules. Rust. `[VERIFIED — pypi.org/project/ruff]` |
 
 Recommended config baseline (matches agent-starter-pack):
+
 ```toml
 [tool.ruff]
 line-length = 88
@@ -645,46 +664,50 @@ known-first-party = ["app"]
 ```
 
 Ruff also has a separate formatter (`ruff format`) — black-compatible. The starter-pack lint target runs both:
+
 ```bash
 ruff check . --diff && ruff format . --check --diff
 ```
 
 ### 4.9 Type checking
 
-| Tool | Status | Notes |
-|---|---|---|
+| Tool          | Status                                                                                                                                                                                                           | Notes |
+| ------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----- |
 | **`pyright`** | Mature; 98% typing-spec conformance. Microsoft. 2-5x faster than mypy. Best correctness/speed ratio in 2026 per multiple sources. `[VERIFIED via search — pydevtools handbook + Pyrefly conformance comparison]` |
-| **`mypy`** | Mature; 57% conformance per recent benchmarks; well-supported plugin ecosystem; CI-installed everywhere. `[VERIFIED via search]` |
-| **`ty`** | Astral. ~10-100x faster on large codebases (Rust). Newer; lower spec conformance than mypy (as of 2026-03). **Adopted by `agent-starter-pack`**. `[VERIFIED — docs.astral.sh/ty + agent-starter-pack pyproject]` |
-| **`pyrefly`** | Meta's competitor; scores higher than ty + mypy on typing-spec; 10-50x faster on large codebases. `[VERIFIED via search — pyrefly.org/blog]` |
+| **`mypy`**    | Mature; 57% conformance per recent benchmarks; well-supported plugin ecosystem; CI-installed everywhere. `[VERIFIED via search]`                                                                                 |
+| **`ty`**      | Astral. ~10-100x faster on large codebases (Rust). Newer; lower spec conformance than mypy (as of 2026-03). **Adopted by `agent-starter-pack`**. `[VERIFIED — docs.astral.sh/ty + agent-starter-pack pyproject]` |
+| **`pyrefly`** | Meta's competitor; scores higher than ty + mypy on typing-spec; 10-50x faster on large codebases. `[VERIFIED via search — pyrefly.org/blog]`                                                                     |
 
 Current state (2026-06):
+
 - For new ADK projects following the starter-pack template: `ty` (matches starter-pack default).
 - For maximum correctness: `pyright`.
 - For maximum compatibility with existing ecosystem (Django, SQLAlchemy plugins, FastAPI integration): `mypy`.
 
 ### 4.10 Logging
 
-| Library | Version | Notes |
-|---|---|---|
-| `structlog` | **25.5.0** (2025-10-27) | Structured logging via processor chain. ~25-100% faster than loguru for JSON output. Free OpenTelemetry integration via stdlib bridge. `[VERIFIED — pypi.org/project/structlog]` |
-| `loguru` | latest | Zero-config, single `from loguru import logger`. Easier DX. Production caveat: `diagnose=True` (default) leaks variable values in tracebacks — set `diagnose=False` in prod. `[VERIFIED via search — Dash0 + BSWEN guides]` |
-| stdlib `logging` | always | Required as the underlying sink. Both structlog and loguru ultimately route through it (or replace it). |
+| Library          | Version                 | Notes                                                                                                                                                                                                                       |
+| ---------------- | ----------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `structlog`      | **25.5.0** (2025-10-27) | Structured logging via processor chain. ~25-100% faster than loguru for JSON output. Free OpenTelemetry integration via stdlib bridge. `[VERIFIED — pypi.org/project/structlog]`                                            |
+| `loguru`         | latest                  | Zero-config, single `from loguru import logger`. Easier DX. Production caveat: `diagnose=True` (default) leaks variable values in tracebacks — set `diagnose=False` in prod. `[VERIFIED via search — Dash0 + BSWEN guides]` |
+| stdlib `logging` | always                  | Required as the underlying sink. Both structlog and loguru ultimately route through it (or replace it).                                                                                                                     |
 
 Tradeoff in 2026 (per Dash0 + BSWEN 2026-04 guides):
+
 - **structlog** wins for microservices, high-throughput, OTel-integrated apps.
 - **loguru** wins for new projects, prototypes, scripts, when DX trumps.
 
 ### 4.11 Config management
 
-| Library | Notes |
-|---|---|
+| Library             | Notes                                                                                                                                                    |
+| ------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `pydantic-settings` | The dominant pattern in 2026. Inherit from `BaseSettings`, fields auto-load from env, validation built-in. Optional GCP/AWS/Azure secret-manager extras. |
-| `python-dotenv` | Loads `.env` into `os.environ`. Often used in combination with pydantic-settings (`env_file=".env"`). |
-| stdlib `os.environ` | Always works; no validation. |
-| `dynaconf` | Larger framework; multi-source config; smaller share in 2026. |
+| `python-dotenv`     | Loads `.env` into `os.environ`. Often used in combination with pydantic-settings (`env_file=".env"`).                                                    |
+| stdlib `os.environ` | Always works; no validation.                                                                                                                             |
+| `dynaconf`          | Larger framework; multi-source config; smaller share in 2026.                                                                                            |
 
 Recommended pattern:
+
 ```python
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -705,21 +728,22 @@ settings = Settings()  # validates at import
 
 ### 4.12 CLI
 
-| Library | Version | Notes |
-|---|---|---|
-| `click` | **8.4.1** (2026-05-22) | Decorator-based; mature; used by the agent-starter-pack itself. Pallets project. `[VERIFIED — pypi.org/project/click]` |
-| `typer` | **0.26.6** (2026-06-02) | Built on click; uses type hints for arguments. By Sebastián Ramírez (FastAPI). `[VERIFIED — pypi.org/project/typer]` |
-| stdlib `argparse` | always | Fine for tiny scripts; verbose for non-trivial CLIs. |
+| Library           | Version                 | Notes                                                                                                                  |
+| ----------------- | ----------------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| `click`           | **8.4.1** (2026-05-22)  | Decorator-based; mature; used by the agent-starter-pack itself. Pallets project. `[VERIFIED — pypi.org/project/click]` |
+| `typer`           | **0.26.6** (2026-06-02) | Built on click; uses type hints for arguments. By Sebastián Ramírez (FastAPI). `[VERIFIED — pypi.org/project/typer]`   |
+| stdlib `argparse` | always                  | Fine for tiny scripts; verbose for non-trivial CLIs.                                                                   |
 
 For 2026 new projects, the consensus signal (per devtoolbox + codecut 2026 comparisons): **typer** for new CLIs that lean into type hints; **click** for deep customization or maintaining click-based code. The Google `agent-starter-pack` CLI itself uses click. `[VERIFIED — agent-starter-pack pyproject.toml lists `click>=8.1.7`]`
 
 ### 4.13 MCP client
 
-| Library | Version | Notes |
-|---|---|---|
-| `mcp` | **1.27.2** (2026-05-29) | Official Python MCP SDK. Provides `FastMCP` (decorator server framework) and `ClientSession` (client). Depends on anyio + httpx + pydantic. `[VERIFIED — pypi.org/project/mcp]` |
+| Library | Version                 | Notes                                                                                                                                                                           |
+| ------- | ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `mcp`   | **1.27.2** (2026-05-29) | Official Python MCP SDK. Provides `FastMCP` (decorator server framework) and `ClientSession` (client). Depends on anyio + httpx + pydantic. `[VERIFIED — pypi.org/project/mcp]` |
 
 Install:
+
 ```bash
 pip install "mcp[cli]"
 ```
@@ -730,8 +754,8 @@ Note: ADK also has its own MCP integration via `google-adk[mcp]`. For pure MCP w
 
 ### 4.14 A2A peer
 
-| Library | Version | Notes |
-|---|---|---|
+| Library   | Version                | Notes                                                                                                                                                                                                                |
+| --------- | ---------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `a2a-sdk` | **1.1.0** (2026-05-29) | Official Python SDK for A2A Protocol v1.0 (with v0.3 compat). Apache-2.0. Python ≥3.10. Async architecture. Multi-transport (JSON-RPC, HTTP+JSON/REST, gRPC). OTel built-in. `[VERIFIED — pypi.org/project/a2a-sdk]` |
 
 Extras include http-server, gRPC, postgres/mysql/sqlite, OTel, encryption.
@@ -743,11 +767,13 @@ Alternative A2A implementations exist (`python-a2a`, `agentic-a2a`, `agent-frame
 Two options coexist:
 
 **a) `python-gitlab` REST/GraphQL client** — `[VERIFIED — pypi.org/project/python-gitlab]`
+
 - Current: **8.4.0** (2026-05-28).
 - `pip install --upgrade python-gitlab`.
 - Sync + async GraphQL clients + CLI tool.
 
 **b) Official GitLab MCP server (not a Python lib — it's a server)** — `[VERIFIED via search]`
+
 - Introduced as experiment in GitLab 18.3, Beta in 18.6, GA-quality in 18.11 (2026-04).
 - Premium/Ultimate tier, 15 tools.
 - Anthropic's reference server `@modelcontextprotocol/server-gitlab` has been **archived** in favour of GitLab's official server.
@@ -757,29 +783,29 @@ Python projects that need to query GitLab in 2026 typically either talk to the M
 
 ### 4.16 Google Cloud SDKs
 
-| Library | Version | Use |
-|---|---|---|
-| `google-cloud-secret-manager` | **2.28.0** (2026-05-07) | Reading Secret Manager values. `[VERIFIED]` |
-| `google-cloud-aiplatform` | latest (template uses `>=1.130.0`) | Vertex AI, Agent Engine deploy. Extras: `[evaluation,agent-engines]`. `[VERIFIED — template pyproject]` |
-| `google-cloud-logging` | latest (template uses `>=3.12.0,<4.0.0`) | Structured logging to Cloud Logging. |
-| `google-cloud-run` | latest | Cloud Run admin operations (rarely needed in agent app code). |
-| `google-cloud-storage` | latest | GCS reads/writes. Often replaced by `gcsfs` for filesystem-style access. |
-| `google-cloud-trace` | latest | Cloud Trace exporter (vs Phoenix/OTLP). |
-| `gcsfs` | latest (template uses `>=2024.11.0`) | fsspec-compatible GCS access. |
+| Library                       | Version                                  | Use                                                                                                     |
+| ----------------------------- | ---------------------------------------- | ------------------------------------------------------------------------------------------------------- |
+| `google-cloud-secret-manager` | **2.28.0** (2026-05-07)                  | Reading Secret Manager values. `[VERIFIED]`                                                             |
+| `google-cloud-aiplatform`     | latest (template uses `>=1.130.0`)       | Vertex AI, Agent Engine deploy. Extras: `[evaluation,agent-engines]`. `[VERIFIED — template pyproject]` |
+| `google-cloud-logging`        | latest (template uses `>=3.12.0,<4.0.0`) | Structured logging to Cloud Logging.                                                                    |
+| `google-cloud-run`            | latest                                   | Cloud Run admin operations (rarely needed in agent app code).                                           |
+| `google-cloud-storage`        | latest                                   | GCS reads/writes. Often replaced by `gcsfs` for filesystem-style access.                                |
+| `google-cloud-trace`          | latest                                   | Cloud Trace exporter (vs Phoenix/OTLP).                                                                 |
+| `gcsfs`                       | latest (template uses `>=2024.11.0`)     | fsspec-compatible GCS access.                                                                           |
 
 Common pattern: the deployed agent uses Application Default Credentials (`google.auth.default()`) so no key files are needed in container envs.
 
 ### 4.17 Other commonly-paired libraries
 
-| Library | Purpose |
-|---|---|
-| `fastapi` | HTTP framework (template uses `>=0.115.8,<1.0.0`) for Cloud Run / GKE deployments. |
-| `uvicorn` | ASGI server (template uses `~=0.34.0`). |
-| `asyncpg` | Postgres driver for `session_type=cloud_sql`. |
-| `nest-asyncio` | Used in notebooks + tests to allow re-entering asyncio loops. Template ships in dev group. |
-| `opentelemetry-instrumentation-google-genai` | First-party Gemini call instrumentation (separate from openinference). |
-| `opentelemetry-exporter-otlp-proto-http` | HTTP OTLP exporter (Phoenix expects this). |
-| `protobuf` | Required pin (`>=6.31.1,<7.0.0`) for Agent Engine deploy target per the template. |
+| Library                                      | Purpose                                                                                    |
+| -------------------------------------------- | ------------------------------------------------------------------------------------------ |
+| `fastapi`                                    | HTTP framework (template uses `>=0.115.8,<1.0.0`) for Cloud Run / GKE deployments.         |
+| `uvicorn`                                    | ASGI server (template uses `~=0.34.0`).                                                    |
+| `asyncpg`                                    | Postgres driver for `session_type=cloud_sql`.                                              |
+| `nest-asyncio`                               | Used in notebooks + tests to allow re-entering asyncio loops. Template ships in dev group. |
+| `opentelemetry-instrumentation-google-genai` | First-party Gemini call instrumentation (separate from openinference).                     |
+| `opentelemetry-exporter-otlp-proto-http`     | HTTP OTLP exporter (Phoenix expects this).                                                 |
+| `protobuf`                                   | Required pin (`>=6.31.1,<7.0.0`) for Agent Engine deploy target per the template.          |
 
 ---
 
@@ -1067,12 +1093,13 @@ In 2026, the dominant pattern is: **pydantic-settings owns the model; python-dot
 
 ### 6.3 Secret vs config separation
 
-| Type | Where to store locally | Where to store in prod |
-|---|---|---|
-| Config (`GEMINI_MODEL`, `PROJECT_ID`, `REGION`) | `.env` (gitignored) | Env vars set on Cloud Run service |
-| Secrets (`GEMINI_API_KEY`, DB passwords) | `.env` (gitignored) | **GCP Secret Manager**, mounted into Cloud Run via `--set-secrets` |
+| Type                                            | Where to store locally | Where to store in prod                                             |
+| ----------------------------------------------- | ---------------------- | ------------------------------------------------------------------ |
+| Config (`GEMINI_MODEL`, `PROJECT_ID`, `REGION`) | `.env` (gitignored)    | Env vars set on Cloud Run service                                  |
+| Secrets (`GEMINI_API_KEY`, DB passwords)        | `.env` (gitignored)    | **GCP Secret Manager**, mounted into Cloud Run via `--set-secrets` |
 
 Cloud Run secret mount example:
+
 ```bash
 gcloud run deploy my-agent \
   --set-secrets="GEMINI_API_KEY=gemini-api-key:latest" \
@@ -1105,6 +1132,7 @@ ENV=local
 ```
 
 The `.gitignore` should always have:
+
 ```
 .env
 .env.local
@@ -1125,7 +1153,7 @@ The agent-starter-pack `make deploy` for Cloud Run uses `--update-env-vars` (pre
 
 ## 7. Module organization patterns
 
-These are *factual descriptions* of common patterns. The right choice depends on project size, team, and target audience.
+These are _factual descriptions_ of common patterns. The right choice depends on project size, team, and target audience.
 
 ### 7.1 Layered (api / services / repositories / models)
 
@@ -1189,10 +1217,12 @@ app/
     ├── telemetry.py   # OTel setup
     └── typing.py      # Shared TypedDicts / Protocols
 ```
+
 `[VERIFIED — base_templates/python/{{agent_directory}}/app_utils inspection]`
 
 Observations:
-- `agent.py` is the *single* canonical location for the agent definition.
+
+- `agent.py` is the _single_ canonical location for the agent definition.
 - `app_utils/` is the catch-all for non-agent infrastructure (telemetry, GCS, deployment helpers).
 - Tools/prompts are inline in `agent.py` for small agents; can be split into `tools.py` and `prompts.py` as the project grows.
 - No formal layering — flat and pragmatic.
@@ -1229,15 +1259,15 @@ app/
 
 ### 8.1 PEP 8 baselines
 
-| Item | Convention |
-|---|---|
-| Modules | `lower_snake_case.py` |
-| Packages | `lower_snake_case/` |
-| Classes | `CapWords` |
-| Functions, variables | `lower_snake_case` |
-| Constants | `UPPER_SNAKE_CASE` |
-| Type aliases | `CapWords` (PEP 613) |
-| Type variables | Single uppercase letter or `CapWords` ending in `T` |
+| Item                 | Convention                                          |
+| -------------------- | --------------------------------------------------- |
+| Modules              | `lower_snake_case.py`                               |
+| Packages             | `lower_snake_case/`                                 |
+| Classes              | `CapWords`                                          |
+| Functions, variables | `lower_snake_case`                                  |
+| Constants            | `UPPER_SNAKE_CASE`                                  |
+| Type aliases         | `CapWords` (PEP 613)                                |
+| Type variables       | Single uppercase letter or `CapWords` ending in `T` |
 
 ### 8.2 Test file naming
 
@@ -1282,6 +1312,7 @@ A high-signal README in 2026 typically has:
 10. **License + contributors**.
 
 For Google AI hackathon submissions specifically (per `research/google-cloud-rapid-agent/05-prior-winners.md`), README structure that historically wins:
+
 - Demo video link at the top.
 - Architecture diagram (judges scan, not read).
 - "Built with" section listing every Google Cloud product used (Tech Implementation score).
@@ -1292,25 +1323,32 @@ For Google AI hackathon submissions specifically (per `research/google-cloud-rap
 These files are agent-driven dev guidance — read by Claude Code / Gemini Code Assist / OpenAI Codex when an agent works in the repo.
 
 The agent-starter-pack itself ships **two** such files at different levels:
+
 - `GEMINI.md` at the repo root: guidance for contributors to the meta-project (the CLI itself).
 - `{{cookiecutter.agent_guidance_filename}}` in generated projects: guidance for agents working in the generated project.
 
 Convention (from agent-starter-pack `llm.txt`):
+
 - Section 1: Project Overview (what, why, tagline).
 - Section 2: Creating & Enhancing Projects (commands).
 - Section 3: Key Features & Configuration Options.
 - Section 4: CLI Reference.
 
 Typical `CLAUDE.md` skeleton for an agent project:
+
 ```markdown
 # CLAUDE.md
+
 ## Project Overview
+
 [name, purpose, deployment target]
 
 ## Tech Stack & Versions
+
 [uv version, Python version, ADK version, key libraries]
 
 ## Commands
+
 - `make install` — install deps
 - `make playground` — local dev (runs `adk web`)
 - `make test` — pytest
@@ -1318,15 +1356,19 @@ Typical `CLAUDE.md` skeleton for an agent project:
 - `make deploy` — push to Cloud Run / Agent Engine
 
 ## Architecture
+
 [brief module map]
 
 ## Coding standards
+
 [type hints required, ruff config inherited from pyproject, etc.]
 
 ## Testing rules
+
 [mock Gemini calls via respx; integration tests in tests/integration/]
 
 ## What NOT to do
+
 [no committing .env; no requirements.txt — uv.lock is source of truth]
 ```
 
@@ -1338,13 +1380,14 @@ The Anthropic-pushed **`AGENTS.md`** standard (`agents-md.org` / similar) is a c
 
 ### 10.1 Docstring styles
 
-| Style | Format | Used by |
-|---|---|---|
-| **Google** | `Args: / Returns: / Raises:` headers | Most Google projects, including ADK. Picked up by ADK to populate tool schemas. `[VERIFIED — get_weather example]` |
-| **NumPy/SciPy** | `Parameters\n----------\nname : type\n    desc` | Scientific stack (numpy, pandas, scipy, sklearn). |
-| **reStructuredText (`:param x:`)** | `:param name: desc\n:returns: desc` | Sphinx default, older Python convention. |
+| Style                              | Format                                          | Used by                                                                                                            |
+| ---------------------------------- | ----------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| **Google**                         | `Args: / Returns: / Raises:` headers            | Most Google projects, including ADK. Picked up by ADK to populate tool schemas. `[VERIFIED — get_weather example]` |
+| **NumPy/SciPy**                    | `Parameters\n----------\nname : type\n    desc` | Scientific stack (numpy, pandas, scipy, sklearn).                                                                  |
+| **reStructuredText (`:param x:`)** | `:param name: desc\n:returns: desc`             | Sphinx default, older Python convention.                                                                           |
 
 For ADK projects specifically: **Google style** is recommended because ADK reads docstrings to build tool schemas. Example from the starter pack:
+
 ```python
 def get_weather(query: str) -> str:
     """Simulates a web search. Use it to get information on weather.
@@ -1356,15 +1399,16 @@ def get_weather(query: str) -> str:
         A string with the simulated weather information for the queried location.
     """
 ```
+
 `[VERIFIED]`
 
 ### 10.2 Auto-generated API docs
 
-| Tool | Notes |
-|---|---|
-| **Sphinx** | Industry standard for Python libraries. The agent-starter-pack itself uses Sphinx (`sphinx~=7.1.2`, `sphinx-autoapi~=3.0.0`, `sphinx-click~=5.1.0`, `sphinx-rtd-theme~=2.0.0`). `[VERIFIED]` |
-| **mkdocs + mkdocstrings** | Markdown-first; lighter; better for application-style projects. |
-| **pdoc** | Minimal, opinionated. |
+| Tool                      | Notes                                                                                                                                                                                        |
+| ------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Sphinx**                | Industry standard for Python libraries. The agent-starter-pack itself uses Sphinx (`sphinx~=7.1.2`, `sphinx-autoapi~=3.0.0`, `sphinx-click~=5.1.0`, `sphinx-rtd-theme~=2.0.0`). `[VERIFIED]` |
+| **mkdocs + mkdocstrings** | Markdown-first; lighter; better for application-style projects.                                                                                                                              |
+| **pdoc**                  | Minimal, opinionated.                                                                                                                                                                        |
 
 ### 10.3 ADR (Architecture Decision Records)
 
@@ -1378,6 +1422,7 @@ docs/
 ```
 
 Typical ADR template (Michael Nygard format):
+
 ```
 # ADR-NNNN: <decision>
 ## Status
@@ -1399,15 +1444,15 @@ ADRs are useful for hackathon projects specifically because the post-mortem writ
 
 ## 11. Pre-existing project templates worth cloning
 
-| Repo | Stars (approx) | Notes |
-|---|---|---|
-| **`GoogleCloudPlatform/agent-starter-pack`** | (1k+) | Canonical for Google Cloud ADK projects. Multi-template (ADK Python/TS/Java/Go, langgraph, agentic_rag). uv-first. Cloud Build / GitHub Actions CI generated. `[VERIFIED — Apache-2.0, Python 3.10+]` |
-| `google/adk-samples` | — | Per-feature ADK snippets; not full project scaffolds. `[UNVERIFIED — not inspected in this pass]` |
-| `pydantic/FastUI` | — | If building agent UIs in Python. `[UNVERIFIED]` |
-| `Arize-ai/phoenix` | — | Phoenix itself; examples directory has agent integration patterns. `[UNVERIFIED for current state]` |
-| `fastapi/full-stack-fastapi-template` | (high) | Not agent-specific but the canonical "production FastAPI project" template with uv, Docker, GitHub Actions, postgres, alembic. Worth scanning for app-layout ideas. `[UNVERIFIED for current state]` |
-| `pyscaffold/pyscaffold` | (1k+) | Generic Python project scaffold; src-layout-first. `[UNVERIFIED current state]` |
-| `astral-sh/uv` | (high) | uv's own example projects in the docs are good references. |
+| Repo                                         | Stars (approx) | Notes                                                                                                                                                                                                 |
+| -------------------------------------------- | -------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **`GoogleCloudPlatform/agent-starter-pack`** | (1k+)          | Canonical for Google Cloud ADK projects. Multi-template (ADK Python/TS/Java/Go, langgraph, agentic_rag). uv-first. Cloud Build / GitHub Actions CI generated. `[VERIFIED — Apache-2.0, Python 3.10+]` |
+| `google/adk-samples`                         | —              | Per-feature ADK snippets; not full project scaffolds. `[UNVERIFIED — not inspected in this pass]`                                                                                                     |
+| `pydantic/FastUI`                            | —              | If building agent UIs in Python. `[UNVERIFIED]`                                                                                                                                                       |
+| `Arize-ai/phoenix`                           | —              | Phoenix itself; examples directory has agent integration patterns. `[UNVERIFIED for current state]`                                                                                                   |
+| `fastapi/full-stack-fastapi-template`        | (high)         | Not agent-specific but the canonical "production FastAPI project" template with uv, Docker, GitHub Actions, postgres, alembic. Worth scanning for app-layout ideas. `[UNVERIFIED for current state]`  |
+| `pyscaffold/pyscaffold`                      | (1k+)          | Generic Python project scaffold; src-layout-first. `[UNVERIFIED current state]`                                                                                                                       |
+| `astral-sh/uv`                               | (high)         | uv's own example projects in the docs are good references.                                                                                                                                            |
 
 For Cloud Run agents specifically, the agent-starter-pack `create` command followed by `extract` (for the minimal shareable form) is the path-of-least-resistance starting point.
 
@@ -1496,4 +1541,4 @@ For Cloud Run agents specifically, the agent-starter-pack `create` command follo
 
 ---
 
-*End of file. Last updated 2026-06-02.*
+_End of file. Last updated 2026-06-02._

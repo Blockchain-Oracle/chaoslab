@@ -18,12 +18,12 @@ Each submission enters **exactly one** track. You may submit multiple projects t
 
 ## Prize tiers (identical across all 6 buckets)
 
-| Place | Cash (USD) | Other |
-|---|---|---|
-| 🥇 1st Place | **$5,000** | Opportunity for social-media promotion |
-| 🥈 2nd Place | **$3,000** | — |
-| 🥉 3rd Place | **$2,000** | — |
-| **Per-bucket total** | **$10,000** | — |
+| Place                | Cash (USD)  | Other                                  |
+| -------------------- | ----------- | -------------------------------------- |
+| 🥇 1st Place         | **$5,000**  | Opportunity for social-media promotion |
+| 🥈 2nd Place         | **$3,000**  | —                                      |
+| 🥉 3rd Place         | **$2,000**  | —                                      |
+| **Per-bucket total** | **$10,000** | —                                      |
 
 **Across all 6 buckets:** $60,000 total prize pool, 18 winners.
 
@@ -31,14 +31,14 @@ Each submission enters **exactly one** track. You may submit multiple projects t
 
 ## The 6 tracks
 
-| # | Track | Partner technology focus |
-|---|---|---|
-| 1 | **Arize** | LLM observability via Phoenix MCP (eval, tracing, prompt versioning) |
-| 2 | **Elastic** | Hybrid search + vector store via Elastic MCP |
-| 3 | **Fivetran** | Managed data ingestion (ELT pipelines) via Fivetran MCP |
-| 4 | **GitLab** | DevOps automation via official GitLab MCP server |
-| 5 | **MongoDB** | Document DB + vector search via MongoDB MCP |
-| 6 | **Dynatrace** | APM / observability via Dynatrace MCP |
+| #   | Track         | Partner technology focus                                             |
+| --- | ------------- | -------------------------------------------------------------------- |
+| 1   | **Arize**     | LLM observability via Phoenix MCP (eval, tracing, prompt versioning) |
+| 2   | **Elastic**   | Hybrid search + vector store via Elastic MCP                         |
+| 3   | **Fivetran**  | Managed data ingestion (ELT pipelines) via Fivetran MCP              |
+| 4   | **GitLab**    | DevOps automation via official GitLab MCP server                     |
+| 5   | **MongoDB**   | Document DB + vector search via MongoDB MCP                          |
+| 6   | **Dynatrace** | APM / observability via Dynatrace MCP                                |
 
 For each: see the corresponding `partner-*.md` file in this folder.
 
@@ -48,14 +48,14 @@ For each: see the corresponding `partner-*.md` file in this folder.
 
 Per Section 7B of the rules:
 
-| Required | Detail |
-|---|---|
-| **Hosted Project URL** | Judges access it without your help. No-login sandbox with sample data is acceptable. |
-| **Public GitHub repo** | Open-source license file detectable + visible in About section. New code only, May 5 – June 11. |
-| **3-minute demo video** | YouTube or Vimeo, public, English or English subs, shows agent functioning |
-| **Devpost text description** | Features, technologies used, data sources, learnings |
-| **Track selection** | Exactly one partner per submission |
-| **Devpost form** | Standard submission fields completed |
+| Required                     | Detail                                                                                          |
+| ---------------------------- | ----------------------------------------------------------------------------------------------- |
+| **Hosted Project URL**       | Judges access it without your help. No-login sandbox with sample data is acceptable.            |
+| **Public GitHub repo**       | Open-source license file detectable + visible in About section. New code only, May 5 – June 11. |
+| **3-minute demo video**      | YouTube or Vimeo, public, English or English subs, shows agent functioning                      |
+| **Devpost text description** | Features, technologies used, data sources, learnings                                            |
+| **Track selection**          | Exactly one partner per submission                                                              |
+| **Devpost form**             | Standard submission fields completed                                                            |
 
 **Deadline:** 2026-06-11, 2:00 PM Pacific Time.
 
@@ -66,7 +66,7 @@ Per Section 7B of the rules:
 1. **New work only.** No reusing existing codebases. A new iteration of an old idea is fine; reusing code is not.
 2. **Team size:** max 4 individuals. One person designated "Representative" for prize allocation.
 3. **Required AI tools (in the SUBMITTED code):** Only Google Cloud AI tools (Gemini models on Agent Platform, BigQuery ML, etc.) + the chosen partner's built-in AI features. Banned in submission: Claude, Cursor, GitHub Copilot, and any other competing AI services as runtime dependencies.
-4. **Required orchestrator:** Google Cloud Agent Builder ecosystem (visual Studio OR ADK / Agent Runtime / Cloud Run). LangChain / LangGraph / LlamaIndex shouldn't be your *primary* orchestrator.
+4. **Required orchestrator:** Google Cloud Agent Builder ecosystem (visual Studio OR ADK / Agent Runtime / Cloud Run). LangChain / LangGraph / LlamaIndex shouldn't be your _primary_ orchestrator.
 5. **Required infrastructure:** Google Cloud. No competing cloud platforms (AWS, Azure, etc.) for the agent runtime.
 6. **Required platform:** Web, Android, or iOS.
 
@@ -79,6 +79,7 @@ Per Section 7B of the rules:
 ### Stage 1: Viability screen (pass/fail)
 
 A submission passes Stage 1 if it:
+
 - Includes all required submission elements (URL, repo, video, description, track)
 - Reasonably addresses the chosen partner's challenge
 - Reasonably applies both the required partner data/products and Google Cloud products
@@ -89,12 +90,12 @@ Stage 1 may use **automated AI-driven analysis** (e.g., automated repo scans). A
 
 Surviving submissions are evaluated on **4 criteria, equally weighted**:
 
-| Criterion | Plain-English question |
-|---|---|
+| Criterion                        | Plain-English question                                                                              |
+| -------------------------------- | --------------------------------------------------------------------------------------------------- |
 | **Technological Implementation** | Does the interaction with Google Cloud + partner services demonstrate quality software development? |
-| **Design** | Is the UX and design well thought out? |
-| **Potential Impact** | How big of an impact could this have on the target community? |
-| **Quality of the Idea** | How creative and unique is the project? |
+| **Design**                       | Is the UX and design well thought out?                                                              |
+| **Potential Impact**             | How big of an impact could this have on the target community?                                       |
+| **Quality of the Idea**          | How creative and unique is the project?                                                             |
 
 Ties broken by comparing scores in the order above, then judge vote.
 
@@ -120,7 +121,7 @@ Per the official Devpost page, judges include:
 - **Dynatrace:** Sean O'Dell (Principal PMM, DX), Jeff Blankenburg (Principal Dev Advocate)
 - **Google:** Khushan Adatiya (SWE), Rich Deken, Jess Ambriz, Jon Pawlowski, Saurabh Kumar, George Keller, Merlin Yamssi (all Cloud Partner Engineers / ISV Partner Engineers)
 
-**Insight:** Heavy partner-engineering and DevRel presence on the panel = judges who will respect *real* integration depth over flashy UI. A bunch of these people have personally written the SDK docs you'll be using. Show them you understood the SDK, don't just call one method.
+**Insight:** Heavy partner-engineering and DevRel presence on the panel = judges who will respect _real_ integration depth over flashy UI. A bunch of these people have personally written the SDK docs you'll be using. Show them you understood the SDK, don't just call one method.
 
 ---
 
@@ -152,5 +153,5 @@ For Abu: no eligibility issue (Nigeria not on the list).
 
 1. **Treat tracks as separate competitions.** A "good" project in a crowded track loses to a "less good" project in an empty track.
 2. **Submit multiple times only if each project is genuinely distinct.** Don't try to game multi-track entry with a re-skinned same agent — Devpost reviewers flag this.
-3. **The video is judging-window insurance.** Trials expire (Elastic 14d, Fivetran 14d, Dynatrace 15d) during judging. Devpost FAQ explicitly says: *"Judges evaluate your submission based on what you've submitted (project URL, demo video, repo, etc.). As long as your video and other submitted assets clearly show [partner] working end-to-end in your project, the trial expiring before July 6 won't affect your judging eligibility."* So the 3-min video is non-negotiable quality work.
+3. **The video is judging-window insurance.** Trials expire (Elastic 14d, Fivetran 14d, Dynatrace 15d) during judging. Devpost FAQ explicitly says: _"Judges evaluate your submission based on what you've submitted (project URL, demo video, repo, etc.). As long as your video and other submitted assets clearly show [partner] working end-to-end in your project, the trial expiring before July 6 won't affect your judging eligibility."_ So the 3-min video is non-negotiable quality work.
 4. **Stage-1 automated scans likely look for banned dep names.** Scrub your `package.json` / `requirements.txt` / `Pipfile` for any reference to `anthropic`, `claude`, `cursor`, `copilot`, `openai`, `langchain` (as primary), `langgraph`, `llamaindex` before submit.

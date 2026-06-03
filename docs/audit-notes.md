@@ -57,20 +57,20 @@ Audit-07 identified 12 file paths declared `— NEW —` by two stories each. Th
 
 Per audit-07 CS1, the 12 pairs are:
 
-| Path | First (NEW) | Second (treat as UPDATE) |
-|---|---|---|
-| `apps/chaoslab-agent/pyproject.toml` | S1.1 | S4.1 |
-| `apps/target-agent/pyproject.toml` | S1.1 | S2.1 |
-| `apps/chaoslab-agent/Dockerfile` | S1.6 | S4.6 |
-| `apps/target-agent/Dockerfile` | S1.6 | S2.4 |
-| `apps/chaoslab-web/Dockerfile` | S1.6 | S7.3 |
-| `apps/chaoslab-web/playwright.config.ts` | S1.7 | S7.12 |
-| `apps/chaoslab-web/vitest.config.ts` | S1.5 | S7.4 |
-| `apps/chaoslab-web/public/og-hero.png` | S7.9 (placeholder) | S8.3 |
-| `apps/chaoslab-agent/src/chaoslab_agent/patcher/agent.py` | S4.2 (stub) | S6.4 |
-| `apps/chaoslab-agent/src/chaoslab_agent/patcher/__init__.py` | S4.2 (empty) | S6.3 |
-| `apps/chaoslab-agent/src/chaoslab_agent/judge/__init__.py` | S4.2 (empty) | S6.1 |
-| `apps/chaoslab-agent/src/chaoslab_agent/injector/agent.py` | S4.2 (stub) | S5.7 |
+| Path                                                         | First (NEW)        | Second (treat as UPDATE) |
+| ------------------------------------------------------------ | ------------------ | ------------------------ |
+| `apps/chaoslab-agent/pyproject.toml`                         | S1.1               | S4.1                     |
+| `apps/target-agent/pyproject.toml`                           | S1.1               | S2.1                     |
+| `apps/chaoslab-agent/Dockerfile`                             | S1.6               | S4.6                     |
+| `apps/target-agent/Dockerfile`                               | S1.6               | S2.4                     |
+| `apps/chaoslab-web/Dockerfile`                               | S1.6               | S7.3                     |
+| `apps/chaoslab-web/playwright.config.ts`                     | S1.7               | S7.12                    |
+| `apps/chaoslab-web/vitest.config.ts`                         | S1.5               | S7.4                     |
+| `apps/chaoslab-web/public/og-hero.png`                       | S7.9 (placeholder) | S8.3                     |
+| `apps/chaoslab-agent/src/chaoslab_agent/patcher/agent.py`    | S4.2 (stub)        | S6.4                     |
+| `apps/chaoslab-agent/src/chaoslab_agent/patcher/__init__.py` | S4.2 (empty)       | S6.3                     |
+| `apps/chaoslab-agent/src/chaoslab_agent/judge/__init__.py`   | S4.2 (empty)       | S6.1                     |
+| `apps/chaoslab-agent/src/chaoslab_agent/injector/agent.py`   | S4.2 (stub)        | S5.7                     |
 
 The orchestrator dispatches per DAG order, so the "second" story always runs AFTER the "first" story's PR is merged. Coding agents should overwrite the file as the story directs.
 
@@ -89,6 +89,7 @@ A focused re-audit agent verified all 13 amendments end-to-end against the amend
 **No load-bearing contradictions** between amendments. No broken markdown (all code fences balanced; no dangling tables).
 
 **Two minor cosmetic items** (NOT blockers; cleanup post-orchestrator if time):
+
 1. S6.6's preserved original story body still contains stale `≤250 LOC` and MCP-only file-map references BELOW the amendment block — amendment header explicitly says "ignore original below" so coding agents will read the amendment first
 2. S5.2 L240 has a `Do NOT depend on _vendored/` warning referencing the directory A5 removed — vacuous since `_vendored/` won't exist
 
@@ -102,75 +103,172 @@ B1-B13 listed in `spec-audit/00-audit-summary.md` §"Minor amendments." Doc-hygi
 
 ---
 
+## Implementation findings (logged during TDD execution)
+
+Discoveries made while implementing stories that contradict spec text. Each one updates this section so the next story doesn't re-hit the same wall.
+
+### IF-1 — Gitleaks v8.21+ rejects legacy `[[allowlist.paths]]` per-path schema (S1.2, 2026-06-03)
+
+**Discovered in:** S1.2 (pre-commit hooks). Hook `Detect hardcoded secrets` fails on first run with `'Allowlist.Paths[0]' expected type 'string', got unconvertible type 'map[string]interface {}'`.
+
+**Cause:** `.pre-commit-config.yaml` pins `gitleaks rev: v8.21.0` (per `docs/coding-standards.md`). Gitleaks v8.18 introduced the new `paths = [string]` array shape; v8.18-v8.20 still parsed the legacy per-block `[[allowlist.paths]] path = '...'` form (emitting a deprecation warning). v8.21.0 hard-fails on the legacy form with the type-mismatch error above.
+
+**Fix applied (CORRECTED — see IF-6 for the in-PR fix history):** `.gitleaks.toml` migrated to use the **singular `[allowlist]` table** (global allowlist, scoped to all rules):
+
+```toml
+[extend]
+useDefault = true
+
+[allowlist]
+description = "..."
+paths = [
+  '''^LICENSE$''',
+  '''^research/''',
+  '''^docs/''',
+  '''(uv\.lock|pnpm-lock\.yaml|package-lock\.json)$''',
+]
+```
+
+**Implication for future stories:** Any story touching `.gitleaks.toml` MUST use the singular `[allowlist]` table. The plural `[[allowlists]]` array-of-tables form is per-rule scope only — using it at the top level silently disables ALL allowlists (verified empirically). See IF-6.
+
+### IF-2 — Prettier hook needs workspace-root `pnpm exec`, not `--filter chaoslab-web` (S1.2)
+
+**Discovered in:** S1.2. Hook `Prettier (changed files)` fails with `ERR_PNPM_RECURSIVE_EXEC_FIRST_FAIL` + `No files matching the pattern were found`.
+
+**Cause:** `pnpm --filter chaoslab-web exec prettier --write <files>` `cd`s into `apps/chaoslab-web/` and resolves the passed file paths relative to that directory — but pre-commit passes paths relative to repo root. Result: prettier can't find any of the files. Additionally, `apps/chaoslab-web/` has no `node_modules` until S7.1, so even local prettier wouldn't resolve.
+
+**Fix applied:** `.pre-commit-config.yaml` Prettier hook entry changed from `pnpm --filter chaoslab-web exec prettier --write` → `pnpm exec prettier --write`. Workspace-root prettier (installed at root devDep in S1.1) resolves files correctly from repo root.
+
+**Implication for future stories:** `docs/coding-standards.md` §"Pre-commit hooks" is canonical EXCEPT for the Prettier entry — use the implementation finding above. ESLint hook still uses `--filter chaoslab-web exec` (which is fine — it auto-skips until S7.1 introduces `.ts` files + chaoslab-web ESLint install).
+
+### IF-3 — Markdownlint requires `.markdownlintignore` for AI-generated corpus (S1.2)
+
+**Discovered in:** S1.2. Hook `markdownlint` produces 1000+ violations across `research/` and `docs/` — bare URLs (MD034), fence/list spacing (MD031/MD032), heading punctuation (MD026), etc.
+
+**Cause:** `research/` and `docs/` were rapidly written by spec-writer agents and contain legitimate style noise. Retroactively fixing every URL/spacing issue would consume hours and add zero value (the content is correct; only style is loose).
+
+**Fix applied:** Created `.markdownlintignore` (gitignore-style, auto-loaded by markdownlint-cli) excluding `research/` and `docs/`. Top-level docs (`README.md`, `CLAUDE.md`, `NOTICE`) and source-tree READMEs ARE still linted — the hook enforces conventions on new/curated docs at repo root.
+
+**Trade-off acknowledged (per silent-failure-hunter PR #2 W1):** the `docs/` blanket exclusion means future spec updates (new ADRs in `docs/architecture.md`, new entries in `docs/audit-notes.md`, new story files in `docs/stories/`) are NOT lint-enforced. This is deliberate hackathon-velocity-vs-style-rigor trade — orchestrator + coding agents parse spec by content semantics, not markdown style. Re-evaluate post-hackathon: a focused curation pass with `markdownlint --fix` followed by manual `<URL>` wrapping would let us narrow the ignore to `research/` + `docs/audit-notes.md` only.
+
+**Implication for future stories:** S8.1 (README/NOTICE rewrite at repo root) will lint cleanly. Any spec-doc rot inside `docs/` requires manual review — markdownlint won't catch it.
+
+### IF-4 — Prettier hook reformats existing corpus on first run (S1.2)
+
+**Discovered in:** S1.2. After adding the prettier hook + running `pre-commit run --all-files`, prettier reformatted 92 markdown files in `research/` and `docs/` (whitespace, table column padding, em-dash spacing, `*emphasis*` → `_emphasis_`). Committed in `f87ff0f`.
+
+**Cause:** Expected behavior. Prettier `--write` modifies files in place when they're not already prettier-formatted, then exits 1 (telling pre-commit "changes happened, re-run").
+
+**Fix applied:** Committed the mass reformat as part of S1.2. Going forward, prettier runs only on diffs.
+
+**Implication for future stories:** None — this is a one-time cost. New markdown will be prettier-clean from the start.
+
+### IF-5 — Pre-commit requires `python3.12` interpreter discoverable on PATH (S1.2)
+
+**Discovered in:** S1.2. Pre-commit fails bootstrapping the ruff hook venv with `RuntimeError: failed to find interpreter for Builtin discover of python_spec='python3.12'`.
+
+**Cause:** `.pre-commit-config.yaml` sets `default_language_version: python: python3.12`. Pre-commit's `virtualenv` discovery uses `python3.12` as the executable name — uv's managed Pythons are not always symlinked into a directory on PATH. Affects any machine where `python3.12` is not directly invokable (common on freshly-set-up macOS where the system Python is newer, and on Linux where the system Python may be older).
+
+**Fix applied:** Run `uv python install 3.12` once — uv links `python3.12` into `~/.local/bin/` which is on PATH for most setups. This is a one-time developer-machine setup step. CI uses `actions/setup-python@v5` with `python-version: 3.12` which provides the binary natively (no separate step needed).
+
+**Implication for future stories:** Document `uv python install 3.12` as a one-time setup step in the README's "Run locally" section once S1.5 ships CI. For now, the manual step is captured here.
+
+### IF-6 — `[[allowlists]]` plural form is per-rule scope only; silently disables global allowlists (S1.2, PR #2 silent-failure-hunter review)
+
+**Discovered in:** S1.2 PR #2 review. The first migration of `.gitleaks.toml` from `[[allowlist.paths]]` to `[[allowlists]] paths = [...]` (an array-of-tables) **parsed without error** but did NOT actually allowlist any paths. Empirical repro on v8.21.0: a fake secret in `docs/_test/x.py` was still flagged despite the `^docs/` entry in the array-of-tables form.
+
+**Cause:** Gitleaks v8.18+ supports BOTH the singular `[allowlist]` table (top-level, global allowlist) AND the plural `[[allowlists]]` array-of-tables (per-rule allowlist, scoped under a `[[rules]]` block). They look similar in TOML but have very different semantics. The plural form at top level parses cleanly but is ignored.
+
+**Fix applied:** `.gitleaks.toml` uses the singular `[allowlist]` table with `paths = [...]` as an array. Verified empirically — fake secrets in allowlisted paths now correctly produce `no leaks found`.
+
+**Implication for future stories:** Any allowlist change to `.gitleaks.toml` MUST use the singular `[allowlist]` form unless the carve-out is genuinely per-rule (in which case it nests under `[[rules]]`). Add an acceptance test that stages a known-allowed fake secret and asserts gitleaks exits 0 — this would have caught the first migration's silent failure.
+
+### IF-7 — 400-line rule scope ambiguity for `docs/` (S1.2, PR #2 code-reviewer)
+
+**Discovered in:** S1.2 PR #2 review. After the prettier reformat (`f87ff0f`), 2 docs crossed the 400-line threshold and 2 already-oversized docs got slightly worse via table-padding. CLAUDE.md L44 says "No file >400 lines (Python, TS, JSX, Markdown)" — Markdown explicitly in scope. But `docs/coding-standards.md` L12 narrows enforcement to `apps/`, `packages/`, `scripts/`.
+
+**Status:** UNRESOLVED. To be decided as part of S1.3 (`scripts/check_max_lines.py` is the source of truth for what the rule actually counts).
+
+**Recommendation for S1.3:** Make `scripts/check_max_lines.py` count `apps/**`, `packages/**`, `scripts/**` only — and update CLAUDE.md L44 to match. Source files have a clear motivation for the limit (cognitive load when reading agents/components); spec docs have a different optimization (completeness > brevity).
+
+**Affected files (informational):**
+
+- `docs/coding-standards.md`: 435 lines (pre-S1.2 also over; +10 from prettier)
+- `docs/stories/story-6.6-gitlab-mr-emitter.md`: 404 lines (pre-S1.2 over; +3 from prettier)
+- `docs/architecture.md`: 421 lines (was 413; pushed over by prettier)
+- `docs/cicd.md`: 404 lines (was 396; pushed over by prettier)
+
+---
+
 ## Open items by category
 
 ### Category A: Day-0 verifications (3 items)
 
-| # | Item | Story | Action |
-|---|---|---|---|
-| A1 | Verify `gemini-3.5-flash` model string in Vertex AI target region | S2.1 (recurring through E5/E6) | `gcloud ai models list --region=us-central1 \| grep gemini-3` before kickoff |
-| A2 | Run revised RAT runbook (Phoenix MCP + Python SDK FunctionTool path) | All Phoenix-touching stories | `RAT-runbook.md` Steps 1-3, must pass before S1.1 |
-| A3 | Confirm `phoenix-api-key` is the secret name S1.4 creates | S1.4, S2.3, S4.6 | Patch S1.4's `infra/secret-manager-setup.sh` to use that exact name |
+| #   | Item                                                                 | Story                          | Action                                                                       |
+| --- | -------------------------------------------------------------------- | ------------------------------ | ---------------------------------------------------------------------------- |
+| A1  | Verify `gemini-3.5-flash` model string in Vertex AI target region    | S2.1 (recurring through E5/E6) | `gcloud ai models list --region=us-central1 \| grep gemini-3` before kickoff |
+| A2  | Run revised RAT runbook (Phoenix MCP + Python SDK FunctionTool path) | All Phoenix-touching stories   | `RAT-runbook.md` Steps 1-3, must pass before S1.1                            |
+| A3  | Confirm `phoenix-api-key` is the secret name S1.4 creates            | S1.4, S2.3, S4.6               | Patch S1.4's `infra/secret-manager-setup.sh` to use that exact name          |
 
 ### Category B: Cross-epic coordination (9 items)
 
-| # | Item | Stories | Resolution |
-|---|---|---|---|
-| B1 | `chaoslab_agent.errors` module location | S3.x ↔ S4.5 | Add `errors.py` to S4.5's file map; create `AdapterConnectionError`, `AdapterDiscoveryError`, `AdapterInvocationError`, `ClusteringError`, `BaselineAbortError` there |
-| B2 | `chaoslab_agent.adk_types.RemoteA2aAgentWrapper` | S3.2 ↔ S4.5 | Add to S4.5's `adk_types.py`; if S4.5 ships first, S3.2 uses it as-is |
-| B3 | SSE event contract names lock-in | S4.1 ↔ S7.4 | Create `packages/shared-types/sse-events.ts` early. Event names: `cell-update`, `point`, `phase`, `patch`, `recipe`, `active-agent`, `error`, `done` (per S7.4 + S4.1) |
-| B4 | `/replay-data` endpoint | S4.1 ↔ S7.10 | Optional — static fixture canonical fallback |
-| B5 | `?freezeAt=` query param on `/replay` | S7.10 ↔ S7.12 ↔ S8.3 | S7.10 honors `freezeAt`; S7.12 + S8.3 depend on it |
-| B6 | `ANTHROPIC_API_KEY` for visual-loop reviewer | S7.12 ↔ S1.5 | Add as both local-dev secret + GitHub Actions secret |
-| B7 | Docker-compose fixtures CI matrix | S3.3/S3.4/S3.5 ↔ S1.5 | Amend S1.5 to spin up adapter fixture containers before `pytest -m integration` |
-| B8 | `roles/iam.serviceAccountTokenCreator` self-binding | S6.5 ↔ S1.4 | Patch S1.4's IAM script to add this role on `chaoslab-runtime` SA for GCS signed URL |
-| B9 | Chaoslab-runtime SA needs Vertex AI permissions for JUDGE_LLM | S6.x ↔ S1.4 | Verify `roles/aiplatform.user` binding (already in S1.4 baseline) |
+| #   | Item                                                          | Stories               | Resolution                                                                                                                                                             |
+| --- | ------------------------------------------------------------- | --------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| B1  | `chaoslab_agent.errors` module location                       | S3.x ↔ S4.5           | Add `errors.py` to S4.5's file map; create `AdapterConnectionError`, `AdapterDiscoveryError`, `AdapterInvocationError`, `ClusteringError`, `BaselineAbortError` there  |
+| B2  | `chaoslab_agent.adk_types.RemoteA2aAgentWrapper`              | S3.2 ↔ S4.5           | Add to S4.5's `adk_types.py`; if S4.5 ships first, S3.2 uses it as-is                                                                                                  |
+| B3  | SSE event contract names lock-in                              | S4.1 ↔ S7.4           | Create `packages/shared-types/sse-events.ts` early. Event names: `cell-update`, `point`, `phase`, `patch`, `recipe`, `active-agent`, `error`, `done` (per S7.4 + S4.1) |
+| B4  | `/replay-data` endpoint                                       | S4.1 ↔ S7.10          | Optional — static fixture canonical fallback                                                                                                                           |
+| B5  | `?freezeAt=` query param on `/replay`                         | S7.10 ↔ S7.12 ↔ S8.3  | S7.10 honors `freezeAt`; S7.12 + S8.3 depend on it                                                                                                                     |
+| B6  | `ANTHROPIC_API_KEY` for visual-loop reviewer                  | S7.12 ↔ S1.5          | Add as both local-dev secret + GitHub Actions secret                                                                                                                   |
+| B7  | Docker-compose fixtures CI matrix                             | S3.3/S3.4/S3.5 ↔ S1.5 | Amend S1.5 to spin up adapter fixture containers before `pytest -m integration`                                                                                        |
+| B8  | `roles/iam.serviceAccountTokenCreator` self-binding           | S6.5 ↔ S1.4           | Patch S1.4's IAM script to add this role on `chaoslab-runtime` SA for GCS signed URL                                                                                   |
+| B9  | Chaoslab-runtime SA needs Vertex AI permissions for JUDGE_LLM | S6.x ↔ S1.4           | Verify `roles/aiplatform.user` binding (already in S1.4 baseline)                                                                                                      |
 
 ### Category C: Library-version / API-shape verifications (12 items)
 
 These are all `[UNVERIFIED]` flags from various sub-agents. None blocking — each story documents the verification step and fallback.
 
-| # | Item | Story | Type |
-|---|---|---|---|
-| C1 | Phoenix Cloud space-scoped URL (`/s/<space>`) | S2.3 | Day-1 RAT resolves |
-| C2 | ADK `before_tool_callback` exact signature | S5.2 | Coding agent verifies via Context7 against installed ADK version |
-| C3 | ADK `Runner` API signature in v1.x | S4.2 | Same — Context7 + installed version check |
-| C4 | Phoenix `concurrency` default on sync vs async client | S4.3 | First integration test resolves |
-| C5 | Phoenix annotation-config auto-create vs pre-create | S4.4 | Day-1 RAT resolves; both paths documented |
-| C6 | Exact Phoenix REST path for span annotations | S4.4 | Pin to `arize-phoenix-client` version |
-| C7 | `phoenix.evals.LLM.acomplete()` method name | S6.4 | May be `LLM.generate()` or `LLM.aevaluate()`; Context7 verifies |
-| C8 | GitLab MCP `create_or_update_file(s)` tool name | S6.6 | Verify via `get_mcp_server_version` + tool listing; fallback to `python-gitlab` SDK for file commits while keeping official MCP for MR creation (ADR-011 credit) |
-| C9 | `BaseRetrievalTool` import path stability | S5.4 | Lazy-import inside `install()` minimizes blast radius |
-| C10 | `phoenix.client` SDK package name | S4.3, S4.4 | May be `arize-phoenix-client`; pin in `pyproject.toml` |
-| C11 | `--cpu-boost` vs `--startup-cpu-boost` gcloud flag | S1.6 | Coding agent tries `--cpu-boost` first, falls back |
-| C12 | `uv` minor version to pin in Dockerfile | S4.6, S2.4 | Defers to S1.1's lockfile-determined version |
+| #   | Item                                                  | Story      | Type                                                                                                                                                             |
+| --- | ----------------------------------------------------- | ---------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| C1  | Phoenix Cloud space-scoped URL (`/s/<space>`)         | S2.3       | Day-1 RAT resolves                                                                                                                                               |
+| C2  | ADK `before_tool_callback` exact signature            | S5.2       | Coding agent verifies via Context7 against installed ADK version                                                                                                 |
+| C3  | ADK `Runner` API signature in v1.x                    | S4.2       | Same — Context7 + installed version check                                                                                                                        |
+| C4  | Phoenix `concurrency` default on sync vs async client | S4.3       | First integration test resolves                                                                                                                                  |
+| C5  | Phoenix annotation-config auto-create vs pre-create   | S4.4       | Day-1 RAT resolves; both paths documented                                                                                                                        |
+| C6  | Exact Phoenix REST path for span annotations          | S4.4       | Pin to `arize-phoenix-client` version                                                                                                                            |
+| C7  | `phoenix.evals.LLM.acomplete()` method name           | S6.4       | May be `LLM.generate()` or `LLM.aevaluate()`; Context7 verifies                                                                                                  |
+| C8  | GitLab MCP `create_or_update_file(s)` tool name       | S6.6       | Verify via `get_mcp_server_version` + tool listing; fallback to `python-gitlab` SDK for file commits while keeping official MCP for MR creation (ADR-011 credit) |
+| C9  | `BaseRetrievalTool` import path stability             | S5.4       | Lazy-import inside `install()` minimizes blast radius                                                                                                            |
+| C10 | `phoenix.client` SDK package name                     | S4.3, S4.4 | May be `arize-phoenix-client`; pin in `pyproject.toml`                                                                                                           |
+| C11 | `--cpu-boost` vs `--startup-cpu-boost` gcloud flag    | S1.6       | Coding agent tries `--cpu-boost` first, falls back                                                                                                               |
+| C12 | `uv` minor version to pin in Dockerfile               | S4.6, S2.4 | Defers to S1.1's lockfile-determined version                                                                                                                     |
 
 ### Category D: Implementation-detail clarifications (12 items)
 
-| # | Item | Story | Note |
-|---|---|---|---|
-| D1 | S5.1 vendor SHA pinning | S5.1 | Coding agent resolves real SHA at execution time (intentional, latest stable) |
-| D2 | S5.3 `indirect_injection` needs tool-bearing turn | S5.3 | Fallback to user-message injection if no tool call; test fixture must include tool call |
-| D3 | S5.5 long-delay tests | S5.5 | Short deltas (300ms/100ms) in CI; one `@pytest.mark.slow` gated test |
-| D4 | S5.6 `arbitrary_types_allowed=True` | S5.6 | Needed for `TargetAdapter` ABC (not BaseModel) |
-| D5 | `HardeningRecipe.cluster_set` field naming | S6.3 | Reads singular but is a list per architecture.md schema. Future renaming = schema-evolution issue across all patcher stories |
-| D6 | `canonical-run.json` is captured not authored | S8.2 | Ordering: deploy staging → live attack → export → commit JSON → S8.2 lands |
-| D7 | OG PNG capture needs dev server + xvfb on headless VPS | S8.3 | Documented in Makefile target |
-| D8 | Tier 2 adapter §14 carve-out for `langchain`/`crewai`/`openai` | S8.4 | TOML-section-aware parsing + `# §14 carve-out` comment marker |
-| D9 | Phoenix project provisioning is implicit | S8.2 | Materializes on first span ingest via `OTEL_RESOURCE_ATTRIBUTES` |
-| D10 | CI submission-audit job non-blocking initially | S8.4 | `continue-on-error: true`; flip to blocking close to Day 8 |
-| D11 | Coverage threshold timing | S1.5 | Ship at `--cov-fail-under=80`; python-tests red until S2.1 lands real source. Accepted. |
-| D12 | Prod SA bootstrap | S1.4, S1.7 | Recommend amending S1.4 to create both `chaoslab-deploy` (staging) + `chaoslab-deploy-prod` SAs in one pass |
+| #   | Item                                                           | Story      | Note                                                                                                                         |
+| --- | -------------------------------------------------------------- | ---------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| D1  | S5.1 vendor SHA pinning                                        | S5.1       | Coding agent resolves real SHA at execution time (intentional, latest stable)                                                |
+| D2  | S5.3 `indirect_injection` needs tool-bearing turn              | S5.3       | Fallback to user-message injection if no tool call; test fixture must include tool call                                      |
+| D3  | S5.5 long-delay tests                                          | S5.5       | Short deltas (300ms/100ms) in CI; one `@pytest.mark.slow` gated test                                                         |
+| D4  | S5.6 `arbitrary_types_allowed=True`                            | S5.6       | Needed for `TargetAdapter` ABC (not BaseModel)                                                                               |
+| D5  | `HardeningRecipe.cluster_set` field naming                     | S6.3       | Reads singular but is a list per architecture.md schema. Future renaming = schema-evolution issue across all patcher stories |
+| D6  | `canonical-run.json` is captured not authored                  | S8.2       | Ordering: deploy staging → live attack → export → commit JSON → S8.2 lands                                                   |
+| D7  | OG PNG capture needs dev server + xvfb on headless VPS         | S8.3       | Documented in Makefile target                                                                                                |
+| D8  | Tier 2 adapter §14 carve-out for `langchain`/`crewai`/`openai` | S8.4       | TOML-section-aware parsing + `# §14 carve-out` comment marker                                                                |
+| D9  | Phoenix project provisioning is implicit                       | S8.2       | Materializes on first span ingest via `OTEL_RESOURCE_ATTRIBUTES`                                                             |
+| D10 | CI submission-audit job non-blocking initially                 | S8.4       | `continue-on-error: true`; flip to blocking close to Day 8                                                                   |
+| D11 | Coverage threshold timing                                      | S1.5       | Ship at `--cov-fail-under=80`; python-tests red until S2.1 lands real source. Accepted.                                      |
+| D12 | Prod SA bootstrap                                              | S1.4, S1.7 | Recommend amending S1.4 to create both `chaoslab-deploy` (staging) + `chaoslab-deploy-prod` SAs in one pass                  |
 
 ### Category E: Out-of-scope (acceptable per ChaosLab MVP) (5 items)
 
-| # | Item | Story | Why acceptable |
-|---|---|---|---|
-| E1 | `/agent/new` route returns 404 until added | S7.9, S7.8 (CTA refs) | UX spec marks it beta. Demo doesn't need it. |
-| E2 | Demo video (3-min YouTube) | — | Manual Day-8 task for Abu, NOT a coding-agent story (per directive) |
-| E3 | GitHub URL placeholder in S7.9 header | S7.9 | Filled by S8.1 |
-| E4 | OG image placeholder in S7.9 | S7.9 | Filled by S8.3 |
-| E5 | S3.6 contingency split (`story-3.6b`) | S3.6 | Only filed if 3.6 exceeds 2h estimate (behavioral fingerprinting is `@advanced`) |
+| #   | Item                                       | Story                 | Why acceptable                                                                   |
+| --- | ------------------------------------------ | --------------------- | -------------------------------------------------------------------------------- |
+| E1  | `/agent/new` route returns 404 until added | S7.9, S7.8 (CTA refs) | UX spec marks it beta. Demo doesn't need it.                                     |
+| E2  | Demo video (3-min YouTube)                 | —                     | Manual Day-8 task for Abu, NOT a coding-agent story (per directive)              |
+| E3  | GitHub URL placeholder in S7.9 header      | S7.9                  | Filled by S8.1                                                                   |
+| E4  | OG image placeholder in S7.9               | S7.9                  | Filled by S8.3                                                                   |
+| E5  | S3.6 contingency split (`story-3.6b`)      | S3.6                  | Only filed if 3.6 exceeds 2h estimate (behavioral fingerprinting is `@advanced`) |
 
 ---
 
@@ -178,20 +276,20 @@ These are all `[UNVERIFIED]` flags from various sub-agents. None blocking — ea
 
 For each major area, the spec aligns with the corpus. Spot checks:
 
-| Corpus claim | Spec realization | Status |
-|---|---|---|
-| `context/03 §13` — "no red-team product treats multi-agent A2A topology as first-class" | ADR-002 + Epic 3 multi-tier adapter layer leans into this gap | ✅ |
-| `architecture/02 §1` — "Phoenix MCP exposes no `run-experiment` write tool" | ADR-005 + S4.3 wraps Python SDK | ✅ |
-| `architecture/01 §2` — "vendor `deepankarm/agent-chaos` saves 3-4 days" | ADR-006 + S5.1 | ✅ |
-| `architecture/04 §4` — "JUDGE_LLM must be Flash, not Pro (17× cost)" | ADR-007 hard-coded in S4.1 Settings validator + S6.x | ✅ |
-| `best-practices/02 §1` — "build-once-promote-everywhere CI pattern" | ADR-008 + S1.6 + S1.7 | ✅ |
-| `best-practices/03 §1.1` — "ruff has no module-level line-count rule" | ADR-010 + S1.3 custom script | ✅ |
-| `best-practices/01 §11` — "Astral monoculture: uv + ruff + ty" | ADR-001 + coding-standards.md ruff/ty config | ✅ |
-| `architecture/03 §8 Candidate B` — "Hybrid orchestrator + A2A target wins" | ADR-002 + Epic 4 structure | ✅ |
-| `architecture/05 §1 Option D` — "Attack Matrix + Resilience Curve hybrid" | ux-spec.md §"The hero visual" + S7.5 + S7.6 + S7.11 | ✅ |
-| `partner-gitlab.md` — "official `gitlab.com/api/v4/mcp` required for evaluation" | ADR-011 + S6.6 (hard-coded ban on community wrappers) | ✅ |
-| `context/05 §13.1` — "discovery fallback chain" | S3.6 implements the same 6-step chain | ✅ |
-| `context/04 §1` — "ADK callback hooks are every fault's injection point" | E5 stories each use the corresponding callback | ✅ |
+| Corpus claim                                                                            | Spec realization                                              | Status |
+| --------------------------------------------------------------------------------------- | ------------------------------------------------------------- | ------ |
+| `context/03 §13` — "no red-team product treats multi-agent A2A topology as first-class" | ADR-002 + Epic 3 multi-tier adapter layer leans into this gap | ✅     |
+| `architecture/02 §1` — "Phoenix MCP exposes no `run-experiment` write tool"             | ADR-005 + S4.3 wraps Python SDK                               | ✅     |
+| `architecture/01 §2` — "vendor `deepankarm/agent-chaos` saves 3-4 days"                 | ADR-006 + S5.1                                                | ✅     |
+| `architecture/04 §4` — "JUDGE_LLM must be Flash, not Pro (17× cost)"                    | ADR-007 hard-coded in S4.1 Settings validator + S6.x          | ✅     |
+| `best-practices/02 §1` — "build-once-promote-everywhere CI pattern"                     | ADR-008 + S1.6 + S1.7                                         | ✅     |
+| `best-practices/03 §1.1` — "ruff has no module-level line-count rule"                   | ADR-010 + S1.3 custom script                                  | ✅     |
+| `best-practices/01 §11` — "Astral monoculture: uv + ruff + ty"                          | ADR-001 + coding-standards.md ruff/ty config                  | ✅     |
+| `architecture/03 §8 Candidate B` — "Hybrid orchestrator + A2A target wins"              | ADR-002 + Epic 4 structure                                    | ✅     |
+| `architecture/05 §1 Option D` — "Attack Matrix + Resilience Curve hybrid"               | ux-spec.md §"The hero visual" + S7.5 + S7.6 + S7.11           | ✅     |
+| `partner-gitlab.md` — "official `gitlab.com/api/v4/mcp` required for evaluation"        | ADR-011 + S6.6 (hard-coded ban on community wrappers)         | ✅     |
+| `context/05 §13.1` — "discovery fallback chain"                                         | S3.6 implements the same 6-step chain                         | ✅     |
+| `context/04 §1` — "ADK callback hooks are every fault's injection point"                | E5 stories each use the corresponding callback                | ✅     |
 
 **Spec is corpus-faithful.** No drift detected.
 
@@ -207,17 +305,17 @@ For each major area, the spec aligns with the corpus. Spot checks:
 
 ## Story-count breakdown
 
-| Epic | Title | Stories | Est. hours |
-|---|---|---:|---:|
-| E1 | Repo + CI/CD foundation | 7 | 10.5 |
-| E2 | Target agent (the victim) | 4 | 5.0 |
-| E3 | Cross-framework target adapter layer | 6 | 11.0 |
-| E4 | Orchestrator + Phoenix wrappers | 6 | 9.5 |
-| E5 | Fault injection (4 fault classes) | 7 | 10.0 |
-| E6 | Judge + clustering + hardening recipe | 6 | 10.5 |
-| E7 | chaoslab-web frontend | 12 | 17.5 |
-| E8 | README + Submission polish | 4 | 6.0 |
-| **Total** | | **52** | **~80h** |
+| Epic      | Title                                 | Stories | Est. hours |
+| --------- | ------------------------------------- | ------: | ---------: |
+| E1        | Repo + CI/CD foundation               |       7 |       10.5 |
+| E2        | Target agent (the victim)             |       4 |        5.0 |
+| E3        | Cross-framework target adapter layer  |       6 |       11.0 |
+| E4        | Orchestrator + Phoenix wrappers       |       6 |        9.5 |
+| E5        | Fault injection (4 fault classes)     |       7 |       10.0 |
+| E6        | Judge + clustering + hardening recipe |       6 |       10.5 |
+| E7        | chaoslab-web frontend                 |      12 |       17.5 |
+| E8        | README + Submission polish            |       4 |        6.0 |
+| **Total** |                                       |  **52** |   **~80h** |
 
 80 hours of coding-agent work. With 3-5× speedup over solo human dev (AI coding agents), comfortably fits 9 days assuming reasonable parallel dispatch. Bottleneck is the critical path through E1 → E2 → E3.1 → E4 → E5 → E6, with E7 mostly parallel-safe after E1 lands.
 

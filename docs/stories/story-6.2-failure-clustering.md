@@ -310,6 +310,7 @@ await phoenix_client.spans.log_span_annotations(span_annotations=annotations)
 > **Con:** Non-deterministic; same input may cluster differently across runs.
 
 Mitigation in this story:
+
 1. Set `temperature=0.1` on the Gemini call (low but not zero — zero risks degenerate outputs)
 2. Retry up to 2× on JSON-parse failure (corrective prompt: "Your previous output was not valid JSON. Re-emit ONLY the JSON object.")
 3. If retries exhaust → raise `ClusteringError` (custom exception, not bare Exception). Caller (S6.4 Patcher) catches and falls back to rule-based clustering by fault_class (single cluster per fault class). This fallback path is documented but NOT in this story — S6.4 implements it.

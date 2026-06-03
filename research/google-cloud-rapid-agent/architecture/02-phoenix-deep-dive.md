@@ -40,11 +40,13 @@ npm install -g @arizeai/phoenix-mcp@latest
 ```
 
 CLI flags (parsed via `minimist` in `src/index.ts`):
+
 - `--apiKey <key>` — Phoenix API key
 - `--baseUrl <url>` — Phoenix instance URL (e.g. `https://app.phoenix.arize.com`)
 - `--project <project-name>` — Optional default project for project-scoped tools
 
 Env vars (read by `src/config.ts`):
+
 - `PHOENIX_API_KEY` — fallback if `--apiKey` not passed
 - `PHOENIX_HOST` — fallback if `--baseUrl` not passed
 - `PHOENIX_PROJECT` — fallback if `--project` not passed
@@ -151,16 +153,16 @@ Note: the README lists "Prompts (8 tools)" but the actual source registers 10 pr
 
 ### 1.4 Summary table — what's writable from the MCP server
 
-| Category | Read | Write |
-|---|---|---|
-| Projects | ✅ list, get | ❌ |
-| Traces | ✅ list, get | ❌ |
-| Spans | ✅ get-spans (filterable), get-span-annotations | ❌ |
-| Sessions | ✅ list, get | ❌ |
-| Annotation configs | ✅ list | ❌ (no create, no write annotation) |
-| Datasets | ✅ list, get, examples, experiments | ✅ `add-dataset-examples` |
-| Experiments | ✅ list-for-dataset, get-by-id | ❌ (no run, no create) |
-| Prompts | ✅ list, get-many-ways | ✅ `upsert-prompt`, `add-prompt-version-tag` |
+| Category           | Read                                            | Write                                        |
+| ------------------ | ----------------------------------------------- | -------------------------------------------- |
+| Projects           | ✅ list, get                                    | ❌                                           |
+| Traces             | ✅ list, get                                    | ❌                                           |
+| Spans              | ✅ get-spans (filterable), get-span-annotations | ❌                                           |
+| Sessions           | ✅ list, get                                    | ❌                                           |
+| Annotation configs | ✅ list                                         | ❌ (no create, no write annotation)          |
+| Datasets           | ✅ list, get, examples, experiments             | ✅ `add-dataset-examples`                    |
+| Experiments        | ✅ list-for-dataset, get-by-id                  | ❌ (no run, no create)                       |
+| Prompts            | ✅ list, get-many-ways                          | ✅ `upsert-prompt`, `add-prompt-version-tag` |
 
 ### 1.5 What the docs page got wrong/missing
 
@@ -173,14 +175,15 @@ Note: the README lists "Prompts (8 tools)" but the actual source registers 10 pr
 
 ### 2.1 The two SDK packages
 
-| Package | Purpose | Pin |
-|---|---|---|
-| `arize-phoenix` | Full server + Python client (datasets, experiments, evaluators) | `pip install arize-phoenix` |
-| `arize-phoenix-otel` | Lightweight OTEL register / tracer provider helper | `pip install arize-phoenix-otel` |
-| `arize-phoenix-evals` | Evaluator templates (`HallucinationEvaluator`, `ClassificationEvaluator`, etc.) | `pip install arize-phoenix-evals` |
+| Package                | Purpose                                                                                   | Pin                                |
+| ---------------------- | ----------------------------------------------------------------------------------------- | ---------------------------------- |
+| `arize-phoenix`        | Full server + Python client (datasets, experiments, evaluators)                           | `pip install arize-phoenix`        |
+| `arize-phoenix-otel`   | Lightweight OTEL register / tracer provider helper                                        | `pip install arize-phoenix-otel`   |
+| `arize-phoenix-evals`  | Evaluator templates (`HallucinationEvaluator`, `ClassificationEvaluator`, etc.)           | `pip install arize-phoenix-evals`  |
 | `arize-phoenix-client` | Just the REST client (lighter, used when you only need to read/write to a remote Phoenix) | `pip install arize-phoenix-client` |
 
 For ChaosLab on Phoenix Cloud (not self-hosted), the minimum install is:
+
 ```bash
 pip install arize-phoenix-client arize-phoenix-otel arize-phoenix-evals \
     openinference-instrumentation-google-adk \
@@ -198,6 +201,7 @@ from phoenix.client import AsyncClient     # async (use inside async ADK code pa
 ```
 
 Both expose the same resource namespaces:
+
 - `client.datasets` — `create_dataset`, `get_dataset`, `add_examples`
 - `client.experiments` — `run_experiment`, `evaluate_experiment`, `get_experiment`
 - `client.spans` — `get_spans`, `get_spans_dataframe`, `log_span_annotations`, `log_span_annotations_dataframe`
@@ -262,13 +266,13 @@ dataset = px_client.datasets.create_dataset(
 
 ### 2.5 SDK-only capabilities (not via MCP)
 
-| Capability | SDK method | Why it's not MCP |
-|---|---|---|
-| Run an experiment | `client.experiments.run_experiment(...)` | Requires passing a Python callable as `task`; MCP can't serialize a Python function. |
-| Write span annotations | `client.spans.log_span_annotations(...)` / `_dataframe(...)` | No MCP tool — confirmed by reading `annotationConfigTools.ts` (only `list-annotation-configs`). |
-| Evaluate an existing experiment | `client.experiments.evaluate_experiment(experiment, evaluators)` | Same reason as run_experiment. |
-| Query spans into pandas | `client.spans.get_spans_dataframe(query=SpanQuery().where(...))` | MCP only returns JSON spans, no pandas pipeline. |
-| Use built-in evaluators (`HallucinationEvaluator`, `ClassificationEvaluator`) | `phoenix.evals.*` | Pure Python — not exposed over MCP. |
+| Capability                                                                    | SDK method                                                       | Why it's not MCP                                                                                |
+| ----------------------------------------------------------------------------- | ---------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| Run an experiment                                                             | `client.experiments.run_experiment(...)`                         | Requires passing a Python callable as `task`; MCP can't serialize a Python function.            |
+| Write span annotations                                                        | `client.spans.log_span_annotations(...)` / `_dataframe(...)`     | No MCP tool — confirmed by reading `annotationConfigTools.ts` (only `list-annotation-configs`). |
+| Evaluate an existing experiment                                               | `client.experiments.evaluate_experiment(experiment, evaluators)` | Same reason as run_experiment.                                                                  |
+| Query spans into pandas                                                       | `client.spans.get_spans_dataframe(query=SpanQuery().where(...))` | MCP only returns JSON spans, no pandas pipeline.                                                |
+| Use built-in evaluators (`HallucinationEvaluator`, `ClassificationEvaluator`) | `phoenix.evals.*`                                                | Pure Python — not exposed over MCP.                                                             |
 
 **The relationship between MCP and SDK is:** both hit the same Phoenix REST API (`/v1/...`), with the MCP server being a thin proxy over `@arizeai/phoenix-client` (TypeScript). The SDK can do everything the MCP can, PLUS the writes/runs that don't fit in stateless tool semantics. For ChaosLab, the agent uses MCP tools for read+dataset-write paths, and a SMALL set of custom Python FunctionTools (wrapping `run_experiment`, `log_span_annotations`) for the write/run paths.
 
@@ -283,6 +287,7 @@ dataset = px_client.datasets.create_dataset(
 - The package wraps the `google-adk` runtime via OpenTelemetry. Source files: `_wrappers.py` (the actual instrumented methods), `__init__.py` (entrypoint).
 
 Install:
+
 ```bash
 pip install openinference-instrumentation-google-adk arize-phoenix-otel google-adk
 ```
@@ -291,16 +296,16 @@ pip install openinference-instrumentation-google-adk arize-phoenix-otel google-a
 
 From the OpenInference ADK README + the OpenInference span spec (`Arize-ai/openinference/spec/llm_spans.md`):
 
-| Auto-traced | Detail | Span kind |
-|---|---|---|
-| Agent run (top-level) | start, end, input message, final response | `AGENT` |
-| Sub-agent delegation | parent agent → child agent span | `AGENT` (child of parent) |
-| Gemini model calls | request payload, response, model name, token counts, invocation params | `LLM` |
-| Tool function calls | tool name, arguments, return value, errors | `TOOL` |
-| Multi-turn conversation context | each user/assistant message preserved on the LLM span | `LLM` attribute `llm.input_messages` |
-| Errors | `status.code = "ERROR"`, exception attributes propagated | any |
-| Retries | each retry attempt produces its own span (parent-child) | varies |
-| Latency | OTEL `start_time`/`end_time` on every span | all |
+| Auto-traced                     | Detail                                                                 | Span kind                            |
+| ------------------------------- | ---------------------------------------------------------------------- | ------------------------------------ |
+| Agent run (top-level)           | start, end, input message, final response                              | `AGENT`                              |
+| Sub-agent delegation            | parent agent → child agent span                                        | `AGENT` (child of parent)            |
+| Gemini model calls              | request payload, response, model name, token counts, invocation params | `LLM`                                |
+| Tool function calls             | tool name, arguments, return value, errors                             | `TOOL`                               |
+| Multi-turn conversation context | each user/assistant message preserved on the LLM span                  | `LLM` attribute `llm.input_messages` |
+| Errors                          | `status.code = "ERROR"`, exception attributes propagated               | any                                  |
+| Retries                         | each retry attempt produces its own span (parent-child)                | varies                               |
+| Latency                         | OTEL `start_time`/`end_time` on every span                             | all                                  |
 
 ### 3.3 What is NOT auto-traced (you must emit manually)
 
@@ -351,6 +356,7 @@ From `arize.com/docs/phoenix/integrations/python/google-adk/google-adk-tracing` 
 > "For Agent Engine, use `batch=False` for synchronous export, since Agent Engine pauses CPU after requests."
 
 Translated for ChaosLab:
+
 - If we deploy on **Cloud Run** (current plan): use the snippet in §3.4 verbatim, `set_global_tracer_provider=True` (default), `batch=True`. Standard.
 - If we deploy on **Agent Engine** (probably not, but flagged for completeness):
   ```python
@@ -391,29 +397,30 @@ Sessions sit one level above traces: a "session" is a multi-turn conversation co
 
 From `Arize-ai/openinference/spec/llm_spans.md` (the canonical schema):
 
-| Attribute | Type | Meaning | Set on |
-|---|---|---|---|
-| `openinference.span.kind` | string | `LLM` / `TOOL` / `AGENT` / `CHAIN` / `RETRIEVER` / `EMBEDDING` / `RERANKER` / `EVALUATOR` | every span |
-| `input.value` | string (often JSON) | what went in | every span |
-| `input.mime_type` | string | usually `application/json` or `text/plain` | every span |
-| `output.value` | string | what came out | every span |
-| `output.mime_type` | string | | every span |
-| `llm.system` | string | `openai` / `google` / `anthropic` etc. | LLM spans |
-| `llm.model_name` | string | e.g. `gemini-2.5-flash` | LLM spans |
-| `llm.invocation_parameters` | JSON string | temperature, max_tokens, top_p | LLM spans |
-| `llm.input_messages` | array of `{message.role, message.content}` | full conversation history | LLM spans |
-| `llm.output_messages` | array — includes `message.tool_calls[].tool_call.function.{name,arguments}` | model response | LLM spans |
-| `llm.token_count.prompt` | int | | LLM spans |
-| `llm.token_count.completion` | int | | LLM spans |
-| `llm.token_count.total` | int | | LLM spans |
-| `tool.name` | string | name of the function tool | TOOL spans |
-| `tool.parameters` | JSON string | tool call args | TOOL spans |
+| Attribute                    | Type                                                                        | Meaning                                                                                   | Set on     |
+| ---------------------------- | --------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- | ---------- |
+| `openinference.span.kind`    | string                                                                      | `LLM` / `TOOL` / `AGENT` / `CHAIN` / `RETRIEVER` / `EMBEDDING` / `RERANKER` / `EVALUATOR` | every span |
+| `input.value`                | string (often JSON)                                                         | what went in                                                                              | every span |
+| `input.mime_type`            | string                                                                      | usually `application/json` or `text/plain`                                                | every span |
+| `output.value`               | string                                                                      | what came out                                                                             | every span |
+| `output.mime_type`           | string                                                                      |                                                                                           | every span |
+| `llm.system`                 | string                                                                      | `openai` / `google` / `anthropic` etc.                                                    | LLM spans  |
+| `llm.model_name`             | string                                                                      | e.g. `gemini-2.5-flash`                                                                   | LLM spans  |
+| `llm.invocation_parameters`  | JSON string                                                                 | temperature, max_tokens, top_p                                                            | LLM spans  |
+| `llm.input_messages`         | array of `{message.role, message.content}`                                  | full conversation history                                                                 | LLM spans  |
+| `llm.output_messages`        | array — includes `message.tool_calls[].tool_call.function.{name,arguments}` | model response                                                                            | LLM spans  |
+| `llm.token_count.prompt`     | int                                                                         |                                                                                           | LLM spans  |
+| `llm.token_count.completion` | int                                                                         |                                                                                           | LLM spans  |
+| `llm.token_count.total`      | int                                                                         |                                                                                           | LLM spans  |
+| `tool.name`                  | string                                                                      | name of the function tool                                                                 | TOOL spans |
+| `tool.parameters`            | JSON string                                                                 | tool call args                                                                            | TOOL spans |
 
 ### 4.3 Querying spans for ChaosLab failure clustering
 
 Three available query paths, in order of preference for ChaosLab:
 
 **A. SDK SpanQuery DSL** (most powerful):
+
 ```python
 from phoenix.client import Client
 from phoenix.client.types.spans import SpanQuery
@@ -423,6 +430,7 @@ df = Client().spans.get_spans_dataframe(project_identifier="chaoslab", query=que
 ```
 
 **B. SDK `get_spans` with filters** (Phoenix server ≥14.9.0 required for attribute filtering):
+
 ```python
 spans = Client().spans.get_spans(
     project_identifier="chaoslab",
@@ -434,6 +442,7 @@ spans = Client().spans.get_spans(
 ```
 
 **C. MCP `get-spans` tool** (what the agent itself calls):
+
 ```json
 {
   "tool": "get-spans",
@@ -455,6 +464,7 @@ The MCP tool returns JSON; the SDK methods return pandas. For ChaosLab's failure
 ChaosLab's value prop is writing back enrichments. The available write surfaces are:
 
 1. **Span annotations** — `client.spans.log_span_annotations(...)` (SDK only, NOT via MCP). Each annotation has `name`, `span_id`, `annotator_kind` (`"LLM"`/`"HUMAN"`/`"CODE"`), `result.{label, score, explanation}`, optional `metadata`. This is THE primary writeback channel for ChaosLab's failure scores. Example:
+
    ```python
    from phoenix.client.resources.spans import SpanAnnotationData
    ann = SpanAnnotationData(
@@ -652,9 +662,14 @@ df = experiment.as_dataframe()    # [UNVERIFIED — implied by docs but not in p
 ```
 
 Or via MCP:
+
 ```json
-{ "tool": "get-experiment-by-id", "arguments": { "experiment_id": "RXhwZXJpbWVudDo4" } }
+{
+  "tool": "get-experiment-by-id",
+  "arguments": { "experiment_id": "RXhwZXJpbWVudDo4" }
+}
 ```
+
 Returns `{ metadata, experimentResult }` — two parallel API calls behind the scenes (`/v1/experiments/{id}` for metadata, `/v1/experiments/{id}/json` for results).
 
 ### 6.3 Concurrency + rate limit handling
@@ -703,6 +718,7 @@ Phoenix Cloud paid tier ("AX Pro"): $50/month, 50k spans/month, 10 GB storage, 3
 ### 7.3 Recommendation for ChaosLab
 
 **Hybrid:**
+
 - **Local dev (days 1–7):** self-hosted Phoenix via Docker on Abu's laptop. Free, no span cap, full-fidelity tracing.
 - **Demo recording (day 8–9):** push a curated subset to Phoenix Cloud at `https://app.phoenix.arize.com/s/<space>` so the judges can click in. This satisfies the "live observability dashboard" demo requirement without burning the cap mid-build.
 - **Judging (judging window):** keep the Cloud project alive for ~2 weeks. 25k cap should hold if no new runs.
@@ -735,7 +751,7 @@ This also dodges the latency concern: pushing to Phoenix Cloud from Cloud Run ca
 5. **Agent Engine + Phoenix tracing requires `set_global_tracer_provider=False` + `batch=False`** — see §3.5.
 6. **MCP processes leak if not closed.** ADK's `MCPToolset` should be used inside an `async with` block or with explicit `await toolset.close()`. Otherwise child `npx` processes accumulate.
 7. **Experiment runs are NOT cancellable mid-flight via MCP.** Once you fire `run_experiment`, there's no `cancel-experiment` tool. Plan for max-timeout per task call (`timeout=60`).
-8. **OpenInference `auto_instrument=True` blindly hooks every installed openinference-* package.** If you `pip install openinference-instrumentation-langchain` (even by accident, e.g., via a transitive dep), it'll start emitting LangChain spans into Phoenix, polluting your project. Pin and audit your dependency tree.
+8. **OpenInference `auto_instrument=True` blindly hooks every installed openinference-\* package.** If you `pip install openinference-instrumentation-langchain` (even by accident, e.g., via a transitive dep), it'll start emitting LangChain spans into Phoenix, polluting your project. Pin and audit your dependency tree.
 9. **The MCP server is single-tenant per process.** It connects to one Phoenix `--baseUrl` at a time. If ChaosLab wants to read from project A and write to project B, both must be on the same Phoenix instance (Cloud or self-hosted).
 10. **No bulk delete tool.** If you pollute a project with junk traces during dev, you have to clear via the UI (Settings → Data Retention) or wipe the database. Plan for separate Phoenix projects for `chaoslab-dev` vs `chaoslab-demo`.
 
@@ -877,6 +893,7 @@ def build_dataset_from_failures(failures_df, dataset_name: str):
 ```
 
 Alternative — via MCP from the agent's own context:
+
 ```json
 {
   "tool": "add-dataset-examples",
@@ -884,8 +901,14 @@ Alternative — via MCP from the agent's own context:
     "dataset_name": "chaoslab-failures-2026-06-04",
     "examples": [
       {
-        "input":  { "tool_name": "stripe_charge", "tool_args": "{\"customer_id\":\"cus_xxx\",\"amount_cents\":500}" },
-        "output": { "observed_output": "404 customer not found", "status": "ERROR" },
+        "input": {
+          "tool_name": "stripe_charge",
+          "tool_args": "{\"customer_id\":\"cus_xxx\",\"amount_cents\":500}"
+        },
+        "output": {
+          "observed_output": "404 customer not found",
+          "status": "ERROR"
+        },
         "metadata": { "trace_id": "abc...", "cluster_id": "stripe_404_pattern" }
       }
     ]
@@ -982,6 +1005,7 @@ async def fetch_experiment_results(experiment_id: str):
 ```
 
 These six patterns (A–F) cover ChaosLab's full loop:
+
 - A instruments the target.
 - B wires ChaosLab to Phoenix MCP + custom tools.
 - C, D find and persist failure clusters.

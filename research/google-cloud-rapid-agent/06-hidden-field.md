@@ -27,14 +27,14 @@ This means saturation is **inferred from priors and friction signals**, not dire
 - **YELLOW** = mid-volume, some friction
 - **RED** = predicted high submission volume, lazy-default entry point
 
-| Track | Verdict | Why |
-|---|---|---|
-| **Arize** | 🟢 **GREEN** | Requires code-first ADK (not visual). Phoenix is observability — not the first thing most builders think of for "agent that does X". Cerebral angle deters template-rippers. |
-| **Elastic** | 🟡 **YELLOW** | 14-day trial squeeze deters builders who start late. Kibana/ES|QL learning curve. But search is a recognizable, achievable angle. |
-| **Fivetran** | 🟡 **YELLOW** | 14-day trial squeeze. Concept (ELT data pipelines) is less obvious to AI-agent newcomers. Likely smaller submission count than MongoDB. |
-| **GitLab** | 🔴 **RED** | DevOps automation is the highest-recognition agent use case ("agent that triages MRs!"). Official MCP server is well-documented. Many builders will pick this default. |
-| **MongoDB** | 🔴 **RED** | Free Atlas tier + 40+ MCP tools + Gemini CLI extension = lowest-friction track. Will be the most-popular default for solo devs and AI-newcomer teams. |
-| **Dynatrace** | 🟢 **GREEN** | Highest concept ladder (true production observability). Requires real telemetry data (not just mock JSON). Smallest predicted submission volume. |
+| Track         | Verdict       | Why                                                                                                                                                                          |
+| ------------- | ------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------ |
+| **Arize**     | 🟢 **GREEN**  | Requires code-first ADK (not visual). Phoenix is observability — not the first thing most builders think of for "agent that does X". Cerebral angle deters template-rippers. |
+| **Elastic**   | 🟡 **YELLOW** | 14-day trial squeeze deters builders who start late. Kibana/ES                                                                                                               | QL learning curve. But search is a recognizable, achievable angle. |
+| **Fivetran**  | 🟡 **YELLOW** | 14-day trial squeeze. Concept (ELT data pipelines) is less obvious to AI-agent newcomers. Likely smaller submission count than MongoDB.                                      |
+| **GitLab**    | 🔴 **RED**    | DevOps automation is the highest-recognition agent use case ("agent that triages MRs!"). Official MCP server is well-documented. Many builders will pick this default.       |
+| **MongoDB**   | 🔴 **RED**    | Free Atlas tier + 40+ MCP tools + Gemini CLI extension = lowest-friction track. Will be the most-popular default for solo devs and AI-newcomer teams.                        |
+| **Dynatrace** | 🟢 **GREEN**  | Highest concept ladder (true production observability). Requires real telemetry data (not just mock JSON). Smallest predicted submission volume.                             |
 
 ---
 
@@ -44,14 +44,14 @@ This means saturation is **inferred from priors and friction signals**, not dire
 
 If submissions distributed by saturation prediction:
 
-| Track | Predicted % of submissions | Est. submissions in track | 1st-place probability (1/N for a contender-quality entry) |
-|---|---|---|---|
-| MongoDB | 28% | 168 | ~0.6% |
-| GitLab | 24% | 144 | ~0.7% |
-| Elastic | 16% | 96 | ~1.0% |
-| Fivetran | 14% | 84 | ~1.2% |
-| **Arize** | **10%** | **60** | **~1.7%** |
-| **Dynatrace** | **8%** | **48** | **~2.1%** |
+| Track         | Predicted % of submissions | Est. submissions in track | 1st-place probability (1/N for a contender-quality entry) |
+| ------------- | -------------------------- | ------------------------- | --------------------------------------------------------- |
+| MongoDB       | 28%                        | 168                       | ~0.6%                                                     |
+| GitLab        | 24%                        | 144                       | ~0.7%                                                     |
+| Elastic       | 16%                        | 96                        | ~1.0%                                                     |
+| Fivetran      | 14%                        | 84                        | ~1.2%                                                     |
+| **Arize**     | **10%**                    | **60**                    | **~1.7%**                                                 |
+| **Dynatrace** | **8%**                     | **48**                    | **~2.1%**                                                 |
 
 (These are rough — actual distribution will skew further from uniform once we see the gallery post-deadline.)
 
@@ -62,7 +62,7 @@ If submissions distributed by saturation prediction:
 ## Caveats to the EV math
 
 1. **Probabilities aren't uniform.** Judges score 4 criteria with weight. A 1.7% raw probability assumes "if you build a contender-quality entry." For a solo dev shipping in 9 days, building a contender-quality entry is the hard part, not the bucket selection.
-2. **Quality ≠ track-fit.** Arize and Dynatrace reward sophistication (genuine eval loops, real telemetry). A great MongoDB-as-a-K/V demo loses to a *credible* Phoenix-eval-loop demo even if the MongoDB demo has more LOC.
+2. **Quality ≠ track-fit.** Arize and Dynatrace reward sophistication (genuine eval loops, real telemetry). A great MongoDB-as-a-K/V demo loses to a _credible_ Phoenix-eval-loop demo even if the MongoDB demo has more LOC.
 3. **The "predicted least crowded" tracks have higher floor difficulty.** That's why they're predicted least crowded. Don't pick Dynatrace if you can't get OneAgent collecting real data in the first 48 hours.
 
 ---

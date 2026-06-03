@@ -14,11 +14,11 @@ The canonical Cohn test pyramid still applies to LLM agent code, but the proport
 - **Integration tests - ~25%**. Real Phoenix Cloud (or a local docker-compose Phoenix), real Vertex AI / Gemini API, real MCP servers where feasible. These exercise the wiring, not the intelligence. Run on PR open and on merge to main. Should complete in under 5 minutes per shard.
 - **End-to-end / visual tests - ~5%**. Playwright against staging Cloud Run URL. Smoke + a small handful of golden user flows + visual regression snapshots. Run on merge to main and pre-demo. Should complete in under 10 minutes total.
 
-Why the asymmetry: the LLM is the most expensive and least deterministic dependency, so push as much logic as possible *out* of LLM-touching code paths into deterministic helpers, and test those exhaustively. Reserve the LLM-touching layer for thin glue that you exercise with a small number of integration tests. This is the same principle that applies to any project with an expensive external dependency (e.g. payments, file storage) - mock the boundary, drive coverage in the surrounding code.
+Why the asymmetry: the LLM is the most expensive and least deterministic dependency, so push as much logic as possible _out_ of LLM-touching code paths into deterministic helpers, and test those exhaustively. Reserve the LLM-touching layer for thin glue that you exercise with a small number of integration tests. This is the same principle that applies to any project with an expensive external dependency (e.g. payments, file storage) - mock the boundary, drive coverage in the surrounding code.
 
 Two non-standard layers worth calling out for agent projects:
 
-- **Trace-assertion tests** (a subspecies of integration). The agent runs end-to-end against a real or mocked LLM, but the assertion is on the *Phoenix span tree* produced - did the agent call tool X before tool Y, with the right attributes, in the right order? This is the highest-signal-per-dollar test for an agent. Covered in section 5.
+- **Trace-assertion tests** (a subspecies of integration). The agent runs end-to-end against a real or mocked LLM, but the assertion is on the _Phoenix span tree_ produced - did the agent call tool X before tool Y, with the right attributes, in the right order? This is the highest-signal-per-dollar test for an agent. Covered in section 5.
 - **LLM-as-judge tests** (a subspecies of integration or nightly). A second LLM grades the first LLM's output against a rubric. Useful for quality gates but expensive; run on a schedule, not per PR. Covered in section 5.
 
 Reference: [Practical Test Pyramid (Martin Fowler)](https://martinfowler.com/articles/practical-test-pyramid.html); [ADK Evaluation overview](https://adk.dev/evaluate/).
@@ -31,7 +31,7 @@ Reference: [Practical Test Pyramid (Martin Fowler)](https://martinfowler.com/art
 
 ADK is async-first. Both the in-process `Runner` and the `Agent.run_async()` entrypoints return coroutines / async generators, so the test harness must drive an event loop.
 
-Use `pytest-asyncio` in **auto mode** so you don't have to decorate every async test with `@pytest.mark.asyncio`. Per the docs: *"Auto mode automatically adds the asyncio marker to all asynchronous test functions and takes ownership of all async fixtures, regardless of whether they are decorated with @pytest.fixture or @pytest_asyncio.fixture."* ([pytest-asyncio concepts](https://pytest-asyncio.readthedocs.io/en/stable/concepts.html))
+Use `pytest-asyncio` in **auto mode** so you don't have to decorate every async test with `@pytest.mark.asyncio`. Per the docs: _"Auto mode automatically adds the asyncio marker to all asynchronous test functions and takes ownership of all async fixtures, regardless of whether they are decorated with @pytest.fixture or @pytest_asyncio.fixture."_ ([pytest-asyncio concepts](https://pytest-asyncio.readthedocs.io/en/stable/concepts.html))
 
 `pyproject.toml`:
 
@@ -138,7 +138,7 @@ The Gemini Python SDK (`google-genai`) sits on top of `httpx` for REST and on gR
 
 ### 3.1 respx (recommended)
 
-`respx` is the cleanest mocking option for httpx-based clients. Per the docs: *"To patch HTTPX, and activate the RESPX router, use the respx.mock decorator/context manager, or the respx_mock pytest fixture."* ([respx user guide](https://lundberg.github.io/respx/guide/))
+`respx` is the cleanest mocking option for httpx-based clients. Per the docs: _"To patch HTTPX, and activate the RESPX router, use the respx.mock decorator/context manager, or the respx_mock pytest fixture."_ ([respx user guide](https://lundberg.github.io/respx/guide/))
 
 ```python
 import httpx
@@ -205,13 +205,13 @@ respx_mock.post(GEMINI_URL).mock(side_effect=[
 ])
 ```
 
-Per the respx docs: *"If the side effect is an iterable, each repeated request will get the next Response returned, or exception raised, from the iterable."* ([respx user guide](https://lundberg.github.io/respx/guide/))
+Per the respx docs: _"If the side effect is an iterable, each repeated request will get the next Response returned, or exception raised, from the iterable."_ ([respx user guide](https://lundberg.github.io/respx/guide/))
 
 Build a small helper module `tests/fakes/gemini.py` with builders for `tool_call_response`, `final_text_response`, `error_response` - this saves enormous time across the suite.
 
 ### 3.5 When NOT to mock
 
-At least one test per PR should hit the real Gemini API. Mocks lock in your *assumptions* about the API; real calls catch SDK upgrades, API surface changes, and quota issues. The standard pattern is:
+At least one test per PR should hit the real Gemini API. Mocks lock in your _assumptions_ about the API; real calls catch SDK upgrades, API surface changes, and quota issues. The standard pattern is:
 
 - Mock 100% in unit tests.
 - Hit real Gemini in 5-10 integration tests, gated by `@pytest.mark.online`, run on merge to main.
@@ -355,7 +355,7 @@ References: [ADK testing & evaluation](https://deepwiki.com/google/adk-samples/1
 
 ### 5.1 Trace-as-assertion: the cleanest pattern
 
-The single most useful pattern for non-deterministic agent code is to assert on the *trace* the agent produced, not on its natural-language output. The trace is structured (OpenInference spans), deterministic up to LLM choice variability, and directly reflects what the agent *did*.
+The single most useful pattern for non-deterministic agent code is to assert on the _trace_ the agent produced, not on its natural-language output. The trace is structured (OpenInference spans), deterministic up to LLM choice variability, and directly reflects what the agent _did_.
 
 Pattern:
 
@@ -364,12 +364,12 @@ Pattern:
 async def test_agent_calls_search_before_summarize(phoenix_client):
     async with capture_traces(phoenix_client, project="test") as captured:
         await my_agent.run("research X")
-    
+
     span_names = [s.name for s in captured.spans]
     assert "tool.search" in span_names
     assert "tool.summarize" in span_names
     assert span_names.index("tool.search") < span_names.index("tool.summarize")
-    
+
     search_span = next(s for s in captured.spans if s.name == "tool.search")
     assert search_span.attributes["input.query"] == "X"
 ```
@@ -415,7 +415,7 @@ The evalset format is backed by Pydantic schemas (`EvalSet`, `EvalCase` in `goog
 
 ### 5.3 Phoenix LLM-as-judge
 
-For richer rubrics (faithfulness, toxicity, helpfulness), Phoenix provides an LLM-as-judge framework. Per the Phoenix docs: *"LLM as a Judge is an evaluation pattern where a language model grades another model's output, trace, or session against a set of criteria."* ([Phoenix LLM-as-a-Judge](https://arize.com/docs/phoenix/evaluation/concepts-evals/llm-as-a-judge))
+For richer rubrics (faithfulness, toxicity, helpfulness), Phoenix provides an LLM-as-judge framework. Per the Phoenix docs: _"LLM as a Judge is an evaluation pattern where a language model grades another model's output, trace, or session against a set of criteria."_ ([Phoenix LLM-as-a-Judge](https://arize.com/docs/phoenix/evaluation/concepts-evals/llm-as-a-judge))
 
 The workflow:
 
@@ -492,7 +492,7 @@ References: [ADK evaluate docs](https://adk.dev/evaluate/); [Phoenix LLM-as-a-Ju
 
 ### 6.1 Local Phoenix via Docker
 
-Per the Phoenix docs: *"You can run Phoenix locally on your laptop in under a minute by pulling the image and starting the container."* ([Phoenix self-hosting](https://arize.com/docs/phoenix/self-hosting))
+Per the Phoenix docs: _"You can run Phoenix locally on your laptop in under a minute by pulling the image and starting the container."_ ([Phoenix self-hosting](https://arize.com/docs/phoenix/self-hosting))
 
 For CI, two viable patterns:
 
@@ -535,7 +535,7 @@ async def test_trace_has_expected_spans(phoenix_client, agent_under_test):
     project = f"test-{uuid.uuid4()}"
     configure_tracing(project=project, endpoint=phoenix_client.endpoint)
     await agent_under_test.run("hello")
-    
+
     # Give Phoenix a moment to ingest
     await asyncio.sleep(2)
     spans = phoenix_client.spans.get_spans_dataframe(project=project)
@@ -604,7 +604,7 @@ def mock_mcp_session():
 
 ### 7.2 Record + replay with `agent-vcr`
 
-`agent-vcr` is a VCR.py-style framework specifically for MCP. Per the project README: *"Agent VCR gives teams a way to test MCP: record client-server traffic into .vcr cassettes, replay it in tests and CI."* ([agent-vcr on GitHub](https://github.com/Jarvis2021/agent-vcr))
+`agent-vcr` is a VCR.py-style framework specifically for MCP. Per the project README: _"Agent VCR gives teams a way to test MCP: record client-server traffic into .vcr cassettes, replay it in tests and CI."_ ([agent-vcr on GitHub](https://github.com/Jarvis2021/agent-vcr))
 
 ```python
 import agent_vcr
@@ -772,7 +772,7 @@ import path from "path";
 export default defineConfig({
   plugins: [react()],
   test: {
-    environment: "happy-dom",  // faster than jsdom for most cases
+    environment: "happy-dom", // faster than jsdom for most cases
     globals: true,
     setupFiles: ["./tests/setup.ts"],
     coverage: {
@@ -832,7 +832,7 @@ vi.mock("next/navigation", () => ({
 
 ### 10.4 Server Components caveat
 
-Per the Next.js Vitest docs: *"Since async Server Components are new to the React ecosystem, Vitest currently does not support them... we recommend using E2E tests for async components."* ([Next.js testing guide](https://nextjs.org/docs/app/guides/testing/vitest))
+Per the Next.js Vitest docs: _"Since async Server Components are new to the React ecosystem, Vitest currently does not support them... we recommend using E2E tests for async components."_ ([Next.js testing guide](https://nextjs.org/docs/app/guides/testing/vitest))
 
 So: sync Server Components and all Client Components in Vitest; async Server Components in Playwright E2E.
 
@@ -903,7 +903,7 @@ The `sahil-visual-loop` skill (at `/Users/abu/.claude/skills/sahil-visual-loop`)
 - **Vision review via Anthropic SDK directly**, not Claude Code's Read tool (image support there is unreliable per claude-code#35866).
 - **Verdict thresholds.** `slop_score ≤ 2 AND blocking_count == 0` → `ok`; 3-6 → `needs-fix`; ≥7 → `slop`.
 
-The loop is complementary to Playwright `toHaveScreenshot()` - pixel diff catches *unintended* visual changes; the vision reviewer catches *intended-but-slop* design output.
+The loop is complementary to Playwright `toHaveScreenshot()` - pixel diff catches _unintended_ visual changes; the vision reviewer catches _intended-but-slop_ design output.
 
 References: [Playwright snapshots](https://playwright.dev/docs/test-snapshots); [Playwright visual regression guide](https://playwright.dev/docs/test-snapshots#visual-comparisons); `/Users/abu/.claude/skills/sahil-visual-loop/SKILL.md`.
 
@@ -925,7 +925,9 @@ export default defineConfig({
     },
     {
       name: "staging",
-      use: { baseURL: process.env.STAGING_URL ?? "https://staging-xxx.run.app" },
+      use: {
+        baseURL: process.env.STAGING_URL ?? "https://staging-xxx.run.app",
+      },
     },
   ],
 });
@@ -967,7 +969,9 @@ test("homepage loads under 3s", async ({ page }) => {
 
 test("attack button triggers a network call", async ({ page }) => {
   await page.goto("/");
-  const responsePromise = page.waitForResponse(r => r.url().includes("/api/attack"));
+  const responsePromise = page.waitForResponse((r) =>
+    r.url().includes("/api/attack"),
+  );
   await page.getByRole("button", { name: /attack/i }).click();
   const response = await responsePromise;
   expect(response.status()).toBe(200);
@@ -979,12 +983,17 @@ test("attack button triggers a network call", async ({ page }) => {
 Exercise the happy path through the whole stack: Next.js → ADK agent on Cloud Run → Phoenix telemetry. Assert the UI updates (e.g. a cascade-flip animation appears) AND that a Phoenix trace materialized (via the Phoenix API).
 
 ```ts
-test("attack flow renders animation and produces trace", async ({ page, request }) => {
+test("attack flow renders animation and produces trace", async ({
+  page,
+  request,
+}) => {
   await page.goto("/");
   await page.getByRole("button", { name: /attack/i }).click();
   await expect(page.locator(".cascade-flip")).toBeVisible({ timeout: 10000 });
   // Verify the backend trace exists
-  const trace = await request.get(`${PHOENIX_URL}/v1/spans?project=staging&limit=1`);
+  const trace = await request.get(
+    `${PHOENIX_URL}/v1/spans?project=staging&limit=1`,
+  );
   expect(trace.ok()).toBeTruthy();
 });
 ```
@@ -995,7 +1004,7 @@ References: [Playwright authentication](https://playwright.dev/docs/auth); [Play
 
 ## 13. Performance + load testing (lightweight)
 
-For a hackathon, the question is: *does the demo URL survive a judge clicking around?* Anything beyond that is gold-plating.
+For a hackathon, the question is: _does the demo URL survive a judge clicking around?_ Anything beyond that is gold-plating.
 
 ### 13.1 locust
 
@@ -1088,14 +1097,14 @@ Reference: [syrupy](https://github.com/syrupy-project/syrupy); [pytest-icdiff](h
 
 ### 15.1 Which tests run when
 
-| Trigger              | Suite                                                                 | Time budget |
-|----------------------|-----------------------------------------------------------------------|-------------|
-| Local pre-commit     | Unit only (`-m "not online and not integration"`)                     | < 30s       |
-| PR open / push       | Unit + integration mocks + Vitest + lint + types                      | < 5 min     |
-| PR open (smoke)      | Playwright smoke against preview Cloud Run URL                        | < 3 min     |
-| Merge to main        | Full integration (real Phoenix, real Vertex) + visual regression      | < 15 min    |
-| Nightly              | LLM-as-judge dataset eval + load test + flake retest                  | < 30 min    |
-| Pre-release          | Everything + cost report + golden dataset diff                        | < 60 min    |
+| Trigger          | Suite                                                            | Time budget |
+| ---------------- | ---------------------------------------------------------------- | ----------- |
+| Local pre-commit | Unit only (`-m "not online and not integration"`)                | < 30s       |
+| PR open / push   | Unit + integration mocks + Vitest + lint + types                 | < 5 min     |
+| PR open (smoke)  | Playwright smoke against preview Cloud Run URL                   | < 3 min     |
+| Merge to main    | Full integration (real Phoenix, real Vertex) + visual regression | < 15 min    |
+| Nightly          | LLM-as-judge dataset eval + load test + flake retest             | < 30 min    |
+| Pre-release      | Everything + cost report + golden dataset diff                   | < 60 min    |
 
 ### 15.2 Parallel execution with pytest-xdist
 

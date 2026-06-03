@@ -34,17 +34,17 @@ For Abu's hackathon (9-day timeline, solo dev, $10K Arize-track bucket): you'll 
 
 ## Naming note (re-confirmed by Google itself)
 
-Holt's video says explicitly: *"If you've been building with Vertex AI, you're in the right place. Agent Platform is an evolution of Vertex AI, including Model Garden and Model Training, that is now restructured as an agent-first ecosystem. You'll see some mixed terminology as we transition, but please be assured that the core Vertex AI functionality remains unchanged."*
+Holt's video says explicitly: _"If you've been building with Vertex AI, you're in the right place. Agent Platform is an evolution of Vertex AI, including Model Garden and Model Training, that is now restructured as an agent-first ecosystem. You'll see some mixed terminology as we transition, but please be assured that the core Vertex AI functionality remains unchanged."_
 
-| Old | New |
-|---|---|
-| Vertex AI | Gemini Enterprise Agent Platform (often shortened to "Agent Platform") |
-| Vertex AI Model Garden | Model Garden (preserved inside Agent Platform) |
-| Vertex AI Model Training | Model Training (preserved) |
-| Vertex AI Search & Conversation | Agent Builder / Agent Studio |
-| **Agent Engine** / **Reasoning Engine** | **Agent Runtime** (confirmed in Google's README) |
-| Generative AI App Builder | Agent Search |
-| (no rename) | Agent Sandbox is also called **Code Execution** in tutorials |
+| Old                                     | New                                                                    |
+| --------------------------------------- | ---------------------------------------------------------------------- |
+| Vertex AI                               | Gemini Enterprise Agent Platform (often shortened to "Agent Platform") |
+| Vertex AI Model Garden                  | Model Garden (preserved inside Agent Platform)                         |
+| Vertex AI Model Training                | Model Training (preserved)                                             |
+| Vertex AI Search & Conversation         | Agent Builder / Agent Studio                                           |
+| **Agent Engine** / **Reasoning Engine** | **Agent Runtime** (confirmed in Google's README)                       |
+| Generative AI App Builder               | Agent Search                                                           |
+| (no rename)                             | Agent Sandbox is also called **Code Execution** in tutorials           |
 
 `02a-google-cloud-stack.md` §1 has the full rosetta stone — this is just a confirming citation from the platform's own DevRel team.
 
@@ -118,18 +118,18 @@ Clone a template, customize, deploy. This is the "don't start with a blank IDE" 
 
 Holt's video covers MCP + A2A. Google's own README adds **three more** agent-related open protocols (see `refs/agent-platform-readme.md`):
 
-| Protocol | What it connects | Best for | URL |
-|---|---|---|---|
-| **MCP (Model Context Protocol)** | Agent ↔ external tools | Calling partner data/APIs (Phoenix, Atlas, Elastic, etc.) | https://modelcontextprotocol.io/ |
-| **A2A (Agent-to-Agent)** | Agent ↔ other agents | Multi-agent collaboration as microservices | https://a2a-protocol.org |
-| **A2UI (Agent-to-UI)** | Agent ↔ dynamic UIs | Agent-generated user interfaces (vs. fixed UI) | https://a2ui.org |
-| **AP2 (Agent Payments)** | Agent ↔ payment rails | Automated financial transactions by agents | https://ap2-protocol.org |
-| **UCP (Universal Commerce)** | Agent ↔ e-commerce systems | Retail/commerce operations | https://ucp.dev/ |
+| Protocol                         | What it connects           | Best for                                                  | URL                              |
+| -------------------------------- | -------------------------- | --------------------------------------------------------- | -------------------------------- |
+| **MCP (Model Context Protocol)** | Agent ↔ external tools     | Calling partner data/APIs (Phoenix, Atlas, Elastic, etc.) | https://modelcontextprotocol.io/ |
+| **A2A (Agent-to-Agent)**         | Agent ↔ other agents       | Multi-agent collaboration as microservices                | https://a2a-protocol.org         |
+| **A2UI (Agent-to-UI)**           | Agent ↔ dynamic UIs        | Agent-generated user interfaces (vs. fixed UI)            | https://a2ui.org                 |
+| **AP2 (Agent Payments)**         | Agent ↔ payment rails      | Automated financial transactions by agents                | https://ap2-protocol.org         |
+| **UCP (Universal Commerce)**     | Agent ↔ e-commerce systems | Retail/commerce operations                                | https://ucp.dev/                 |
 
 **Hackathon implications:**
 
 - **MCP** is mandatory for the partner integration. `mcp-primer.md` covers this.
-- **A2A** is the right choice if the wedge involves multiple specialized agents (e.g., one agent fetches Phoenix traces, another runs Agent Optimizer). Don't roll custom orchestration. Holt confirms: *"Most agent frameworks, like LangGraph, CrewAI, and AG2, have built-in support for A2A."*
+- **A2A** is the right choice if the wedge involves multiple specialized agents (e.g., one agent fetches Phoenix traces, another runs Agent Optimizer). Don't roll custom orchestration. Holt confirms: _"Most agent frameworks, like LangGraph, CrewAI, and AG2, have built-in support for A2A."_
 - **A2UI** is a sleeper feature — if the wedge demo benefits from "the agent generates its own UI for the user" (e.g., a different dashboard per query), A2UI lets you do that. Most hackathon entries will miss this. Big differentiation potential.
 - **AP2** is uniquely relevant if Abu picks a Financial Services demo — the agent doesn't just analyze, it can transact. This converts "interesting demo" → "actually does the work" and is judging-criteria gold for Potential Impact.
 - **UCP** is the equivalent if the wedge is brick-and-mortar retail (one of the Devpost example domains).
@@ -177,6 +177,7 @@ What it is: Adds persistent memory so the agent remembers things across user int
 > ⚠️ **Naming alias:** Agent Sandbox is referred to as **Code Execution** in the official tutorial notebooks. The intro notebook is `tutorial_get_started_with_code_execution.ipynb`. Same product.
 
 What it is: A safe sandboxed environment for the agent to:
+
 - Execute code
 - Interact with a UI (e.g., legacy applications that don't have APIs)
 - "Do whatever it needs to do"
@@ -191,13 +192,14 @@ Seven components. **For a 9-day hackathon, you'll likely demonstrate awareness o
 
 ### 9. **Agent Identity** — IAM principle per agent
 
-Every agent deployed to Agent Runtime gets its own IAM principle. Answers: *which agent took this specific action?*
+Every agent deployed to Agent Runtime gets its own IAM principle. Answers: _which agent took this specific action?_
 
 For the hackathon: free with Agent Runtime. Mention it in the video as "the agent runs under its own IAM identity for audit trail" — earns Tech Implementation points.
 
 ### 10. **Agent Registry** — auto-catalog of all agents and MCP servers
 
 What it is: Automatically catalogs:
+
 - Agents deployed to Agent Runtime, GKE, Gemini Enterprise, Google Workspace
 - First-party MCP servers + MCP servers from Apigee
 - Third-party A2A agents and MCP servers (when you register them)
@@ -215,6 +217,7 @@ For the hackathon: cosmetic unless your demo specifically shows "agent A can cal
 ### 12. **Model Armor** — input/output sanitization
 
 What it is: Templates to sanitize:
+
 - **Input prompts** → blocks prompt injections
 - **Output responses** → blocks PII leaks
 - Combined with Sensitive Data Protection
@@ -248,17 +251,18 @@ Five components. **This is where the Arize track positioning gets interesting.**
 ### 16. **Agent Observability** — visibility into decision making
 
 What it is: Turnkey dashboards + automatic tracing showing:
+
 - Why the agent made each decision
 - What tools it called
 - Where the logic went sideways
 
 **HEADS UP — this competes with Arize Phoenix.** Both Agent Observability and Phoenix do tracing. But the distinction is:
 
-| | Agent Observability (native) | Arize Phoenix (track partner) |
-|---|---|---|
-| **Audience** | Humans (operators, devs) | Both humans AND agents (via MCP) |
-| **Distinguisher** | Native dashboards | Phoenix MCP exposes traces *back to the agent* for self-reflection |
-| **Hackathon implication** | Free, basic | The recursive "agent reads its own traces and self-improves" wedge needs Phoenix MCP — Agent Observability alone can't do this because humans, not the agent, are the consumer |
+|                           | Agent Observability (native) | Arize Phoenix (track partner)                                                                                                                                                  |
+| ------------------------- | ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **Audience**              | Humans (operators, devs)     | Both humans AND agents (via MCP)                                                                                                                                               |
+| **Distinguisher**         | Native dashboards            | Phoenix MCP exposes traces _back to the agent_ for self-reflection                                                                                                             |
+| **Hackathon implication** | Free, basic                  | The recursive "agent reads its own traces and self-improves" wedge needs Phoenix MCP — Agent Observability alone can't do this because humans, not the agent, are the consumer |
 
 **This actually STRENGTHENS the Arize wedge.** The recursive self-debug angle (recommended for Abu in `CONTEXT.md` §2) becomes more defensible: "Agent Observability gives operators visibility; Phoenix MCP gives the agent visibility into ITSELF. That's a categorically different primitive." Demo this and the Arize judges will love it.
 
@@ -288,7 +292,7 @@ What it is: Refines agent instructions based on failure signals — continuous f
 
 **For the Arize wedge specifically:** Agent Optimizer + Phoenix MCP = a powerful pairing. The agent reads its Phoenix traces, identifies failure patterns, and uses Agent Optimizer to refine its own instructions. **This is a viable wedge sentence for Abu's Q2 (`07-pre-commit-checklist.md`):**
 
-> *"A solo developer shipping under deadline wastes hours debugging why their LLM agent went off the rails. My agent ingests Phoenix traces from a target agent, identifies the failure class, uses Phoenix Datasets to assemble a regression set, runs Agent Optimizer to propose an instruction fix, then runs a Phoenix Experiment comparing baseline vs optimized — all autonomously."*
+> _"A solo developer shipping under deadline wastes hours debugging why their LLM agent went off the rails. My agent ingests Phoenix traces from a target agent, identifies the failure class, uses Phoenix Datasets to assemble a regression set, runs Agent Optimizer to propose an instruction fix, then runs a Phoenix Experiment comparing baseline vs optimized — all autonomously."_
 
 This wedge uses 3+ Phoenix MCP tools AND a native Agent Platform primitive (Agent Optimizer), demonstrating both partner integration depth AND Google Cloud integration depth. Hits all 4 judging criteria.
 
@@ -296,27 +300,27 @@ This wedge uses 3+ Phoenix MCP tools AND a native Agent Platform primitive (Agen
 
 ## Decision matrix: which components to actually use in the 9-day build
 
-| Component | Use? | Why |
-|---|---|---|
-| **ADK** | ✅ Required (Arize track) | Code-first runtime mandatory for Phoenix tracing |
-| **Agents CLI** | 🟡 Strongly consider | Fastest scaffold; reduces "blank IDE" overhead |
-| **Agent Studio** | 🟡 Optional | Could prototype here, export to ADK |
-| **Agent Garden** | 🟢 Check before coding | Maybe a template gets you 70% there |
-| **MCP support in ADK** | ✅ Required | This is how you wire Phoenix MCP |
-| **A2A** | 🔵 Only if multi-agent | Skip if single-agent design |
-| **Agent Runtime** | ✅ Default deployment | <1s cold start matters for demo |
-| **Cloud Run** | 🟡 Alternative | Use if you need a custom container or Streamlit frontend |
-| **Agent Sessions** | ✅ Free (auto via ADK) | No code needed |
-| **Memory Bank** | 🟢 Use if wedge benefits | Don't roll custom memory |
-| **Agent Sandbox** | 🔵 Only if agent runs code | Skip otherwise |
-| **Agent Identity** | ✅ Free with Runtime | Mention in video |
-| **Agent Registry** | ✅ Auto-catalogs MCP servers | Behind the scenes |
-| **Model Armor** | 🟢 If demo is sensitive-data | Free judging points |
-| **Agent Observability** | 🟡 Complement to Phoenix | Mention as "human-facing" vs Phoenix MCP as "agent-facing" |
-| **Agent Evaluation** | 🔴 Skip in favor of Phoenix Datasets | Arize differentiation |
-| **Agent Simulation** | 🟢 Use in demo video | "We ran N simulated interactions, here's the success rate" |
-| **Agent Optimizer** | 🟢 USE | Best paired with Phoenix → strongest wedge |
-| **Agent Policies / Gateway / Anomaly Detection / Security Dashboard / Topology** | 🔵 Awareness only | Skip implementation, name-drop if relevant |
+| Component                                                                        | Use?                                 | Why                                                        |
+| -------------------------------------------------------------------------------- | ------------------------------------ | ---------------------------------------------------------- |
+| **ADK**                                                                          | ✅ Required (Arize track)            | Code-first runtime mandatory for Phoenix tracing           |
+| **Agents CLI**                                                                   | 🟡 Strongly consider                 | Fastest scaffold; reduces "blank IDE" overhead             |
+| **Agent Studio**                                                                 | 🟡 Optional                          | Could prototype here, export to ADK                        |
+| **Agent Garden**                                                                 | 🟢 Check before coding               | Maybe a template gets you 70% there                        |
+| **MCP support in ADK**                                                           | ✅ Required                          | This is how you wire Phoenix MCP                           |
+| **A2A**                                                                          | 🔵 Only if multi-agent               | Skip if single-agent design                                |
+| **Agent Runtime**                                                                | ✅ Default deployment                | <1s cold start matters for demo                            |
+| **Cloud Run**                                                                    | 🟡 Alternative                       | Use if you need a custom container or Streamlit frontend   |
+| **Agent Sessions**                                                               | ✅ Free (auto via ADK)               | No code needed                                             |
+| **Memory Bank**                                                                  | 🟢 Use if wedge benefits             | Don't roll custom memory                                   |
+| **Agent Sandbox**                                                                | 🔵 Only if agent runs code           | Skip otherwise                                             |
+| **Agent Identity**                                                               | ✅ Free with Runtime                 | Mention in video                                           |
+| **Agent Registry**                                                               | ✅ Auto-catalogs MCP servers         | Behind the scenes                                          |
+| **Model Armor**                                                                  | 🟢 If demo is sensitive-data         | Free judging points                                        |
+| **Agent Observability**                                                          | 🟡 Complement to Phoenix             | Mention as "human-facing" vs Phoenix MCP as "agent-facing" |
+| **Agent Evaluation**                                                             | 🔴 Skip in favor of Phoenix Datasets | Arize differentiation                                      |
+| **Agent Simulation**                                                             | 🟢 Use in demo video                 | "We ran N simulated interactions, here's the success rate" |
+| **Agent Optimizer**                                                              | 🟢 USE                               | Best paired with Phoenix → strongest wedge                 |
+| **Agent Policies / Gateway / Anomaly Detection / Security Dashboard / Topology** | 🔵 Awareness only                    | Skip implementation, name-drop if relevant                 |
 
 Legend: ✅ required / 🟢 high-value / 🟡 useful / 🔵 awareness only / 🔴 skip
 
@@ -328,9 +332,10 @@ Legend: ✅ required / 🟢 high-value / 🟡 useful / 🔵 awareness only / �
 
 **Refined wedge candidate:**
 
-> *"A solo dev shipping an AI agent under deadline pressure spends hours debugging why their agent went off the rails — they can SEE the traces in Agent Observability, but can't act on them at LLM speed. My agent ingests Phoenix traces from the target agent (via Phoenix MCP), identifies failure classes, assembles a regression dataset, uses Agent Optimizer to propose an instruction fix, runs a Phoenix Experiment to A/B test baseline vs optimized, and writes a Markdown report with the recommended diff. The user reviews and merges. Time-to-fix drops from 4 hours to 90 seconds."*
+> _"A solo dev shipping an AI agent under deadline pressure spends hours debugging why their agent went off the rails — they can SEE the traces in Agent Observability, but can't act on them at LLM speed. My agent ingests Phoenix traces from the target agent (via Phoenix MCP), identifies failure classes, assembles a regression dataset, uses Agent Optimizer to propose an instruction fix, runs a Phoenix Experiment to A/B test baseline vs optimized, and writes a Markdown report with the recommended diff. The user reviews and merges. Time-to-fix drops from 4 hours to 90 seconds."_
 
 What makes this strong:
+
 1. **Hyper-specific role + pain** (solo dev under deadline)
 2. **3+ step autonomous workflow** (read traces → identify → assemble → optimize → A/B → report)
 3. **Multiple Phoenix MCP tools** used (traces, prompts, datasets, experiments — matches Q4 in `07-pre-commit-checklist.md`)

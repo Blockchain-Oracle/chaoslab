@@ -31,13 +31,13 @@ The agent-starter-pack reference implements this exact two-stage split: `staging
 
 ### What runs on which event
 
-| Event | Workflows | Cost concern |
-| --- | --- | --- |
-| `pull_request` (opened/sync to `main`) | `ci.yml` (lint, type, unit, fast integration) | Free on public repos, otherwise 2k min/mo cap |
-| `push` to `main` | `deploy-cloud-run.yml` (build + deploy staging + smoke + prod gate) | Each push = real GCP $ via image build, Cloud Run revision, optional load test |
-| `push` of tag `v*.*.*` | `release.yml` (release notes, registry retag latest→version) | Trivial |
-| `workflow_dispatch` | Manual prod deploy, manual rollback | Manual gate; useful for hackathon emergency |
-| `schedule` (cron) | Nightly E2E vs staging, dependency audit | Optional |
+| Event                                  | Workflows                                                           | Cost concern                                                                   |
+| -------------------------------------- | ------------------------------------------------------------------- | ------------------------------------------------------------------------------ |
+| `pull_request` (opened/sync to `main`) | `ci.yml` (lint, type, unit, fast integration)                       | Free on public repos, otherwise 2k min/mo cap                                  |
+| `push` to `main`                       | `deploy-cloud-run.yml` (build + deploy staging + smoke + prod gate) | Each push = real GCP $ via image build, Cloud Run revision, optional load test |
+| `push` of tag `v*.*.*`                 | `release.yml` (release notes, registry retag latest→version)        | Trivial                                                                        |
+| `workflow_dispatch`                    | Manual prod deploy, manual rollback                                 | Manual gate; useful for hackathon emergency                                    |
+| `schedule` (cron)                      | Nightly E2E vs staging, dependency audit                            | Optional                                                                       |
 
 ### Branch protection rules (the must-haves)
 
@@ -69,7 +69,7 @@ on:
   pull_request:
     branches: [main]
   push:
-    branches: [main]   # also run on main to catch direct pushes / fast-forwards
+    branches: [main] # also run on main to catch direct pushes / fast-forwards
 
 # Limit concurrency so superseded PRs cancel old runs.
 concurrency:
@@ -86,7 +86,7 @@ jobs:
       pull-requests: read
     outputs:
       agent: ${{ steps.filter.outputs.agent }}
-      web:   ${{ steps.filter.outputs.web }}
+      web: ${{ steps.filter.outputs.web }}
       shared: ${{ steps.filter.outputs.shared }}
     steps:
       - uses: actions/checkout@v4
@@ -116,10 +116,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: astral-sh/setup-uv@v6     # canonical uv installer
+      - uses: astral-sh/setup-uv@v6 # canonical uv installer
         with:
-          enable-cache: true            # built-in cache; keyed on uv.lock automatically
-          cache-dependency-glob: '**/uv.lock'
+          enable-cache: true # built-in cache; keyed on uv.lock automatically
+          cache-dependency-glob: "**/uv.lock"
 
       - name: Sync deps (locked, no install of project itself)
         run: uv sync --locked --all-extras
@@ -155,16 +155,16 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: '20'
-          cache: 'pnpm'                  # built-in pnpm cache via setup-node
+          node-version: "20"
+          cache: "pnpm" # built-in pnpm cache via setup-node
           cache-dependency-path: services/web/pnpm-lock.yaml
 
       - run: pnpm install --frozen-lockfile
 
       - run: pnpm lint
       - run: pnpm typecheck
-      - run: pnpm test --run             # vitest non-watch
-      - run: pnpm build                  # build smoke — catches type+lint regressions
+      - run: pnpm test --run # vitest non-watch
+      - run: pnpm build # build smoke — catches type+lint regressions
 
   # ----------------------------------------------------------------------
   # Job 4 — Repo hygiene: 400-line guard, conventional commits, markdownlint
@@ -198,7 +198,7 @@ jobs:
       - name: markdownlint
         uses: DavidAnson/markdownlint-cli2-action@v16
         with:
-          globs: '**/*.md'
+          globs: "**/*.md"
 ```
 
 Notes:
@@ -219,21 +219,21 @@ on:
   push:
     branches: [main]
     paths:
-      - 'services/**'
-      - 'uv.lock'
-      - 'pnpm-lock.yaml'
-      - '.github/workflows/deploy-cloud-run.yml'
+      - "services/**"
+      - "uv.lock"
+      - "pnpm-lock.yaml"
+      - ".github/workflows/deploy-cloud-run.yml"
 
 concurrency:
-  group: deploy-main      # serialise: never run two prod deploys in parallel
+  group: deploy-main # serialise: never run two prod deploys in parallel
   cancel-in-progress: false
 
 env:
   GCP_REGION: us-central1
-  ARTIFACT_REPO: chaoslab-images          # Artifact Registry repo name
+  ARTIFACT_REPO: chaoslab-images # Artifact Registry repo name
   STAGING_PROJECT_ID: ${{ vars.STAGING_PROJECT_ID }}
-  PROD_PROJECT_ID:    ${{ vars.PROD_PROJECT_ID }}
-  CICD_PROJECT_ID:    ${{ vars.CICD_PROJECT_ID }}   # holds Artifact Registry + WIF
+  PROD_PROJECT_ID: ${{ vars.PROD_PROJECT_ID }}
+  CICD_PROJECT_ID: ${{ vars.CICD_PROJECT_ID }} # holds Artifact Registry + WIF
 
 jobs:
   # ---------------------------------------------------------------------
@@ -242,8 +242,8 @@ jobs:
   changes:
     runs-on: ubuntu-latest
     outputs:
-      agent:        ${{ steps.f.outputs.agent }}
-      web:          ${{ steps.f.outputs.web }}
+      agent: ${{ steps.f.outputs.agent }}
+      web: ${{ steps.f.outputs.web }}
       target_agent: ${{ steps.f.outputs.target_agent }}
     steps:
       - uses: actions/checkout@v4
@@ -271,14 +271,18 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      id-token: write           # required for WIF OIDC token
+      id-token: write # required for WIF OIDC token
     strategy:
       fail-fast: false
       matrix:
         include:
-          - { service: agent,        path: services/agent,        changed: 'agent' }
-          - { service: target-agent, path: services/target-agent, changed: 'target_agent' }
-          - { service: web,          path: services/web,          changed: 'web' }
+          - { service: agent, path: services/agent, changed: "agent" }
+          - {
+              service: target-agent,
+              path: services/target-agent,
+              changed: "target_agent",
+            }
+          - { service: web, path: services/web, changed: "web" }
     steps:
       - name: Skip if unchanged
         if: ${{ needs.changes.outputs[matrix.changed] != 'true' }}
@@ -370,7 +374,7 @@ jobs:
   deploy-prod:
     needs: deploy-staging
     runs-on: ubuntu-latest
-    environment: production       # requires reviewer approval, configured in repo settings
+    environment: production # requires reviewer approval, configured in repo settings
     concurrency: deploy-prod
     permissions: { contents: read, id-token: write }
     strategy:
@@ -424,7 +428,7 @@ on:
   workflow_dispatch:
     inputs:
       staging_url:
-        description: 'Override staging URL (otherwise discovered via gcloud)'
+        description: "Override staging URL (otherwise discovered via gcloud)"
         required: false
 
 jobs:
@@ -442,8 +446,8 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: '20'
-          cache: 'pnpm'
+          node-version: "20"
+          cache: "pnpm"
           cache-dependency-path: tests/visual/pnpm-lock.yaml
 
       - name: Install Playwright + deps
@@ -512,8 +516,8 @@ on:
   pull_request:
     types: [opened, synchronize, reopened, closed]
     paths:
-      - 'services/web/**'        # only spin previews for web changes (cost)
-      - 'pnpm-lock.yaml'
+      - "services/web/**" # only spin previews for web changes (cost)
+      - "pnpm-lock.yaml"
 
 concurrency:
   group: preview-${{ github.event.pull_request.number }}
@@ -526,7 +530,7 @@ jobs:
     permissions:
       contents: read
       id-token: write
-      pull-requests: write       # to comment with preview URL
+      pull-requests: write # to comment with preview URL
     steps:
       - uses: actions/checkout@v4
 
@@ -673,9 +677,9 @@ Now only workflow runs from `main` can impersonate the prod deploy SA. PRs from 
   with:
     workload_identity_provider: projects/123456789/locations/global/workloadIdentityPools/github/providers/github-provider
     service_account: github-actions-deployer@chaoslab-cicd.iam.gserviceaccount.com
-    project_id: chaoslab-cicd              # optional but recommended
-    create_credentials_file: true          # required if downstream tools read GOOGLE_APPLICATION_CREDENTIALS
-    token_format: access_token             # default — use 'id_token' only for Cloud Run-to-Cloud Run calls
+    project_id: chaoslab-cicd # optional but recommended
+    create_credentials_file: true # required if downstream tools read GOOGLE_APPLICATION_CREDENTIALS
+    token_format: access_token # default — use 'id_token' only for Cloud Run-to-Cloud Run calls
 ```
 
 Critical: the calling job MUST declare `permissions: id-token: write` at the job or workflow level. Without it, the OIDC token request fails with a misleading "permission denied" error. ([VERIFIED — google-github-actions/auth README](https://github.com/google-github-actions/auth))
@@ -703,13 +707,13 @@ done
 
 Roles, mapped to capability:
 
-| Role | What it lets the SA do |
-| --- | --- |
-| `roles/artifactregistry.writer` | Push images to AR |
-| `roles/run.developer` | Create/update Cloud Run services and revisions |
-| `roles/iam.serviceAccountUser` | Set the runtime SA on the deployed service (REQUIRED — most forgotten role) |
-| `roles/secretmanager.secretAccessor` | Read secrets the service uses at runtime |
-| `roles/logging.logWriter` | (Only needed for runtime SA, not deploy SA) |
+| Role                                 | What it lets the SA do                                                      |
+| ------------------------------------ | --------------------------------------------------------------------------- |
+| `roles/artifactregistry.writer`      | Push images to AR                                                           |
+| `roles/run.developer`                | Create/update Cloud Run services and revisions                              |
+| `roles/iam.serviceAccountUser`       | Set the runtime SA on the deployed service (REQUIRED — most forgotten role) |
+| `roles/secretmanager.secretAccessor` | Read secrets the service uses at runtime                                    |
+| `roles/logging.logWriter`            | (Only needed for runtime SA, not deploy SA)                                 |
 
 The `iam.serviceAccountUser` role on the **runtime** SA is the most-missed piece. Without it, `gcloud run deploy --service-account=runtime-sa@...` fails with `Permission denied on service account`.
 
@@ -723,12 +727,12 @@ Already shown in section 2b. The `dorny/paths-filter@v3` action returns boolean 
 
 ### Tag conventions
 
-| Image tag | Lifetime | When pushed |
-| --- | --- | --- |
-| `:${{ github.sha }}` | Immutable, kept ~30 days | Every successful main build |
-| `:latest` | Mutable, points to latest main | Every successful main build |
-| `:pr-NNN-{sha}` | Cleaned on PR close | Preview deploys |
-| `:v1.2.3` | Permanent | Manual release tag |
+| Image tag            | Lifetime                       | When pushed                 |
+| -------------------- | ------------------------------ | --------------------------- |
+| `:${{ github.sha }}` | Immutable, kept ~30 days       | Every successful main build |
+| `:latest`            | Mutable, points to latest main | Every successful main build |
+| `:pr-NNN-{sha}`      | Cleaned on PR close            | Preview deploys             |
+| `:v1.2.3`            | Permanent                      | Manual release tag          |
 
 Rule: deploys (staging and prod) reference `:${sha}`, never `:latest`. `:latest` is for human convenience only.
 
@@ -749,11 +753,11 @@ One Artifact Registry repo, one image per service, tag = commit SHA. The CICD pr
 
 These are reasonable starting points; profile and adjust.
 
-| Service | Memory | CPU | min-inst | max-inst | Concurrency | Notes |
-| --- | --- | --- | --- | --- | --- | --- |
-| `agent` (ADK) | 2Gi | 2 | prod: 1 / staging: 0 | 10 | 80 | Loads Vertex client + Phoenix exporter; min-instances=1 in prod to avoid 5-10s cold start |
-| `target-agent` | 1Gi | 1 | 0 | 10 | 80 | Throwaway target; cold-start tolerable |
-| `web` (Next.js) | 1Gi | 1 | prod: 1 / staging: 0 | 20 | 80 | SSR; min-instances=1 in prod for demo |
+| Service         | Memory | CPU | min-inst             | max-inst | Concurrency | Notes                                                                                     |
+| --------------- | ------ | --- | -------------------- | -------- | ----------- | ----------------------------------------------------------------------------------------- |
+| `agent` (ADK)   | 2Gi    | 2   | prod: 1 / staging: 0 | 10       | 80          | Loads Vertex client + Phoenix exporter; min-instances=1 in prod to avoid 5-10s cold start |
+| `target-agent`  | 1Gi    | 1   | 0                    | 10       | 80          | Throwaway target; cold-start tolerable                                                    |
+| `web` (Next.js) | 1Gi    | 1   | prod: 1 / staging: 0 | 20       | 80          | SSR; min-instances=1 in prod for demo                                                     |
 
 [UNVERIFIED] These are starting points based on typical ADK + Vertex agent footprints. Profile under realistic load before final demo.
 
@@ -765,14 +769,14 @@ CPU-always-allocated (`--cpu-always-allocated`) is worth setting for the agent s
 
 ### Where secrets live, and why
 
-| Type | Lives in | Used by |
-| --- | --- | --- |
-| GCP auth (WIF provider, SA email) | GitHub repository **variables** (NOT secrets — they're not sensitive) | Every workflow's auth step |
-| `GITHUB_TOKEN` | Auto-injected | PR comments, gh CLI |
-| `PHOENIX_API_KEY` (runtime) | Google Secret Manager → mounted by Cloud Run | The deployed service at runtime |
-| `PHOENIX_API_KEY` (CI integration tests) | GitHub repository **secret** | Integration test job, narrow scope |
-| `VERTEX_AI_LOCATION` etc. | GitHub variables | Workflows |
-| Per-environment overrides | GitHub Environments (staging, production) | Their respective deploy jobs |
+| Type                                     | Lives in                                                              | Used by                            |
+| ---------------------------------------- | --------------------------------------------------------------------- | ---------------------------------- |
+| GCP auth (WIF provider, SA email)        | GitHub repository **variables** (NOT secrets — they're not sensitive) | Every workflow's auth step         |
+| `GITHUB_TOKEN`                           | Auto-injected                                                         | PR comments, gh CLI                |
+| `PHOENIX_API_KEY` (runtime)              | Google Secret Manager → mounted by Cloud Run                          | The deployed service at runtime    |
+| `PHOENIX_API_KEY` (CI integration tests) | GitHub repository **secret**                                          | Integration test job, narrow scope |
+| `VERTEX_AI_LOCATION` etc.                | GitHub variables                                                      | Workflows                          |
+| Per-environment overrides                | GitHub Environments (staging, production)                             | Their respective deploy jobs       |
 
 The split: **runtime secrets in Secret Manager** (so they're rotatable without redeploying CI); **CI-time secrets in GitHub** (so they're tied to the workflow, not the service).
 
@@ -820,7 +824,7 @@ Phoenix Cloud integration tests need a real API key. Create a **separate, low-qu
 - name: Integration tests against Phoenix Cloud (CI account)
   env:
     PHOENIX_API_KEY: ${{ secrets.PHOENIX_CI_API_KEY }}
-    PHOENIX_PROJECT_NAME: chaoslab-ci    # isolated project
+    PHOENIX_PROJECT_NAME: chaoslab-ci # isolated project
   run: uv run pytest tests/integration -m phoenix
 ```
 
@@ -838,7 +842,7 @@ Rotate this key independently of the runtime key. If a fork PR leaks it, the bla
 - uses: astral-sh/setup-uv@v6
   with:
     enable-cache: true
-    cache-dependency-glob: '**/uv.lock'   # explicit; default is uv.lock at root
+    cache-dependency-glob: "**/uv.lock" # explicit; default is uv.lock at root
 - run: uv sync --locked
 ```
 
@@ -852,7 +856,7 @@ Manual variant if you need fine control:
     restore-keys: |
       uv-${{ runner.os }}-
 - run: uv sync --locked
-- run: uv cache prune --ci    # before exiting, to keep cache slim
+- run: uv cache prune --ci # before exiting, to keep cache slim
 ```
 
 The `uv cache prune --ci` step strips wheel artifacts that don't need to be re-cached. ([VERIFIED — astral-sh docs](https://docs.astral.sh/uv/guides/integration/github/))
@@ -861,11 +865,11 @@ The `uv cache prune --ci` step strips wheel artifacts that don't need to be re-c
 
 Two viable backends:
 
-| Backend | `cache-from` / `cache-to` | Speed | Storage |
-| --- | --- | --- | --- |
-| GitHub Actions cache (`type=gha`) | `type=gha` + `type=gha,mode=max` | Fast (same DC as runner) | Counts toward GitHub cache quota (~10GB per repo, evicted LRU) |
-| Registry cache (Artifact Registry) | `type=registry,ref=...:cache` | Slower (network roundtrip) | Counts toward AR storage $ |
-| Inline (in published image) | `type=inline` | Free | Larger published images |
+| Backend                            | `cache-from` / `cache-to`        | Speed                      | Storage                                                        |
+| ---------------------------------- | -------------------------------- | -------------------------- | -------------------------------------------------------------- |
+| GitHub Actions cache (`type=gha`)  | `type=gha` + `type=gha,mode=max` | Fast (same DC as runner)   | Counts toward GitHub cache quota (~10GB per repo, evicted LRU) |
+| Registry cache (Artifact Registry) | `type=registry,ref=...:cache`    | Slower (network roundtrip) | Counts toward AR storage $                                     |
+| Inline (in published image)        | `type=inline`                    | Free                       | Larger published images                                        |
 
 For hackathon scale, `type=gha,mode=max` is the right default. Use distinct `scope=` values when building multiple images in one workflow — otherwise they clobber each other. ([VERIFIED — Docker GHA cache docs](https://docs.docker.com/build/cache/backends/gha/))
 
@@ -890,8 +894,8 @@ For hackathon scale, `type=gha,mode=max` is the right default. Use distinct `sco
   with: { version: 9 }
 - uses: actions/setup-node@v4
   with:
-    node-version: '20'
-    cache: 'pnpm'
+    node-version: "20"
+    cache: "pnpm"
     cache-dependency-path: services/web/pnpm-lock.yaml
 - run: pnpm install --frozen-lockfile
 ```
@@ -923,15 +927,15 @@ The constraint: `ubuntu-latest` runners are dual-core, so parallelism only helps
 
 ## 7. Test pipeline composition
 
-| Layer | When | Cost | Where |
-| --- | --- | --- | --- |
-| Unit (pytest, vitest) | Every PR | Free (CPU only) | `ci.yml` |
-| Type check (mypy, tsc) | Every PR | Free | `ci.yml` |
-| Lint (ruff, eslint) | Every PR | Free | `ci.yml` |
-| Build smoke (`pnpm build`, `docker build`) | Every PR | Free (uses cache) | `ci.yml` |
-| Integration (Phoenix, Vertex AI mock) | Every PR, marked `@pytest.mark.integration` | Small Vertex API $ | `ci.yml` job, gated on label or always |
-| E2E (Playwright vs deployed staging) | After deploy succeeds on main | Cloud Run invocations | `visual-test.yml` |
-| Load test (locust) | After deploy to staging | Cloud Run invocations | `deploy-cloud-run.yml` post-deploy step |
+| Layer                                      | When                                        | Cost                  | Where                                   |
+| ------------------------------------------ | ------------------------------------------- | --------------------- | --------------------------------------- |
+| Unit (pytest, vitest)                      | Every PR                                    | Free (CPU only)       | `ci.yml`                                |
+| Type check (mypy, tsc)                     | Every PR                                    | Free                  | `ci.yml`                                |
+| Lint (ruff, eslint)                        | Every PR                                    | Free                  | `ci.yml`                                |
+| Build smoke (`pnpm build`, `docker build`) | Every PR                                    | Free (uses cache)     | `ci.yml`                                |
+| Integration (Phoenix, Vertex AI mock)      | Every PR, marked `@pytest.mark.integration` | Small Vertex API $    | `ci.yml` job, gated on label or always  |
+| E2E (Playwright vs deployed staging)       | After deploy succeeds on main               | Cloud Run invocations | `visual-test.yml`                       |
+| Load test (locust)                         | After deploy to staging                     | Cloud Run invocations | `deploy-cloud-run.yml` post-deploy step |
 
 ### Real Phoenix + real Vertex AI in CI
 
@@ -999,7 +1003,7 @@ jobs:
     steps:
       - uses: googleapis/release-please-action@v4
         with:
-          release-type: python    # or: node, simple
+          release-type: python # or: node, simple
 ```
 
 Commit messages follow conventional-commits: `feat:`, `fix:`, `chore:`, `docs:`. Each `feat:` bumps minor; each `fix:` bumps patch; `BREAKING CHANGE:` in the body bumps major.
@@ -1221,13 +1225,13 @@ For ChaosLab over a 9-day build + 4-week judging window:
 
 [UNVERIFIED] Rough back-of-envelope (assuming public repo, so it doesn't matter):
 
-| Workflow | Avg run | Runs/day | Days | Total minutes |
-| --- | --- | --- | --- | --- |
-| `ci.yml` (PR + push) | 4 min | 8 | 35 | 1,120 |
-| `deploy-cloud-run.yml` | 12 min | 2 | 35 | 840 |
-| `visual-test.yml` | 5 min | 2 | 35 | 350 |
-| `preview-deploy.yml` | 8 min | 5 | 21 (PR phase) | 840 |
-| **Total** | | | | **~3,150 minutes** |
+| Workflow               | Avg run | Runs/day | Days          | Total minutes      |
+| ---------------------- | ------- | -------- | ------------- | ------------------ |
+| `ci.yml` (PR + push)   | 4 min   | 8        | 35            | 1,120              |
+| `deploy-cloud-run.yml` | 12 min  | 2        | 35            | 840                |
+| `visual-test.yml`      | 5 min   | 2        | 35            | 350                |
+| `preview-deploy.yml`   | 8 min   | 5        | 21 (PR phase) | 840                |
+| **Total**              |         |          |               | **~3,150 minutes** |
 
 Public repo: free. Private repo: would exceed the 2k limit — at $0.008/min Linux that's ~$25 of overage. Below noise.
 

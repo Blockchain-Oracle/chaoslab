@@ -34,6 +34,7 @@ This file goes deeper than `brainstorm/04-protocol-wedges.md`, `mcp-primer.md`, 
 **Spec date: `2025-11-25`** (the dated string is the literal protocol version exchanged on the wire). Source of truth is the TypeScript schema at `github.com/modelcontextprotocol/specification/blob/main/schema/2025-11-25/schema.ts`. Source: <https://modelcontextprotocol.io/specification/>.
 
 Earlier dated versions seen in the wild:
+
 - `2024-11-05` — original HTTP+SSE transport (deprecated)
 - `2025-03-26` — added Streamable HTTP transport, assumed by servers that receive no `MCP-Protocol-Version` header
 - `2025-06-18` — intermediate
@@ -52,6 +53,7 @@ MCP is explicitly modeled after the Language Server Protocol (LSP). Connections 
 ### 1.3 Wire Format — JSON-RPC 2.0
 
 **Request:**
+
 ```ts
 {
   jsonrpc: "2.0";
@@ -62,6 +64,7 @@ MCP is explicitly modeled after the Language Server Protocol (LSP). Connections 
 ```
 
 **Result response:**
+
 ```ts
 {
   jsonrpc: "2.0";
@@ -71,6 +74,7 @@ MCP is explicitly modeled after the Language Server Protocol (LSP). Connections 
 ```
 
 **Error response:**
+
 ```ts
 {
   jsonrpc: "2.0";
@@ -80,6 +84,7 @@ MCP is explicitly modeled after the Language Server Protocol (LSP). Connections 
 ```
 
 **Notification** (no response expected):
+
 ```ts
 {
   jsonrpc: "2.0";
@@ -105,6 +110,7 @@ Standard JSON-RPC error code ranges apply: `-32700` parse error, `-32600` invali
 Before the server has responded to `initialize`, the client SHOULD NOT send anything but pings. Before the server has received `notifications/initialized`, the server SHOULD NOT send anything but pings and `logging` messages.
 
 **`initialize` request example (2025-11-25):**
+
 ```json
 {
   "jsonrpc": "2.0",
@@ -128,7 +134,13 @@ Before the server has responded to `initialize`, the client SHOULD NOT send anyt
       "title": "Example Client Display Name",
       "version": "1.0.0",
       "description": "An example MCP client application",
-      "icons": [{ "src": "https://example.com/icon.png", "mimeType": "image/png", "sizes": ["48x48"] }],
+      "icons": [
+        {
+          "src": "https://example.com/icon.png",
+          "mimeType": "image/png",
+          "sizes": ["48x48"]
+        }
+      ],
       "websiteUrl": "https://example.com"
     }
   }
@@ -136,6 +148,7 @@ Before the server has responded to `initialize`, the client SHOULD NOT send anyt
 ```
 
 **`initialize` response example:**
+
 ```json
 {
   "jsonrpc": "2.0",
@@ -161,16 +174,22 @@ Before the server has responded to `initialize`, the client SHOULD NOT send anyt
 
 **Then:** `{"jsonrpc": "2.0", "method": "notifications/initialized"}`.
 
-**Version negotiation:** Client sends latest version it supports. If server supports that version, server echoes it. Otherwise server returns latest version *it* supports. Client disconnects if it can't speak the server's version. Mismatch error example:
+**Version negotiation:** Client sends latest version it supports. If server supports that version, server echoes it. Otherwise server returns latest version _it_ supports. Client disconnects if it can't speak the server's version. Mismatch error example:
+
 ```json
 {
-  "jsonrpc": "2.0", "id": 1,
-  "error": { "code": -32602, "message": "Unsupported protocol version",
-    "data": { "supported": ["2024-11-05"], "requested": "1.0.0" } }
+  "jsonrpc": "2.0",
+  "id": 1,
+  "error": {
+    "code": -32602,
+    "message": "Unsupported protocol version",
+    "data": { "supported": ["2024-11-05"], "requested": "1.0.0" }
+  }
 }
 ```
 
 **Shutdown:**
+
 - stdio: client closes stdin → waits → SIGTERM → SIGKILL escalation
 - HTTP: close associated HTTP connection(s)
 
@@ -180,22 +199,23 @@ Before the server has responded to `initialize`, the client SHOULD NOT send anyt
 
 Each side declares what it offers in the `capabilities` object:
 
-| Side | Capability | Description |
-|---|---|---|
-| Client | `roots` | Filesystem roots exposure |
-| Client | `sampling` | Server can ask client LLM to generate |
-| Client | `elicitation` | Server can ask user for input (form or URL) |
-| Client | `tasks` | Task-augmented (async) client requests |
-| Client | `experimental` | Non-standard custom features |
-| Server | `prompts` | Templated prompts |
-| Server | `resources` | Readable data sources |
-| Server | `tools` | Callable functions |
-| Server | `logging` | Structured log message emission |
-| Server | `completions` | Argument autocompletion |
-| Server | `tasks` | Task-augmented server requests |
-| Server | `experimental` | Custom features |
+| Side   | Capability     | Description                                 |
+| ------ | -------------- | ------------------------------------------- |
+| Client | `roots`        | Filesystem roots exposure                   |
+| Client | `sampling`     | Server can ask client LLM to generate       |
+| Client | `elicitation`  | Server can ask user for input (form or URL) |
+| Client | `tasks`        | Task-augmented (async) client requests      |
+| Client | `experimental` | Non-standard custom features                |
+| Server | `prompts`      | Templated prompts                           |
+| Server | `resources`    | Readable data sources                       |
+| Server | `tools`        | Callable functions                          |
+| Server | `logging`      | Structured log message emission             |
+| Server | `completions`  | Argument autocompletion                     |
+| Server | `tasks`        | Task-augmented server requests              |
+| Server | `experimental` | Custom features                             |
 
 Sub-capabilities:
+
 - `listChanged: true` — emits notifications when list of prompts/resources/tools changes
 - `subscribe: true` — supports subscriptions to individual resource changes (resources only)
 
@@ -204,6 +224,7 @@ Sub-capabilities:
 Two officially defined; custom permitted.
 
 **stdio transport:**
+
 - Client spawns server as subprocess
 - Messages = newline-delimited JSON-RPC (no embedded newlines)
 - Server `stderr` is free-form logs; client MAY ignore
@@ -214,6 +235,7 @@ Two officially defined; custom permitted.
 Single endpoint (e.g. `https://example.com/mcp`) handles both POST and GET.
 
 POST contract (client→server):
+
 - Body: single JSON-RPC request, notification, or response
 - Headers: `Accept: application/json, text/event-stream`
 - If body is a notification or response: server returns `202 Accepted` with no body
@@ -222,22 +244,26 @@ POST contract (client→server):
 - After response is sent, server SHOULD terminate the stream
 
 GET contract (client opens long-lived stream from server):
+
 - Headers: `Accept: text/event-stream`
 - Server returns either SSE stream OR `405 Method Not Allowed`
 - Server MUST NOT send JSON-RPC responses on this stream unless resuming a prior request
 
 Required headers:
+
 - `MCP-Protocol-Version: 2025-11-25` — on every subsequent client request after init. If missing, server defaults to `2025-03-26`. Invalid version → `400 Bad Request`.
 - `MCP-Session-Id` — optional; server MAY return one in init response, client MUST echo it on all subsequent requests. Server MAY 404 on stale session IDs; client MUST then reinitialize. Client MAY DELETE the endpoint to terminate.
 
 Resumability via SSE `Last-Event-Id` header. Servers MAY attach an `id` to SSE events; clients reconnecting send `Last-Event-Id: <id>` to replay missed messages from that specific stream.
 
 Security:
+
 - MUST validate `Origin` header (DNS rebinding defense) → 403 on bad origin
 - SHOULD bind to `127.0.0.1` when running locally
 - SHOULD use auth on remote deployments
 
 **Deprecated HTTP+SSE** (protocol 2024-11-05):
+
 - Two endpoints: `/sse` (GET, long-lived stream) and a separate POST endpoint announced via an `endpoint` SSE event
 - Servers can dual-host both transports for backwards compatibility
 
@@ -246,6 +272,7 @@ Security:
 MCP authorization is OPTIONAL but specified for HTTP. STDIO clients SHOULD use environment variables, not OAuth.
 
 Standards stack:
+
 - OAuth 2.1 (draft-ietf-oauth-v2-1-13)
 - RFC 8414 — OAuth 2.0 Authorization Server Metadata
 - RFC 7591 — Dynamic Client Registration
@@ -254,6 +281,7 @@ Standards stack:
 - draft-ietf-oauth-client-id-metadata-document-00 — CIMD
 
 Mandatory client behaviors:
+
 - MUST implement PKCE with `S256` challenge method
 - MUST send `resource` parameter (RFC 8707) on every authorization + token request
 - MUST verify PKCE support via `code_challenge_methods_supported` in AS metadata
@@ -264,6 +292,7 @@ Mandatory client behaviors:
 - MUST send `Authorization: Bearer <token>` on every HTTP request, not just first
 
 Server behaviors:
+
 - MUST implement RFC 9728 PRM
 - MUST validate that incoming tokens were specifically issued for this resource (audience binding)
 - MUST return 401 with `WWW-Authenticate: Bearer resource_metadata="<url>", scope="..."`
@@ -271,6 +300,7 @@ Server behaviors:
 - MUST validate exact redirect URIs against registered set
 
 Client registration order of preference:
+
 1. Pre-registered static credentials
 2. Client ID Metadata Documents (CIMD) — client hosts a JSON metadata doc at an HTTPS URL, which IS the client_id
 3. Dynamic Client Registration (RFC 7591)
@@ -284,20 +314,22 @@ Step-up authorization: client receives `403 insufficient_scope` → reauthorizes
 
 Three primitives by control hierarchy:
 
-| Primitive | Controller | Description | Example |
-|---|---|---|---|
-| Prompts | User | Templates invoked by user choice | Slash commands |
+| Primitive | Controller  | Description                        | Example                    |
+| --------- | ----------- | ---------------------------------- | -------------------------- |
+| Prompts   | User        | Templates invoked by user choice   | Slash commands             |
 | Resources | Application | Contextual data attached by client | File contents, git history |
-| Tools | Model | Functions for the LLM to call | API calls, file writes |
+| Tools     | Model       | Functions for the LLM to call      | API calls, file writes     |
 
 #### 1.8.1 Tools
 
 Methods:
+
 - `tools/list` — request with optional `cursor` for pagination; returns `{ tools: Tool[], nextCursor?: string }`
 - `tools/call` — request with `{ name, arguments }`; returns `CallToolResult`
 - `notifications/tools/list_changed` — server→client when tool catalog mutates
 
 **Tool schema:**
+
 ```json
 {
   "name": "string (1-128 chars, [A-Za-z0-9_.-])",
@@ -312,12 +344,14 @@ Methods:
 ```
 
 **Tool annotations** (untrusted unless server is trusted):
+
 - `readOnlyHint: boolean` — tool does not modify state
 - `destructiveHint: boolean` — may delete or otherwise destroy
 - `idempotentHint: boolean` — repeated calls produce the same result
 - `openWorldHint: boolean` — touches systems beyond the local environment
 
 **CallToolResult:**
+
 ```ts
 {
   content: ContentItem[];   // array of text|image|audio|resource_link|resource
@@ -327,6 +361,7 @@ Methods:
 ```
 
 Content item types:
+
 - `text` — `{ type: "text", text: string }`
 - `image` — `{ type: "image", data: base64, mimeType }`
 - `audio` — `{ type: "audio", data: base64, mimeType }`
@@ -336,12 +371,14 @@ Content item types:
 All content items support `annotations: { audience, priority, lastModified }`.
 
 **Error handling — two layers:**
-- *Protocol errors* — JSON-RPC errors (unknown tool, malformed request) — `-32602`, etc.
-- *Tool execution errors* — `result.isError: true` with error text in content; the LLM can self-correct. Clients SHOULD pass these back to the LLM.
+
+- _Protocol errors_ — JSON-RPC errors (unknown tool, malformed request) — `-32602`, etc.
+- _Tool execution errors_ — `result.isError: true` with error text in content; the LLM can self-correct. Clients SHOULD pass these back to the LLM.
 
 #### 1.8.2 Resources
 
 Methods:
+
 - `resources/list` — paginated; returns `Resource[]`
 - `resources/templates/list` — returns `ResourceTemplate[]` (URI templates)
 - `resources/read` — `{ uri }` → `{ contents: ResourceContent[] }`
@@ -355,6 +392,7 @@ URI schemes: `file://`, `https://`, custom schemes, `screen://`, etc.
 #### 1.8.3 Prompts
 
 Methods:
+
 - `prompts/list` — paginated
 - `prompts/get` — `{ name, arguments }` → `{ description?, messages: PromptMessage[] }`
 - `notifications/prompts/list_changed`
@@ -376,6 +414,7 @@ Pagination: opaque `cursor` strings; server returns `nextCursor` when more data 
 Method `sampling/createMessage`. The server asks the host's LLM to generate. The client/user gates this; the host's UI is expected to gate every sampling request.
 
 Request shape (abbreviated):
+
 ```ts
 {
   messages: SamplingMessage[],
@@ -397,6 +436,7 @@ Method `roots/list` (server→client). Returns `{ roots: [{ uri: "file://...", n
 #### 1.9.3 Elicitation — Server Asks User
 
 Method `elicitation/create`. Two subforms:
+
 - `form` — structured form fields the client renders
 - `url` — server returns a URL the client opens in a browser
 
@@ -413,6 +453,7 @@ User-approved → response carries collected data. User-rejected → declined er
 ### 1.11 Trust & Safety (Spec Section)
 
 Implementors SHOULD:
+
 - Require explicit user consent before exposing data or invoking tools
 - Treat tool annotations as untrusted
 - Require approval per sampling request
@@ -445,6 +486,7 @@ Three protocol bindings, defined verbatim:
 Discovery document; typically served at `/.well-known/agent-card.json`.
 
 Schema fields:
+
 - `name`, `description`, `url`, `version`
 - `provider` — `{ organization, url, ... }`
 - `capabilities` — `{ streaming: bool, pushNotifications: bool, extendedAgentCard: bool }`
@@ -459,6 +501,7 @@ Extended agent card (auth-gated, fuller capability list) requested via `agent/ge
 ### 2.4 Skill Schema
 
 Each `Skill` declares:
+
 - `id` (unique within agent), `name`, `description`
 - `tags[]` for taxonomy
 - `examples[]` — sample inputs
@@ -478,6 +521,7 @@ Each `Skill` declares:
 ```
 
 **TaskState enum** (verbatim from the proto/JSON-RPC binding):
+
 - `TASK_STATE_SUBMITTED`
 - `TASK_STATE_WORKING`
 - `TASK_STATE_INPUT_REQUIRED` — agent needs user input to continue
@@ -503,6 +547,7 @@ Each `Skill` declares:
 ```
 
 **Part type (oneof):**
+
 - `text` — string content
 - `raw` — binary (base64 in JSON)
 - `url` — external file reference
@@ -512,25 +557,26 @@ Optional on every part: `mediaType`, `filename`.
 
 ### 2.7 Core Methods (JSON-RPC binding)
 
-| Method | Purpose |
-|---|---|
-| `message/send` | Send a message; may auto-create a task |
-| `message/stream` (a.k.a. `tasks/sendSubscribe`) | Send + open SSE stream of updates |
-| `tasks/get` | Poll a task by ID |
-| `tasks/list` | Paginated task listing with filters |
-| `tasks/cancel` | Request cancellation |
-| `tasks/resubscribe` | Reattach SSE stream to existing task |
-| `tasks/pushNotificationConfig/set` | Register webhook for push updates |
-| `tasks/pushNotificationConfig/get` | Read webhook config |
-| `tasks/pushNotificationConfig/list` |  |
-| `tasks/pushNotificationConfig/delete` |  |
-| `agent/getAuthenticatedExtendedCard` | Authenticated card |
+| Method                                          | Purpose                                |
+| ----------------------------------------------- | -------------------------------------- |
+| `message/send`                                  | Send a message; may auto-create a task |
+| `message/stream` (a.k.a. `tasks/sendSubscribe`) | Send + open SSE stream of updates      |
+| `tasks/get`                                     | Poll a task by ID                      |
+| `tasks/list`                                    | Paginated task listing with filters    |
+| `tasks/cancel`                                  | Request cancellation                   |
+| `tasks/resubscribe`                             | Reattach SSE stream to existing task   |
+| `tasks/pushNotificationConfig/set`              | Register webhook for push updates      |
+| `tasks/pushNotificationConfig/get`              | Read webhook config                    |
+| `tasks/pushNotificationConfig/list`             |                                        |
+| `tasks/pushNotificationConfig/delete`           |                                        |
+| `agent/getAuthenticatedExtendedCard`            | Authenticated card                     |
 
 Note: depending on transport binding, method names differ (gRPC uses `SendMessage`, `SubscribeToTask`, etc.).
 
 ### 2.8 Streaming (SSE)
 
 `message/stream` returns SSE. Each event's `data:` is a JSON `StreamResponse` wrapping one of:
+
 - `task` — full Task object (e.g., on creation)
 - `message` — agent message
 - `statusUpdate` — `TaskStatusUpdateEvent { taskId, status, final: bool }`
@@ -539,6 +585,7 @@ Note: depending on transport binding, method names differ (gRPC uses `SendMessag
 ### 2.9 Push Notifications (Webhooks)
 
 When `capabilities.pushNotifications: true`, the client can register webhook URLs with optional auth:
+
 ```json
 {
   "url": "https://client.example.com/a2a/webhook",
@@ -546,11 +593,13 @@ When `capabilities.pushNotifications: true`, the client can register webhook URL
   "authentication": { "schemes": ["Bearer"], "credentials": "..." }
 }
 ```
+
 Server POSTs `StreamResponse`-shaped payloads to the webhook on task state changes.
 
 ### 2.10 Authentication Schemes
 
 Mirrors OpenAPI security types:
+
 - API Key (header / query / cookie)
 - HTTP Basic / Bearer
 - OAuth 2.0 — flows: `AuthorizationCode`, `ClientCredentials`, `DeviceCode`, `Implicit` (discouraged)
@@ -560,6 +609,7 @@ Mirrors OpenAPI security types:
 ### 2.11 Errors
 
 **Standard A2A error codes** (protocol-agnostic names):
+
 - `TaskNotFoundError`
 - `TaskNotCancelableError`
 - `PushNotificationNotSupportedError`
@@ -568,6 +618,7 @@ Mirrors OpenAPI security types:
 - `VersionNotSupportedError`
 
 **Binding-specific:**
+
 - JSON-RPC: custom range `-32001` to `-32099` for A2A-specific
 - gRPC: gRPC status codes (`UNAUTHENTICATED`, `PERMISSION_DENIED`, `INVALID_ARGUMENT`, `NOT_FOUND`, `FAILED_PRECONDITION`, etc.)
 - REST: HTTP status codes (400/401/403/404/409/500)
@@ -592,22 +643,23 @@ Spec maintained by Arize at `github.com/Arize-ai/openinference`. Sits as a compl
 
 Required attribute on every OI span: `openinference.span.kind`. Valid values:
 
-| Span Kind | Definition |
-|---|---|
-| `LLM` | Call to a language model for completion / generation |
-| `EMBEDDING` | Call to embedding model |
-| `CHAIN` | Starting point or link between application steps |
-| `RETRIEVER` | Data retrieval, e.g. vector store query |
-| `RERANKER` | Document ranking pass |
-| `TOOL` | External tool / function call invoked by LLM or agent |
-| `AGENT` | Reasoning block encompassing LLM + tool interactions |
+| Span Kind   | Definition                                                                                         |
+| ----------- | -------------------------------------------------------------------------------------------------- |
+| `LLM`       | Call to a language model for completion / generation                                               |
+| `EMBEDDING` | Call to embedding model                                                                            |
+| `CHAIN`     | Starting point or link between application steps                                                   |
+| `RETRIEVER` | Data retrieval, e.g. vector store query                                                            |
+| `RERANKER`  | Document ranking pass                                                                              |
+| `TOOL`      | External tool / function call invoked by LLM or agent                                              |
+| `AGENT`     | Reasoning block encompassing LLM + tool interactions                                               |
 | `GUARDRAIL` | Component that filters/modifies prompts or outputs to protect against jailbreak or harmful content |
-| `EVALUATOR` | Quality scoring of model output (relevance, correctness, helpfulness) |
-| `PROMPT` | Rendering of a prompt template (newer addition) |
+| `EVALUATOR` | Quality scoring of model output (relevance, correctness, helpfulness)                              |
+| `PROMPT`    | Rendering of a prompt template (newer addition)                                                    |
 
 ### 3.2 Universal Attributes
 
 Attributes that apply to every span kind:
+
 - `openinference.span.kind` (string, required)
 - `input.value` (string) — serialized input
 - `input.mime_type` (string) — `text/plain`, `application/json`, etc.
@@ -651,6 +703,7 @@ llm.tools                   List[object]   (tool definitions surfaced to the mod
 ```
 
 **Indexed message flattening convention:**
+
 ```
 llm.input_messages.0.message.role     = "user"
 llm.input_messages.0.message.content  = "what is the weather?"
@@ -757,13 +810,13 @@ graph.node.parent_id    str   (for graph/workflow visualization)
 
 ### 3.10 How Spans Emerge
 
-| Operation | Resulting span tree |
-|---|---|
-| Single LLM completion | one `LLM` span |
+| Operation                        | Resulting span tree                                                                                                       |
+| -------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| Single LLM completion            | one `LLM` span                                                                                                            |
 | LLM with tool calls (agent loop) | parent `AGENT` span → child `LLM` (model call) → sibling `TOOL` (each executed tool) → child `LLM` (follow-up call), etc. |
-| RAG query | `CHAIN` parent → `EMBEDDING` (query) → `RETRIEVER` → optionally `RERANKER` → `LLM` |
-| Guarded LLM call | `CHAIN` → `GUARDRAIL` (input check) → `LLM` → `GUARDRAIL` (output check) |
-| Multi-agent system | `CHAIN` (orchestrator) → multiple `AGENT` children, each with their own LLM/TOOL children |
+| RAG query                        | `CHAIN` parent → `EMBEDDING` (query) → `RETRIEVER` → optionally `RERANKER` → `LLM`                                        |
+| Guarded LLM call                 | `CHAIN` → `GUARDRAIL` (input check) → `LLM` → `GUARDRAIL` (output check)                                                  |
+| Multi-agent system               | `CHAIN` (orchestrator) → multiple `AGENT` children, each with their own LLM/TOOL children                                 |
 
 Manual spans at routing decisions, guardrail checks, and handoffs make test datasets and continuous-eval pipelines tractable.
 
@@ -793,15 +846,15 @@ Dedicated sub-specs for: Anthropic, Azure AI Inference, AWS Bedrock, OpenAI, Mod
 
 ### 4.3 Span Names
 
-| Operation | Span name |
-|---|---|
-| Create agent | `create_agent {gen_ai.agent.name}` |
-| Invoke agent (remote) | `invoke_agent {gen_ai.agent.name}` — span kind CLIENT |
-| Invoke agent (local) | `invoke_agent {gen_ai.agent.name}` — span kind INTERNAL |
-| Invoke workflow | `invoke_workflow {gen_ai.workflow.name}` — INTERNAL |
-| Chat completion | `chat {gen_ai.request.model}` |
-| Embeddings | `embeddings {gen_ai.request.model}` |
-| Execute tool | `execute_tool {gen_ai.tool.name}` |
+| Operation             | Span name                                               |
+| --------------------- | ------------------------------------------------------- |
+| Create agent          | `create_agent {gen_ai.agent.name}`                      |
+| Invoke agent (remote) | `invoke_agent {gen_ai.agent.name}` — span kind CLIENT   |
+| Invoke agent (local)  | `invoke_agent {gen_ai.agent.name}` — span kind INTERNAL |
+| Invoke workflow       | `invoke_workflow {gen_ai.workflow.name}` — INTERNAL     |
+| Chat completion       | `chat {gen_ai.request.model}`                           |
+| Embeddings            | `embeddings {gen_ai.request.model}`                     |
+| Execute tool          | `execute_tool {gen_ai.tool.name}`                       |
 
 ### 4.4 Required Attributes (per span)
 
@@ -904,25 +957,25 @@ server.port                    int
 
 ### 4.14 Deprecated → Replacement Mapping
 
-| Deprecated | Replacement |
-|---|---|
-| `gen_ai.system` | `gen_ai.provider.name` |
-| `gen_ai.usage.prompt_tokens` | `gen_ai.usage.input_tokens` |
-| `gen_ai.usage.completion_tokens` | `gen_ai.usage.output_tokens` |
+| Deprecated                                            | Replacement                                                              |
+| ----------------------------------------------------- | ------------------------------------------------------------------------ |
+| `gen_ai.system`                                       | `gen_ai.provider.name`                                                   |
+| `gen_ai.usage.prompt_tokens`                          | `gen_ai.usage.input_tokens`                                              |
+| `gen_ai.usage.completion_tokens`                      | `gen_ai.usage.output_tokens`                                             |
 | `gen_ai.prompt` / `gen_ai.completion` (as attributes) | OTel Event API (`gen_ai.user.message`, `gen_ai.assistant.message`, etc.) |
 
 ### 4.15 OpenInference vs OTel GenAI
 
-| Concern | OpenInference | OTel GenAI |
-|---|---|---|
-| Maintainer | Arize (vendor-neutral spec, single-vendor steward) | CNCF / OpenTelemetry Specification SIG |
-| Status | Stable & widely-adopted | Development |
-| Span kinds | Explicit dimension (`openinference.span.kind`) — LLM/TOOL/RETRIEVER/EMBEDDING/RERANKER/CHAIN/AGENT/GUARDRAIL/EVALUATOR/PROMPT | Implied by `gen_ai.operation.name` |
-| Token namespace | `llm.token_count.*` | `gen_ai.usage.*` |
-| Content namespace | `llm.input_messages.N.message.*` (indexed flatten) | `gen_ai.input.messages` (single attribute) + events |
-| Provider | `llm.system` (model family) + `llm.provider` (host) | `gen_ai.provider.name` (host) |
-| Cost | First-class (`llm.cost.*`) | Not standard |
-| Adoption | Native in LangChain, LlamaIndex, OpenAI SDK, Anthropic SDK, Vertex SDK auto-instrumentations | Growing; some vendors emit both |
+| Concern           | OpenInference                                                                                                                 | OTel GenAI                                          |
+| ----------------- | ----------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------- |
+| Maintainer        | Arize (vendor-neutral spec, single-vendor steward)                                                                            | CNCF / OpenTelemetry Specification SIG              |
+| Status            | Stable & widely-adopted                                                                                                       | Development                                         |
+| Span kinds        | Explicit dimension (`openinference.span.kind`) — LLM/TOOL/RETRIEVER/EMBEDDING/RERANKER/CHAIN/AGENT/GUARDRAIL/EVALUATOR/PROMPT | Implied by `gen_ai.operation.name`                  |
+| Token namespace   | `llm.token_count.*`                                                                                                           | `gen_ai.usage.*`                                    |
+| Content namespace | `llm.input_messages.N.message.*` (indexed flatten)                                                                            | `gen_ai.input.messages` (single attribute) + events |
+| Provider          | `llm.system` (model family) + `llm.provider` (host)                                                                           | `gen_ai.provider.name` (host)                       |
+| Cost              | First-class (`llm.cost.*`)                                                                                                    | Not standard                                        |
+| Adoption          | Native in LangChain, LlamaIndex, OpenAI SDK, Anthropic SDK, Vertex SDK auto-instrumentations                                  | Growing; some vendors emit both                     |
 
 In practice many instrumentations dual-emit, mapping the same data to both namespaces. `[UNVERIFIED]` — the convergence story is documented in <https://niteagent.com/blog/2026-05-25-openinference-vs-otel-agent-tracing/>.
 
@@ -948,12 +1001,14 @@ Source: <https://ap2-protocol.org/>. Reference SDK + spec: <https://github.com/g
 Every agent purchase represents three signed mandates:
 
 #### Intent Mandate
-- Signed by the *user* inside their AP2-compatible client
+
+- Signed by the _user_ inside their AP2-compatible client
 - Captures scope and constraints: "buy running shoes, size 10, white or grey, under $150, deliver to saved address"
 - Created at initial user request
 - Used in **human-not-present (HNP)** mode as the standing authorization
 
 Field set (canonical fields per the spec):
+
 - `intentId`, `userId`, `agentId`
 - `description`, `category` / `merchantType`
 - `constraints`: `{ maxPrice, currency, deliverBy, allowedMerchants, deniedMerchants, attributes }`
@@ -961,12 +1016,14 @@ Field set (canonical fields per the spec):
 - `signature` (W3C VC proof block)
 
 #### Cart Mandate (a.k.a. Checkout Mandate)
+
 - Produced by the merchant or merchant-side agent
 - Binds specific SKU(s), price, tax, shipping, total to the Intent
 - Two stages: **Open** (constraints, pre-finalization) and **Closed** (final cart authorized by the user)
 - Provides non-repudiable proof of approval
 
 Field set:
+
 - `cartId`, `merchantId`, `intentMandateRef`
 - `lineItems[]`: `{ sku, name, qty, unitPrice, taxAmount }`
 - `subtotal`, `taxTotal`, `shippingTotal`, `total`, `currency`
@@ -975,12 +1032,14 @@ Field set:
 - `signature`
 
 #### Payment Mandate
+
 - Minimal credential derived from the Cart Mandate
 - Appended to the payment authorization; signals to the payment network and issuer that an agent was involved
 - Specifies transaction modality: `human_present` vs `human_not_present`
 - Does **not** expose sensitive cart or PII to every party in the chain
 
 Field set:
+
 - `paymentMandateId`, `cartMandateRef`
 - `amount`, `currency`
 - `modality`: `"human_present"` | `"human_not_present"`
@@ -1003,6 +1062,7 @@ Field set:
 ### 5.6 Dispute / Audit Model
 
 AP2 provides "a non-repudiable cryptographic audit trail for every transaction." When a dispute arises:
+
 1. The chain of signed mandates (Intent → Cart → Payment) is presented to the issuer/network
 2. Each signature is verifiable independently
 3. The modality (`human_present` vs `human_not_present`) drives the liability allocation per the merchant agreement
@@ -1010,12 +1070,12 @@ AP2 provides "a non-repudiable cryptographic audit trail for every transaction."
 
 ### 5.7 Cards vs x402 vs Other Rails
 
-| Rail | Notes |
-|---|---|
-| Cards | Existing rails reuse the Payment Mandate as a signal in the authorization stream; issuers gain `agent_involved` flag |
-| x402 | HTTP 402 micropayment standard — agent retries request after attaching payment; AP2 mandates supply the consent layer |
-| Bank push (UPI/PIX/FedNow) | Roadmap; would replace the card auth path |
-| Stablecoins | Roadmap; mandate chain replaces conventional consent recording |
+| Rail                       | Notes                                                                                                                 |
+| -------------------------- | --------------------------------------------------------------------------------------------------------------------- |
+| Cards                      | Existing rails reuse the Payment Mandate as a signal in the authorization stream; issuers gain `agent_involved` flag  |
+| x402                       | HTTP 402 micropayment standard — agent retries request after attaching payment; AP2 mandates supply the consent layer |
+| Bank push (UPI/PIX/FedNow) | Roadmap; would replace the card auth path                                                                             |
+| Stablecoins                | Roadmap; mandate chain replaces conventional consent recording                                                        |
 
 ---
 
@@ -1026,6 +1086,7 @@ Source: <https://ucp.dev/> (root), <https://github.com/Universal-Commerce-Protoc
 ### 6.1 Version
 
 Specs are dated (e.g., `2026-04-08`). Schemas live at well-known URLs:
+
 - `https://ucp.dev/schemas/shopping/checkout.json`
 - `https://ucp.dev/schemas/shopping/order.json`
 
@@ -1035,17 +1096,18 @@ REST and JSON-RPC. Integrates with MCP (tool surface), A2A (agent-to-merchant ag
 
 ### 6.3 Capability Areas
 
-| Capability | Purpose |
-|---|---|
-| Catalog Search and Lookup | Product discovery + detail retrieval |
-| Cart Building | Adding/modifying items, applying discounts |
-| Identity Linking | OAuth 2.0 binding between agent and merchant account |
-| Checkout | Cart finalization, tax, shipping resolution |
-| Order Management | From purchase confirmation through delivery; real-time webhooks |
+| Capability                | Purpose                                                         |
+| ------------------------- | --------------------------------------------------------------- |
+| Catalog Search and Lookup | Product discovery + detail retrieval                            |
+| Cart Building             | Adding/modifying items, applying discounts                      |
+| Identity Linking          | OAuth 2.0 binding between agent and merchant account            |
+| Checkout                  | Cart finalization, tax, shipping resolution                     |
+| Order Management          | From purchase confirmation through delivery; real-time webhooks |
 
 ### 6.4 Merchant Profile
 
 The merchant profile document (typically at `/.well-known/ucp-profile.json` or similar) declares:
+
 - `version` (date-formatted, e.g. `"2026-04-08"`)
 - `services[]` — endpoints for each capability
 - `capabilities[]` — which UCP primitives the merchant supports
@@ -1062,6 +1124,7 @@ The merchant profile document (typically at `/.well-known/ucp-profile.json` or s
 ### 6.6 Order Lifecycle
 
 `[UNVERIFIED]` field name conventions (typical of UCP shopping):
+
 - `pending` → `paid` → `processing` → `shipped` → `delivered`
 - Side branches: `canceled`, `refunded`, `partial_refund`, `returned`, `disputed`
 
@@ -1070,6 +1133,7 @@ The core schema is intentionally minimal — fulfillment groups and shipping opt
 ### 6.7 Extension Model
 
 Core checkout schema defines universal primitives only. Verticals/features layer in via extensions:
+
 - `fulfillment` extension — shipping options, delivery windows
 - `subscriptions` extension — recurring orders
 - `gift` extension — gift-wrap, recipient
@@ -1107,6 +1171,7 @@ Source: <https://a2ui.org>.
 ### 7.4 Adjacency-List Model
 
 Components form a graph, not a tree, expressed as an adjacency list:
+
 - Each component has an ID
 - Each component lists its children's IDs
 - Layout, conditionals, and dynamic mounting happen by mutating adjacency
@@ -1114,6 +1179,7 @@ Components form a graph, not a tree, expressed as an adjacency list:
 ### 7.5 Component Catalog (representative)
 
 The standard catalog includes (with v0.8):
+
 - `Card` — surface block with title, body, optional media
 - `Form` — input fields with validation
 - `Field` types — text, number, date, select, multiselect, checkbox, radio
@@ -1130,6 +1196,7 @@ Each component instance: `{ id, type, props, children: [ids] }`.
 ### 7.6 Message Format
 
 A2UI messages stream over A2A (transport). Each message contains:
+
 - `surfaceId` — target surface (created via `createSurface` in v0.9, or implicit in v0.8)
 - `components` — adjacency list of components keyed by ID
 - `data` — backing data bound into components
@@ -1177,6 +1244,7 @@ Insufficient validation/sanitization of LLM outputs sent downstream to interpret
 ### 8.6 LLM06:2025 — Excessive Agency
 
 Over-granted permissions or functions to LLM-driven systems. Three sub-causes:
+
 - **Excessive functionality** — tool surface area too large
 - **Excessive permissions** — tool runs with privileges beyond what user has
 - **Excessive autonomy** — actions execute without sufficient confirmation
@@ -1209,13 +1277,14 @@ Resource exhaustion: token-burn DoS, denial-of-wallet via paid model APIs, runaw
 
 Released by OWASP GenAI Security Project on 2025-12-09. Often labeled "ASI" (Agentic Security Initiative). Source: <https://genai.owasp.org/resource/owasp-top-10-for-agentic-applications-for-2026/>.
 
-This is distinct from — and additive to — the LLM Top 10. Where the LLM Top 10 focuses on *single-model* risk, the agentic version covers multi-agent, tool-using, memory-bearing systems.
+This is distinct from — and additive to — the LLM Top 10. Where the LLM Top 10 focuses on _single-model_ risk, the agentic version covers multi-agent, tool-using, memory-bearing systems.
 
 ### 9.1 ASI01:2026 — Agent Goal Hijack
 
 Attackers manipulate agent goals, plans, or decision paths through direct or indirect instruction injection, causing agents to pursue unintended objectives.
 
 Sub-patterns:
+
 - Direct goal manipulation via prompt injection
 - Indirect injection through documents / RAG content
 - Recursive hijacking propagating through reasoning chains
@@ -1226,6 +1295,7 @@ Sub-patterns:
 Agents misuse or abuse tools through unsafe composition, recursion, or excessive execution, despite having valid permissions.
 
 Sub-patterns:
+
 - Recursive tool calls causing resource exhaustion
 - Unsafe tool composition in dangerous sequences
 - Tool budget exhaustion via excessive invocations
@@ -1236,6 +1306,7 @@ Sub-patterns:
 Delegated authority, ambiguous agent identity, or trust assumptions lead to unauthorized actions.
 
 Sub-patterns:
+
 - Agent impersonation with higher privileges
 - Cross-agent trust abuse exploiting implicit relationships
 - Identity inheritance through unauthorized agent chains
@@ -1246,6 +1317,7 @@ Sub-patterns:
 Compromise of external agents, tools, schemas, or prompts that agents dynamically trust or import.
 
 Sub-patterns:
+
 - Schema manipulation corrupting tool/API schemas
 - Description deception misleading agents (lying tool descriptions)
 - Permission misrepresentation via false declarations
@@ -1256,6 +1328,7 @@ Sub-patterns:
 Agent-generated or agent-triggered code executes without sufficient validation or isolation.
 
 Sub-patterns:
+
 - Unauthorized code generation and execution
 - Direct shell command invocation
 - Unsafe `eval` of dynamic expressions
@@ -1266,6 +1339,7 @@ Sub-patterns:
 Injection or leakage of agent memory or contextual state that influences future reasoning or actions.
 
 Sub-patterns:
+
 - Long-term memory poisoning corrupting persistent stores
 - Context injection inserting malicious information mid-stream
 - State manipulation altering reasoning across sessions
@@ -1276,6 +1350,7 @@ Sub-patterns:
 Manipulation of messages exchanged between agents, planners, and executors.
 
 Sub-patterns:
+
 - Agent-in-the-middle (AITM) interception and modification
 - Message injection
 - Message spoofing forging trusted agent communications
@@ -1286,6 +1361,7 @@ Sub-patterns:
 Small agent failures propagate through connected systems, causing large-scale impact.
 
 Sub-patterns:
+
 - Tool chain errors propagating through sequences
 - Agent dependency failures affecting dependent systems
 - Resource exhaustion cascading across infrastructure
@@ -1296,6 +1372,7 @@ Sub-patterns:
 Exploiting human over-reliance on agents through misleading explanations or authority framing.
 
 Sub-patterns:
+
 - Authority misrepresentation with false credentials
 - Misleading explanations deceiving users about agent reasoning
 - Over-confidence projection with unwarranted certainty
@@ -1306,6 +1383,7 @@ Sub-patterns:
 Agents acting beyond intended objectives due to goal drift, collusion, or emergent behavior.
 
 Sub-patterns:
+
 - Goal drift gradually deviating from objectives
 - Agent collusion coordinating unintended purposes
 - Reward hacking optimizing for proxies
@@ -1367,60 +1445,60 @@ Source: <https://atlas.mitre.org/>. As of Feb 2026 (v5.4.0): **16 tactics, 84 te
 
 ATLAS inherits 13 from ATT&CK and adds three AI-specific tactics. The current 16:
 
-| ID | Tactic | Notes |
-|---|---|---|
-| AML.TA0001 | Reconnaissance | Discover ML artifacts, model ontology, active scanning |
-| AML.TA0002 | Resource Development | Acquire public ML artifacts, develop adversarial ML capabilities |
-| AML.TA0003 | Initial Access | ML supply chain compromise, **prompt injection** |
-| AML.TA0004 | ML Model Access | Inference API access, ML artifacts access |
-| AML.TA0005 | Execution | User Execution, **LLM Plugin Compromise** |
-| AML.TA0006 | Persistence | Modify AI agent configuration |
-| AML.TA0007 | Privilege Escalation | Exploit through ML system |
-| AML.TA0008 | Defense Evasion | Adversarial perturbation, **LLM meta-prompt extraction** |
-| AML.TA0009 | Credential Access | Credentials from AI agent configuration |
-| AML.TA0010 | Discovery | Discover AI agent configuration |
-| AML.TA0011 | Collection | Data from AI services, RAG database retrieval |
-| AML.TA0012 | ML Attack Staging | Poison training data, backdoor ML model |
-| AML.TA0013 | Exfiltration | Exfiltration via ML inference API, **Exfiltration via AI Agent Tool Invocation** |
-| AML.TA0014 | Impact | Denial of ML service, evade ML model, spamming ML system |
-| AML.TA0015 | Command and Control | Reverse shell, AI Service API |
+| ID         | Tactic               | Notes                                                                            |
+| ---------- | -------------------- | -------------------------------------------------------------------------------- |
+| AML.TA0001 | Reconnaissance       | Discover ML artifacts, model ontology, active scanning                           |
+| AML.TA0002 | Resource Development | Acquire public ML artifacts, develop adversarial ML capabilities                 |
+| AML.TA0003 | Initial Access       | ML supply chain compromise, **prompt injection**                                 |
+| AML.TA0004 | ML Model Access      | Inference API access, ML artifacts access                                        |
+| AML.TA0005 | Execution            | User Execution, **LLM Plugin Compromise**                                        |
+| AML.TA0006 | Persistence          | Modify AI agent configuration                                                    |
+| AML.TA0007 | Privilege Escalation | Exploit through ML system                                                        |
+| AML.TA0008 | Defense Evasion      | Adversarial perturbation, **LLM meta-prompt extraction**                         |
+| AML.TA0009 | Credential Access    | Credentials from AI agent configuration                                          |
+| AML.TA0010 | Discovery            | Discover AI agent configuration                                                  |
+| AML.TA0011 | Collection           | Data from AI services, RAG database retrieval                                    |
+| AML.TA0012 | ML Attack Staging    | Poison training data, backdoor ML model                                          |
+| AML.TA0013 | Exfiltration         | Exfiltration via ML inference API, **Exfiltration via AI Agent Tool Invocation** |
+| AML.TA0014 | Impact               | Denial of ML service, evade ML model, spamming ML system                         |
+| AML.TA0015 | Command and Control  | Reverse shell, AI Service API                                                    |
 
 Source: <https://www.vectra.ai/topics/mitre-atlas>.
 
 ### 10.2 Key Techniques (for agent / LLM attacks)
 
-| Technique ID | Name |
-|---|---|
-| AML.T0020 | Poison Training Data |
-| AML.T0024 | Exfiltration via AI Inference API |
-| AML.T0050 | Command and Scripting Interpreter (in AI context) |
-| **AML.T0051** | **LLM Prompt Injection** |
-| AML.T0051.000 | LLM Prompt Injection: Direct |
+| Technique ID  | Name                                                   |
+| ------------- | ------------------------------------------------------ |
+| AML.T0020     | Poison Training Data                                   |
+| AML.T0024     | Exfiltration via AI Inference API                      |
+| AML.T0050     | Command and Scripting Interpreter (in AI context)      |
+| **AML.T0051** | **LLM Prompt Injection**                               |
+| AML.T0051.000 | LLM Prompt Injection: Direct                           |
 | AML.T0051.001 | LLM Prompt Injection: Indirect (via Retrieved Content) |
-| **AML.T0054** | **LLM Jailbreak Injection: Direct** |
-| AML.T0055 | Unsecured Credentials |
-| AML.T0057 | LLM Data Leakage |
-| AML.T0061 | LLM Prompt Obfuscation `[UNVERIFIED]` |
-| AML.T0067 | LLM Plugin Compromise |
-| AML.T0068 | LLM Trusted Output Components Manipulation |
-| AML.T0070 | RAG Poisoning |
-| AML.T0086 | **Exfiltration via AI Agent Tool Invocation** |
-| AML.T0096 | AI Service API (used as C2 channel) |
+| **AML.T0054** | **LLM Jailbreak Injection: Direct**                    |
+| AML.T0055     | Unsecured Credentials                                  |
+| AML.T0057     | LLM Data Leakage                                       |
+| AML.T0061     | LLM Prompt Obfuscation `[UNVERIFIED]`                  |
+| AML.T0067     | LLM Plugin Compromise                                  |
+| AML.T0068     | LLM Trusted Output Components Manipulation             |
+| AML.T0070     | RAG Poisoning                                          |
+| AML.T0086     | **Exfiltration via AI Agent Tool Invocation**          |
+| AML.T0096     | AI Service API (used as C2 channel)                    |
 
 Source: <https://www.startupdefense.io/mitre-atlas-techniques/aml-t0051-llm-prompt-injection>.
 
 ### 10.3 LLM Top 10 ↔ ATLAS Mapping (Selected)
 
-| OWASP LLM | ATLAS Technique |
-|---|---|
-| LLM01 Prompt Injection | AML.T0051 (.000 direct, .001 indirect), AML.T0054 |
-| LLM02 Sensitive Info Disclosure | AML.T0024 (via API), AML.T0057, AML.T0086 |
-| LLM03 Supply Chain | AML.T0010 ML Supply Chain Compromise |
-| LLM04 Data Poisoning | AML.T0020, AML.T0070 |
-| LLM05 Improper Output Handling | AML.T0050, AML.T0068 |
-| LLM06 Excessive Agency | AML.T0067 (plugin compromise), AML.T0086 |
-| LLM07 System Prompt Leakage | AML.T0008 (LLM Meta Prompt Extraction) |
-| LLM10 Unbounded Consumption | AML.TA0014 (Denial of ML Service) |
+| OWASP LLM                       | ATLAS Technique                                   |
+| ------------------------------- | ------------------------------------------------- |
+| LLM01 Prompt Injection          | AML.T0051 (.000 direct, .001 indirect), AML.T0054 |
+| LLM02 Sensitive Info Disclosure | AML.T0024 (via API), AML.T0057, AML.T0086         |
+| LLM03 Supply Chain              | AML.T0010 ML Supply Chain Compromise              |
+| LLM04 Data Poisoning            | AML.T0020, AML.T0070                              |
+| LLM05 Improper Output Handling  | AML.T0050, AML.T0068                              |
+| LLM06 Excessive Agency          | AML.T0067 (plugin compromise), AML.T0086          |
+| LLM07 System Prompt Leakage     | AML.T0008 (LLM Meta Prompt Extraction)            |
+| LLM10 Unbounded Consumption     | AML.TA0014 (Denial of ML Service)                 |
 
 `[UNVERIFIED]` source for full mapping table: <https://medium.com/@ferkhaled2004/mapping-owasp-top-10-for-llm-ai-applications-to-mitre-atlas-a-comprehensive-guide-e97013500bc4>.
 
@@ -1434,12 +1512,12 @@ Source: <https://www.nist.gov/itl/ai-risk-management-framework>.
 
 Four core functions, each subdivided into categories and sub-categories:
 
-| Function | Purpose |
-|---|---|
-| **GOVERN** | Cultivate a culture of risk management — policies, accountability, transparency, oversight |
-| **MAP** | Establish context — system purpose, stakeholders, expected use & misuse |
-| **MEASURE** | Analyze and quantify risk — testing, evaluation, validation, verification (TEVV) |
-| **MANAGE** | Allocate resources to address risks and respond when realized — incident response, communication |
+| Function    | Purpose                                                                                          |
+| ----------- | ------------------------------------------------------------------------------------------------ |
+| **GOVERN**  | Cultivate a culture of risk management — policies, accountability, transparency, oversight       |
+| **MAP**     | Establish context — system purpose, stakeholders, expected use & misuse                          |
+| **MEASURE** | Analyze and quantify risk — testing, evaluation, validation, verification (TEVV)                 |
+| **MANAGE**  | Allocate resources to address risks and respond when realized — incident response, communication |
 
 ### 11.2 NIST AI 600-1 — Generative AI Profile (2024-07-26)
 
@@ -1467,6 +1545,7 @@ CSA has begun an agentic-specific RMF profile draft (`[UNVERIFIED]` for status a
 ### 11.4 Relevance for Agent Reliability Testing
 
 Categories that most directly motivate reliability/fault testing:
+
 - **Information Security** (#9) — adversarial robustness, prompt injection, model extraction → red-team protocols
 - **Confabulation** (#2) — hallucination detection in grounded outputs → eval harnesses
 - **Human-AI Configuration** (#7) — calibration tests for "agent confidence vs actual correctness"
@@ -1531,15 +1610,15 @@ Long-horizon agent benchmark — full computer environment, code + API calls acr
 
 ### 12.8 What Each Measures
 
-| Benchmark | Measures |
-|---|---|
-| ARC-AGI | Skill-acquisition efficiency on novel grid-puzzle tasks |
-| SWE-Bench Verified | Coding agent — repair GitHub issues end-to-end |
-| Tau-Bench | Tool-using conversational agents in policy-bound domains |
-| WebArena / Mind2Web | Browser agents — complete real web tasks |
-| AgentBench | Cross-environment generalist agent |
-| AppWorld | Multi-app long-horizon tasks |
-| RE-Bench | AI-R&D acceleration potential (dangerous-capability adjacent) |
+| Benchmark           | Measures                                                      |
+| ------------------- | ------------------------------------------------------------- |
+| ARC-AGI             | Skill-acquisition efficiency on novel grid-puzzle tasks       |
+| SWE-Bench Verified  | Coding agent — repair GitHub issues end-to-end                |
+| Tau-Bench           | Tool-using conversational agents in policy-bound domains      |
+| WebArena / Mind2Web | Browser agents — complete real web tasks                      |
+| AgentBench          | Cross-environment generalist agent                            |
+| AppWorld            | Multi-app long-horizon tasks                                  |
+| RE-Bench            | AI-R&D acceleration potential (dangerous-capability adjacent) |
 
 ---
 
@@ -1565,6 +1644,7 @@ Source: <https://github.com/google/BIG-bench>.
 Source: <https://chat.lmsys.org/>.
 
 Crowd-sourced human-preference Elo via blind pairwise comparisons. Uses the Bradley-Terry model. As of mid-2026 (`[UNVERIFIED]` snapshot from secondary sources):
+
 - Top overall: Claude Opus 4.6 Thinking at ~1504 Elo
 - Gemini 3.1 Pro Preview at ~1493
 - Grok 4.20 Beta1 at ~1491
@@ -1578,6 +1658,7 @@ Source: <https://www.swfte.com/lmsys-leaderboard>.
 Source: <https://metr.org/>.
 
 Non-profit, Berkeley. Specializes in **dangerous capability evaluations** of frontier systems for sabotage, replication, and AI-R&D uplift. Notable artifacts:
+
 - **RE-Bench** — research engineering benchmark
 - **MALT** — Manually-reviewed Agentic Labeled Transcripts dataset for sandbagging / reward-hacking behavior
 - Methodology emphasizes structured task time, human baseline comparisons, and pre-registered protocols
@@ -1600,38 +1681,45 @@ Non-profit, Berkeley. Specializes in **dangerous capability evaluations** of fro
 ### 14.2 Attack Technique Families
 
 #### GCG — Greedy Coordinate Gradient
+
 - Zou et al. 2023
 - White-box, optimization-based; produces non-human-readable adversarial suffixes
 - High success rate; transferable across models
 - Visible to perplexity filters
 
 #### AutoDAN
+
 - Liu et al. 2023, arXiv:2310.15140
 - Gradient-based, but produces **human-readable** attacks
 - Bypasses perplexity defenses
 - Variant: **AutoDAN-Turbo** (Oct 2024, arXiv:2410.05295) — lifelong agent that self-explores jailbreak strategies
 
 #### PAIR — Prompt Automatic Iterative Refinement
+
 - Chao et al. 2023, arXiv:2310.08419
 - Black-box; an attacker LLM iteratively rewrites prompts to defeat a target LLM
 - Often succeeds in ≤20 queries
 - Produces semantically-meaningful jailbreaks
 
 #### TAP — Tree of Attacks with Pruning
+
 - Mehrotra et al. 2023
 - Builds a tree of attack candidates; prunes branches that are off-topic; queries-efficient
 - Generalizes PAIR
 
 #### Crescendo
+
 - Russinovich et al. 2024, arXiv:2404.01833
 - Multi-turn jailbreak — begins benign, escalates by referencing the model's own prior replies
 - Highly successful against frontier models with single-turn safety training
 
 #### Logic-Chain Injection / Carrier Articles
+
 - arXiv:2404.04849, arXiv:2408.11182
 - Hide a malicious goal inside benign narrative scaffolding (story, news article)
 
 #### Cipher / Encoded Attacks
+
 - Base64, ROT-N, hex, multilingual code-switching, Unicode confusables
 - Bypass keyword-based and embedding-similarity safety classifiers
 
@@ -1703,6 +1791,7 @@ A multi-protocol agent emits a single OpenInference / OTel trace spanning every 
 ### 15.4 How AP2 Maps to OI
 
 `[UNVERIFIED]` — no canonical mapping yet. Reasonable convention:
+
 - `openinference.span.kind = "TOOL"` for the payment leg
 - `tool.name = "ap2.payment"`
 - Custom attributes: `ap2.intent_mandate.id`, `ap2.cart_mandate.id`, `ap2.payment_mandate.id`, `ap2.modality`, `ap2.amount`, `ap2.currency`, `ap2.settlement_rail`
@@ -1711,6 +1800,7 @@ A multi-protocol agent emits a single OpenInference / OTel trace spanning every 
 ### 15.5 How A2UI Maps to OI
 
 `[UNVERIFIED]`. Reasonable convention:
+
 - The A2UI message-emission step → `openinference.span.kind = "CHAIN"` or a custom `UI` kind
 - `output.mime_type = "application/a2ui+json"`
 - `output.value` = serialized A2UI message
@@ -1718,6 +1808,7 @@ A multi-protocol agent emits a single OpenInference / OTel trace spanning every 
 ### 15.6 OTel Compatibility (Both Conventions Side-by-Side)
 
 A dual-emitting instrumentation sets both:
+
 - `openinference.span.kind = "TOOL"` (OI side)
 - `gen_ai.operation.name = "execute_tool"` (OTel side)
 - `tool.name` (OI) AND `gen_ai.tool.name` (OTel) — same value
@@ -1728,6 +1819,7 @@ Backends that consume only one namespace see consistent data either way.
 ### 15.7 What a Single Trace ID Buys
 
 For chaos / fault injection:
+
 - A single fault injected at the MCP tool layer → visible as one specific `TOOL` span's `isError: true`
 - Whether that fault cascades through subsequent `AGENT` / `LLM` / `TOOL` spans is visible as continued spans (or status flips) on the same trace
 - Mean-time-to-detection = wall-clock between fault-injection event and first downstream `status=Error` span
@@ -1739,6 +1831,7 @@ For chaos / fault injection:
 ## 16. Sources
 
 ### MCP
+
 - <https://modelcontextprotocol.io/specification/>
 - <https://modelcontextprotocol.io/specification/2025-11-25/basic>
 - <https://modelcontextprotocol.io/specification/2025-11-25/basic/lifecycle>
@@ -1750,24 +1843,28 @@ For chaos / fault injection:
 - <https://github.com/modelcontextprotocol/specification>
 
 ### A2A
+
 - <https://a2a-protocol.org>
 - <https://a2a-protocol.org/latest/>
 - <https://a2a-protocol.org/latest/specification/>
 - <https://github.com/a2aproject/A2A>
 
 ### OpenInference
+
 - <https://github.com/Arize-ai/openinference>
 - <https://github.com/Arize-ai/openinference/blob/main/spec/semantic_conventions.md>
 - <https://github.com/Arize-ai/openinference/blob/main/spec/traces.md>
 - <https://arize-ai.github.io/openinference/spec/>
 
 ### OpenTelemetry GenAI
+
 - <https://opentelemetry.io/docs/specs/semconv/gen-ai/>
 - <https://opentelemetry.io/docs/specs/semconv/gen-ai/gen-ai-agent-spans/>
 - <https://opentelemetry.io/docs/specs/semconv/attributes-registry/gen-ai/>
 - <https://niteagent.com/blog/2026-05-25-openinference-vs-otel-agent-tracing/>
 
 ### AP2
+
 - <https://ap2-protocol.org/>
 - <https://github.com/google-agentic-commerce/AP2>
 - <https://cloud.google.com/blog/products/ai-machine-learning/announcing-agents-to-payments-ap2-protocol>
@@ -1776,6 +1873,7 @@ For chaos / fault injection:
 - <https://cloudsecurityalliance.org/blog/2025/10/06/secure-use-of-the-agent-payments-protocol-ap2-a-framework-for-trustworthy-ai-driven-transactions>
 
 ### UCP
+
 - <https://ucp.dev/>
 - <https://developers.googleblog.com/under-the-hood-universal-commerce-protocol-ucp/>
 - <https://github.com/Universal-Commerce-Protocol/ucp>
@@ -1784,9 +1882,11 @@ For chaos / fault injection:
 - <https://developers.google.com/merchant/ucp/guides/ucp-profile>
 
 ### A2UI
+
 - <https://a2ui.org>
 
 ### OWASP
+
 - <https://owasp.org/www-project-top-10-for-large-language-model-applications/>
 - <https://genai.owasp.org/llm-top-10/>
 - <https://genai.owasp.org/llmrisk2025/>
@@ -1800,6 +1900,7 @@ For chaos / fault injection:
 - <https://labs.lares.com/owasp-agentic-top-10/>
 
 ### MITRE ATLAS
+
 - <https://atlas.mitre.org/>
 - <https://atlas.mitre.org/pdf-files/SAFEAI_Full_Report.pdf>
 - <https://www.vectra.ai/topics/mitre-atlas>
@@ -1809,6 +1910,7 @@ For chaos / fault injection:
 - <https://medium.com/@ferkhaled2004/mapping-owasp-top-10-for-llm-ai-applications-to-mitre-atlas-a-comprehensive-guide-e97013500bc4>
 
 ### NIST AI RMF
+
 - <https://www.nist.gov/itl/ai-risk-management-framework>
 - <https://nvlpubs.nist.gov/nistpubs/ai/NIST.AI.600-1.pdf>
 - <https://www.libertify.com/interactive-library/nist-ai-600-1-generative-ai-profile/>
@@ -1816,23 +1918,25 @@ For chaos / fault injection:
 - <https://labs.cloudsecurityalliance.org/agentic/agentic-nist-ai-rmf-profile-v1/>
 
 ### Benchmarks
+
 - <https://arcprize.org/>
 - <https://arcprize.org/leaderboard>
-- <https://arxiv.org/pdf/2505.11831>  (ARC-AGI-2)
-- <https://arxiv.org/pdf/2601.10904>  (ARC Prize 2025 Technical Report)
+- <https://arxiv.org/pdf/2505.11831> (ARC-AGI-2)
+- <https://arxiv.org/pdf/2601.10904> (ARC Prize 2025 Technical Report)
 - <https://www.swebench.com>
 - <https://localaimaster.com/models/swe-bench-explained-ai-benchmarks>
 - <https://github.com/sierra-research/tau2-bench>
-- <https://arxiv.org/pdf/2406.12045>  (Tau-Bench)
+- <https://arxiv.org/pdf/2406.12045> (Tau-Bench)
 - <https://awesomeagents.ai/leaderboards/web-agent-benchmarks-leaderboard/>
 - <https://browser-use.com/posts/online-mind2web-benchmark>
-- <https://arxiv.org/pdf/2504.12516>  (BrowseComp)
-- <https://arxiv.org/pdf/2508.13186>  (MM-BrowseComp)
-- <https://arxiv.org/abs/2308.03688>  (AgentBench)
+- <https://arxiv.org/pdf/2504.12516> (BrowseComp)
+- <https://arxiv.org/pdf/2508.13186> (MM-BrowseComp)
+- <https://arxiv.org/abs/2308.03688> (AgentBench)
 - <https://metr.org/research/>
-- <https://arxiv.org/abs/2411.15114>  (RE-Bench)
+- <https://arxiv.org/abs/2411.15114> (RE-Bench)
 
 ### Eval Frameworks
+
 - <https://crfm.stanford.edu/helm/>
 - <https://github.com/stanford-crfm/helm>
 - <https://github.com/google/BIG-bench>
@@ -1841,19 +1945,20 @@ For chaos / fault injection:
 - <https://metr.org/>
 
 ### Red-Team Datasets & Attacks
-- <https://arxiv.org/pdf/2310.08419>  (PAIR)
-- <https://arxiv.org/pdf/2310.15140>  (AutoDAN)
-- <https://arxiv.org/html/2410.05295>  (AutoDAN-Turbo)
-- <https://arxiv.org/pdf/2404.01833>  (Crescendo)
-- <https://arxiv.org/pdf/2404.04849>  (Logic-Chain Injection)
-- <https://arxiv.org/pdf/2408.11182>  (Carrier Articles)
-- <https://arxiv.org/pdf/2405.20413>  (Cipher Characters)
-- <https://arxiv.org/html/2506.00781v2>  (CoP — Agentic Red-team)
-- <https://arxiv.org/pdf/2506.00782>  (Jailbreak-R1)
-- <https://arxiv.org/pdf/2601.03699>  (RedBench)
-- <https://arxiv.org/pdf/2501.01335>  (CySecBench)
+
+- <https://arxiv.org/pdf/2310.08419> (PAIR)
+- <https://arxiv.org/pdf/2310.15140> (AutoDAN)
+- <https://arxiv.org/html/2410.05295> (AutoDAN-Turbo)
+- <https://arxiv.org/pdf/2404.01833> (Crescendo)
+- <https://arxiv.org/pdf/2404.04849> (Logic-Chain Injection)
+- <https://arxiv.org/pdf/2408.11182> (Carrier Articles)
+- <https://arxiv.org/pdf/2405.20413> (Cipher Characters)
+- <https://arxiv.org/html/2506.00781v2> (CoP — Agentic Red-team)
+- <https://arxiv.org/pdf/2506.00782> (Jailbreak-R1)
+- <https://arxiv.org/pdf/2601.03699> (RedBench)
+- <https://arxiv.org/pdf/2501.01335> (CySecBench)
 - <https://safetyprompts.com/>
 - <https://github.com/Libr-AI/OpenRedTeaming>
-- <https://www.sciencedirect.com/science/article/pii/S2666827025001987>  (algorithmic red-team survey)
+- <https://www.sciencedirect.com/science/article/pii/S2666827025001987> (algorithmic red-team survey)
 - <https://www.trydeepteam.com/docs/red-teaming-adversarial-attacks-crescendo-jailbreaking>
 - <https://www.cybernetist.com/2024/09/23/some-notes-on-adversarial-attacks-on-llms/>

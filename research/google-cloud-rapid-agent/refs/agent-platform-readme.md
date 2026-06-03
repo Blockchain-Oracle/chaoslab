@@ -48,9 +48,9 @@ This is Google's own master link directory for the Gemini Enterprise Agent Platf
 
 ## Govern phase (some private preview)
 
-- **Agent Gateway:** https://docs.cloud.google.com/gemini-enterprise-agent-platform/govern/gateways/agent-gateway-overview *(Private Preview — Abu won't have access for the hackathon)*
+- **Agent Gateway:** https://docs.cloud.google.com/gemini-enterprise-agent-platform/govern/gateways/agent-gateway-overview _(Private Preview — Abu won't have access for the hackathon)_
 - **Agent Identity:** https://docs.cloud.google.com/gemini-enterprise-agent-platform/govern/agent-identity-overview
-- **Agent Policies:** https://docs.cloud.google.com/gemini-enterprise-agent-platform/govern/policies/overview *(Private Preview)*
+- **Agent Policies:** https://docs.cloud.google.com/gemini-enterprise-agent-platform/govern/policies/overview _(Private Preview)_
 - **Agent Registry:** https://docs.cloud.google.com/agent-registry/overview
 - **Model Armor:** https://docs.cloud.google.com/model-armor/overview
 
@@ -66,6 +66,7 @@ This is Google's own master link directory for the Gemini Enterprise Agent Platf
 All notebooks live in the `GoogleCloudPlatform/generative-ai` repo, not the `Google-Cloud-AI/agent-platform` repo (which is just a directory README). Key starter notebooks:
 
 ### Core Gemini
+
 - [Intro to Gemini 3.5 Flash](https://github.com/GoogleCloudPlatform/generative-ai/blob/main/gemini/getting-started/intro_gemini_3_5_flash.ipynb) ⭐ **current default model**
 - [Intro to Gemini 3.1 Flash-Lite](https://github.com/GoogleCloudPlatform/generative-ai/blob/main/gemini/getting-started/intro_gemini_3_1_flash_lite.ipynb)
 - [Intro to Gemini 3.1 Pro](https://github.com/GoogleCloudPlatform/generative-ai/blob/main/gemini/getting-started/intro_gemini_3_1_pro.ipynb)
@@ -77,6 +78,7 @@ All notebooks live in the `GoogleCloudPlatform/generative-ai` repo, not the `Goo
 - [Intro to Live API](https://github.com/GoogleCloudPlatform/generative-ai/blob/main/gemini/multimodal-live-api/live_api_quickstart.ipynb)
 
 ### Specialized use cases
+
 - [Intro to Evaluation](https://github.com/GoogleCloudPlatform/generative-ai/blob/main/gemini/evaluation/quick_start_gen_ai_eval.ipynb)
 - [Document Processing](https://github.com/GoogleCloudPlatform/generative-ai/blob/main/gemini/use-cases/document-processing/document_processing.ipynb)
 - [Spatial Understanding](https://github.com/GoogleCloudPlatform/generative-ai/blob/main/gemini/use-cases/spatial-understanding/spatial_understanding.ipynb)
@@ -85,6 +87,7 @@ All notebooks live in the `GoogleCloudPlatform/generative-ai` repo, not the `Goo
 - [Intro to LangGraph](https://github.com/GoogleCloudPlatform/generative-ai/blob/main/gemini/orchestration/intro_langgraph_gemini.ipynb) (reference only — banned as primary orchestrator for this hackathon)
 
 ### Embeddings & Vector Search
+
 - [Text Embeddings + Vector Search](https://github.com/GoogleCloudPlatform/generative-ai/blob/main/embeddings/intro-textemb-vectorsearch.ipynb)
 - [Multimodal Embeddings](https://github.com/GoogleCloudPlatform/generative-ai/blob/main/embeddings/intro_multimodal_embeddings.ipynb)
 - [Vector Search 2.0](https://github.com/GoogleCloudPlatform/generative-ai/blob/main/embeddings/vector-search-2-intro.ipynb)
