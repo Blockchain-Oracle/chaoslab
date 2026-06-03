@@ -1,23 +1,15 @@
-# gitleaks config — target schema: v8.x legacy syntax (`[[allowlist.paths]]`).
-# Pin gitleaks <=v8.17 in S1.5 CI workflow until migration to v8.18+ `[[allowlists]] paths = [...]`.
-# On v8.18+ this file's allowlists are silently ignored (gitleaks warns but does not fail-hard).
-# Migration tracked in audit-notes.md "Implementation findings" once S1.5 lands.
+# gitleaks config — targets gitleaks >=v8.18 schema (`[[allowlists]]` block with
+# `paths` as an array of regex strings). Pinned via .pre-commit-config.yaml rev v8.21.0.
+# Legacy `[[allowlist.paths]]` per-path blocks no longer parse on v8.21+ — see audit-notes.md.
 
 [extend]
 useDefault = true
 
-[[allowlist.paths]]
-description = "Apache-2.0 license text triggers false-positive matches on standard URLs"
-path = '''^LICENSE$'''
-
-[[allowlist.paths]]
-description = "Research corpus contains discussions/transcripts of API surfaces — no live secrets"
-path = '''^research/'''
-
-[[allowlist.paths]]
-description = "Spec files reference example keys / URLs in code blocks"
-path = '''^docs/'''
-
-[[allowlist.paths]]
-description = "Generated lockfiles never contain secrets"
-path = '''(uv\.lock|pnpm-lock\.yaml|package-lock\.json)$'''
+[[allowlists]]
+description = "Carve-outs for license text, research corpus, spec files, and generated lockfiles"
+paths = [
+  '''^LICENSE$''',
+  '''^research/''',
+  '''^docs/''',
+  '''(uv\.lock|pnpm-lock\.yaml|package-lock\.json)$''',
+]

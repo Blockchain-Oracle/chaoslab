@@ -4,7 +4,7 @@
 
 **Deadline:** 2026-06-11 14:00 PT. **Judging window:** 2026-06-22 → 2026-07-06.
 
-> ⚠ **Deadline is NOT a barrier to quality.** AI coding gives us speed — that speed is meant to ship the right thing, not to justify mock integrations / half-built features / cut corners. Never mock the hot path to ship faster. If the right thing takes longer, do the right thing. Per Abu 2026-06-03: *"by using AI coding…a deadline is not a barrier. I don't want this to go; I've been doing mock integration and something like that."*
+> ⚠ **Deadline is NOT a barrier to quality.** AI coding gives us speed — that speed is meant to ship the right thing, not to justify mock integrations / half-built features / cut corners. Never mock the hot path to ship faster. If the right thing takes longer, do the right thing. Per Abu 2026-06-03: _"by using AI coding…a deadline is not a barrier. I don't want this to go; I've been doing mock integration and something like that."_
 
 ---
 
@@ -98,6 +98,8 @@ python3 scripts/check_max_lines.py                 # 400-line guard
 # Pre-commit (auto-runs on git commit; manual:)
 pre-commit run --all-files
 ```
+
+**Pre-commit hooks** run on every commit (configured in `.pre-commit-config.yaml`). They mirror CI: ruff, ruff-format, ty, ESLint, Prettier, gitleaks, markdownlint, conventional-commits, and the 400-line guard. To bypass in genuine emergency: `git commit --no-verify` — but every PR must still pass full CI which re-runs all hooks via `pre-commit/action@v3.0.1`. The escape hatch buys nothing.
 
 ---
 
