@@ -107,21 +107,29 @@ B1-B13 listed in `spec-audit/00-audit-summary.md` §"Minor amendments." Doc-hygi
 
 Discoveries made while implementing stories that contradict spec text. Each one updates this section so the next story doesn't re-hit the same wall.
 
-### IF-1 — Gitleaks v8.21+ rejects legacy `[[allowlist.paths]]` schema (S1.2, 2026-06-03)
+### IF-1 — Gitleaks v8.21+ rejects legacy `[[allowlist.paths]]` per-path schema (S1.2, 2026-06-03)
 
 **Discovered in:** S1.2 (pre-commit hooks). Hook `Detect hardcoded secrets` fails on first run with `'Allowlist.Paths[0]' expected type 'string', got unconvertible type 'map[string]interface {}'`.
 
-**Cause:** `.pre-commit-config.yaml` pins `gitleaks rev: v8.21.0` (per `docs/coding-standards.md`). Gitleaks v8.18+ migrated to the new `[[allowlists]]` block schema with `paths = [string]` as an array. Legacy `[[allowlist.paths]]` per-path blocks no longer parse.
+**Cause:** `.pre-commit-config.yaml` pins `gitleaks rev: v8.21.0` (per `docs/coding-standards.md`). Gitleaks v8.18 introduced the new `paths = [string]` array shape; v8.18-v8.20 still parsed the legacy per-block `[[allowlist.paths]] path = '...'` form (emitting a deprecation warning). v8.21.0 hard-fails on the legacy form with the type-mismatch error above.
 
-**Fix applied:** `.gitleaks.toml` migrated to:
+**Fix applied (CORRECTED — see IF-6 for the in-PR fix history):** `.gitleaks.toml` migrated to use the **singular `[allowlist]` table** (global allowlist, scoped to all rules):
 
 ```toml
-[[allowlists]]
+[extend]
+useDefault = true
+
+[allowlist]
 description = "..."
-paths = ['''^LICENSE$''', '''^research/''', '''^docs/''', '''(uv\.lock|...)$''']
+paths = [
+  '''^LICENSE$''',
+  '''^research/''',
+  '''^docs/''',
+  '''(uv\.lock|pnpm-lock\.yaml|package-lock\.json)$''',
+]
 ```
 
-**Implication for future stories:** Any story touching `.gitleaks.toml` MUST use the `[[allowlists]] paths = [...]` shape, not `[[allowlist.paths]]`.
+**Implication for future stories:** Any story touching `.gitleaks.toml` MUST use the singular `[allowlist]` table. The plural `[[allowlists]]` array-of-tables form is per-rule scope only — using it at the top level silently disables ALL allowlists (verified empirically). See IF-6.
 
 ### IF-2 — Prettier hook needs workspace-root `pnpm exec`, not `--filter chaoslab-web` (S1.2)
 
@@ -139,13 +147,15 @@ paths = ['''^LICENSE$''', '''^research/''', '''^docs/''', '''(uv\.lock|...)$''']
 
 **Cause:** `research/` and `docs/` were rapidly written by spec-writer agents and contain legitimate style noise. Retroactively fixing every URL/spacing issue would consume hours and add zero value (the content is correct; only style is loose).
 
-**Fix applied:** Created `.markdownlintignore` (gitignore-style, auto-loaded by markdownlint-cli) excluding `research/` and `docs/`. Top-level docs (`README.md`, `CLAUDE.md`, `NOTICE`) and source-tree READMEs ARE still linted — the hook enforces conventions on new/curated docs.
+**Fix applied:** Created `.markdownlintignore` (gitignore-style, auto-loaded by markdownlint-cli) excluding `research/` and `docs/`. Top-level docs (`README.md`, `CLAUDE.md`, `NOTICE`) and source-tree READMEs ARE still linted — the hook enforces conventions on new/curated docs at repo root.
 
-**Implication for future stories:** S8.1 (README/NOTICE rewrite) will lint cleanly. Story-tree docs remain ignored unless a future curation pass cleans them up.
+**Trade-off acknowledged (per silent-failure-hunter PR #2 W1):** the `docs/` blanket exclusion means future spec updates (new ADRs in `docs/architecture.md`, new entries in `docs/audit-notes.md`, new story files in `docs/stories/`) are NOT lint-enforced. This is deliberate hackathon-velocity-vs-style-rigor trade — orchestrator + coding agents parse spec by content semantics, not markdown style. Re-evaluate post-hackathon: a focused curation pass with `markdownlint --fix` followed by manual `<URL>` wrapping would let us narrow the ignore to `research/` + `docs/audit-notes.md` only.
+
+**Implication for future stories:** S8.1 (README/NOTICE rewrite at repo root) will lint cleanly. Any spec-doc rot inside `docs/` requires manual review — markdownlint won't catch it.
 
 ### IF-4 — Prettier hook reformats existing corpus on first run (S1.2)
 
-**Discovered in:** S1.2. After adding the prettier hook + running `pre-commit run --all-files`, prettier reformatted ~97 markdown files in `research/` and `docs/` (whitespace, quote style, em-dash spacing).
+**Discovered in:** S1.2. After adding the prettier hook + running `pre-commit run --all-files`, prettier reformatted 92 markdown files in `research/` and `docs/` (whitespace, table column padding, em-dash spacing, `*emphasis*` → `_emphasis_`). Committed in `f87ff0f`.
 
 **Cause:** Expected behavior. Prettier `--write` modifies files in place when they're not already prettier-formatted, then exits 1 (telling pre-commit "changes happened, re-run").
 
@@ -157,11 +167,36 @@ paths = ['''^LICENSE$''', '''^research/''', '''^docs/''', '''(uv\.lock|...)$''']
 
 **Discovered in:** S1.2. Pre-commit fails bootstrapping the ruff hook venv with `RuntimeError: failed to find interpreter for Builtin discover of python_spec='python3.12'`.
 
-**Cause:** `.pre-commit-config.yaml` sets `default_language_version: python: python3.12`. Pre-commit's `virtualenv` discovery uses `python3.12` as the executable name (not uv's managed Python). On macOS where the system Python is `python3.14`, `python3.12` is not on PATH.
+**Cause:** `.pre-commit-config.yaml` sets `default_language_version: python: python3.12`. Pre-commit's `virtualenv` discovery uses `python3.12` as the executable name — uv's managed Pythons are not always symlinked into a directory on PATH. Affects any machine where `python3.12` is not directly invokable (common on freshly-set-up macOS where the system Python is newer, and on Linux where the system Python may be older).
 
-**Fix applied:** Run `uv python install 3.12` once — uv links `/Users/abu/.local/bin/python3.12` into PATH. This is a one-time developer-machine setup step. CI uses `actions/setup-python@v5` with `python-version: 3.12` which provides the binary natively.
+**Fix applied:** Run `uv python install 3.12` once — uv links `python3.12` into `~/.local/bin/` which is on PATH for most setups. This is a one-time developer-machine setup step. CI uses `actions/setup-python@v5` with `python-version: 3.12` which provides the binary natively (no separate step needed).
 
 **Implication for future stories:** Document `uv python install 3.12` as a one-time setup step in the README's "Run locally" section once S1.5 ships CI. For now, the manual step is captured here.
+
+### IF-6 — `[[allowlists]]` plural form is per-rule scope only; silently disables global allowlists (S1.2, PR #2 silent-failure-hunter review)
+
+**Discovered in:** S1.2 PR #2 review. The first migration of `.gitleaks.toml` from `[[allowlist.paths]]` to `[[allowlists]] paths = [...]` (an array-of-tables) **parsed without error** but did NOT actually allowlist any paths. Empirical repro on v8.21.0: a fake secret in `docs/_test/x.py` was still flagged despite the `^docs/` entry in the array-of-tables form.
+
+**Cause:** Gitleaks v8.18+ supports BOTH the singular `[allowlist]` table (top-level, global allowlist) AND the plural `[[allowlists]]` array-of-tables (per-rule allowlist, scoped under a `[[rules]]` block). They look similar in TOML but have very different semantics. The plural form at top level parses cleanly but is ignored.
+
+**Fix applied:** `.gitleaks.toml` uses the singular `[allowlist]` table with `paths = [...]` as an array. Verified empirically — fake secrets in allowlisted paths now correctly produce `no leaks found`.
+
+**Implication for future stories:** Any allowlist change to `.gitleaks.toml` MUST use the singular `[allowlist]` form unless the carve-out is genuinely per-rule (in which case it nests under `[[rules]]`). Add an acceptance test that stages a known-allowed fake secret and asserts gitleaks exits 0 — this would have caught the first migration's silent failure.
+
+### IF-7 — 400-line rule scope ambiguity for `docs/` (S1.2, PR #2 code-reviewer)
+
+**Discovered in:** S1.2 PR #2 review. After the prettier reformat (`f87ff0f`), 2 docs crossed the 400-line threshold and 2 already-oversized docs got slightly worse via table-padding. CLAUDE.md L44 says "No file >400 lines (Python, TS, JSX, Markdown)" — Markdown explicitly in scope. But `docs/coding-standards.md` L12 narrows enforcement to `apps/`, `packages/`, `scripts/`.
+
+**Status:** UNRESOLVED. To be decided as part of S1.3 (`scripts/check_max_lines.py` is the source of truth for what the rule actually counts).
+
+**Recommendation for S1.3:** Make `scripts/check_max_lines.py` count `apps/**`, `packages/**`, `scripts/**` only — and update CLAUDE.md L44 to match. Source files have a clear motivation for the limit (cognitive load when reading agents/components); spec docs have a different optimization (completeness > brevity).
+
+**Affected files (informational):**
+
+- `docs/coding-standards.md`: 435 lines (pre-S1.2 also over; +10 from prettier)
+- `docs/stories/story-6.6-gitlab-mr-emitter.md`: 404 lines (pre-S1.2 over; +3 from prettier)
+- `docs/architecture.md`: 421 lines (was 413; pushed over by prettier)
+- `docs/cicd.md`: 404 lines (was 396; pushed over by prettier)
 
 ---
 

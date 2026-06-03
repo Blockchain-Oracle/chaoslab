@@ -381,7 +381,10 @@ repos:
 
       - id: prettier
         name: Prettier (changed files)
-        entry: pnpm --filter chaoslab-web exec prettier --write
+        # Use workspace-root prettier (installed at root devDep in S1.1's package.json).
+        # `--filter chaoslab-web exec` cd's into apps/chaoslab-web/ which breaks file-path
+        # resolution. See audit-notes.md IF-2.
+        entry: pnpm exec prettier --write
         language: system
         files: \.(ts|tsx|js|jsx|json|css|md)$
         pass_filenames: true

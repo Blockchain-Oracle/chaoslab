@@ -99,7 +99,7 @@ python3 scripts/check_max_lines.py                 # 400-line guard
 pre-commit run --all-files
 ```
 
-**Pre-commit hooks** run on every commit (configured in `.pre-commit-config.yaml`). They mirror CI: ruff, ruff-format, ty, ESLint, Prettier, gitleaks, markdownlint, conventional-commits, and the 400-line guard. To bypass in genuine emergency: `git commit --no-verify` — but every PR must still pass full CI which re-runs all hooks via `pre-commit/action@v3.0.1`. The escape hatch buys nothing.
+**Pre-commit hooks** run on every commit (configured in `.pre-commit-config.yaml`). They mirror CI: ruff, ruff-format, ty, ESLint, Prettier, gitleaks, markdownlint, conventional-commits, and the 400-line guard. To bypass in genuine emergency: `git commit --no-verify` — but every PR must still pass full CI which re-runs all hooks via `pre-commit/action@v3.0.1` (once S1.5's CI workflow lands). The escape hatch buys nothing once CI is wired.
 
 ---
 

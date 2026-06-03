@@ -1,11 +1,13 @@
-# gitleaks config — targets gitleaks >=v8.18 schema (`[[allowlists]]` block with
-# `paths` as an array of regex strings). Pinned via .pre-commit-config.yaml rev v8.21.0.
-# Legacy `[[allowlist.paths]]` per-path blocks no longer parse on v8.21+ — see audit-notes.md.
+# gitleaks config — uses the singular `[allowlist]` table (global allowlist).
+# CRITICAL: the plural `[[allowlists]]` array-of-tables form looks similar but is per-rule
+# scope only — using it at top level silently disables all carve-outs (verified empirically
+# on v8.21.0). See audit-notes.md IF-1 and IF-6 for the full story.
+# Pinned via .pre-commit-config.yaml rev v8.21.0.
 
 [extend]
 useDefault = true
 
-[[allowlists]]
+[allowlist]
 description = "Carve-outs for license text, research corpus, spec files, and generated lockfiles"
 paths = [
   '''^LICENSE$''',
