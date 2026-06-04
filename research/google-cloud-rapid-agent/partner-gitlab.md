@@ -190,3 +190,27 @@ GitLab is **medium difficulty** for a blockchain-native solo dev. You already un
 - [Google ADK docs](https://google.github.io/adk-docs/)
 - [Deploy ADK agent to Cloud Run](https://docs.cloud.google.com/run/docs/ai/build-and-deploy-ai-agents/deploy-adk-agent)
 - Community MCP servers (NOT for this hackathon, reference only): [zereight/gitlab-mcp](https://github.com/zereight/gitlab-mcp), [mcpland/gitlab-mcp](https://github.com/mcpland/gitlab-mcp)
+
+## Devpost-listed resources (audit 2026-06-03)
+
+The Devpost GitLab resources tab lists 6 official links. Coverage check + fill-in:
+
+| Devpost-listed resource                                                                       | Status                                                  |
+| --------------------------------------------------------------------------------------------- | ------------------------------------------------------- |
+| `docs.gitlab.com/user/get_started/get_started_agent_platform/`                                | ❌ missing — add below                                  |
+| `docs.gitlab.com/user/duo_agent_platform/agents/custom/`                                      | ❌ missing — add below                                  |
+| `docs.gitlab.com/user/duo_agent_platform/flows/custom/`                                       | ❌ missing — add below                                  |
+| `docs.gitlab.com/user/duo_agent_platform/ai_catalog/`                                         | ❌ missing — add below                                  |
+| `docs.gitlab.com/user/gitlab_duo/model_context_protocol/mcp_server/`                          | ✅ covered (in body)                                    |
+| `about.gitlab.com/free-trial/` + 30-day Ultimate trial + 24 Duo credits + namespace warning   | ⚠ partial (trial mentioned in body, not the specifics) |
+
+### Amendments
+
+- **Duo Agent Platform get-started:** https://docs.gitlab.com/user/get_started/get_started_agent_platform/ — 5-step path: Agentic Chat → use built-in agents → combine in flows → monitor sessions → extend via integrations (Knowledge Graph + MCP). **This is the canonical onboarding doc**; read before building.
+- **Custom agents:** https://docs.gitlab.com/user/duo_agent_platform/agents/custom/ — Custom agents are user-defined AI assistants for specific tasks (MR creation, code review). Public/private per project. Accessible via GitLab UI, VS Code, JetBrains via Duo Chat. **For full hackathon credit, define at least one custom agent in the Duo Agent Platform** (mirrors the Elastic "define tools in Kibana" requirement).
+- **Custom flows:** https://docs.gitlab.com/user/duo_agent_platform/flows/custom/ — Multi-step AI workflows triggered by events (mentions, assignments, pipeline changes). **Runs on Claude Sonnet 4** (not Gemini) inside GitLab — important nuance: if our agent IS the orchestrator on Cloud Run, we call the MCP server but never trigger a GitLab Duo flow. If we wanted a hybrid (GitLab flow handing off to our Cloud Run agent), this doc explains the trigger model.
+- **AI Catalog:** https://docs.gitlab.com/user/duo_agent_platform/ai_catalog/ — Central directory of agents + flows (GitLab-maintained + community). **Publishing our hackathon agent here post-submission is a way to amplify reach** — verify whether the AI Catalog accepts community submissions during the hackathon window.
+- **Free trial details:** https://about.gitlab.com/free-trial/ — **30-day Ultimate tier trial.** Includes Duo Agent Platform access + **24 Duo credits per user** + 400 compute minutes/month on GitLab.com. Self-managed trials (GitLab 18.9+) get the same Duo allotment, support excluded. **The 24-credit cap is the real constraint** — credits burn on Duo-platform LLM calls (Claude Sonnet 4). Plan to run our agent off-platform (Cloud Run + Gemini) and use the MCP server primarily for git/MR/pipeline operations to avoid burning credits on inference.
+- **External MCP namespace warning** (from Devpost brief, not the public free-trial page): When using third-party MCP servers from within Duo flows, exposed namespaces must be scoped carefully — flows have access to whatever the host namespace can see. **For our submission this is moot** (we drive the GitLab MCP from outside Cloud Run), but worth knowing for any judge who asks about security posture.
+
+Coverage status: **all 6 Devpost-listed GitLab resources now covered.**

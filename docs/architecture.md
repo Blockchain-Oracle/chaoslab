@@ -1,7 +1,15 @@
-# Architecture — ChaosLab
+# Architecture — Phoenix Audit
 
 **Status:** DRAFT — pending Abu approval (LOCKS upon approval; no post-approval changes)
-**Last updated:** 2026-06-02
+**Last updated:** 2026-06-04 (rebranded from "ChaosLab" / "Trust Auditor" working names to **Phoenix Audit**; same closed-loop technical engine, reframed product for the compliance-officer persona — see `research/google-cloud-rapid-agent/PLAN-AI-TRUST-AUDITOR.md`)
+
+---
+
+## Product framing (read first; rest of doc is technical)
+
+**What Phoenix Audit IS:** an AI agent that audits other AI agents for safety + EU AI Act compliance. Produces a cryptographically signed regulator-ready report keyed to a commit SHA.
+
+**Same engine, swapped framing:** the "chaos engineering" framing pre-2026-06-04 was technically correct but commercially weak. The exact same code paths (test injector → Phoenix trace observer → LLM-judge → patcher) now serve a _compliance auditor_ persona instead of a _chaos engineer_ persona. Internal package directories (`apps/chaoslab-agent`, `apps/chaoslab-web`) remain unchanged as codenames pending S1.6 deploy rename; the product is Phoenix Audit in every user-facing surface.
 
 ---
 

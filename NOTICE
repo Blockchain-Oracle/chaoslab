@@ -1,4 +1,4 @@
-ChaosLab
+Phoenix Audit (internal package codename: ChaosLab; rebranded 2026-06-04)
 Copyright 2026 Abu Mostofa (Blockchain-Oracle)
 
 Licensed under the Apache License, Version 2.0 (the "License").
@@ -30,3 +30,18 @@ This project depends on (non-exhaustive):
 
 Full license info per dependency is available via `pip-licenses` (Python)
 and `license-checker` (TypeScript).
+
+### Adversarial-test data sources
+
+Phoenix Audit's adversarial test battery draws from the following
+public datasets. Each test in the audit report cites its source by ID;
+the datasets themselves are not redistributed in this repository.
+
+- **HarmBench** © Center for AI Safety, MIT License
+  https://github.com/centerforaisafety/HarmBench
+- **OWASP LLM Top 10 (2025)** © OWASP Foundation, CC-BY-SA 4.0
+  https://genai.owasp.org/llmrisk/
+- **MITRE ATLAS** v5.1.0 © The MITRE Corporation
+  https://atlas.mitre.org/
+- **CARES** — Comprehensive Evaluation of Safety and Adversarial
+  Robustness in Medical LLMs (arXiv:2505.11413)

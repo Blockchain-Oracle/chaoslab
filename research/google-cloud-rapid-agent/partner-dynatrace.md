@@ -229,3 +229,28 @@ What kills a Dynatrace submission:
 - [Google ADK docs](https://google.github.io/adk-docs/)
 - [Deploy ADK agent to Cloud Run](https://docs.cloud.google.com/run/docs/ai/build-and-deploy-ai-agents/deploy-adk-agent)
 - Community reference (NOT for this hackathon): [theharithsa/dynatrace-mcp-otel](https://github.com/theharithsa/dynatrace-mcp-otel)
+
+## Devpost-listed resources (audit 2026-06-03)
+
+The Devpost Dynatrace resources tab lists 6 official links + the trial sign-up. Coverage check + fill-in:
+
+| Devpost-listed resource                                                                                                 | Status                                                         |
+| ----------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------- |
+| Dynatrace for Vertex AI / Agent Platform (Hub listing) — `dynatrace.com/hub/detail/vertex-ai/`                          | ❌ missing — add below                                         |
+| Dynatrace for Gemini Enterprise (GCP Marketplace one-click deploy)                                                      | ❌ missing — add below                                         |
+| AI Coding Agent Monitoring blog                                                                                         | ✅ covered (in sources)                                        |
+| Instrumentation Examples GitHub (`dynatrace-ai-agent-instrumentation-examples/ai-coding-agents`)                        | ❌ missing — add below                                         |
+| Bindplane (Google Edition)                                                                                              | ❌ missing — add below                                         |
+| Dynatrace free trial sign-up — `dynatrace.com/signup/`                                                                  | ⚠ partial (body uses `/trial/`; Devpost uses `/signup/`)       |
+
+### Amendments
+
+- **Dynatrace for Vertex AI / Gemini Enterprise Agent Platform (Hub):** https://www.dynatrace.com/hub/detail/vertex-ai/ — Distinct from the dynatrace-mcp Hub listing in the body. This is the **AI-workload monitoring product**: end-to-end traces across the full Agentic AI stack, real-time prompt-flow visibility, token consumption, latency, error rates, service costs. Detects bottlenecks; provides audit trails for compliance. **This is what we'd actually monitor if we wanted to demo Dynatrace observing OUR ChaosLab agent in production.**
+- **Dynatrace for Gemini Enterprise (Google Cloud Marketplace):** https://console.cloud.google.com/marketplace/product/dynatrace-marketplace-prod/dynatrace-for-gemini-enterprise — One-click deploy from GCP Marketplace, billing goes through GCP (uses hackathon credits cleanly). The fastest install path on Cloud Run / Agent Engine. Marketplace page itself is JS-only and unfetchable via WebFetch — content unverifiable, but the URL is confirmed via the Devpost tab.
+- **AI Agent Instrumentation Examples (ai-coding-agents):** https://github.com/dynatrace-oss/dynatrace-ai-agent-instrumentation-examples/tree/main/ai-coding-agents — Reference repo with OTel instrumentation for Claude Code, Gemini CLI, Codex CLI, OpenCode, and GitHub Copilot SDK. Native OTel + ~5-15 min setup. Captures token usage, costs, session activity, engineering metrics. Ships sample unified dashboards. **High-value if we ever want to observe how WE use coding agents during the hackathon — meta but on-theme.**
+- **Bindplane (Google Edition):** https://bindplane.com/google — A **free** OTel-native unified telemetry pipeline. Standardized collection + fleet management + processing controls. Free for Google Cloud Observability and Security Operations subscribers. **For our submission: useful if we route OTel traces from Cloud Run → Bindplane → both Phoenix AND Dynatrace (two-track observability). Zero-cost telemetry fan-out.**
+- **Dynatrace free trial sign-up:** https://www.dynatrace.com/signup/ — Devpost's canonical sign-up URL. (Our body cites `/trial/` which redirects identically; both work.)
+
+Coverage status: **all 6 Devpost-listed Dynatrace resources now covered.**
+
+Note for ChaosLab: we are on the Arize track, not Dynatrace. This partner file remains useful for understanding the competitive observability landscape and for the "two-track observability" wedge angle (Phoenix + Dynatrace via Bindplane fan-out) — but no implementation dependency exists.

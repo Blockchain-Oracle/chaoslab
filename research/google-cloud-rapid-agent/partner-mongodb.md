@@ -246,3 +246,32 @@ What kills a MongoDB submission:
 - [Google ADK docs](https://google.github.io/adk-docs/)
 - [Deploy ADK agent to Cloud Run](https://docs.cloud.google.com/run/docs/ai/build-and-deploy-ai-agents/deploy-adk-agent)
 - [MongoDB Smart Shopping Cart Medium tutorial (Gemini + Vector Search + MCP)](https://medium.com/mongodb/the-smart-shopping-cart-ai-agents-with-gemini-mongodb-atlas-vector-search-and-the-mcp-toolbox-7667b9e9805c)
+
+## Devpost-listed resources (audit 2026-06-03)
+
+The Devpost MongoDB resources tab lists 9 specific URLs. Coverage check + fill-in:
+
+| Devpost-listed resource                                                                  | Status                              |
+| ---------------------------------------------------------------------------------------- | ----------------------------------- |
+| sample_mflix sample dataset (with `embedded_movies` vector collection)                    | ❌ missing — add below              |
+| Data Modeling docs                                                                       | ❌ missing — add below              |
+| MongoDB MCP Server get-started                                                           | ✅ covered (in body)                |
+| MongoDB Database Tools                                                                   | ❌ missing — add below              |
+| MongoDB Aggregations                                                                     | ❌ missing — add below              |
+| MongoDB Atlas Search                                                                     | ⚠ named in body; URL not pinned    |
+| MongoDB Atlas Vector Search                                                              | ✅ covered                          |
+| MongoDB AI Learning Hub (use-cases/artificial-intelligence)                              | ❌ missing — add below              |
+| AI Search & Retrieval product page                                                       | ❌ missing — add below              |
+
+### Amendments
+
+- **`sample_mflix.embedded_movies`** — https://www.mongodb.com/docs/atlas/sample-data/sample-mflix — **Critical for demo speed.** `sample_mflix` is Atlas's bundled sample dataset (6 collections: `movies`, `comments`, `theaters`, `users`, `sessions`, `embedded_movies`). The `embedded_movies` collection is a Western/Action/Fantasy subset **pre-enriched with vector embeddings** (1536-dim OpenAI + 2048-dim Voyage AI, stored as binary). **This is the fastest path to a Vector-Search demo** — load sample data in 1 click in Atlas UI, point `$vectorSearch` at the existing `plot_embedding_voyage_3_large` field, query against it. Saves 4-8 hours of embedding pipeline setup. The Devpost brief implicitly endorses this dataset.
+- **Data Modeling docs:** https://www.mongodb.com/docs/manual/data-modeling/ — Flexible-schema design patterns: embed vs reference, one-to-one / one-to-many / many-to-many relationships, schema design for access patterns. Useful when designing a custom corpus schema (not using sample_mflix).
+- **MongoDB Database Tools:** https://www.mongodb.com/try/download/database-tools — Apache-2.0 CLI tools: `mongodump`/`mongorestore` (backup/restore), `mongoimport`/`mongoexport` (JSON/CSV/TSV import-export), plus admin utilities. Linux/macOS/Windows. **Use `mongoimport` to seed a custom corpus from CSV/JSON** if not using sample_mflix.
+- **Aggregation Pipelines:** https://www.mongodb.com/docs/manual/aggregation/ — Multi-stage pipeline reference. `$match → $group → $sort → $limit` and the rest. Single-purpose methods (`count()`, `distinct()`) as the simpler alternative. **`$vectorSearch` is itself a pipeline stage** — to combine semantic + filter + group you write a single aggregate, not three queries. Master `$lookup` (joins) too.
+- **Atlas Search (BM25 full-text):** https://www.mongodb.com/docs/atlas/atlas-search/ — Lucene-backed BM25 full-text search. Separate from Vector Search but composable in one aggregate (`$search` stage for BM25, `$vectorSearch` stage for semantic, then fuse via `$unionWith` + `$group`). **Hybrid search story is what distinguishes a great MongoDB submission from a basic vector-only one.**
+- **AI Learning Hub:** https://www.mongodb.com/resources/use-cases/artificial-intelligence — Self-paced tracks for building AI apps with MongoDB. Includes vector-DB primer, RAG application guide, skill badges, notebooks with OpenAI + Voyage AI embeddings. **Skim for the RAG notebook patterns specifically** — they map directly onto Devpost World-Cup / FinServ / Retail idea shapes.
+- **AI Search & Retrieval product page:** https://www.mongodb.com/products/platform/ai-search-and-retrieval — Marketing page that frames the combined BM25 + vector + filter story as one "search & retrieval" surface. Useful as Devpost write-up framing language ("MongoDB unified search and retrieval" sounds stronger than "I used Vector Search").
+- **Voyage AI documentation** — referenced in Devpost; closest URL is the Voyage AI section of the MongoDB Vector Search docs. Embedding model identifiers (`voyage-3-large`, `voyage-3.5`, `voyage-3.5-lite`, `voyage-code-3`) are already listed in our body table.
+
+Coverage status: **all 9 Devpost-listed MongoDB resources now covered.**

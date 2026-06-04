@@ -173,3 +173,41 @@ _Judging fit:_ Potential Impact (concrete revenue lever for banks), Quality of I
 - How to build an MCP server with Elastic: https://www.elastic.co/search-labs/blog/how-to-build-mcp-server
 - Prior Elastic hackathon recap (PHAROS, Gauntlet, Duplicate Detection): https://www.elastic.co/blog/the-elasticsearch-agent-builder-hackathon
 - Elasticsearch-py: https://github.com/elastic/elasticsearch-py
+
+## Devpost-listed resources (audit 2026-06-03)
+
+The Devpost Elastic resources tab lists ~20 official links. The body above covers the canonical ones (Agent Builder MCP endpoint, cloud.elastic.co trial, Agent Builder GA blog, MCP for intelligent search blog, MCP overview docs, deprecated `mcp-server-elasticsearch`). Filling in the rest:
+
+### Docs
+
+- **Agent Builder Get Started** (https://www.elastic.co/docs/solutions/search/agent-builder/get-started) — 5-step walkthrough: access Agent Builder UI → ingest data → start conversation with default agent → optionally configure model → create custom skills/tools/agents. The canonical onboarding path; do this on day 1.
+- **Agent Builder Tools** (https://www.elastic.co/docs/solutions/search/agent-builder/tools) — Three tool categories: (1) built-in core Elasticsearch tools, (2) custom user-defined tools, (3) tools exposed via the MCP server. Tools take typed parameters, return structured results. Defining custom tools here is the explicit Devpost expectation.
+- **ES|QL Language Reference** (https://www.elastic.co/docs/reference/query-languages/esql) — Full reference for the SQL-shaped query language used in custom tools.
+- **Elastic Serverless Get Started** (https://www.elastic.co/docs/solutions/search/serverless-elasticsearch-get-started) — Spinning up Elastic Cloud Serverless (which is what Agent Builder requires).
+- **Semantic Search with Elasticsearch** (https://www.elastic.co/docs/solutions/search/semantic-search) — How `semantic_text` field + inference endpoints auto-embed at ingest and at query time.
+
+### Search Labs blogs (Devpost-promoted)
+
+- **"Implementing an agentic reference architecture with Elastic Agent Builder and MCP"** (https://www.elastic.co/search-labs/blog/agent-builder-mcp-reference-architecture-elasticsearch) — Reference architecture: a security-vulnerability agent that does semantic search over an internal KB plus web search, correlates findings, recommends mitigation. **This is the closest-shape published example of the kind of agent the Elastic track wants.**
+- **"Elastic MCP server in Agent Builder Tools"** (https://www.elastic.co/search-labs/blog/elastic-mcp-server-agent-builder-tools) — Agent Builder ships a built-in MCP server that exposes custom tools to external clients (Cursor, VS Code, ADK). Single endpoint, OAuth or API key.
+- **Agent Builder GA announcement** (https://www.elastic.co/search-labs/blog/agent-builder-elastic-ga) — Already covered in body.
+- **"AI Agent memory management with Elasticsearch"** (https://www.elastic.co/search-labs/blog/ai-agent-memory-management-elasticsearch) — Three memory types (procedural, episodic, semantic) implemented as Elasticsearch indices. Adds **document-level security for selective memory retrieval** — agents only see context-appropriate memories. Reduces token usage + context pollution. Relevant for any persistent-memory agent shape.
+- **"MCP current state"** (https://www.elastic.co/search-labs/blog/mcp-current-state) — MCP overview. OAuth 2.1 + remote-deployment story. Useful for understanding why GitLab/Elastic chose remote MCP over stdio.
+- **"How to build an MCP server with Elastic"** (https://www.elastic.co/search-labs/blog/how-to-build-mcp-server) — Already in sources.
+- **"A2A protocol vs MCP for LLM agents"** (https://www.elastic.co/search-labs/blog/a2a-protocol-mcp-llm-agent-newsroom-elasticsearch) — A2A coordinates multiple agents; MCP gives one agent tools. They compose — A2A on top, MCP underneath. Useful framing if pitching a multi-agent submission.
+- **"Build task-aware AI agents with Elastic Inference Service (EIS)"** (https://www.elastic.co/search-labs/blog/build-ai-agents-elastic-inference-service) — EIS catalog lets agents pick model tier per task (fast+cheap → mid → frontier reasoning) without managing infra. Useful if cost-optimization is part of the agent story.
+- **"Gemini CLI extension for Elasticsearch"** (https://www.elastic.co/search-labs/blog/gemini-cli-extension-elasticsearch) — Open-source Gemini CLI extension wrapping Elastic MCP + an ES|QL skill that turns NL into ES|QL. Drop-in for Gemini CLI users. (Equivalent of the MongoDB Gemini extension.)
+- **"Elastic + Google Cloud 2025 partnership"** (https://www.elastic.co/blog/elastic-google-cloud-2025) — Elasticsearch became the first vendor natively integrated in Vertex AI's UI. Elastic won two Google Cloud Partner of the Year awards. Useful name-drop in the submission write-up to signal partnership credibility.
+
+### Tutorial notebooks (Devpost-promoted)
+
+- **Vector Search with Gemini Embeddings + Elasticsearch** (https://github.com/elastic/elasticsearch-labs/blob/main/notebooks/integrations/gemini/vector-search-gemini-elastic.ipynb) — Jupyter notebook: use Google Gemini embedding models with Elasticsearch as the vector backend. (Full content not extractable from the file path; load locally for code.)
+- **Q&A with Gemini + LangChain + Elasticsearch** (https://github.com/elastic/elasticsearch-labs/blob/main/notebooks/integrations/gemini/qa-langchain-gemini-elasticsearch.ipynb) — RAG-style Q&A pipeline combining Gemini, LangChain, and Elasticsearch.
+
+### Community & marketplace
+
+- **Elastic Cloud on Google Cloud Marketplace** (https://console.cloud.google.com/marketplace/product/elastic-prod/elastic-cloud) — Marketplace listing. Sign up here ONLY if you want GCP-billed Elastic; this path does NOT grant the free trial. For the hackathon, use cloud.elastic.co directly.
+- **Elastic Discuss forum** (https://discuss.elastic.co) — Official Q&A forum.
+- **Elastic Community Discord** (https://ela.st/discord, full: https://discord.gg/7Dqk5ebCD4) — Live community support channel; Devpost lists this alongside discuss.elastic.co.
+
+Coverage status: **all 20+ Devpost-listed Elastic resources now covered.** Two unverifiable: Gemini notebooks (page renders GitHub chrome only via WebFetch — need to clone the repo for code body) and the Google Cloud Marketplace listing (JS-only page).
