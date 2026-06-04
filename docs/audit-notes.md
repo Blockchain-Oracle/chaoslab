@@ -239,6 +239,86 @@ paths = [
 
 ---
 
+## Day-4 amendments — OSS landscape findings + scope expansion (2026-06-05)
+
+After PR #4 merge, Abu directed a second-pass research sweep on the AI agent monitoring / safety / audit space. **The OSS landscape changed materially in Mar–May 2026** and our pre-research wedge needs sharpening. Memo at `research/google-cloud-rapid-agent/brainstorm/26-oss-monitoring-landscape.md`.
+
+**These amendments OVERRIDE the older PRD claim that "nobody combines continuous monitoring + signed audit reports."** That claim is now factually wrong.
+
+### D4-1 — Competitive landscape correction
+
+Three Apache-2.0/MIT OSS projects shipped in the last 90 days that hit our exact shape:
+
+- **AIR Blackbox** (Apache-2.0, alpha v0.1, 17 stars) — OpenAI-compatible reverse proxy + EU AI Act articles 9–15 scanner + signed `.air-evidence` ZIPs. ADK native in v1.12.0.
+- **Asqav** (MIT, 169 stars) — ML-DSA-65 quantum-safe per-action signing + hash chain + 10+ framework integrations.
+- **Microsoft Agent Governance Toolkit** (MIT, 4K+ stars) — OWASP Agentic Top 10 + EU AI Act + NIST AI RMF + SOC 2 mappings + Merkle audit trails.
+
+Each covers ONE column. None ships **adversarial-battery + judge-LLM-reasoned-scoring + signed-PDF** as a single deliverable. Phoenix Audit's defensible wedge narrows to that intersection. Cite all three in `docs/architecture.md` as canonical references; position Phoenix Audit as **complementary** (the scoring + reporting layer on top), not competing.
+
+PRD §"Direct competitive cut" should be amended: keep the AIUC cut, ADD an OSS-tier cut acknowledging AIR Blackbox / Asqav / MS AGT and explaining the layer distinction.
+
+### D4-2 — Architecture C decision: continuous monitor via Phoenix trace-pull
+
+Abu has expanded v1 scope to include continuous monitoring as part of the shipped MVP (NOT a "coming soon" tease). The OSS scan surfaced three plausible architectures:
+
+- **A. Gateway/proxy** (AIR Blackbox pattern) — REJECTED. Would require building a Go reverse proxy from scratch in 6 days; constitutes hot-path scope blowup.
+- **B. In-process instrumentor** — REJECTED. Invasive (requires customers to import our lib); limits us to ADK-native targets.
+- **C. Pull from Phoenix trace store on schedule** — **ADOPTED.** Cloud Scheduler triggers the existing audit agent in "live mode" instead of synthetic mode; pulls last N hours of spans from `phoenix.client.Client().spans` API; runs same judge over real conversations; produces same signed PDF. Same engine. Same judge. Same PDF. Only the input source changes.
+
+Architecture C estimated effort: ~6h, ONE new story. Add as **story-6.5-continuous-monitor-trace-pull** in sprint-status DAG. Depends on E4 (Phoenix tool wrappers — needs `client.spans` access) + E6 (Reporter — needs signed-PDF emission path).
+
+Demo arc gains a new line: *"On Friday we ran 6 synthetic adversarial tests. On Monday we ran the same scoring engine over the customer's live traffic. Here are both signed reports."* That's the regulator-ready continuous monitor.
+
+### D4-3 — Signing scheme lock: Ed25519 (NOT ML-DSA-65)
+
+Abu confirmed Ed25519 for the signed PDF report. Rationale: ubiquitous library support (cryptography.io, every JWT lib, SSH/Git baseline), fast verification, sufficient for hackathon + most real-world audit use cases today. ML-DSA-65 (Asqav's choice) is interesting future-proofing but adds library churn for marginal hackathon-day benefit.
+
+Update: `docs/architecture.md` ADR section to add **ADR-013 — Ed25519 signing for audit reports**. The signing key lives in Cloud KMS (HSM-backed, regulator-meaningful) keyed to the customer's compliance officer, NOT to Phoenix Audit ops. This preserves the "zero auditor/insurer conflict of interest" claim in the PRD.
+
+### D4-4 — Failure-class taxonomy: OWASP Agentic Top 10 (AGT01–AGT10), drop internal F1–F4
+
+Abu confirmed the repin. Rationale: judges + compliance officers recognize OWASP names instantly; using their codes makes audit reports self-explanatory without a Phoenix-Audit-specific glossary. Reference: https://genai.owasp.org/llmrisk/llm01-prompt-injection/ + the upcoming OWASP Agentic Top 10 (RC2 published Apr 2026).
+
+Mapping (current F-class → new AGT-class):
+
+- F1 (prompt-injection) → AGT01 (Prompt Injection)
+- F2 (tool-misuse) → AGT05 (Excessive Agency)
+- F3 (PII leakage) → AGT02 (Insecure Output Handling) + AGT03 (Sensitive Information Disclosure)
+- F4 (cascade-failure / unsafe-tool-chain) → AGT07 (System Prompt Leakage) + AGT08 (Vector & Embedding Weaknesses) — final mapping per F4 sub-type
+
+Update needed: all `F1`/`F2`/`F3`/`F4` symbol references across `docs/PRD.md`, `docs/architecture.md`, `docs/epics.md`, stories E2–E5, and any code constants. Tracked as a discrete repin issue.
+
+### D4-5 — Lakera PINT dataset adoption as AGT01 ground truth
+
+Abu confirmed adopting Lakera PINT (4,314 prompt-injection inputs) as our AGT01 dataset. Hybrid mode: PINT as bulk dataset for continuous monitor + scaling, KEEP the 6 handpicked prompts (2 HarmBench, 1 OWASP, 2 MITRE, 1 CARES) as the **demo battery** shown in the 90-second on-demand demo.
+
+Integration shape: PINT enters as a git submodule under `data/lakera-pint/` (verify license — Lakera publishes PINT under Apache-2.0 per OSS-memo §6.1; confirm before committing). Loader emits one ADK eval row per PINT prompt at audit time.
+
+NOTICE update needed: add Lakera PINT attribution per Apache-2.0 license terms.
+
+### D4-6 — Other free borrowings (license-clean)
+
+The OSS memo identified two additional borrowings worth considering but NOT yet locked-in (need Abu's call later):
+
+- **Vijil `agent-audit-samples`** — ready-made malicious/benign ADK target agents. Could replace our hand-built S2.1 target. **Decision deferred** — S2.1 already shipped + working; swap is optional, not urgent.
+- **Inspect Evals safety subset** (UK AI Safety Institute, Apache-2.0) — adds AISI regulatory credibility. Could feed into our judge rubric. **Decision deferred** — review fit with AGT-taxonomy rewrite.
+
+### D4-7 — Spec-update propagation work (open issues to track)
+
+The D4-* amendments above touch the canonical spec set. Each propagation is tracked as a separate GitHub issue so they can be sequenced independently of feature stories:
+
+| # | Touch | Effort |
+|---|---|---|
+| (TBD-13) | PRD §Goal: add OSS-layer competitive cut + acknowledge AIR Blackbox / Asqav / MS AGT | 30 min |
+| (TBD-14) | architecture.md: add ADR-013 (Ed25519 signing) + cite OSS landscape refs | 45 min |
+| (TBD-15) | architecture.md + PRD + epics.md: F1–F4 → AGT01–AGT10 repin | 1.5h (mostly sed + manual review) |
+| (TBD-16) | data/lakera-pint/ submodule + loader + NOTICE attribution + tests | 2h |
+| (TBD-17) | new story file `story-6.5-continuous-monitor-trace-pull.md` + sprint-status.yaml DAG entry | 1h |
+
+Open as actual issues when this section commits.
+
+---
+
 ## Open items by category
 
 ### Category A: Day-0 verifications (3 items)
