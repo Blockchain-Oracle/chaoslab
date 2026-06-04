@@ -30,7 +30,7 @@ services:
     #   4317 — OTLP gRPC ingest (optional; we use 6006/v1/traces over HTTP)
     ports:
       - "6006:6006"
-      - "4317:4317"
+      - "127.0.0.1:4317:4317"
 
     # Persistent storage — SQLite database for spans + experiments + datasets.
     # When you `docker compose down -v`, this is destroyed; without -v it stays.
@@ -44,9 +44,15 @@ services:
       - PHOENIX_WORKING_DIR=/mnt/data
 
       # Auth: by default Phoenix self-hosted is open. For VPS deploys, set
-      # PHOENIX_ENABLE_AUTH=true + a strong PHOENIX_SECRET. We leave it open
-      # for local dev since traffic is localhost-only.
-      - PHOENIX_ENABLE_AUTH=false
+      # PHOENIX_ENABLE_AUTH=true + a strong PHOENIX_SECRET in your shell env
+      # BEFORE running `docker compose up`. We leave it open for local dev
+      # since traffic is localhost-only. Note: env-var substitution with
+      # ${VAR:-default} means the shell's exported value WINS — that's the
+      # whole point. Hardcoding `PHOENIX_ENABLE_AUTH=false` here would
+      # silently override `export PHOENIX_ENABLE_AUTH=true` and leak traces.
+      - PHOENIX_ENABLE_AUTH=${PHOENIX_ENABLE_AUTH:-false}
+      - PHOENIX_SECRET=${PHOENIX_SECRET:-}
+      - PHOENIX_DEFAULT_ADMIN_INITIAL_PASSWORD=${PHOENIX_DEFAULT_ADMIN_INITIAL_PASSWORD:-}
 
       # Optional log level (debug | info | warning | error)
       - PHOENIX_LOG_LEVEL=info

@@ -20,8 +20,8 @@ from pathlib import Path
 # Customer's target is OpenInference-instrumented and ships to Phoenix).
 env_file = Path.home() / ".config" / "phoenix-rat" / ".env"
 if env_file.exists():
-    for line in env_file.read_text().splitlines():
-        line = line.strip()
+    for raw_line in env_file.read_text().splitlines():
+        line = raw_line.strip()
         if line and not line.startswith("#") and "=" in line:
             key, val = line.split("=", 1)
             os.environ.setdefault(key.strip(), val.strip())
@@ -45,8 +45,11 @@ try:
     from openinference.instrumentation.google_adk import GoogleADKInstrumentor
 
     GoogleADKInstrumentor().instrument(tracer_provider=tracer_provider)
-except ImportError:
-    pass
+except ImportError as e:
+    sys.exit(
+        f"[FAIL] openinference-instrumentation-google-adk not importable in "
+        f"target subprocess; cross-process tracing cannot be validated. {e}"
+    )
 
 from google.adk.a2a.utils.agent_to_a2a import to_a2a
 from google.adk.agents import BaseAgent

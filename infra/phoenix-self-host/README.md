@@ -55,11 +55,26 @@ export PHOENIX_DEFAULT_ADMIN_INITIAL_PASSWORD="<choose-a-strong-password>"
 docker compose up -d
 ```
 
-Then put nginx (or Caddy) in front of port 6006 with TLS for `phoenix.your-vps.com`. Do NOT expose port 4317 (OTLP gRPC) publicly — only 6006 (the OTLP-HTTP path is on 6006/v1/traces).
+Then put nginx (or Caddy) in front of port 6006 with TLS for `phoenix.your-vps.com`. Do NOT expose port 4317 (OTLP gRPC) publicly — only 6006 (the OTLP-HTTP path is on 6006/v1/traces). The `compose.yaml` already binds 4317 to `127.0.0.1` by default so it's not reachable from outside the host.
+
+### Safety check BEFORE exposing port 6006 externally
+
+Run this on the VPS after `docker compose up -d` and confirm auth is actually on:
+
+```bash
+# Verify auth actually enabled before exposing externally:
+curl http://localhost:6006/v1/projects
+# If this returns 200 without an Authorization header, auth is OFF.
+# Check compose.yaml environment block and the env vars you exported
+# (PHOENIX_ENABLE_AUTH must be `true` in the shell BEFORE `docker compose up`).
+```
+
+If auth is enabled, that endpoint should return 401/403. Only put nginx in front once you've confirmed the 401/403.
 
 ## Switching between Cloud and self-host
 
 We use both:
+
 - **Cloud** (`https://app.phoenix.arize.com/...`) — for the final demo recording + judging window (Jun 22 - Jul 6). Phoenix Audit's deployed Cloud Run service points here.
 - **Self-host** (local Docker or VPS) — for everything else: development, RAT smoke runs, regression tests, daily build iteration.
 

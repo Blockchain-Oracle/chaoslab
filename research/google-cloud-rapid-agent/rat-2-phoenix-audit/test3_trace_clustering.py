@@ -34,8 +34,8 @@ from pathlib import Path
 
 env_file = Path.home() / ".config" / "phoenix-rat" / ".env"
 if env_file.exists() and "PHOENIX_API_KEY" not in os.environ:
-    for line in env_file.read_text().splitlines():
-        line = line.strip()
+    for raw_line in env_file.read_text().splitlines():
+        line = raw_line.strip()
         if line and not line.startswith("#") and "=" in line:
             key, val = line.split("=", 1)
             os.environ.setdefault(key.strip(), val.strip())
@@ -65,20 +65,6 @@ tracer = tracer_provider.get_tracer("rat2.test3")
 # Each trace simulates one adversarial test against a prior-auth target.
 # FAIL traces share the pattern: `check_formulary` called without prior
 # `verify_benefits` — that's the "root cause."
-
-
-def emit_failing_trace(test_id: int) -> None:
-    with tracer.start_as_current_span("adversarial_test") as outer:
-        outer.set_attribute("rat2.test", "test3_clustering")
-        outer.set_attribute("rat2.test_id", f"fail-{test_id}")
-        outer.set_attribute("rat2.outcome", "fail")
-        outer.set_attribute("openinference.span.kind", "CHAIN")
-        # Missing verify_benefits, jumps straight to check_formulary
-        with tracer.start_as_current_span("check_formulary") as inner:
-            inner.set_attribute("openinference.span.kind", "TOOL")
-            inner.set_attribute("tool_call.function.name", "check_formulary")
-            inner.set_attribute("rat2.failure_reason", "called without verify_benefits")
-            inner.set_status_from_status_code(2)  # ERROR
 
 
 def emit_passing_trace(test_id: int) -> None:
@@ -223,9 +209,6 @@ for _, row in df.iterrows():
 fail_traces = [t for t in traces_by_id.values() if t["outcome"] == "fail"]
 pass_traces = [t for t in traces_by_id.values() if t["outcome"] == "pass"]
 
-fail_traces = [t for t in traces_by_id.values() if t["outcome"] == "fail"]
-pass_traces = [t for t in traces_by_id.values() if t["outcome"] == "pass"]
-
 print(f"[INFO] Grouped into {len(fail_traces)} fail + {len(pass_traces)} pass traces")
 
 if len(fail_traces) != 3 or len(pass_traces) != 3:
@@ -237,6 +220,10 @@ if len(fail_traces) != 3 or len(pass_traces) != 3:
 # Cluster: which span name is in ALL fail traces and NO pass traces?
 # More useful: which span name is in ALL fail traces? Even better: which
 # span name PATTERN distinguishes fail from pass?
+if not fail_traces or not pass_traces:
+    sys.exit(
+        f"[FAIL] need non-empty trace lists; got fail={len(fail_traces)} pass={len(pass_traces)}"
+    )
 common_fail_spans = set.intersection(*(t["span_names"] for t in fail_traces))
 common_pass_spans = set.intersection(*(t["span_names"] for t in pass_traces))
 diff_spans = common_pass_spans - common_fail_spans  # spans pass has but fail lacks

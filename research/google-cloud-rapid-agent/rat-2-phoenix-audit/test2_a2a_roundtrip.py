@@ -27,8 +27,8 @@ from pathlib import Path
 
 env_file = Path.home() / ".config" / "phoenix-rat" / ".env"
 if env_file.exists() and "PHOENIX_API_KEY" not in os.environ:
-    for line in env_file.read_text().splitlines():
-        line = line.strip()
+    for raw_line in env_file.read_text().splitlines():
+        line = raw_line.strip()
         if line and not line.startswith("#") and "=" in line:
             key, val = line.split("=", 1)
             os.environ.setdefault(key.strip(), val.strip())
@@ -98,7 +98,7 @@ async def call_target_via_a2a() -> str:
     return final_text
 
 
-def main() -> int:
+def main() -> int:  # noqa: PLR0912, PLR0915 — research smoke script; refactor deferred
     # Set up our own Phoenix tracer for the client side
     from phoenix.otel import register
 
@@ -125,7 +125,7 @@ def main() -> int:
     # Launch target as subprocess. Pass project name via env so target uses the same.
     env = {**os.environ, "RAT2_PROJECT_NAME": PROJECT_NAME}
     print(f"[client] Launching target subprocess: python {TARGET_SCRIPT} {PORT}")
-    proc = subprocess.Popen(
+    proc = subprocess.Popen(  # noqa: S603 — controlled args (sys.executable + fixed script)
         [sys.executable, str(TARGET_SCRIPT), str(PORT)],
         env=env,
         stdout=subprocess.PIPE,
@@ -163,7 +163,7 @@ def main() -> int:
         tp.force_flush(timeout_millis=10_000)
 
         # Verify Phoenix-side
-        import requests
+        import requests  # noqa: PLC0415 — local import keeps cold-start optional dep
 
         headers = {"Authorization": f"Bearer {API_KEY}"}
         base = ENDPOINT.rstrip("/")
@@ -197,6 +197,12 @@ def main() -> int:
                     for s in spans
                     if (s.get("attributes") or {}).get("rat2.test") == "test2_a2a_roundtrip"
                 ]
+                assert len(target_spans) >= 1, (
+                    f"[FAIL] A2A wire round-tripped, but target-side spans did NOT cross "
+                    f"the process boundary into Phoenix. Got {len(spans)} total spans, "
+                    f"{len(target_spans)} carrying the rat2.test marker. "
+                    f"Cross-process tracing is broken; the test's core hypothesis FAILS."
+                )
                 print(
                     f"[OK] Phoenix has {len(spans)} total span(s) in {PROJECT_NAME}; "
                     f"{len(target_spans)} carry our rat2.test marker"
