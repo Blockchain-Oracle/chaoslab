@@ -46,7 +46,9 @@ Phoenix Audit is the only Arize-track submission that uses Phoenix as the substr
 - **Economic buyer (one level up):** CRO / CISO / Chief AI Officer who signs the procurement contract (LOAD-BEARING: every Phoenix Audit artifact must work both for the Operator's daily workflow AND a board-ready 1-pager — per `brainstorm/22` riskiest-assumption analysis)
 - **Secondary user:** ML platform / DevSecOps team running production target agents needing continuous pre-deploy + post-deploy audit evidence (uses Phoenix Audit in their CI pipeline)
 - **Value prop:** Phoenix Audit reduces the EU AI Act Annex IV documentation cycle from "Big-4 consulting €80K-€250K + 12-18 months" to "90 seconds, signed, keyed to a commit SHA, continuously updatable"
-- **Measurable outcome demonstrated in demo:** 47 adversarial tests run against a target prior-auth agent; 3 fail; root-cause clustering collapses them into 1 cluster; hardening recipe generated in 4 seconds. Headline: _"3 failures, 1 root cause, patch in 4 seconds."_
+- **Measurable outcome demonstrated in demo:** **6 high-signal adversarial tests** run sequentially against a target prior-auth agent (~90 seconds end-to-end at current A2A round-trip latency, see RAT-2 finding IF-14); 3 fail; root-cause clustering collapses them into 1 cluster; hardening recipe generated in 4 seconds. Headline: _"3 failures, 1 root cause, patch in 4 seconds."_
+
+  The 6 tests are NOT invented by us — each is sourced from an industry-standard adversarial dataset and cited by ID in the audit report. Specifically: 2 from **[HarmBench](https://github.com/centerforaisafety/HarmBench)** (MIT — CAIS), 1 from **[OWASP LLM Top 10 (2025) LLM01 — Prompt Injection](https://genai.owasp.org/llmrisk/llm01-prompt-injection/)** (CC-BY-SA), 2 from **[MITRE ATLAS v5.1.0](https://atlas.mitre.org/)** (AML.Txxxx technique IDs), and 1 from **[CARES](https://arxiv.org/abs/2505.11413)** (healthcare-specific). Every Phoenix Audit report cites the source dataset + ID per test — judges recognize these frameworks instantly. See `NOTICE` for attribution requirements per each dataset's license.
 
 ---
 
@@ -152,15 +154,26 @@ What the 3-minute video shows judges:
 
 2. **0:15-0:45 — The product appears.** `phoenixaudit.app` loads. Maya clicks "Start a new audit." Pastes the target prior-auth agent's Cloud Run URL. Picks "Depth 2 — instrumented" and "EU AI Act — high-risk system." Clicks Run.
 
-3. **0:45-1:30 — The live audit.** Test count climbs (1/47, 5/47, 12/47…). Phoenix trace rows appear in the right pane in real time. Pass/fail markers light up. 44 green, 3 red.
+3. **0:45-1:30 — The live audit.** Test count climbs (1/6, 3/6, 5/6…). Phoenix trace rows appear in the right pane in real time. Pass/fail markers light up. Each test header shows its source citation (e.g., "Test 4 / 6 — MITRE ATLAS AML.T0051"). Final result: 3 pass, 3 fail.
 
-4. **1:30-2:15 — THE CASCADE-FLIP MOMENT.** 47/47 done. Dashboard shows 44 pass / 3 fail. Maya clicks the "Failures" tab. The 3 failures collapse into ONE cluster. The Phoenix trace tree expands; the common failed span lights up: `check_formulary` called without first calling `verify_benefits`. Maya clicks "Generate hardening recipe." Markdown patch renders in 4 seconds. Voiceover: _"This is the moment everyone wants their compliance tool to do but nobody has — three failures collapse into one root cause. Phoenix Audit isn't just telling Maya the bot is wrong — it's telling her **why** it's wrong, **where in the trace** it went wrong, and **what to change**. Three failures, one root cause, patch in four seconds."_
+4. **1:30-2:15 — THE CASCADE-FLIP MOMENT.** 6/6 done. Dashboard shows 3 pass / 3 fail. Maya clicks the "Failures" tab. The 3 failures collapse into ONE cluster. The Phoenix trace tree expands; the common failed span lights up: `check_formulary` called without first calling `verify_benefits`. Maya clicks "Generate hardening recipe." Markdown patch renders in 4 seconds. Voiceover: _"This is the moment everyone wants their compliance tool to do but nobody has — three failures collapse into one root cause. Phoenix Audit isn't just telling Maya the bot is wrong — it's telling her **why** it's wrong, **where in the trace** it went wrong, and **what to change**. Three failures, one root cause, patch in four seconds."_
 
 5. **2:15-2:45 — The Annex IV pack.** PDF preview renders. 9 sections visible (EU AI Act Articles 9 / 11 / 12 / 13 / 14 / 15 / 72). Maya clicks "Sign & file." Cloud KMS signing visible in the UI. Signed PDF + signed JSON download. Voiceover: _"What Maya now has — produced in 90 seconds — is the EU AI Act Annex IV technical documentation pack. Cryptographically signed. Keyed to commit 8a4f2c1. Costs Big-4 €80,000 and 18 months. Maya did it before her coffee finished."_
 
 6. **2:45-3:00 — Outro.** URL on screen: `phoenixaudit.app`. Logos: Arize Phoenix + Google Cloud Agent Builder. _"Built with Arize Phoenix MCP and Google Cloud Agent Builder. Try it at phoenixaudit.app."_
 
 **The wow moment:** _Three independent test failures collapsing into one root-cause cluster via Phoenix MCP trace clustering, with a patch generated in 4 seconds. Tells the entire story — adversarial testing, observability-driven analysis, self-improvement loop, regulator-ready artifact — in one frame._
+
+---
+
+## Known limitations (RAT-2 empirical findings, 2026-06-04)
+
+We ran an architecture validation pass (`RAT-2-results.md`) before locking the spec. Both demo-critical pipelines pass end-to-end, but two real constraints emerged that this PRD acknowledges honestly:
+
+- **A2A round-trip latency is ~14-16 seconds per call** at current ADK 2.1.0 wire performance (no-LLM, localhost). Connection reuse doesn't help; concurrent makes it worse (target-side serialization). For the hackathon we cap the demo at **6 tests** so the audit fits the 90-second video window. Investigating the latency further is post-hackathon work (logged as IF-14 in audit-notes).
+- **Phoenix Cloud free tier is 25,000 spans/month**, and a single A2A round-trip emits ~41 spans (~1,927 per 47-test audit, ~250 per 6-test audit). We mitigate by running **self-hosted Phoenix in Docker** for all development (see `infra/phoenix-self-host/`) and reserving Phoenix Cloud quota for the final demo recording + judging-window deployment.
+
+The "3 failures, 1 root cause, patch in 4 seconds" headline survives both constraints — Test 3 of RAT-2 empirically verified the cascade-flip mechanic works on real Phoenix data.
 
 ---
 
