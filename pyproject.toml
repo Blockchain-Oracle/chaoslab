@@ -126,6 +126,7 @@ dev = [
     "openinference-instrumentation-google-adk>=0.1.15",
     "pandas>=3.0.3",
     "pre-commit>=4.6.0",
+    "ruff>=0.15.16",
     "sse-starlette>=3.4.4",
     "ty>=0.0.42",
 ]
