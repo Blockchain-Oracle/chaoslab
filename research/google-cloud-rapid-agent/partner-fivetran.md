@@ -194,3 +194,12 @@ _Judging fit:_ Quality of Idea (data-contract is hot in 2026), Potential Impact 
 - Fivetran Connector SDK: https://github.com/fivetran/fivetran_connector_sdk
 - Community Fivetran MCP toolkits (reference): https://github.com/kellykohlleffel/fivetran-mcp-toolkit
 - End-to-end ADK + BigQuery MCP example: https://medium.com/google-cloud/end-to-end-ai-agent-on-gcp-adk-bigquery-mcp-agent-engine-and-cloud-run-4843fec27c13
+
+## Devpost-listed resources (audit 2026-06-03)
+
+The Devpost Fivetran resources tab (https://rapid-agent.devpost.com/details/fivetran-resources) lists 7 official links. All but one are already covered in the body above. Adding the two not previously emphasized:
+
+- **`github.com/fivetran/api_framework`** — Python framework from Fivetran Professional Services that wraps the Fivetran REST API for automation, connector monitoring, and orchestration workflows. Ships with example solutions (AI-driven automation, HVR orchestration, connector management). Useful as a more batteries-included alternative to raw REST calls when the MCP server doesn't expose the surface you need. Repo: https://github.com/fivetran/api_framework
+- **`fivetran.com/docs/rest-api/getting-started#authentication`** — REST API uses HTTP Basic Auth with Base64-encoded `api_key:api_secret`. Generate via the dashboard at username → "API Key" → "Generate API key". Header format: `Authorization: Basic <base64(key:secret)>`. Same credential pair powers the MCP server (`FIVETRAN_API_KEY` / `FIVETRAN_API_SECRET`). https://fivetran.com/docs/rest-api/getting-started#authentication
+
+Coverage status: **all 7 Devpost-listed Fivetran resources now covered.**

@@ -166,3 +166,39 @@ The catch: the track's "meaningful use of tracing AND MCP AND eval loop" bar is 
 - ADK Phoenix integration doc: https://google.github.io/adk-docs/integrations/phoenix/
 - MCP tracing reference: https://arize.com/docs/ax/integrations/python-agent-frameworks/model-context-protocol/mcp-tracing
 - Phoenix MCP on Pulse MCP: https://www.pulsemcp.com/servers/arize-phoenix
+
+---
+
+## Audit 2026-06-03 — Devpost-listed Arize resources appendix (do NOT relocate content above)
+
+Devpost's Arize resources tab lists 13 official links + 1 contact email. The body of this file is load-bearing for the ChaosLab track and is canonical — this section only **adds** what the body doesn't yet name explicitly. Per-resource status:
+
+| Devpost-listed resource                                                                                                    | Status                                              |
+| -------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------- |
+| Phoenix Cloud (free) — https://app.phoenix.arize.com                                                                       | ✅ covered                                           |
+| Phoenix GitHub (open source) — https://github.com/Arize-ai/phoenix                                                         | ✅ covered                                           |
+| Phoenix docs — https://arize.com/docs/phoenix                                                                              | ✅ covered                                           |
+| Phoenix MCP Server guide — https://arize.com/docs/phoenix/integrations/phoenix-mcp-server                                  | ✅ covered                                           |
+| OpenInference GitHub — https://github.com/Arize-ai/openinference                                                           | ⚠ implicit (named the per-package PyPI's; not the umbrella repo) — add below |
+| openinference-instrumentation-google-adk PyPI — https://pypi.org/project/openinference-instrumentation-google-adk/         | ⚠ named the package, not the PyPI URL — add below                              |
+| openinference-instrumentation-vertexai PyPI — https://pypi.org/project/openinference-instrumentation-vertexai/             | ❌ missing — add below                                                          |
+| openinference-instrumentation-google-genai — https://github.com/Arize-ai/openinference/tree/main/python/instrumentation/openinference-instrumentation-google-genai | ❌ missing — add below                          |
+| github.com/Arize-ai/gemini-hackathon                                                                                       | ❌ missing — add below                                                          |
+| Agent Platform (Gemini) tracing guide — https://docs.arize.com/arize/llm-tracing/tracing-integrations-auto/vertex-ai-gemini | ❌ missing — add below                                                          |
+| Phoenix LLM-as-a-Judge evals — https://arize.com/docs/phoenix/evaluation/llm-evals                                         | ❌ missing — add below                                                          |
+| Hackathon Discord — https://discord.gg/7Dqk5ebCD4                                                                          | ❌ missing — add below                                                          |
+| `ryoung@arize.com` (Richard Young, technical contact)                                                                      | ❌ missing — add below                                                          |
+
+### Amendments — links the body did not already capture
+
+- **OpenInference monorepo (umbrella):** https://github.com/Arize-ai/openinference — Apache-2.0. All `openinference-instrumentation-*` packages (ADK, Vertex AI, Google GenAI, LangChain, LlamaIndex, CrewAI, MCP itself, 30+ frameworks) live here. Useful when you need to read the source to debug why a span isn't emitting.
+- **`openinference-instrumentation-google-adk` PyPI:** https://pypi.org/project/openinference-instrumentation-google-adk/ — the canonical install for ADK tracing. **This is our primary instrumentation dependency** (pinned in `apps/chaoslab_agent/pyproject.toml`).
+- **`openinference-instrumentation-vertexai` PyPI:** https://pypi.org/project/openinference-instrumentation-vertexai/ — Vertex AI SDK tracer. Use when calling Gemini through the Vertex AI Python SDK (`google.cloud.aiplatform`). Distinct from the google-genai instrumentor (which traces the new `google.genai` SDK path).
+- **`openinference-instrumentation-google-genai`:** https://github.com/Arize-ai/openinference/tree/main/python/instrumentation/openinference-instrumentation-google-genai — Tracer for the `google-genai` Python SDK (the modern `from google import genai` entry point). Needed if your agent code calls `genai.Client()` directly rather than going through ADK. **Pin this for any direct genai calls in ChaosLab adapters.**
+- **`Arize-ai/gemini-hackathon` repo:** https://github.com/Arize-ai/gemini-hackathon — Arize's curated hackathon starter repo specifically for this event. **High-priority read** — likely contains working ADK+Phoenix+Gemini boilerplate, eval examples, and the recommended judge-LLM patterns. Verify before mid-hack lest we reinvent their reference shape.
+- **Agent Platform (Gemini) tracing guide:** https://docs.arize.com/arize/llm-tracing/tracing-integrations-auto/vertex-ai-gemini — Arize AX (paid tier) doc, but the auto-instrumentation pattern documented here applies identically to Phoenix Cloud. Useful when local Phoenix instrumentation drifts from what AX docs show.
+- **Phoenix LLM-as-a-Judge evals:** https://arize.com/docs/phoenix/evaluation/llm-evals — The official rubric+template guide. Built-in evaluators for hallucination, toxicity, RAG groundedness, code generation, summarization, Q&A correctness. **This is the source of truth for our ChaosLab eval rubrics** (referenced from `docs/architecture.md` ADR-005).
+- **Arize Hackathon Discord:** https://discord.gg/7Dqk5ebCD4 — Devpost-shared Discord (same invite Elastic posts; verify on join that it includes both Elastic + Arize hackathon channels). Live support channel during the build window.
+- **Richard Young — Arize technical contact:** `ryoung@arize.com` — Named as the technical contact for the track on the Arize resources page. Reach out only if blocked on a load-bearing platform question that Discord can't unblock; preserve the channel for genuine blockers.
+
+**Coverage status after audit:** all 13 Devpost-listed Arize resources + the contact email are now explicit in this file. Body structure untouched (per project instruction).

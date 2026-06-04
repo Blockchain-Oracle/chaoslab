@@ -1,10 +1,10 @@
-# Epics — ChaosLab
+# Epics — Phoenix Audit
 
 **Hackathon:** Google Cloud Rapid Agent Hackathon
 **Status:** DRAFT — pending Abu approval
 **Total epics:** 8
-**Total stories:** ~38
-**Project name (CONFIRMED):** ChaosLab — see `CONTEXT.md` and `brainstorm/06-idea-rankings.md` §W1
+**Total stories:** 52
+**Project name (LOCKED 2026-06-04):** Phoenix Audit — see `research/google-cloud-rapid-agent/PLAN-AI-TRUST-AUDITOR.md` for the wedge research, memory entry `project-phoenix-audit-locked` for the lock. Internal package directories still use `chaoslab-*` codename pending S1.6 deploy refactor; the product name is Phoenix Audit in all user-facing surfaces.
 
 ---
 

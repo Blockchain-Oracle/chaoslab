@@ -1,8 +1,16 @@
-# UX Spec — ChaosLab
+# UX Spec — Phoenix Audit
 
 **Status:** DRAFT — pending Abu approval (LOCKS upon approval)
-**Anchor source:** `research/google-cloud-rapid-agent/architecture/05-ux-and-demo.md` + `research/google-cloud-rapid-agent/best-practices/04-nextjs-production.md`
-**Last updated:** 2026-06-02
+**Anchor source:** `research/google-cloud-rapid-agent/architecture/05-ux-and-demo.md` + `research/google-cloud-rapid-agent/best-practices/04-nextjs-production.md` + `research/google-cloud-rapid-agent/brainstorm/23-trust-auditor-demo-and-product-path.md` (2026-06-04 demo arc spec)
+**Last updated:** 2026-06-04 (rebranded from ChaosLab; demo arc updated to Phoenix Audit cascade-flip moment — "3 failures, 1 root cause, patch in 4 seconds")
+
+---
+
+## Product framing (read first)
+
+The user is **Maya / Priya** — a Director of AI Governance at a health-insurance carrier (or any regulated org). She's the named buyer persona per `brainstorm/22-ai-trust-auditor-buyer-persona.md`. Her CRO / CISO is the economic signer one level up — every artifact Phoenix Audit produces must work both for Maya's daily workflow AND her boss's board-ready 1-pager.
+
+The 3-min demo's cascade-flip moment happens at **1:30-2:15** when 47 adversarial tests complete (44 pass, 3 fail) and the 3 failures collapse into ONE root cause via Phoenix MCP trace-tree clustering. A "Generate hardening recipe" button produces a markdown patch in 4 seconds. Headline metric the voiceover lands: _"3 failures, 1 root cause, patch in 4 seconds."_
 
 ---
 

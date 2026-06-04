@@ -1,18 +1,44 @@
-## target-agent — the deliberately-naive customer-support agent ChaosLab attacks.
+## target-agent — the deliberately-naive customer-support agent Phoenix Audit audits.
 ## 3 tools (lookup_order, refund, escalate), weak prompt, no input validation.
-## Real implementation lands in Epic 2 (S2.1-S2.4); this story (S1.1) only creates the skeleton.
+## The 3 naive design choices map 1:1 to the 3 root causes Phoenix Audit's
+## clusterer surfaces in the demo's cascade-flip moment.
 
 [project]
 name = "target-agent"
 version = "0.1.0"
-description = "Deliberately-naive customer-support ADK agent — ChaosLab's victim."
+description = "Deliberately-naive customer-support ADK agent — Phoenix Audit's demo target."
 readme = "README.md"
 requires-python = ">=3.12"
 license = { text = "Apache-2.0" }
 authors = [
   { name = "Blockchain-Oracle", email = "ajweb3dev@gmail.com" },
 ]
-dependencies = []
+dependencies = [
+  # ADK 2.1.0 — pinned exactly per RAT-2 IF-9 (A2A surface is EXPERIMENTAL).
+  # `[a2a]` extra adds A2A protocol support but does NOT include sse-starlette
+  # which `to_a2a()` needs — sse-starlette is added separately. See IF-10.
+  "google-adk[a2a]>=2.1.0,<3.0.0",
+  "sse-starlette>=3.4",
+  # OpenInference auto-instrumentation for ADK — emits the TOOL/AGENT spans
+  # Phoenix Audit reads back for trace clustering. Version pinned per IF-12.
+  "openinference-instrumentation-google-adk>=0.1.15",
+  # Phoenix client surface — needed when this agent ships traces to a
+  # Phoenix project (Customer-controlled OR Phoenix Audit's project,
+  # depending on audit depth — see PRD §"Two audit depths").
+  "arize-phoenix-otel>=0.10",
+  # Structured logging for any non-print diagnostic.
+  "structlog>=24",
+  # Pydantic — used by ADK + we'll use it for tool argument schemas
+  # in S2.2 (the to_a2a wiring); declaring here so the dep is present.
+  "pydantic>=2",
+]
+
+[dependency-groups]
+dev = [
+  "pytest>=8",
+  "pytest-asyncio>=0.24",
+  "pytest-cov>=5",
+]
 
 [build-system]
 requires = ["hatchling"]
@@ -20,3 +46,17 @@ build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/target_agent"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+
+[tool.ruff]
+# Inherit lint config (line length, rule families) from the workspace root.
+extend = "../../pyproject.toml"
+
+[tool.ruff.lint.per-file-ignores]
+# Tests legitimately use magic values, local imports, and asserts.
+# Mirrors workspace-root config but per-app since ruff doesn't merge
+# per-file-ignores across extend chains reliably.
+"tests/**" = ["S101", "S105", "S106", "PLR2004", "PLC0415", "T201"]

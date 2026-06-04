@@ -49,6 +49,14 @@ These files cover the Google Cloud + Phoenix-specific implementation surface. No
 
 After Phase 3 you know the Google + Arize implementation primitives.
 
+**Phase 3 addenda (added 2026-06-03 — Devpost-completeness audit):**
+
+15a. **`refs/devpost-content-verbatim-2026-06-03.md`** — canonical Devpost content (sponsor sections + rules summary) Abu pasted in full. Anchor for every URL/resource our research should cover.
+15b. **`refs/official-rules-verbatim.md`** — full 24-section rules text + per-section ChaosLab compliance checklist + 4 disqualification risks (AI-usage limitation is highest).
+15c. **`refs/arize-gemini-hackathon-quickstart.md`** — deep dive on `github.com/Arize-ai/gemini-hackathon` (the official Arize-track quickstart). Quickstart proves trace pipeline only — ChaosLab's 4 fault classes + self-improvement loop + cross-framework targets are genuinely differentiated. Lists 3 pattern conflicts (model ID, ADK pin, mock target) where we hold our spec firm.
+15d. **`refs/openinference-google-matrix.md`** — full 3-instrumentor matrix (`adk` 0.1.15 / `vertexai` 0.1.16 / `google-genai` 1.0.2 — PyPI-verified). Decision tree per target framework. Audit findings A6/A7 reverified (`openinference.span.kind` + `tool_call.function.name` canonical).
+15e. **`refs/partner-resource-completeness-audit.md`** — cross-track audit of every Devpost-listed resource against our `partner-*.md` files. Each partner file received an appended "Devpost-listed resources (audit 2026-06-03)" section.
+
 ---
 
 ## Phase 3.5 — Best practices (factual reference — 30 minutes)
