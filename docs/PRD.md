@@ -1,6 +1,6 @@
-# PRD — ChaosLab
+# PRD — Phoenix Audit
 
-**Project name:** ChaosLab (formal: "ChaosLab for Agents")
+**Project name:** Phoenix Audit (LOCKED 2026-06-04; working names through 2026-06-03 were "ChaosLab" then "Trust Auditor")
 **Hackathon:** Google Cloud Rapid Agent Hackathon
 **Track:** Arize (Phoenix observability)
 **Deadline:** 2026-06-11, 2:00 PM Pacific Time
@@ -11,23 +11,32 @@
 
 ## Goal
 
-**ChaosLab is chaos engineering for AI agents.** Solo developers ship LLM agents in days using AI coding tools, but those agents break in unknown ways in production — wrong tool selection under malformed input, prompt-injection cascades, context poisoning that silently corrupts answers, latency spikes that trip retries. Every chaos-engineering tool today (Chaos Mesh, Gremlin, Litmus) attacks infrastructure; every red-team tool today (Lakera, Mindgard, Garak, PyRIT) attacks a single LLM endpoint. **No product targets multi-agent agentic systems with closed-loop hardening.** ChaosLab does. Point it at any agent (ADK, LangChain, CrewAI, browser-use, voice, or HTTP black-box) and it runs 4 LLM-specific fault classes, watches the agent fail in Phoenix traces, LLM-as-judges to cluster failures, generates a hardening recipe (prompt patch + tool validation diff), and emits a regression-tested GitLab MR — autonomously, overnight.
+**Phoenix Audit is an AI agent that audits other AI agents — for safety, behavior, and EU AI Act compliance.** Companies are shipping production AI agents (customer-support bots, healthcare prior-auth, fintech copilots, coding helpers) faster than they can prove those agents behave correctly. When the regulator asks "show me every decision your AI made last quarter and prove it didn't violate GDPR / HIPAA / EU AI Act," the compliance team's answer today is "we have logs in Datadog, slides in Confluence, and a stack of screenshots." Phoenix Audit produces the answer instead — a cryptographically signed, regulator-ready audit report generated in 90 seconds from real Phoenix traces.
+
+Same closed-loop engine as the prior ChaosLab working name, reframed: from "chaos engineer's testing tool" to **"compliance officer's audit machine."** Point Phoenix Audit at any agent (ADK, LangChain, CrewAI, browser-use, voice, or HTTP black-box). It runs a tailored adversarial battery, watches the agent in Phoenix traces, uses LLM-as-judge to cluster failures, generates a hardening recipe MR, and produces an EU AI Act Annex IV pack keyed to a commit SHA.
 
 **One-line pitch (judge-facing):**
 
-> ChaosLab — adversarial resilience testing for AI agents. Inject 4 fault classes, watch them fail, harden automatically.
+> Phoenix Audit — the AI agent that audits your other AI agents. Continuous, signed, regulator-ready, Phoenix-native.
+
+**The headline demo metric (per Bedrock/Microsoft winner pattern):**
+
+> "3 failures, 1 root cause, patch in 4 seconds."
 
 **Sponsor-native fit:**
-ChaosLab is the only Arize-track submission that uses Phoenix as the substrate for closed-loop self-improvement (read traces via MCP → cluster failures with LLM-as-judge → write back hardening recipes as Phoenix datasets) — the recursive observability use case Arize explicitly bonuses.
+Phoenix Audit is the only Arize-track submission that uses Phoenix as the substrate for closed-loop self-improvement _applied to compliance evidence_ — read traces via MCP → cluster failures with LLM-as-judge → write findings back as Phoenix experiments + annotations → render a regulator-ready signed PDF. The Arize Devpost section explicitly bonuses agents that "use their own observability data to improve over time"; Phoenix Audit makes that bonus the entire product, not a feature.
+
+**Direct competitive cut:** AIUC ($15M seed, the category leader) sells quarterly enterprise audits + an insurance certificate written by the same shop that did the audit. Phoenix Audit sells continuous, self-serve, signed evidence keyed to the customer's OWN compliance officer's Cloud KMS key — zero auditor/insurer conflict of interest. See `research/google-cloud-rapid-agent/brainstorm/19-ai-agent-governance-competitive-landscape.md` for the full landscape.
 
 ---
 
 ## Target users + value prop
 
-- **Primary user:** Solo / SMB developer shipping an LLM agent with no time for a dedicated red-team pass
-- **Secondary user:** ML platform / SRE team running production agents needing pre-deploy fault-injection
-- **Value prop:** ChaosLab reduces mean-time-to-harden from "hours of manual reproduction + custom patching" to "overnight autonomous resilience curve + reviewable MR"
-- **Measurable outcome demonstrated in demo:** target agent failure rate 60% → 8% across 25 fault-injection runs after one ChaosLab loop
+- **Primary user:** Director of AI Governance / AI Safety Officer / Head of Responsible AI at a 5K+ employee company running production AI agents (2,000+ such roles open on LinkedIn US per `brainstorm/22`)
+- **Economic buyer (one level up):** CRO / CISO / Chief AI Officer who signs the procurement contract (LOAD-BEARING: every Phoenix Audit artifact must work both for the daily-user workflow AND a board-ready 1-pager — per `brainstorm/22` riskiest-assumption analysis)
+- **Secondary user:** ML platform / DevSecOps team running production agents needing continuous pre-deploy + post-deploy audit evidence (uses Phoenix Audit in their CI pipeline)
+- **Value prop:** Phoenix Audit reduces the EU AI Act Annex IV documentation cycle from "Big-4 consulting €80K-€250K + 12-18 months" to "90 seconds, signed, keyed to a commit SHA, continuously updatable"
+- **Measurable outcome demonstrated in demo:** 47 adversarial tests run against a target prior-auth agent; 3 fail; root-cause clustering collapses them into 1 cluster; hardening recipe generated in 4 seconds. Headline: _"3 failures, 1 root cause, patch in 4 seconds."_
 
 ---
 

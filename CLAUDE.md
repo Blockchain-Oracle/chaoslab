@@ -1,6 +1,6 @@
-# ChaosLab — Project Operating Manual
+# Phoenix Audit — Project Operating Manual
 
-**Project:** ChaosLab — chaos engineering for AI agents (Google Cloud Rapid Agent Hackathon, Arize track). Inject 4 fault classes, watch them fail via Phoenix, harden automatically via the closed loop.
+**Project:** Phoenix Audit — an AI agent that audits other AI agents for safety and EU AI Act compliance (Google Cloud Rapid Agent Hackathon, Arize track). Production AI agent (customer-support bot, prior-auth bot, coding agent) gets pointed to Phoenix Audit; agent runs adversarial test battery; produces a cryptographically signed regulator-ready audit report in 90 seconds. Same closed-loop engine as the prior ChaosLab working name, reframed: from "chaos engineer's testing tool" to "compliance officer's audit machine." Day-1 user: Director of AI Governance at a 5K+ employee company.
 
 **Deadline:** 2026-06-11 14:00 PT. **Judging window:** 2026-06-22 → 2026-07-06.
 
@@ -47,7 +47,7 @@ One PR per story. No parallel implementation. Eggs in one basket — your focus 
 - **No mocks in submitted hot path** (§14). Real Phoenix, real Gemini, real target.
 - **Conventional commits:** `feat(scope): subject` / `fix(scope): …` / `chore(scope): …`. PR title regex-checked in CI.
 - **Pin model IDs:** `gemini-3.5-flash` (JUDGE_LLM, mandatory), `gemini-3.1-pro-preview` (if used). Never `gemini-pro` / `gemini-3.1-pro`.
-- **Don't import `google.adk.*` outside `chaoslab_agent.adk_types`** (quarantine module).
+- **Don't import `google.adk.*` outside `chaoslab_agent.adk_types`** (quarantine module — note: internal package directory still uses `chaoslab_agent` as codename pending S1.6 deploy refactor; product name is Phoenix Audit).
 - **`gemini-2.0-flash` is deprecated** — never use it.
 
 ---
@@ -59,7 +59,7 @@ One PR per story. No parallel implementation. Eggs in one basket — your focus 
 - **Tests:** pytest + pytest-asyncio + respx + hypothesis (BE); vitest + RTL + `@playwright/test` (FE)
 - **Agent:** `google-adk>=2.1.0,<3.0.0` (pin major — uses deprecated `SequentialAgent`/`LoopAgent`/`ParallelAgent` per ADR-012)
 - **Observability:** `arize-phoenix-otel` + `arize-phoenix-client` + `openinference-instrumentation-google-adk` (Tier 1) + `-langchain` / `-crewai` / `-openai-agents` (Tier 2)
-- **Deploy:** 3 Cloud Run services (`chaoslab-web`, `chaoslab-agent`, `target-agent`) via GitHub Actions @v3 + Workload Identity Federation
+- **Deploy:** 3 Cloud Run services. Internal package names `chaoslab-web` / `chaoslab-agent` / `target-agent` (codenames pending S1.6 rename to `phoenix-audit-web` / `phoenix-audit-agent`); deployed via GitHub Actions @v3 + Workload Identity Federation.
 
 ---
 
