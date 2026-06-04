@@ -40,6 +40,7 @@ ignore = [
 [tool.ruff.lint.per-file-ignores]
 "tests/**" = ["S101", "S105", "S106", "PLR2004", "T201"]
 "scripts/**" = ["T201"]  # CLI scripts legitimately print diagnostic output
+"research/**" = ["T201", "S101", "PLR2004", "E402", "F401"]  # RAT smoke scripts: CLI-style, throwaway, intentional layout
 "__init__.py" = ["F401"]
 "**/_vendored/**" = ["ALL"]
 
@@ -118,6 +119,13 @@ exclude_lines = [
 
 [dependency-groups]
 dev = [
+    "arize-phoenix-client>=2.7.0",
+    "arize-phoenix-otel>=0.16.1",
+    "google-adk[a2a]>=2.1.0,<3.0.0",
+    "openinference-instrumentation>=0.1.53",
+    "openinference-instrumentation-google-adk>=0.1.15",
+    "pandas>=3.0.3",
     "pre-commit>=4.6.0",
+    "sse-starlette>=3.4.4",
     "ty>=0.0.42",
 ]
