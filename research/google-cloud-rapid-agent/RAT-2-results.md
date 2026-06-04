@@ -136,7 +136,9 @@ To be synthesized into `docs/audit-notes.md` "Implementation findings" section.
 
 Every call to `to_a2a()`, `A2aAgentExecutor`, `RemoteA2aAgent`, and `AgentCardBuilder` emits a `UserWarning: [EXPERIMENTAL] ... ADK Implementation for A2A support is in experimental mode and is subject to breaking changes.` The underlying A2A protocol/SDK is NOT experimental (per the warning) — only ADK's wrapper layer is.
 
-**Implication:** any ADK release between 2.1.x and 2.2.x could break the `to_a2a()` / `RemoteA2aAgent` surface. We must pin ADK exactly (already at `>=2.1.0,<3.0.0` per spec, but worth tightening to `==2.1.0` for the hackathon submission to avoid surprise upgrades).
+**Implication:** any ADK release between 2.1.x and 2.2.x could break the `to_a2a()` / `RemoteA2aAgent` surface.
+
+**Fix applied:** major-pin (`>=2.1.0,<3.0.0`) to allow security patches while blocking breaking-change releases. We accept the EXPERIMENTAL-warning risk because exact-pinning (`==2.1.0`) would block CVE patches if upstream ships one. The 2.1.x → 2.2.x compatibility risk is mitigated by the trace-as-assertion test suite, which will surface any A2A surface breakage at CI time.
 
 ### IF-10 — `google-adk[a2a]` does NOT pull in `sse-starlette`
 

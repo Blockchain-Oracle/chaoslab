@@ -21,7 +21,7 @@
 
 ## Goal
 
-**Phoenix Audit is an AI agent that audits other AI agents — for safety, behavior, and EU AI Act compliance.** Companies are shipping production AI agents (customer-support bots, healthcare prior-auth, fintech copilots, coding helpers) faster than they can prove those agents behave correctly. When the regulator asks "show me every decision your AI made last quarter and prove it didn't violate GDPR / HIPAA / EU AI Act," the compliance team's answer today is "we have logs in Datadog, slides in Confluence, and a stack of screenshots." Phoenix Audit produces the answer instead — a cryptographically signed, regulator-ready audit report generated in 90 seconds from real Phoenix traces.
+**Phoenix Audit is an AI agent that audits other AI agents — for safety, behavior, and EU AI Act compliance.** Companies are shipping production AI agents (customer-support bots, healthcare prior-auth, fintech copilots, coding helpers) faster than they can prove those agents behave correctly. When the regulator asks "show me every decision your AI made last quarter and prove it didn't violate GDPR / HIPAA / EU AI Act," the compliance team's answer today is "we have logs in Datadog, slides in Confluence, and a stack of screenshots." Phoenix Audit produces the answer instead — a cryptographically signed, regulator-ready audit report generated in under 90 seconds from real Phoenix traces (6-test demo battery; see Known limitations for the full picture).
 
 Same closed-loop engine as the prior ChaosLab working name, reframed: from "chaos engineer's testing tool" to **"compliance officer's audit machine."**
 
@@ -129,7 +129,7 @@ Step-by-step, what Maya does when she opens Phoenix Audit:
 3. **Clicks "Run audit."** Phoenix Audit's Inspector sub-agent first sends a few probe questions to fingerprint the target: "What's your purpose? What tools do you have?" Based on the responses, it classifies the target ("This is a healthcare prior-auth agent with 5 tools") and picks a tailored test battery.
 
 4. **Watches the live audit.** A progress screen shows:
-   - Test count (1/47 → 47/47)
+   - Test count (1/6 → 6/6)
    - Pass/fail markers appearing in real time
    - Live Phoenix trace stream on the right (each test = a Phoenix experiment row)
    - Estimated time remaining (~90 seconds for a typical audit)
@@ -158,7 +158,7 @@ What the 3-minute video shows judges:
 
 4. **1:30-2:15 — THE CASCADE-FLIP MOMENT.** 6/6 done. Dashboard shows 3 pass / 3 fail. Maya clicks the "Failures" tab. The 3 failures collapse into ONE cluster. The Phoenix trace tree expands; the common failed span lights up: `check_formulary` called without first calling `verify_benefits`. Maya clicks "Generate hardening recipe." Markdown patch renders in 4 seconds. Voiceover: _"This is the moment everyone wants their compliance tool to do but nobody has — three failures collapse into one root cause. Phoenix Audit isn't just telling Maya the bot is wrong — it's telling her **why** it's wrong, **where in the trace** it went wrong, and **what to change**. Three failures, one root cause, patch in four seconds."_
 
-5. **2:15-2:45 — The Annex IV pack.** PDF preview renders. 9 sections visible (EU AI Act Articles 9 / 11 / 12 / 13 / 14 / 15 / 72). Maya clicks "Sign & file." Cloud KMS signing visible in the UI. Signed PDF + signed JSON download. Voiceover: _"What Maya now has — produced in 90 seconds — is the EU AI Act Annex IV technical documentation pack. Cryptographically signed. Keyed to commit 8a4f2c1. Costs Big-4 €80,000 and 18 months. Maya did it before her coffee finished."_
+5. **2:15-2:45 — The Annex IV pack.** PDF preview renders. 9 sections visible (EU AI Act Articles 9 / 11 / 12 / 13 / 14 / 15 / 72). Maya clicks "Sign & file." Cloud KMS signing visible in the UI. Signed PDF + signed JSON download. Voiceover: _"What Maya now has — produced in under 90 seconds — is the EU AI Act Annex IV technical documentation pack. Cryptographically signed. Keyed to commit 8a4f2c1. Costs Big-4 €80,000 and 18 months. Maya did it before her coffee finished."_
 
 6. **2:45-3:00 — Outro.** URL on screen: `phoenixaudit.app`. Logos: Arize Phoenix + Google Cloud Agent Builder. _"Built with Arize Phoenix MCP and Google Cloud Agent Builder. Try it at phoenixaudit.app."_
 

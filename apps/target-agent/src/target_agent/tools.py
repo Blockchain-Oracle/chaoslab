@@ -16,6 +16,8 @@ unit-test fixture in this story, spans are captured via SimpleSpanProcessor
 
 from __future__ import annotations
 
+import json
+
 from google.adk.tools.function_tool import FunctionTool
 from opentelemetry import trace
 from opentelemetry.trace import Status, StatusCode
@@ -86,7 +88,10 @@ def lookup_order(order_id: str) -> dict:
     with _tracer.start_as_current_span("tool.lookup_order") as span:
         span.set_attribute("openinference.span.kind", "TOOL")
         span.set_attribute("tool_call.function.name", "lookup_order")
-        span.set_attribute("tool_call.function.arguments", f'{{"order_id": "{order_id}"}}')
+        span.set_attribute(
+            "tool_call.function.arguments",
+            json.dumps({"order_id": order_id}),
+        )
 
         record = _ORDERS_DB.get(order_id)
         if record is None:
@@ -117,7 +122,7 @@ def refund(order_id: str, amount: float) -> dict:
         span.set_attribute("tool_call.function.name", "refund")
         span.set_attribute(
             "tool_call.function.arguments",
-            f'{{"order_id": "{order_id}", "amount": {amount}}}',
+            json.dumps({"order_id": order_id, "amount": amount}),
         )
 
         entry = {"order_id": order_id, "amount": float(amount), "status": "issued"}
@@ -143,7 +148,10 @@ def escalate(reason: str) -> dict:
     with _tracer.start_as_current_span("tool.escalate") as span:
         span.set_attribute("openinference.span.kind", "TOOL")
         span.set_attribute("tool_call.function.name", "escalate")
-        span.set_attribute("tool_call.function.arguments", f'{{"reason": "{reason}"}}')
+        span.set_attribute(
+            "tool_call.function.arguments",
+            json.dumps({"reason": reason}),
+        )
 
         ticket_id = f"esc-{len(_REFUND_LEDGER) + 1}"
         result = {"status": "queued", "reason": reason, "ticket_id": ticket_id}
