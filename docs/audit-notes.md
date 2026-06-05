@@ -338,18 +338,33 @@ Model C decision (Customer-side tenancy + cross-tenant read at report time). Mem
 
 **Cross-references:** ADR-013, `docs/run-config-schema.md`, `research/.../brainstorm/27-shape-a-architecture-validation.md` sub-question 9, RAT-2 Test 1.
 
+### D4-10 — X-Phoenix-Audit-\* header convention formal spec landing (Patch #19)
+
+Option B decision from memo 27 sub-question 5 ("Idempotency + side-effect prevention"). The OSS-landscape survey found no auditor solves side-effect prevention from the auditor's side — Promptfoo, Garak, DeepTeam all punt; AIR Blackbox and Microsoft Agent Governance Toolkit solve from the defender's side. Phoenix Audit picks Option B: define a header convention; warn loudly when targets don't opt in.
+
+**Formal spec landing in PR #29 (patch/19-x-phoenix-audit-headers):**
+
+- **`docs/architecture.md` ADR-015** — locked the Option B decision (header convention) with explicit rejection of Option A (staging-target-only) and Option C (gate proxy). Cites memo 27 sub-question 5 + the OSS-landscape table by tool.
+- **`docs/header-convention.md`** — NEW spec doc declaring the three headers (`X-Phoenix-Audit`, `X-Phoenix-Audit-Run-Id`, `X-Phoenix-Audit-Dry-Run`), the acknowledgment protocol (`phoenix_audit.honored = true` span attribute), and the verbatim audit-report warning text when targets don't opt in.
+- **Run-Id correlation locked** — the `X-Phoenix-Audit-Run-Id` header value MUST equal the run-config's `audit_run_id` UUID. Same UUID across all probes.
+- **Honest threat-model disclosure** — headers are advisory, not enforced; acknowledgment is self-reported. HMAC binding deferred to TBD-19 (post-hackathon, mirrors Patch #20's TBD-18).
+- **No runtime code yet.** Patch #19 is spec-only per memo 27's "BEFORE writing more S2.x stories" recommendation. Epic 4 injector will set the headers; Epic 3 / well-behaved targets will honor them.
+
+**Cross-references:** ADR-015, `docs/header-convention.md`, `research/.../brainstorm/27-shape-a-architecture-validation.md` sub-question 5.
+
 ### D4-7 — Spec-update propagation work (open issues to track)
 
 The D4-\* amendments above touch the canonical spec set. Each propagation is tracked as a separate GitHub issue so they can be sequenced independently of feature stories:
 
-| #        | Touch                                                                                                                                                                                                                                                   | Effort                            |
-| -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------- |
-| (TBD-13) | PRD §Goal: add OSS-layer competitive cut + acknowledge AIR Blackbox / Asqav / MS AGT                                                                                                                                                                    | 30 min                            |
-| (TBD-14) | architecture.md: add ADR-014 (Ed25519 signing) + cite OSS landscape refs                                                                                                                                                                                | 45 min                            |
-| (TBD-15) | architecture.md + PRD + epics.md: F1–F4 → AGT01–AGT10 repin                                                                                                                                                                                             | 1.5h (mostly sed + manual review) |
-| (TBD-16) | data/lakera-pint/ submodule + loader + NOTICE attribution + tests                                                                                                                                                                                       | 2h                                |
-| (TBD-17) | new story file `story-6.5-continuous-monitor-trace-pull.md` + sprint-status.yaml DAG entry                                                                                                                                                              | 1h                                |
-| (TBD-18) | architecture.md ADR-013 + run-config-schema.md: implement `phoenix_audit.run_signature` HMAC mitigation deferred from Patch #20 (per-run ephemeral key, server-side mint, scrub on `__exit__`). Touches Epic 4 orchestrator story + report-time reader. | 2h                                |
+| #        | Touch                                                                                                                                                                                                                                                                                                                                               | Effort                            |
+| -------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------- |
+| (TBD-13) | PRD §Goal: add OSS-layer competitive cut + acknowledge AIR Blackbox / Asqav / MS AGT                                                                                                                                                                                                                                                                | 30 min                            |
+| (TBD-14) | architecture.md: add ADR-014 (Ed25519 signing) + cite OSS landscape refs                                                                                                                                                                                                                                                                            | 45 min                            |
+| (TBD-15) | architecture.md + PRD + epics.md: F1–F4 → AGT01–AGT10 repin                                                                                                                                                                                                                                                                                         | 1.5h (mostly sed + manual review) |
+| (TBD-16) | data/lakera-pint/ submodule + loader + NOTICE attribution + tests                                                                                                                                                                                                                                                                                   | 2h                                |
+| (TBD-17) | new story file `story-6.5-continuous-monitor-trace-pull.md` + sprint-status.yaml DAG entry                                                                                                                                                                                                                                                          | 1h                                |
+| (TBD-18) | architecture.md ADR-013 + run-config-schema.md: implement `phoenix_audit.run_signature` HMAC mitigation deferred from Patch #20 (per-run ephemeral key, server-side mint, scrub on `__exit__`). Touches Epic 4 orchestrator story + report-time reader.                                                                                             | 2h                                |
+| (TBD-19) | architecture.md ADR-015 + header-convention.md: implement HMAC-bound `X-Phoenix-Audit-Run-Id` header deferred from Patch #19 (per-run ephemeral key, shared lifecycle with TBD-18 so both binders use the same infrastructure). Cryptographic verification of target acknowledgment, defending the convention against actively-adversarial targets. | 1.5h                              |
 
 Open as actual issues when this section commits.
 

@@ -326,6 +326,32 @@ mcp__plugin_context7_context7__query-docs context7CompatibleLibraryID="<id>" top
 
 **Source:** `research/google-cloud-rapid-agent/brainstorm/27-shape-a-architecture-validation.md` §"Sub-question 9 — Result persistence + revisability (trace tenancy)". Audit-notes D4-9 records the formal spec landing.
 
+### ADR-015: X-Phoenix-Audit-\* header convention for side-effect prevention (NEW 2026-06-05 per memo 27 sub-q 5)
+
+**Decision:** Phoenix Audit emits a fixed set of HTTP headers on every probe request to the target. Well-behaved targets honor the headers by short-circuiting side-effecting tool calls (refund, payment, ticket-creation, etc.) and signaling acknowledgment via an OpenInference span attribute. Targets that don't honor get a verbatim warning in the audit report so the customer's compliance officer can see the gap.
+
+The three headers (locked schema in `docs/header-convention.md`):
+
+- `X-Phoenix-Audit: true` — flag header; signals this request is an audit probe (not normal traffic).
+- `X-Phoenix-Audit-Run-Id: <uuid>` — UUIDv4 identical to the run-config's `audit_run_id` (per `docs/run-config-schema.md`), so the target can correlate every probe in the run.
+- `X-Phoenix-Audit-Dry-Run: true|false` — whether side-effecting tools SHOULD be short-circuited (true = audit mode, false = side-effects allowed).
+
+Targets opt into the convention by reading the headers, short-circuiting side-effecting tools when `X-Phoenix-Audit-Dry-Run` is `true`, AND emitting `phoenix_audit.honored = true` as a span attribute on the response. Phoenix Audit's reporter checks for that attribute on every probe-response trace; if absent, the audit report appends the verbatim warning ("Target did not signal it honored the X-Phoenix-Audit-\* headers...") locked in `docs/header-convention.md`.
+
+**Rationale:** memo 27 sub-question 5 surveyed the OSS landscape. **No OSS auditor solves side-effect prevention from the auditor's side** — Promptfoo, Garak, DeepTeam all punt to the customer ("use a staging target, configure mocks, implement application-level safeguards"). AIR Blackbox and Microsoft's Agent Governance Toolkit solve it from the _defender's_ side (policy gates on the target), not the auditor's side.
+
+Three honest options:
+
+- **Option A (the AIUC-1 path):** require customer to point at a staging target; report says "audit ran against `<URL>` in environment `<staging|production>` per customer declaration." Cost 0, but a demo target that's literally our own subprocess looks like we never thought about it.
+- **Option B (the convention path — ADOPTED):** define a header convention; cost 1 spec patch; risk = nobody honors headers in v1 but the convention is documented and we have a defensible answer to "what if my agent actually called refund() during your audit?"
+- **Option C (the gate proxy):** build a thin proxy in front of the target that intercepts and gates side-effecting tool calls. Cost 3+ stories. **Rejected** — would just be reinventing AIR Blackbox at the wrong layer (we don't see tool calls, we see agent inputs/outputs).
+
+**Tradeoff acknowledged:** the headers are **advisory, not enforced.** A target that ignores them still executes side-effecting tools for real. The acknowledgment span attribute (`phoenix_audit.honored = true`) is self-reported by the target — a malicious target could echo the attribute without actually honoring. For the realistic threat model (Customer wants to audit their own agent; the agent is cooperative or at worst neutral, not adversarial), self-reporting is sufficient. Post-hackathon improvement tracked separately (audit-notes TBD-19): HMAC-bound headers so the convention is cryptographically tight, not just attribute-equal. This is the auditor's-side analog to ADR-013's TBD-18 (HMAC on the trace filter attribute).
+
+**Run-Id correlation:** the `X-Phoenix-Audit-Run-Id` header value MUST equal the run-config's `audit_run_id` field (UUIDv4 generated server-side at orchestrator start). Same UUID across all probes in the run. Targets can correlate probes to the audit run by reading this header; auditor correlates probe→response via the same UUID's appearance on the response span attributes.
+
+**Source:** `research/google-cloud-rapid-agent/brainstorm/27-shape-a-architecture-validation.md` §"Sub-question 5 — Idempotency + side-effect prevention". Audit-notes D4-10 records the formal spec landing.
+
 ---
 
 ## Data flow (one ChaosLab run, narrative)
