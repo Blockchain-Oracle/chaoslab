@@ -61,9 +61,10 @@ correct ordering pattern is shown in `research/.../architecture/02-phoenix-deep-
 
 Env vars (see `.env.example`):
 
-- `PHOENIX_API_KEY` — Phoenix Cloud API key. Local dev sets the env var
-  directly. **Planned for S2.4 (Cloud Run deploy):** pull from Google
-  Secret Manager (`phoenix-api-key` under `$GCP_PROJECT_ID`).
+- `PHOENIX_API_KEY` — Phoenix Cloud API key. Resolved via
+  `setup_observability()` chain: env var first (local dev convenience),
+  then Google Secret Manager fallback (`phoenix-api-key` under
+  `$GCP_PROJECT_ID`). Secret Manager fallback shipped in S2.3.
 - `PHOENIX_COLLECTOR_ENDPOINT` — defaults to `https://app.phoenix.arize.com`.
   Some Phoenix Cloud workspaces require the space-scoped URL (`/s/<space>`);
   empirically confirmed in RAT-2 with form
@@ -75,9 +76,71 @@ Env vars (see `.env.example`):
   path. On Cloud Run (where `K_SERVICE` is set), missing credentials normally
   raise a hard `ConfigurationError` — this env var overrides that.
 
+## Container build
+
+S2.4 ships a multi-stage Dockerfile that builds a slim, non-root, signal-safe
+runtime image (~102 MB measured, well under the 500 MB budget). **Important —
+build context must be the workspace root** (this is a uv workspace; `uv.lock`
+lives there, not in `apps/target-agent/`):
+
+```bash
+# From the workspace root:
+docker build -t target-agent:dev -f apps/target-agent/Dockerfile .
+
+# Run it locally:
+docker run --rm -p 8001:8001 \
+  -e PHOENIX_OBSERVABILITY_OPTIONAL=1 \
+  target-agent:dev
+
+# Or with real Phoenix Cloud creds:
+docker run --rm -p 8001:8001 \
+  -e PHOENIX_API_KEY="$PHOENIX_API_KEY" \
+  -e PHOENIX_COLLECTOR_ENDPOINT="$PHOENIX_COLLECTOR_ENDPOINT" \
+  target-agent:dev
+```
+
+The image runs as uid 10001 (non-root) per the 2026 Cloud Run best practice.
+
+### Cloud Run deploy (two-step due to URL chicken-and-egg)
+
+Cloud Run injects `PORT=8080` automatically — the container's `main()` reads
+it and binds correctly. `PUBLIC_URL` is **NOT** auto-injected by Cloud Run;
+the deploy must set it explicitly. But the `https://target-xxx.run.app` URL
+isn't known until the service exists, so deploy is two steps:
+
+```bash
+# Step 1: deploy without PUBLIC_URL (card will advertise localhost:8001
+# temporarily — broken, but the service is needed first to get the URL):
+gcloud run deploy target-agent \
+  --image=$IMAGE_URL \
+  --region=us-central1 \
+  --platform=managed
+
+# Step 2: capture the assigned URL and update env vars:
+CLOUD_RUN_URL=$(gcloud run services describe target-agent \
+  --region=us-central1 \
+  --format='value(status.url)')
+gcloud run services update target-agent \
+  --region=us-central1 \
+  --set-env-vars="PUBLIC_URL=${CLOUD_RUN_URL}"
+```
+
+The S1.6 deploy workflow (currently PENDING in sprint-status.yaml) will
+codify this two-step pattern.
+
+**`PUBLIC_URL` env var (fix for issue #22):** without it, the A2A agent card
+advertises `http://localhost:8001` regardless of where the container actually
+binds. Set `PUBLIC_URL` to the deployed Cloud Run URL so upstream
+`RemoteA2aAgent` clients can reach the agent. Local dev omits it and the
+card serves `localhost:8001`, which is correct for `curl localhost:8001/...`
+loopback testing. Strict validation: `PUBLIC_URL` must be a parseable
+`http://` or `https://` URL with a hostname — anything else (e.g.
+`ftp://...`, `//host`, `not-a-url`) raises `SystemExit` at boot with
+the bad input echoed, rather than silently advertising a broken endpoint.
+
 ## Where this fits
 
 - S2.1 — agent object + 3 tools + unit tests
 - S2.2 — A2A server wiring (`to_a2a()` + `[project.scripts]` entry point)
-- **S2.3 (this story) — Phoenix tracing wiring (`phoenix.otel.register()` + GoogleADKInstrumentor)**
-- S2.4 — Cloud Run Dockerfile + deploy
+- S2.3 — Phoenix tracing wiring (`phoenix.otel.register()` + GoogleADKInstrumentor)
+- **S2.4 (this story) — Cloud Run Dockerfile + agent-card URL fix (#22)**
