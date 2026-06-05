@@ -158,7 +158,7 @@ deferral_lines=$(grep -nE 'TBD-19|post-hackathon|out of scope|deferred' docs/hea
   | cut -d: -f1 \
   | awk '{print $1; print $1+1; print $1+2; print $1+3; print $1+4}' \
   | sort -un)
-strengthening_bad=$(grep -niE '(cryptographically (bound|verified|prevented|enforced|tight)|guaranteed (to )?(prevent|short-circuit|block)|enforces? side-effect|prevents? side-effect|will be implemented|will ship)' docs/header-convention.md \
+strengthening_bad=$(grep -niE '(cryptograph[a-z]*\s+(bound|verified|prevented|prevents|enforced|enforces|tight|secure|secures|bind|binds|block|blocks|guarantee|guarantees|sign|signs)|tamper-proof|enforced\s+via\s+crypt|guaranteed\s+(to\s+)?(prevent|short-circuit|block)|(MANDATES?|REQUIRES?)\s+(that|all|every|each|the\s+target)|(non-negotiable|non-optional|contractually\s+enforced|binding\s+(on|for))\s+(target|requirement|implementation)|(headers?|targets?)\s+(prevent|block|prohibit)s?\s+side\s*-?\s*effect|will\s+be\s+implemented|will\s+ship|cannot\s+proceed\s+without)' docs/header-convention.md \
   | grep -ivE '(not cryptograph|NOT cryptograph)' \
   | while IFS= read -r line; do
       ln=$(echo "$line" | cut -d: -f1)
@@ -190,43 +190,73 @@ assert_grep "run-config-schema.md" docs/header-convention.md
 assert_grep "mirrors ADR-013" docs/header-convention.md
 pass "Header Run-Id locked to match run-config audit_run_id; ADR-013 namespace cross-ref anchored"
 
-# -- Report warning text is locked verbatim (no translation-equivalent) -------
-# Patch #20's lesson applied: verbatim lock on legally / contractually
-# load-bearing text. The "warning" the audit report emits when target
-# didn't honor is locked here.
-COVER_WARNING_FIXTURE=$(awk '/^```text$/{flag=1; next} /^```$/{flag=0} flag' docs/header-convention.md)
-[ "${#COVER_WARNING_FIXTURE}" -ge 80 ] \
-  || fail "Warning fixture extraction produced ${#COVER_WARNING_FIXTURE} chars (expected ≥80); fenced text block missing or drifted"
+# -- Report warning text is locked verbatim against a HARDCODED literal -------
+# Round-2 silent-failure HIGH-B: previous version extracted the fixture
+# from the doc and asserted "it's in the doc" — tautological. Replaced
+# with a hardcoded canonical literal in this test script; any byte-drift
+# in the doc fails the gate loud. This is the actual Patch #20 discipline
+# (Patch #20's cover paragraph was hardcoded in the test script too).
+IFS= read -r -d '' CANONICAL_WARNING <<'EOF' || true
+Target did not signal it honored the X-Phoenix-Audit-* headers (`phoenix_audit.honored = true` was absent from {N} probe-response spans). Side-effecting tool calls during this audit run MAY have been executed for real against the target. To opt into dry-run behavior, the target must read `X-Phoenix-Audit-Dry-Run` and short-circuit side-effecting tools when its value is `true`, AND emit `phoenix_audit.honored = true` as a span attribute on every response.
+EOF
+# Strip the trailing newline read -d '' leaves on the buffer.
+CANONICAL_WARNING="${CANONICAL_WARNING%$'\n'}"
+# Defensive: catastrophic-parse-failure floor.
+[ "${#CANONICAL_WARNING}" -ge 400 ] \
+  || fail "CANONICAL_WARNING heredoc parsed to ${#CANONICAL_WARNING} chars (expected ≥400); heredoc parse failure suspected"
 fenced_text_count=$(grep_count '^```text$' docs/header-convention.md)
 test "$fenced_text_count" -eq 1 \
   || fail "header-convention.md has $fenced_text_count fenced \`\`\`text blocks (expected exactly 1 — the warning fixture)"
-assert_block_present "$COVER_WARNING_FIXTURE" docs/header-convention.md
+# REAL byte-identical lock: assert the canonical literal (defined in THIS
+# test script) appears verbatim in the doc. Any drift in the doc fails.
+assert_block_present "$CANONICAL_WARNING" docs/header-convention.md
 # Round-1 test-analyzer negative-space gap #3: ensure exactly ONE {N}
-# placeholder in the fixture (no real-number substitution + no drift to
-# {count} / <N>).
-n_placeholder_count=$(echo "$COVER_WARNING_FIXTURE" | grep -oE '\{N\}' | wc -l | tr -d ' ')
+# placeholder AND no other placeholders co-existing (round-2 MED-B).
+n_placeholder_count=$(echo "$CANONICAL_WARNING" | grep -oE '\{N\}' | wc -l | tr -d ' ' || true)
+total_placeholders=$(echo "$CANONICAL_WARNING" | grep -oE '\{[^}]+\}' | wc -l | tr -d ' ' || true)
 test "$n_placeholder_count" -eq 1 \
-  || fail "warning fixture has $n_placeholder_count \`{N}\` placeholders (expected exactly 1)"
-# Round-1 test-analyzer MED-2: anti-anchor against named weakenings that
+  || fail "canonical warning has $n_placeholder_count \`{N}\` placeholders (expected exactly 1)"
+test "$total_placeholders" -eq 1 \
+  || fail "canonical warning has $total_placeholders {…} placeholders (expected exactly 1 — only {N}); other placeholders forbidden"
+# Round-1 test-analyzer MED-2: anti-anchor named weakenings that
 # would gut the verbatim lock from elsewhere in the doc.
-assert_no_grep '(paraphrased|softened|abbreviated|MAY include a (shorter|alternate))' docs/header-convention.md
+# Round-2 test-analyzer MED-4: broader vocabulary (customer-language /
+# nationally-appropriate / equivalent-message / localized-form variants).
+assert_no_grep '(paraphrased|softened|abbreviated|MAY include a (shorter|alternate)|customer language of choice|nationally appropriate wording|equivalent message|localized form|alternate phrasing|reference implementation, not a hard requirement)' docs/header-convention.md
 assert_no_grep 'translation.equivalent' docs/header-convention.md
 # Positive: the rationale that explains WHY verbatim must survive.
 assert_grep 'same lock-discipline as the Patch #20 cover paragraph' docs/header-convention.md
-pass "Report-warning text locked VERBATIM (≥80 chars, single fenced block, exactly 1 {N}, named weakenings anti-anchored, lock-discipline rationale anchored)"
+pass "Report-warning text locked VERBATIM via HARDCODED canonical literal (byte-drift in doc now fails loud; single fenced block; exactly 1 {N} + no other placeholders; named weakenings anti-anchored broader vocabulary)"
 
-# -- Downstream-obligation per-bullet anchors (round-1 test-analyzer HIGH-3) --
-# Patch #20's review history made each Epic obligation a load-bearing
-# string. Apply the same discipline.
-# Epic 4 injector: three headers + refuse-on-missing semantic.
-assert_grep 'X-Phoenix-Audit: true' docs/header-convention.md
-assert_grep 'X-Phoenix-Audit-Run-Id' docs/header-convention.md
-assert_grep 'X-Phoenix-Audit-Dry-Run' docs/header-convention.md
-# Epic 6 Reporter byte-identical lock (mirrors Patch #20's anchor).
-assert_grep 'byte-identical' docs/header-convention.md
-# Epic 6 obligation MUST refuse any non-{N} placeholder substitution.
-assert_grep 'refuse to substitute any placeholder other than `\{N\}`' docs/header-convention.md
-pass "Downstream obligations per-bullet anchored: Epic 4 three headers + Epic 6 byte-identical + {N}-only"
+# -- Downstream-obligation anchors INSIDE the section, not file-wide ---------
+# Round-2 test-analyzer HIGH-2: previous version asserted presence anywhere
+# in the file — moving the strings to "## Appendix: misc strings" defeated
+# the gate. Now extract the Downstream-obligations SECTION (start at
+# `^## Downstream test obligations`, stop at the next H2) and assert the
+# anchors INSIDE that section only.
+DOWNSTREAM_SECTION=$(awk '/^## Downstream test obligations/{flag=1} flag && /^## / && !/^## Downstream/{exit} flag' docs/header-convention.md)
+[ "${#DOWNSTREAM_SECTION}" -ge 500 ] \
+  || fail "Downstream-obligations section extracted to ${#DOWNSTREAM_SECTION} chars (expected ≥500) — section missing/gutted"
+# Write extracted section to a temp file so we can grep against it.
+DOWNSTREAM_TMPFILE=$(mktemp)
+echo "$DOWNSTREAM_SECTION" >"$DOWNSTREAM_TMPFILE"
+trap "rm -f $DOWNSTREAM_TMPFILE" EXIT
+# Epic 4 injector: three headers + refuse-on-missing semantic. INSIDE section.
+assert_grep 'X-Phoenix-Audit: true' "$DOWNSTREAM_TMPFILE"
+assert_grep 'X-Phoenix-Audit-Run-Id' "$DOWNSTREAM_TMPFILE"
+assert_grep 'X-Phoenix-Audit-Dry-Run' "$DOWNSTREAM_TMPFILE"
+# Epic 6 Reporter byte-identical lock + {N}-only-placeholder refuse. INSIDE section.
+assert_grep 'byte-identical' "$DOWNSTREAM_TMPFILE"
+assert_grep 'refuse to substitute any placeholder other than `\{N\}`' "$DOWNSTREAM_TMPFILE"
+# Section presence (anchor on the actual header too).
+assert_grep '^## Downstream test obligations' docs/header-convention.md
+# Round-2 test-analyzer MED-7: anchor the BOOLEAN attribute kind discipline
+# the doc explicitly says is load-bearing for Epic 3/6 type-mismatch
+# prevention. Anchor on both the AttributeValue.bool_value technical name
+# AND the BOOLEAN human-readable form.
+assert_grep 'AttributeValue\.bool_value' docs/header-convention.md
+assert_grep 'BOOLEAN' docs/header-convention.md
+pass "Downstream obligations section-scoped: Epic 4 three headers + Epic 6 byte-identical + {N}-only refuse + BOOLEAN attribute kind anchored"
 
 # -- 400-line guard -----------------------------------------------------------
 run_silent python3 scripts/check_max_lines.py --strict
