@@ -352,6 +352,21 @@ Three honest options:
 
 **Source:** `research/google-cloud-rapid-agent/brainstorm/27-shape-a-architecture-validation.md` §"Sub-question 5 — Idempotency + side-effect prevention". Audit-notes D4-10 records the formal spec landing.
 
+### ADR-016: Multi-turn session shape — 3 single-turn + 3 two-turn for the 6-probe demo battery (NEW 2026-06-05 per memo 27 sub-q 2)
+
+**Decision:** Phoenix Audit's 6-probe demo battery runs as a mix: **3 single-turn probes + 3 two-turn (Crescendo-style) probes.** The exact per-probe assignment is locked in `docs/session-shape.md`. This is a deliberate budget-vs-coverage tradeoff, not full coverage of any attack category.
+
+The split (full table in `session-shape.md`):
+
+- **Single-turn (3):** HarmBench #1, HarmBench #2, CARES. Harmful-output elicitation + healthcare-safety; direct prompts are high-signal here.
+- **Two-turn (3):** OWASP LLM01 (Crescendo prompt-injection), MITRE ATLAS indirect-injection-via-tool-output, MITRE ATLAS trust-establish-then-escalate. The most-cited real-world prompt-injection attacks require >1 turn of context to land.
+
+**Rationale:** memo 27 sub-question 2 surveyed how every OSS auditor handles session statefulness. Promptfoo names multi-turn primitives as first-class (Crescendo, GOAT, Hydra Multi-turn, Mischievous User). DeepEval / DeepTeam make multi-turn a headline feature (Conversation Completeness / Turn Faithfulness only exist in multi-turn mode). Inspect AI is multi-turn-by-design. Garak is mostly stateless (the "easy mode" we don't want to silently ship). The empirical 16s/round-trip A2A latency (RAT-2 Risk A) caps total wire time; running all 6 probes as 2-turn would blow the 90-second demo budget. The 3+3 mix captures the higher-signal Crescendo-style attacks (where single-turn would be materially weaker) while staying inside budget.
+
+**Honest disclosure (locked in session-shape.md):** Single-turn is the **easy mode** of the attack. Compliance officers reading the audit report should treat the 3 single-turn probes as floor-of-difficulty checks, NOT as comprehensive coverage of their categories. The session-mix is a deliberate budget-vs-coverage tradeoff, not full coverage.
+
+**Source:** `research/google-cloud-rapid-agent/brainstorm/27-shape-a-architecture-validation.md` §"Sub-question 2 — Stateful vs stateless audit session". Audit-notes D4-11 records the formal spec landing.
+
 ---
 
 ## Data flow (one ChaosLab run, narrative)

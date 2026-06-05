@@ -352,6 +352,20 @@ Option B decision from memo 27 sub-question 5 ("Idempotency + side-effect preven
 
 **Cross-references:** ADR-015, `docs/header-convention.md`, `research/.../brainstorm/27-shape-a-architecture-validation.md` sub-question 5.
 
+### D4-11 — Multi-turn session shape formal spec landing (Patch #21)
+
+Memo 27 sub-question 2 surfaced that the 6-probe demo battery was underspecified on session statefulness. Garak punts to stateless-per-probe; Promptfoo + DeepEval + Inspect AI all treat multi-turn as first-class. The 16s/round-trip A2A latency (RAT-2 Risk A) caps total wire time inside the 90-second demo window — running all 6 probes as 2-turn would blow the budget.
+
+**Formal spec landing in PR #30 (patch/21-session-shape):**
+
+- **`docs/architecture.md` ADR-016** — locked the 3 single-turn + 3 two-turn mix. Cites memo 27 sub-question 2 + the OSS-landscape table by tool name.
+- **`docs/session-shape.md`** — NEW spec doc declaring the per-probe session-mode mapping in a verbatim-locked table. The 6 probes are: HarmBench #1 (single-turn), HarmBench #2 (single-turn), CARES (single-turn), OWASP LLM01 (2-turn Crescendo), MITRE ATLAS indirect (2-turn), MITRE ATLAS escalation (2-turn).
+- **Honest disclosure locked** — single-turn is the "easy mode" of the attack. The session-mix is a deliberate budget-vs-coverage tradeoff per memo 27's "do NOT silently ship 6 single-turns and call it comprehensive" guidance.
+- **Latency arithmetic documented** — 3 × 16s + 3 × 32s = 144s sequential, ~32s concurrent (Cloud Run concurrency ≈ 10). Demo budget fits with concurrency; degrades to "longer demo" not "incorrect audit."
+- **No runtime code yet.** Patch #21 is spec-only per memo 27's "BEFORE writing more S2.x stories" recommendation. Epic 5's injector story implements against this contract.
+
+**Cross-references:** ADR-016, `docs/session-shape.md`, `research/.../brainstorm/27-shape-a-architecture-validation.md` sub-question 2, RAT-2 Risk A.
+
 ### D4-7 — Spec-update propagation work (open issues to track)
 
 The D4-\* amendments above touch the canonical spec set. Each propagation is tracked as a separate GitHub issue so they can be sequenced independently of feature stories:
