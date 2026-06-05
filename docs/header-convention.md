@@ -28,10 +28,11 @@ handles side effects. None of them solve it from the auditor's side:
 | **AIR Blackbox**                                | Defender-side gate ("air-gate pauses, checks a policy"); not an auditor-side flag.                 |
 | **Microsoft Agent Governance Toolkit (MS AGT)** | Defender-side policy engine (`condition: "action.type in ['drop', 'delete']" → action: deny`).     |
 
-**Promptfoo, Garak, DeepTeam all punt.** AIR Blackbox and MS AGT solve it from
-the defender's side, not the auditor's side. Phoenix Audit picks Option B
-from the memo: define a header convention; warn loudly when targets don't
-opt in. This is documented in ADR-015 + landed by Patch #19.
+**Promptfoo, Garak, DeepTeam all punt.** Inspect AI defers to caller-supplied
+sandboxes (Docker / K8s isolation) — also a punt to the customer. AIR Blackbox
+and MS AGT solve it from the defender's side, not the auditor's side. Phoenix
+Audit picks Option B from the memo: define a header convention; warn loudly
+when targets don't opt in. This is documented in ADR-015 + landed by Patch #19.
 
 ---
 
@@ -79,15 +80,19 @@ A target that opts into the convention MUST emit a span attribute on every
 response trace:
 
 - **Attribute name:** `phoenix_audit.honored`
-- **Attribute value:** `true` (boolean) — the target read the headers AND
-  applied the dry-run short-circuit to its side-effecting tools for this
-  probe.
+- **Attribute value:** `true` — encoded as the OpenTelemetry / OpenInference
+  `BOOLEAN` attribute kind (`AttributeValue.bool_value = true`), NOT the
+  string `"true"`. Epic 3 and Epic 6 must agree on the same primitive type
+  or the reporter's filter step silently mismatches.
+- **Semantic:** the target read the headers AND applied the dry-run
+  short-circuit to its side-effecting tools for this probe.
 
 The namespace (`phoenix_audit.` prefix) mirrors ADR-013's filter attribute
-convention so the auditor can read both attributes from the same response
-span. Phoenix Audit's reporter checks every probe-response span: if any
-probe's response does NOT carry `phoenix_audit.honored = true`, the audit
-report emits the verbatim warning below.
+convention (`phoenix_audit.audit_run_id`) so the auditor can read both
+attributes from the same response span. Phoenix Audit's reporter checks
+every probe-response span: if any probe's response does NOT carry
+`phoenix_audit.honored = true`, the audit report emits the verbatim warning
+below.
 
 ---
 
@@ -95,8 +100,8 @@ report emits the verbatim warning below.
 
 When the Reporter (Epic 6) generates the signed PDF, if any probe-response
 span lacks `phoenix_audit.honored = true`, the report MUST include this
-EXACT paragraph (verbatim — no translation-equivalent rewording, same
-lock-discipline as the Patch #20 cover paragraph):
+EXACT paragraph (verbatim — no rewording even for length, style, or tone;
+same lock-discipline as the Patch #20 cover paragraph):
 
 > Target did not signal it honored the X-Phoenix-Audit-\* headers
 > (`phoenix_audit.honored = true` was absent from N probe-response spans).
