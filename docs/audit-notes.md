@@ -273,7 +273,7 @@ Demo arc gains a new line: _"On Friday we ran 6 synthetic adversarial tests. On 
 
 Abu confirmed Ed25519 for the signed PDF report. Rationale: ubiquitous library support (cryptography.io, every JWT lib, SSH/Git baseline), fast verification, sufficient for hackathon + most real-world audit use cases today. ML-DSA-65 (Asqav's choice) is interesting future-proofing but adds library churn for marginal hackathon-day benefit.
 
-Update: `docs/architecture.md` ADR section to add **ADR-014 — Ed25519 signing for audit reports** (re-numbered from the original D4-3 reservation of ADR-013, because trace-tenancy patch #20 landed ADR-013 first per chronological order on disk). The signing key lives in Cloud KMS (HSM-backed, regulator-meaningful) keyed to the customer's compliance officer, NOT to Phoenix Audit ops. This preserves the "zero auditor/insurer conflict of interest" claim in the PRD.
+Reservation update: `docs/architecture.md` will get **ADR-014 — Ed25519 signing for audit reports** — slot reserved by this D4-3 + tracked as TBD-14; the ADR itself is **not yet written**. D4-3 originally reserved ADR-013 for this signing ADR; trace-tenancy patch #20 took that slot first per chronological landing on disk, so Ed25519 bumped to ADR-014. When TBD-14 lands, the ADR-014 text will document: signing key lives in Cloud KMS (HSM-backed, regulator-meaningful) keyed to the customer's compliance officer, NOT to Phoenix Audit ops. This preserves the "zero auditor/insurer conflict of interest" claim in the PRD.
 
 ### D4-4 — Failure-class taxonomy: OWASP Agentic Top 10 (AGT01–AGT10), drop internal F1–F4
 
@@ -327,14 +327,14 @@ Surfaced during PR #25 (S2.3) review + the post-merge retrospective review that 
 
 ### D4-9 — Trace tenancy formal spec landing (Patch #20)
 
-Memo 27 sub-question 9 surfaced the tenancy contradiction: PRD claimed "Customer signs with THEIR Cloud KMS key" while the architecture routed all audit traces through our vendor Phoenix project. The fix path was already known (Model C — Customer-side tenancy with cross-tenant read) but had no formal spec landing.
+Model C decision (Customer-side tenancy + cross-tenant read at report time). Memo 27 sub-question 9 surfaced the trace tenancy contradiction: PRD claimed "Customer signs with THEIR Cloud KMS key" while the architecture routed all audit traces through our vendor Phoenix project. The fix path was already known (Model C — Customer-side tenancy with cross-tenant read) but had no formal spec landing.
 
 **Formal spec landing in PR #28 (patch/20-trace-tenancy-customer-side):**
 
 - **`docs/architecture.md` ADR-013** — locked the Model C decision with empirical reference to RAT-2 Test 1's 1.37s emit-to-visible measurement. Acknowledges the Phoenix authn limitation (issue Arize-ai/phoenix#10504) as a post-hackathon improvement.
 - **`docs/run-config-schema.md`** — NEW spec doc declaring the run-config payload shape. The `customer_phoenix.endpoint` + `customer_phoenix.api_key` + `customer_phoenix.project_name` fields are the contract Epic 4's orchestrator + Epic 6's Reporter implement against. Validation rules locked: scheme MUST be `https`, project name MUST match Phoenix's `^[a-z0-9][a-z0-9_-]{0,62}$` pattern, credentials MUST be discarded after run.
 - **Report-template language locked** — the cover-page paragraph stating "Audit traces remain in the Customer's Phoenix project ... Phoenix Audit holds no copy" is the compliance hook for EU AI Act Annex IV chain-of-custody + the KMS pitch.
-- **No runtime code yet.** Patch #20 is spec-only per memo 27's "patches before orchestrator stories" recommendation. Epic 4's first orchestrator story will implement the run-config parser against this schema.
+- **No runtime code yet.** Patch #20 is spec-only per memo 27's "BEFORE writing more S2.x stories" recommendation (the memo sequences this patch ahead of the S2.x → Epic 4 orchestrator story chain). Epic 4's first orchestrator story will implement the run-config parser against this schema.
 
 **Cross-references:** ADR-013, `docs/run-config-schema.md`, `research/.../brainstorm/27-shape-a-architecture-validation.md` sub-question 9, RAT-2 Test 1.
 
@@ -342,13 +342,14 @@ Memo 27 sub-question 9 surfaced the tenancy contradiction: PRD claimed "Customer
 
 The D4-\* amendments above touch the canonical spec set. Each propagation is tracked as a separate GitHub issue so they can be sequenced independently of feature stories:
 
-| #        | Touch                                                                                      | Effort                            |
-| -------- | ------------------------------------------------------------------------------------------ | --------------------------------- |
-| (TBD-13) | PRD §Goal: add OSS-layer competitive cut + acknowledge AIR Blackbox / Asqav / MS AGT       | 30 min                            |
-| (TBD-14) | architecture.md: add ADR-014 (Ed25519 signing) + cite OSS landscape refs                   | 45 min                            |
-| (TBD-15) | architecture.md + PRD + epics.md: F1–F4 → AGT01–AGT10 repin                                | 1.5h (mostly sed + manual review) |
-| (TBD-16) | data/lakera-pint/ submodule + loader + NOTICE attribution + tests                          | 2h                                |
-| (TBD-17) | new story file `story-6.5-continuous-monitor-trace-pull.md` + sprint-status.yaml DAG entry | 1h                                |
+| #        | Touch                                                                                                                                                                                                                                                   | Effort                            |
+| -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------- |
+| (TBD-13) | PRD §Goal: add OSS-layer competitive cut + acknowledge AIR Blackbox / Asqav / MS AGT                                                                                                                                                                    | 30 min                            |
+| (TBD-14) | architecture.md: add ADR-014 (Ed25519 signing) + cite OSS landscape refs                                                                                                                                                                                | 45 min                            |
+| (TBD-15) | architecture.md + PRD + epics.md: F1–F4 → AGT01–AGT10 repin                                                                                                                                                                                             | 1.5h (mostly sed + manual review) |
+| (TBD-16) | data/lakera-pint/ submodule + loader + NOTICE attribution + tests                                                                                                                                                                                       | 2h                                |
+| (TBD-17) | new story file `story-6.5-continuous-monitor-trace-pull.md` + sprint-status.yaml DAG entry                                                                                                                                                              | 1h                                |
+| (TBD-18) | architecture.md ADR-013 + run-config-schema.md: implement `phoenix_audit.run_signature` HMAC mitigation deferred from Patch #20 (per-run ephemeral key, server-side mint, scrub on `__exit__`). Touches Epic 4 orchestrator story + report-time reader. | 2h                                |
 
 Open as actual issues when this section commits.
 

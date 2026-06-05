@@ -143,6 +143,70 @@ sys.exit(0 if '$needle' in repr(d) else 1)
 " >/dev/null 2>&1 || fail "TOML key '$key' in $file does not contain '$needle'"
 }
 
+# -- block / paragraph assertions (multi-line content lock) -------------------
+
+assert_block_present() {
+  # Verify a multi-line block is present verbatim (newline-delimited)
+  # inside a file. Strict — every line of the block must appear in order.
+  # Usage: assert_block_present "$block_text" docs/foo.md
+  local block="$1" file="$2"
+  assert_readable "$file"
+  python3 - "$file" "$block" <<'PY' || fail "block not found verbatim in $2"
+import sys, pathlib
+file_path, needle = sys.argv[1], sys.argv[2]
+text = pathlib.Path(file_path).read_text()
+sys.exit(0 if needle in text else 1)
+PY
+}
+
+# -- safe recursive-grep scan (B1/B3/B4 discipline applied to multi-dir scan) -
+
+assert_no_pattern_in_dirs() {
+  # Verify a regex pattern does NOT appear in any file under the given
+  # directories. Discriminates "zero matches" (exit 1 — clean) from
+  # "tool error" (exit ≥2 — fail loud with stderr surfaced).
+  # The `--exclude-pattern` flag allows lines containing a literal carve-out
+  # marker to be filtered out before the failure check.
+  # Usage:
+  #   assert_no_pattern_in_dirs PATTERN [--exclude-pattern STR] DIR [DIR...]
+  local pattern="$1"
+  shift
+  local exclude=""
+  if [ "${1:-}" = "--exclude-pattern" ]; then
+    exclude="$2"
+    shift 2
+  fi
+  local dirs=("$@")
+  [ "${#dirs[@]}" -gt 0 ] || fail "assert_no_pattern_in_dirs: no scan dirs supplied"
+  for d in "${dirs[@]}"; do
+    assert_dir "$d"
+  done
+  local raw_log
+  raw_log="$(mktemp)"
+  set +e
+  grep -rEn "$pattern" "${dirs[@]}" >"$raw_log" 2>&1
+  local rc=$?
+  set -e
+  if [ "$rc" -ge 2 ]; then
+    echo "--- grep tool error (rc=$rc, pattern '$pattern') ---" >&2
+    cat "$raw_log" >&2
+    rm -f "$raw_log"
+    fail "grep tool failure scanning: ${dirs[*]}"
+  fi
+  local violations
+  if [ -n "$exclude" ]; then
+    violations=$(grep -v "$exclude" "$raw_log" || true)
+  else
+    violations=$(cat "$raw_log")
+  fi
+  rm -f "$raw_log"
+  if [ -n "$violations" ]; then
+    echo "--- pattern '$pattern' found in scan dirs ---" >&2
+    echo "$violations" >&2
+    fail "assert_no_pattern_in_dirs: violations in ${dirs[*]}"
+  fi
+}
+
 # -- command runner (B3 fix: capture exit code, print on failure only) --------
 
 run_silent() {

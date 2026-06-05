@@ -5,9 +5,12 @@
 
 This document defines the shape of a Phoenix Audit run-config: the JSON
 payload the Customer submits when launching an audit (via the web UI's "Run
-audit" button or the `chaoslab-agent/run` API endpoint). Schema is locked here
+audit" button or the audit-agent `/run` API endpoint). Schema is locked here
 so Epic 3 (target adapters), Epic 4 (orchestrator), and Epic 6 (Reporter)
 can implement against the same contract.
+
+Wire format: JSON. Below, fields are rendered as YAML inline-comment blocks
+for readability; the live API payload is JSON.
 
 ---
 
@@ -56,22 +59,26 @@ needs to honor it.
 
 ```yaml
 customer_phoenix:
-  endpoint:
-    string # Phoenix Cloud URL, MUST start with "https://".
-    # Examples:
-    #   "https://app.phoenix.arize.com"                       (default workspace)
-    #   "https://app.phoenix.arize.com/s/<workspace-slug>"   (space-scoped — preferred)
-  api_key:
-    string # One-shot Phoenix API key with access to the project below.
-    # NEVER persisted server-side after the audit run completes.
-    # Customer is responsible for rotating after the audit.
-  project_name:
-    string # The Phoenix project name the audit will write to + read from.
-    # Phoenix Audit tags every emitted span with
-    # `audit_run_id == <the top-level audit_run_id>` so it can
-    # filter the trace slice at report time without mixing
-    # the audit-run spans with the Customer's other workloads.
+  endpoint: string # Phoenix Cloud URL, MUST start with "https://".
+  api_key: string # One-shot Phoenix API key with access to the project below.
+  project_name: string # The Phoenix project name the audit will write to + read from.
 ```
+
+Field detail:
+
+- **`endpoint`** — Phoenix Cloud URL. MUST start with `https://`.
+  Examples:
+  - `https://app.phoenix.arize.com` (default workspace)
+  - `https://app.phoenix.arize.com/s/<workspace-slug>` (space-scoped — preferred)
+- **`api_key`** — One-shot Phoenix API key with access to the project below.
+  NEVER persisted server-side after the audit run completes. The Customer
+  is responsible for rotating after the audit.
+- **`project_name`** — The Phoenix project name the audit will write to + read
+  from. Phoenix Audit tags every emitted span with the namespaced attribute
+  `phoenix_audit.audit_run_id == <the top-level audit_run_id>` so it can
+  filter the trace slice at report time without mixing the audit-run spans
+  with the Customer's other workloads. (See "Attribute namespace" below for
+  why bare `audit_run_id` is unsafe.)
 
 **Validation rules** (orchestrator MUST enforce at run-config parse time):
 
@@ -87,25 +94,38 @@ customer_phoenix:
 3. `project_name` MUST match `^[a-z0-9][a-z0-9_-]{0,62}$`. **Note:
    Phoenix Cloud does not publicly document its project-name validation
    rules.** This is Phoenix Audit's locally-imposed constraint, modeled
-   on Phoenix's documented prompt-tag rule ("lowercase letters, numbers,
-   hyphens, underscores; starts/ends with letter or number") + DNS
-   conventions (max 63 chars). If a Customer's existing project name
-   violates this, they create a new project for the audit run. Empirical
-   evidence: `rat-2-phoenix-audit/test1_cross_tenant_ingest.py:50` uses
-   `rat2-test1-cross-tenant-{8-hex}` which matches the pattern + worked.
-   Post-hackathon TODO: empirically probe Phoenix Cloud's actual rule set.
+   on common identifier-validation conventions (lowercase alphanumeric +
+   hyphens + underscores; starts/ends with letter or number; DNS-style
+   63-char max). If a Customer's existing project name violates this,
+   they create a new project for the audit run. Empirical existence
+   proof (NOT a derivation of Phoenix's actual rule set): one name
+   shaped like `rat2-test1-cross-tenant-{8-hex}` was accepted by
+   Phoenix Cloud in `rat-2-phoenix-audit/test1_cross_tenant_ingest.py:50`.
+   This is consistent with (not proof of) the regex above; Phoenix may
+   accept names the regex rejects. Post-hackathon TODO: empirically
+   probe Phoenix Cloud's actual rule set.
 4. **Credentials MUST be discarded from memory after the audit run completes.**
    This is enforced by THREE concrete obligations Epic 4 must implement:
    - **`pydantic.SecretStr` on `api_key`.** Default `repr()` redacts as
-     `SecretStr('**********')` so logger.info(config) cannot leak the key.
+     `SecretStr('**********')` so `logger.info(config)` cannot leak the key.
    - **Locked unit test pattern:** `assert "api_key=" not in repr(config)`
-     AND `assert config.customer_phoenix.api_key.get_secret_value() not in
-<any captured log line>`. Both assertions MUST land in Epic 4's
+     AND, using `structlog.testing.capture_logs()` over an orchestrator
+     round-trip, `assert config.customer_phoenix.api_key.get_secret_value()
+not in <any captured log line>`. Both assertions MUST land in Epic 4's
      orchestrator story.
-   - **Context-manager scoping:** the run-config object exists inside a
-     `with` block that scrubs the api_key on `__exit__` (sets to empty
-     SecretStr). After the audit returns, `gc.collect()` + sentinel check
-     verifies no surviving reference holds the original secret value.
+   - **Context-manager scoping via an `audit_run_context()` helper** (NOT
+     the run-config object itself — `pydantic.BaseModel` does not implement
+     `__enter__`/`__exit__`). Epic 4 ships a separate helper:
+     `with audit_run_context(run_config) as ctx:` whose `__exit__` overwrites
+     `ctx.run_config.customer_phoenix.api_key` with `SecretStr("")`
+     (Pydantic v2 requires `model_config = ConfigDict(frozen=False)` +
+     `object.__setattr__` for the rewrite). After the audit returns,
+     `gc.collect()` + sentinel check (`assert not any(o == original_key
+for o in gc.get_referrers(...))`) verifies no surviving Python
+     reference holds the original secret value. **Honest caveat:** Python
+     strings are immutable; "scrub" here means "drop all references and
+     `gc.collect()`." Bytes-level zeroization of the underlying string is
+     not Python-guaranteed without `ctypes` memmove — out of scope for v1.
 
 **RAT-2 Test 1 validates the cross-tenant read works.** Cross-tenant
 Phoenix read latency measured at 1.37s emit-to-visible. See
@@ -114,11 +134,19 @@ working smoke script at `rat-2-phoenix-audit/test1_cross_tenant_ingest.py`.
 
 **Attribute namespace (fixes silent-data-leak risk):** Phoenix Audit
 emits spans with `phoenix_audit.audit_run_id = <uuid>` (namespaced) as
-the filter key when pulling the trace slice — NOT bare `audit_run_id`
-which a Customer's other workload might also set, causing accidental
-spillover. Epic 4 SHOULD ALSO emit `phoenix_audit.run_signature` as an
-HMAC of `(audit_run_id, server-side nonce)` so the filter is
-cryptographically tight, not just attribute-equal.
+the filter key when pulling the trace slice — NOT bare `audit_run_id`,
+which a Customer's other observability workload might also set, causing
+accidental cross-workload bleed into the audit slice. For the realistic
+threat model (Customer is the protected party, not an adversary),
+namespace alone closes the accidental-collision risk. **HMAC binding
+deferred to TBD-18** (`docs/audit-notes.md` open-items table):
+`phoenix_audit.run_signature` = HMAC(audit_run_id, per-run ephemeral
+key) makes the filter cryptographically tight against malicious
+cross-tenant injection. Tracked separately because (a) the realistic
+threat model doesn't require it for v1 Customer-protected use, and
+(b) HMAC key generation/storage/recovery is a non-trivial design
+(per-run ephemeral; minted server-side at orchestrator start; stored
+in `audit_run_context`; scrubbed alongside `api_key` on `__exit__`).
 
 ---
 
@@ -154,12 +182,25 @@ under that framing):
 This text is the compliance hook for the EU AI Act Annex IV chain-of-custody
 claim and the "Customer signs with THEIR Cloud KMS key" pitch.
 
+**Canonical fixture** (use this exact string in Epic 6's snapshot test;
+the blockquote above is for human reading, this fenced block is the
+machine-readable lock — Epic 6 SHOULD copy this fixture verbatim into a
+test constant, not parse the markdown blockquote):
+
+```text
+Audit traces remain in the Customer's Phoenix project (project ID: {project_name} at {endpoint}) under the Customer's data-retention policy. Phoenix Audit accessed the trace data only during the audit run window (start: {run_started_at}; end: {run_completed_at}) and holds no copy after report generation. This signed PDF is the only Phoenix Audit-side artifact; all underlying evidence remains in the Customer's tenancy.
+```
+
 **Verbatim-lock rationale:** earlier draft of this schema allowed
 "translation-equivalent" wording with the qualifier "legal substance must
-be preserved." Reviewer flagged the loophole: shortening "holds no copy
-after report generation" to "does not retain copies of trace data" is
-semantically close but legally weaker (permits derived data, summaries,
-embeddings). Verbatim is the only durable lock against quiet drift.
+be preserved." Reviewer flagged the loophole: shortening the cover-page
+sentence about post-report retention is semantically close to the original
+but legally weaker (permits derived data, summaries, vector embeddings).
+Verbatim is the only durable lock against quiet drift. The acceptance
+test (`tests/acceptance/test_patch_20_trace_tenancy.sh`) anti-anchors the
+specific weakening phrases the reviewer flagged; see the test for the
+authoritative list (kept there to avoid this prose silently drifting
+out of sync with the gate).
 
 Required placeholder substitutions:
 
@@ -175,6 +216,8 @@ Required placeholder substitutions:
 - It does NOT add a runtime parser (Epic 4's first orchestrator story will).
 - It does NOT change any existing Python code paths (S2.1–S2.4 are unchanged).
 - It does NOT add the report template (Epic 6 ships the PDF generator).
+- It does NOT implement the `phoenix_audit.run_signature` HMAC mitigation
+  declared as deferred above — TBD-18 in audit-notes tracks that delivery.
 
 This PR is the **schema declaration** so downstream stories implement against
 a fixed contract, per the "BEFORE writing more S2.x stories" recommendation
@@ -194,7 +237,12 @@ the Epic 4 / Epic 6 implementer can't miss them.
 
 - Parametrized rejection tests for validation rule 1 (non-https schemes
   → `ConfigurationError` with bad input echoed). Cover `http://`,
-  `ftp://`, `//host`, `not-a-url`, `https:malformed`.
+  `ftp://`, `//host`, `not-a-url`, `https:malformed`,
+  `HTTPS://example.com` (uppercase scheme — verify normalization choice
+  matches `_build_a2a_app`'s behavior; either accept after lowercase
+  or reject), `  https://example.com` (leading whitespace),
+  `https://example.com  ` (trailing whitespace), and one IDNA
+  homoglyph case (`https://exаmple.com` — Cyrillic 'а' U+0430).
 - Rejection test for rule 2 (empty + whitespace-only `api_key`).
 - Rejection tests for rule 3 (project names that fail the regex —
   uppercase, dot, leading hyphen, >63 chars).
@@ -208,12 +256,21 @@ the Epic 4 / Epic 6 implementer can't miss them.
 
 **Epic 6 Reporter story (PDF generation) MUST add:**
 
-- Snapshot test of the cover-page paragraph — verbatim match against the
-  locked text above, with placeholders correctly interpolated.
-- ANTI-anchor assertions: cover page MUST NOT contain `"Phoenix Audit
-centralizes"` or `"vendor Phoenix project"` (guards against
-  accidentally regressing to Model A wording).
-- Asserts `"EU AI Act Annex IV"` and `"chain-of-custody"` appear (the
+- Snapshot test of the cover-page paragraph — **byte-identical** match
+  against the canonical fixture above (no `.strip()`, no whitespace
+  normalization, no rewrap), with placeholders correctly interpolated.
+  The four placeholders (`{project_name}`, `{endpoint}`, `{run_started_at}`,
+  `{run_completed_at}`) are the ONLY substitutions permitted.
+- ANTI-anchor assertions: cover page MUST NOT contain any Model-A
+  regression markers (affirmative "centralizes/will centralize/may
+  centralize/should centralize" wording, or "vendor Phoenix project").
+  Authoritative list lives in
+  `tests/acceptance/test_patch_20_trace_tenancy.sh` — keep both in sync.
+- ANTI-anchor assertions for legal-weakening phrases the verbatim-lock
+  rationale guards against. Authoritative list lives in the same
+  acceptance test (kept there rather than inline so this spec doc and
+  the gate can't silently drift apart).
+- Asserts `EU AI Act Annex IV` and `chain-of-custody` appear (the
   regulatory hooks).
 
 ---
