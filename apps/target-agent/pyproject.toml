@@ -14,13 +14,18 @@ authors = [
   { name = "Blockchain-Oracle", email = "ajweb3dev@gmail.com" },
 ]
 dependencies = [
-  # ADK 2.1.0 — pinned exactly per RAT-2 IF-9 (A2A surface is EXPERIMENTAL).
-  # `[a2a]` extra adds A2A protocol support but does NOT include sse-starlette
-  # which `to_a2a()` needs — sse-starlette is added separately. See IF-10.
+  # ADK — major-pinned per RAT-2 IF-9 (A2A is EXPERIMENTAL; range allows
+  # CVE patches but blocks breaking 3.x). `[a2a]` extra adds A2A protocol
+  # support but does NOT include sse-starlette which `to_a2a()` needs —
+  # sse-starlette is added separately. See IF-10.
   "google-adk[a2a]>=2.1.0,<3.0.0",
   "sse-starlette>=3.4",
+  # uvicorn — production ASGI server. [standard] pulls httptools + uvloop
+  # for Cloud Run hot-path throughput. Used by main() in server.py and by
+  # Cloud Run's container start command.
+  "uvicorn[standard]>=0.34.0,<1.0.0",
   # OpenInference auto-instrumentation for ADK — emits the TOOL/AGENT spans
-  # Phoenix Audit reads back for trace clustering. Version pinned per IF-12.
+  # Phoenix Audit reads back for trace clustering.
   "openinference-instrumentation-google-adk>=0.1.15",
   # Phoenix client surface — needed when this agent ships traces to a
   # Phoenix project (Customer-controlled OR Phoenix Audit's project,
@@ -28,16 +33,23 @@ dependencies = [
   "arize-phoenix-otel>=0.10",
   # Structured logging for any non-print diagnostic.
   "structlog>=24",
-  # Pydantic — used by ADK + we'll use it for tool argument schemas
-  # in S2.2 (the to_a2a wiring); declaring here so the dep is present.
+  # Pydantic — transitively required by ADK; declared explicitly for visibility.
   "pydantic>=2",
 ]
+
+# Console-script entry: `uv run target-agent` launches the A2A server on
+# $PORT (defaults to 8001 locally; Cloud Run injects $PORT=8080).
+[project.scripts]
+target-agent = "target_agent.server:main"
 
 [dependency-groups]
 dev = [
   "pytest>=8",
   "pytest-asyncio>=0.24",
   "pytest-cov>=5",
+  # httpx — used by tests/integration to poll the live A2A server.
+  # Transitively pulled by ADK already, declaring here for explicit intent.
+  "httpx>=0.27",
 ]
 
 [build-system]
@@ -50,6 +62,10 @@ packages = ["src/target_agent"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 asyncio_mode = "auto"
+markers = [
+  "integration: integration tests that spawn the live A2A server in a thread (no external services)",
+  "online: tests that hit a real network service and incur cost (Phoenix Cloud, Gemini)",
+]
 
 [tool.ruff]
 # Inherit lint config (line length, rule families) from the workspace root.
