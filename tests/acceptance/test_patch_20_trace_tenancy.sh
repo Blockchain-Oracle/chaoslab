@@ -85,11 +85,17 @@ assert_grep 'filtered by `phoenix_audit\.audit_run_id` span attribute' docs/arch
 # — robust against line-start regressions without requiring grep -P.
 set +o pipefail
 total_bare=$(sed 's/^/ /' docs/architecture.md | grep -oE '[^.`]`audit_run_id`' | wc -l | tr -d ' ')
-labeled_bare=$(sed 's/^/ /' docs/architecture.md | grep -oE 'bare `audit_run_id`' | wc -l | tr -d ' ')
+labeled_bare=$(sed 's/^/ /' docs/architecture.md | grep -oE '(bare|run-config.s|run-config field) `audit_run_id`' | wc -l | tr -d ' ')
 set -o pipefail
+# Two label-context classes are legitimate:
+# (a) `bare \`audit_run_id\`` — disclaimers about the unsafe form (ADR-013).
+# (b) `run-config's \`audit_run_id\`` / `run-config field \`audit_run_id\``
+#     — references to the actual run-config FIELD name (a distinct concept
+#     from the filter attribute; the field IS `audit_run_id`, the filter
+#     attribute MUST be `phoenix_audit.audit_run_id`).
 unlabeled_bare=$((total_bare - labeled_bare))
 test "$unlabeled_bare" -eq 0 \
-  || fail "architecture.md has $unlabeled_bare unlabeled-bare \`audit_run_id\` occurrence(s) (total=$total_bare, labeled=$labeled_bare) — only the explicitly-labeled 'bare \`audit_run_id\`' disclaimers are legitimate"
+  || fail "architecture.md has $unlabeled_bare unlabeled-bare \`audit_run_id\` occurrence(s) (total=$total_bare, labeled=$labeled_bare) — must be in 'bare' disclaimer OR explicit 'run-config' context"
 pass "Filter attribute consistently namespaced as phoenix_audit.audit_run_id (count-based bare-form check; ≤1 allowed in tradeoff disclaimer)"
 
 # -- ADR-013 references RAT-2 Test 1 by file path + line range + measurement --
