@@ -155,38 +155,53 @@ sys.exit(0 if '$needle' in repr(d) else 1)
 assert_block_present() {
   # Verify a multi-line block is present verbatim inside a file
   # (substring match — every byte of the block must appear in order).
-  # Round-3 silent-failure-hunter R3-3: explicitly reject empty needle
+  # Round-3 R3-3 + round-4 R4-F8: explicitly reject empty needle
   # (Python's `"" in text` is trivially True; an empty needle would
-  # silently pass), and reject obviously-too-short needles (defensive
-  # against `read -r -d ''` heredoc parse failure leaving the variable
-  # empty or near-empty).
-  # Usage: assert_block_present "$block_text" docs/foo.md
-  local block="$1" file="$2"
+  # silently pass). Reject suspiciously-short needles (defensive
+  # against heredoc parse failure). Default minimum is 32 chars, but
+  # callers can override via optional 3rd argument for legitimate
+  # short fixtures (signature formats, version strings, etc.).
+  # Usage: assert_block_present "$block_text" docs/foo.md [min_chars=32]
+  local block="$1" file="$2" min_chars="${3:-32}"
   [ -n "$block" ] || fail "assert_block_present: empty needle (heredoc parse failure?)"
-  if [ "${#block}" -lt 32 ]; then
-    fail "assert_block_present: needle suspiciously short (${#block} chars; expected ≥32 — heredoc parse failure?)"
+  if [ "${#block}" -lt "$min_chars" ]; then
+    fail "assert_block_present: needle suspiciously short (${#block} chars; expected ≥${min_chars} — heredoc parse failure? caller can override via 3rd arg)"
   fi
   assert_readable "$file"
-  python3 - "$file" "$block" <<'PY' || fail "block not found verbatim in $file"
+  # Round-4 comment-analyzer LOW: discriminate Python exit codes:
+  # 0=present, 1=absent, other=tool error. Use rc capture, not || fail.
+  set +e
+  python3 - "$file" "$block" <<'PY'
 import sys, pathlib
 file_path, needle = sys.argv[1], sys.argv[2]
 text = pathlib.Path(file_path).read_text()
 sys.exit(0 if needle in text else 1)
 PY
+  local rc=$?
+  set -e
+  if [ "$rc" -eq 0 ]; then return 0; fi
+  if [ "$rc" -eq 1 ]; then fail "block not found verbatim in $file"; fi
+  fail "assert_block_present: python3 helper exited rc=$rc (tool error, not absent-match)"
 }
 
 assert_block_absent() {
   # Inverse of assert_block_present — pattern MUST NOT appear verbatim.
+  # Round-4 comment-analyzer LOW: don't silently pass on python error.
   local block="$1" file="$2"
   [ -n "$block" ] || fail "assert_block_absent: empty needle"
   assert_readable "$file"
-  python3 - "$file" "$block" <<'PY' || return 0
+  set +e
+  python3 - "$file" "$block" <<'PY'
 import sys, pathlib
 file_path, needle = sys.argv[1], sys.argv[2]
 text = pathlib.Path(file_path).read_text()
 sys.exit(0 if needle in text else 1)
 PY
-  fail "block unexpectedly present in $file"
+  local rc=$?
+  set -e
+  if [ "$rc" -eq 1 ]; then return 0; fi
+  if [ "$rc" -eq 0 ]; then fail "block unexpectedly present in $file"; fi
+  fail "assert_block_absent: python3 helper exited rc=$rc (tool error, not match)"
 }
 
 # -- safe recursive-grep scan (B1/B3/B4 discipline applied to multi-dir scan) -

@@ -82,62 +82,67 @@ Field detail:
 
 **Validation rules** (orchestrator MUST enforce at run-config parse time):
 
-1. `endpoint` MUST be a parseable URL with a hostname. **Scheme MUST be
-   `https` ONLY** — `http` is rejected here (narrower than PUBLIC_URL's
-   `http+https` whitelist in `server.py:_build_a2a_app`, because the
-   Customer's audit traces are sensitive evidence and must transit TLS).
-   Use the same urlparse + frozenset + fail-loud `SystemExit` PATTERN as
-   `_build_a2a_app` — but with `frozenset({"https"})` not
-   `frozenset({"http", "https"})`. The pattern is portable, the
-   whitelist content differs.
-2. `api_key` MUST be non-empty (whitespace-only also rejected).
-3. `project_name` MUST match `^[a-z0-9][a-z0-9_-]{0,62}$`. **Note:
-   Phoenix Cloud does not publicly document its project-name validation
-   rules.** This is Phoenix Audit's locally-imposed constraint, modeled
-   on common identifier-validation conventions (lowercase alphanumeric +
-   hyphens + underscores; starts/ends with letter or number; DNS-style
-   63-char max). If a Customer's existing project name violates this,
-   they create a new project for the audit run. Empirical existence
-   proof (NOT a derivation of Phoenix's actual rule set): one name
-   shaped like `rat2-test1-cross-tenant-{8-hex}` was accepted by
-   Phoenix Cloud in `rat-2-phoenix-audit/test1_cross_tenant_ingest.py:50`.
-   This is consistent with (not proof of) the regex above; Phoenix may
-   accept names the regex rejects. Post-hackathon TODO: empirically
-   probe Phoenix Cloud's actual rule set.
-4. **Credentials MUST be discarded from memory after the audit run completes.**
-   This is enforced by THREE concrete obligations Epic 4 must implement:
-   - **`pydantic.SecretStr` on `api_key`.** Default `repr()` redacts as
-     `SecretStr('**********')` so `logger.info(config)` cannot leak the key.
-   - **Locked unit test pattern:** `assert "api_key=" not in repr(config)`
-     AND, using `structlog.testing.capture_logs()` over an orchestrator
-     round-trip, `assert config.customer_phoenix.api_key.get_secret_value()
-not in <any captured log line>`. Both assertions MUST land in Epic 4's
-     orchestrator story.
-   - **Context-manager scoping via an `audit_run_context()` helper** (NOT
-     the run-config object itself — `pydantic.BaseModel` does not implement
-     `__enter__`/`__exit__`). Epic 4 ships a separate helper:
-     `with audit_run_context(run_config) as ctx:` whose `__exit__` overwrites
-     `ctx.run_config.customer_phoenix.api_key` with `SecretStr("")` via
-     `object.__setattr__(...)` (bypasses field validators; works regardless
-     of `model_config.frozen` setting — Pydantic v2's default
-     `frozen=False` does NOT by itself enable in-place rewrite because
-     field assignment normally routes through validators, so the
-     `object.__setattr__` escape hatch is required).
+1.  `endpoint` MUST be a parseable URL with a hostname. **Scheme MUST be
+    `https` ONLY** — `http` is rejected here (narrower than PUBLIC_URL's
+    `http+https` whitelist in `server.py:_build_a2a_app`, because the
+    Customer's audit traces are sensitive evidence and must transit TLS).
+    Use the same urlparse + frozenset + fail-loud `SystemExit` PATTERN as
+    `_build_a2a_app` — but with `frozenset({"https"})` not
+    `frozenset({"http", "https"})`. The pattern is portable, the
+    whitelist content differs.
+2.  `api_key` MUST be non-empty (whitespace-only also rejected).
+3.  `project_name` MUST match `^[a-z0-9][a-z0-9_-]{0,62}$`. **Note:
+    Phoenix Cloud does not publicly document its project-name validation
+    rules.** This is Phoenix Audit's locally-imposed constraint, modeled
+    on common identifier-validation conventions (lowercase alphanumeric +
+    hyphens + underscores; starts/ends with letter or number; DNS-style
+    63-char max). If a Customer's existing project name violates this,
+    they create a new project for the audit run. Empirical existence
+    proof (NOT a derivation of Phoenix's actual rule set): one name
+    shaped like `rat2-test1-cross-tenant-{8-hex}` was accepted by
+    Phoenix Cloud in `rat-2-phoenix-audit/test1_cross_tenant_ingest.py:50`.
+    This is consistent with (not proof of) the regex above; Phoenix may
+    accept names the regex rejects. Post-hackathon TODO: empirically
+    probe Phoenix Cloud's actual rule set.
+4.  **Credentials MUST be discarded from memory after the audit run completes.**
+    This is enforced by three concrete obligations Epic 4 must implement (rendered
+    as paragraphs below rather than nested bullets to keep the markdown
+    reformatter-stable).
 
-     **Sentinel check (full spec, not a placeholder):** before entering
-     the context, capture the raw secret string:
-     `original_key = run_config.customer_phoenix.api_key.get_secret_value()`.
-     After `__exit__` returns + an explicit `gc.collect()`, scan
-     module-scope containers for survivors: assert that no `dict`/`list`/
-     `tuple` reachable from the current module's globals holds an item
-     equal to `original_key`. **Honest caveat:** `gc.get_referrers`
-     semantics in CPython are loose — false positives possible (test-frame
-     locals can keep the value reachable). The sentinel is defense-
-     in-depth on top of SecretStr-repr + log capture + `__exit__`
-     overwrite, not the actual security boundary. Python strings are
-     immutable; "scrub" means "drop all references and `gc.collect()`."
-     Bytes-level zeroization of the underlying string is not
-     Python-guaranteed without `ctypes` memmove — out of scope for v1.
+**Rule 4a — `pydantic.SecretStr` on `api_key`.** Default `repr()` redacts as
+`SecretStr('**********')` so `logger.info(config)` cannot leak the key.
+
+**Rule 4b — Locked unit test pattern.** `assert "api_key=" not in repr(config)`
+AND, using `structlog.testing.capture_logs()` over an orchestrator round-trip,
+`assert config.customer_phoenix.api_key.get_secret_value() not in <any captured
+log line>`. Both assertions MUST land in Epic 4's orchestrator story.
+
+**Rule 4c — Context-manager scoping via an `audit_run_context()` helper** (NOT
+the run-config object itself — `pydantic.BaseModel` does not implement
+`__enter__`/`__exit__`). Epic 4 ships a separate helper:
+`with audit_run_context(run_config) as ctx:` whose `__exit__` overwrites
+`ctx.run_config.customer_phoenix.api_key` with `SecretStr("")` via
+`object.__setattr__(...)`. With Pydantic v2's default config (`frozen=False` +
+`validate_assignment=False`), regular `model.field = x` works without going
+through validators — `object.__setattr__` isn't strictly required today. We
+use it anyway as a forward-compatible scrub that survives future config
+tightening (any future change to `frozen=True` or `validate_assignment=True`
+would otherwise silently break the scrub path).
+
+**Sentinel check (full spec, not a placeholder):** before entering the context,
+capture the raw secret string:
+`original_key = run_config.customer_phoenix.api_key.get_secret_value()`.
+After `__exit__` returns + an explicit `gc.collect()`, scan module-scope
+containers for survivors: assert that no `dict`/`list`/`tuple` reachable from
+the current module's globals (via `vars(sys.modules[__name__]).values()`)
+holds an item equal to `original_key`. **Honest caveat:** this module-globals
+walk only catches leaks via top-level containers (misses values held in
+instance attributes, closures, nested containers, frame locals). It is
+defense-in-depth on top of `SecretStr.__repr__` redaction + log capture +
+`__exit__` overwrite, not the actual security boundary. Python strings are
+immutable; "scrub" means "drop all references and `gc.collect()`."
+Bytes-level zeroization of the underlying string is not Python-guaranteed
+without `ctypes` memmove — out of scope for v1.
 
 **RAT-2 Test 1 validates the cross-tenant read works.** Cross-tenant
 Phoenix read latency measured at 1.37s emit-to-visible. See

@@ -41,25 +41,24 @@ assert_grep "Model C \\(hybrid\\)" docs/architecture.md
 # Positive lock: the canonical NOT statement MUST survive. If deleted,
 # the spec has been gutted regardless of what else still passes.
 assert_grep 'Phoenix Audit does NOT centralize audit traces in our vendor Phoenix project' docs/architecture.md
-# ANTI-anchor: round-3 silent-failure-hunter R3-1 caught that the
-# enumerated-verb-forms anti-anchor missed past-tense ("centralized")
-# and noun forms ("centralization"). Replaced with a morpheme-level
-# pattern: anything matching "Phoenix Audit ... centraliz*" within a
-# short token window is refused — EXCEPT the canonical NOT line above
-# (which uses "does NOT centralize" — the morpheme regex catches that
-# too, so we positively whitelist the locked line via grep -v before
-# counting).
+# ANTI-anchor: round-3 silent-failure R3-1 caught the enumerated-verb-forms
+# anti-anchor missed past-tense + noun forms. Round-4 silent-failure H-3
+# + test-analyzer R4-F1 caught the v1 morpheme regex's `[a-z]+` lowercase
+# constraint missed uppercase modifiers (DOES/WILL/MUST/Always) AND
+# evaded the canonical NOT line (since "NOT" is uppercase). Whitelist
+# was dead code.
 #
-# Count of "Phoenix Audit + any centraliz* form" occurrences on a single
-# line, MINUS the canonical-NOT line, MUST be zero.
-# Note: grep exits 1 on no-match; with pipefail this would kill set -e
-# before the test command can fire. Disable pipefail JUST for this
-# pipeline. Trade-off: grep tool-error (≥2) goes unnoticed for the
-# count — acceptable because the file is small + readable + the
-# canonical-NOT positive lock above already proved the file is parseable.
+# Round-4 fix: case-insensitive matching + [A-Za-z'-]+ intermediate-word
+# class catches inflected forms, modal verbs in any case, and the
+# canonical NOT line. The `grep -v` whitelist filter is now load-bearing
+# (strips the canonical NOT line before counting) — match it
+# case-insensitively too.
+#
+# Count of "Phoenix Audit + any centraliz* form" within a short token
+# window, MINUS the canonical-NOT line, MUST be zero.
 set +o pipefail
-adr013_bad_lines=$(grep -E '(Phoenix )?Audit[[:space:]]+([a-z]+[[:space:]]+){0,3}centraliz' docs/architecture.md \
-  | grep -v 'does NOT centralize audit traces in our vendor Phoenix project' \
+adr013_bad_lines=$(grep -iE "(Phoenix )?Audit[[:space:]]+([A-Za-z'-]+[[:space:]]+){0,5}centraliz" docs/architecture.md \
+  | grep -ivE 'does not centralize audit traces in our vendor Phoenix project' \
   | wc -l | tr -d ' ')
 set -o pipefail
 test "$adr013_bad_lines" -eq 0 \
@@ -71,19 +70,18 @@ pass "ADR-013 (trace tenancy = customer-side Phoenix) lands in architecture.md; 
 # bare `audit_run_id` while line 325 used the namespaced form. Both must
 # now use `phoenix_audit.audit_run_id`. This anchor catches re-divergence.
 assert_grep 'filtered by `phoenix_audit\.audit_run_id` span attribute' docs/architecture.md
-# Round-3 silent-failure-hunter R3-4: the "filtered by" anchor only
-# catches one specific phrasing. Count bare ``audit_run_id`` references
-# (NOT preceded by `phoenix_audit.`) EXCLUDING lines that explicitly
-# call them out as the "bare" form (i.e., the legitimate disclaimers
-# at lines 314 + 325 both say "bare `audit_run_id`"). Any unlabeled
-# bare reference = the divergence is back.
+# Round-3 silent-failure-hunter R3-4 + round-4 H-1: line-level shielding
+# attack: appending "bare `audit_run_id`" to a line that ALSO contains a
+# real bare reference would silently filter the line and hide the violation.
+# Count PER OCCURRENCE (grep -o), not per line. Subtract the labeled-bare
+# occurrences from total-bare; residual MUST be zero.
 set +o pipefail
-bare_unlabeled_count=$(grep -nE '[^.`]`audit_run_id`' docs/architecture.md \
-  | grep -vE 'bare `audit_run_id`' \
-  | wc -l | tr -d ' ')
+total_bare=$(grep -oE '[^.`]`audit_run_id`' docs/architecture.md | wc -l | tr -d ' ')
+labeled_bare=$(grep -oE 'bare `audit_run_id`' docs/architecture.md | wc -l | tr -d ' ')
 set -o pipefail
-test "$bare_unlabeled_count" -eq 0 \
-  || fail "architecture.md has $bare_unlabeled_count unlabeled-bare \`audit_run_id\` reference(s) — only the explicitly-labeled 'bare \`audit_run_id\`' disclaimers are legitimate"
+unlabeled_bare=$((total_bare - labeled_bare))
+test "$unlabeled_bare" -eq 0 \
+  || fail "architecture.md has $unlabeled_bare unlabeled-bare \`audit_run_id\` occurrence(s) (total=$total_bare, labeled=$labeled_bare) — only the explicitly-labeled 'bare \`audit_run_id\`' disclaimers are legitimate"
 pass "Filter attribute consistently namespaced as phoenix_audit.audit_run_id (count-based bare-form check; ≤1 allowed in tradeoff disclaimer)"
 
 # -- ADR-013 references RAT-2 Test 1 by file path + line range + measurement --
@@ -101,9 +99,15 @@ assert_grep '1\.37s' research/google-cloud-rapid-agent/RAT-2-results.md
 # invalidate the citation; this assertion catches that. Round-3 R3-F5:
 # failure message now includes the actual line where Test 1 lives so the
 # operator can update the citation without re-derivation.
-if [ "$(awk 'NR==29' research/google-cloud-rapid-agent/RAT-2-results.md | grep -cE 'Test 1' || true)" -lt 1 ]; then
+# Round-4 test-analyzer R4-F4 + R4-F5: anchor line 29 on `^## Test 1`
+# (header form) not substring "Test 1" — prevents spurious matches like
+# "Comparing against Test 1 of prior RAT" on line 29. The `|| true` here
+# turns "file unreadable" into a misleading "Test 1 not found" — protect
+# with assert_readable so file-access errors surface loud.
+assert_readable research/google-cloud-rapid-agent/RAT-2-results.md
+if [ "$(awk 'NR==29' research/google-cloud-rapid-agent/RAT-2-results.md | grep -cE '^## Test 1' || true)" -lt 1 ]; then
   actual_line=$(grep -nE '^## Test 1' research/google-cloud-rapid-agent/RAT-2-results.md | head -1 | cut -d: -f1)
-  fail "RAT-2-results.md line 29 no longer starts Test 1 (now at line ${actual_line:-?}) — update architecture.md + run-config-schema.md 'lines 29-49' citation"
+  fail "RAT-2-results.md line 29 no longer starts '## Test 1' (now at line ${actual_line:-?}) — update architecture.md + run-config-schema.md 'lines 29-49' citation"
 fi
 if [ "$(awk 'NR>=29 && NR<=49 {print}' research/google-cloud-rapid-agent/RAT-2-results.md | grep -cE '1\.37s' || true)" -lt 1 ]; then
   actual_line=$(grep -nE '1\.37s' research/google-cloud-rapid-agent/RAT-2-results.md | head -1 | cut -d: -f1)
@@ -202,7 +206,11 @@ assert_grep "TBD-18" docs/run-config-schema.md
 # SHAPE in audit-notes (markdown table cell starting with `| (TBD-18) |`)
 # rather than just the literal "TBD-18" string anywhere. This catches
 # a regression that removes the row but keeps the substring elsewhere.
-assert_grep '^\| \(TBD-18\) \|' docs/audit-notes.md
+# Round-4 test-analyzer R4-F6: Prettier aligns table columns by padding
+# cells to the widest content. Allow one-or-more spaces before the
+# closing pipe so a future row with a wider tag (e.g. (TBD-100)) padding
+# (TBD-18) → (TBD-18) doesn't break this anchor.
+assert_grep '^\| \(TBD-18\) +\|' docs/audit-notes.md
 # Schema's "What this PR does NOT do" section MUST disclose the HMAC
 # deferral explicitly (no quiet promise rotting in prose).
 assert_grep "does NOT implement the .phoenix_audit\\.run_signature. HMAC" docs/run-config-schema.md
@@ -217,6 +225,11 @@ pass "Namespaced phoenix_audit.audit_run_id is the v1 mitigation; HMAC tracked a
 #
 # The schema's `Canonical fixture` section is rendered as a fenced text
 # block (```text ... ```) so awk can extract the contents reliably.
+# Round-4 test-analyzer R4-F3: guard against multi-block extraction
+# silently merging contents — there must be exactly ONE ```text block.
+fenced_text_count=$(grep_count '^```text$' docs/run-config-schema.md)
+test "$fenced_text_count" -eq 1 \
+  || fail "schema has $fenced_text_count fenced \`\`\`text blocks (expected exactly 1 — the canonical fixture); cover-fixture extraction would be ambiguous"
 COVER_FIXTURE=$(awk '/^```text$/{flag=1; next} /^```$/{flag=0} flag' docs/run-config-schema.md)
 # Defensive: if extraction produced an empty or implausibly-short string,
 # the schema has been gutted — fail loud rather than trivially "pass".
@@ -235,7 +248,12 @@ assert_block_present "$COVER_FIXTURE" docs/run-config-schema.md
 # (round-3 silent-failure-hunter R3-5): the schema may make a small,
 # bounded number of post-retention claims; any unbounded growth means
 # someone is adding competing softer wording elsewhere.
-postret_count=$(grep -cE '(after report generation|after the audit run|post-report)' docs/run-config-schema.md)
+# Round-4 silent-failure-hunter NB-1: `grep -c` exits 1 on zero matches,
+# and `set -e` kills the command substitution silently — so a regression
+# that wipes ALL three trigger phrases drops the script with rc=1 and
+# no [FAIL] message. Use _lib.sh::grep_count which discriminates
+# zero-match (clean) from tool-error (loud).
+postret_count=$(grep_count '(after report generation|after the audit run|post-report)' docs/run-config-schema.md)
 # Five legitimate occurrences as of efe2238: api_key-discard (2 — fields
 # detail + rule 4), cover blockquote, canonical-fixture text block,
 # verbatim-lock rationale. Any growth above 5 = someone added a
@@ -311,8 +329,10 @@ assert_no_grep 'zero cross-tenant evidence flow' docs/PRD.md
 # three files ANY "Phoenix Audit ... centraliz*" occurrence on a single
 # line is a regression.
 for f in docs/PRD.md docs/run-config-schema.md docs/audit-notes.md; do
+  # Round-4 case-insensitive + broader intermediate-word class; no
+  # canonical NOT line in these three files so no whitelist filter needed.
   set +o pipefail
-  bad=$(grep -E '(Phoenix )?Audit[[:space:]]+([a-z]+[[:space:]]+){0,3}centraliz' "$f" | wc -l | tr -d ' ')
+  bad=$(grep -iE "(Phoenix )?Audit[[:space:]]+([A-Za-z'-]+[[:space:]]+){0,5}centraliz" "$f" | wc -l | tr -d ' ')
   set -o pipefail
   test "$bad" -eq 0 \
     || fail "$f contains 'Phoenix Audit ... centraliz*' (Model A regression — $bad line(s))"
@@ -344,7 +364,11 @@ SCAN_DIRS=(apps/target-agent/src apps/chaoslab-agent/src)
 # get a louder WARN marker so the no-coverage state can't masquerade as
 # real coverage.
 for d in "${SCAN_DIRS[@]}"; do
-  file_count=$(find "$d" -name '*.py' -type f 2>/dev/null | wc -l | tr -d ' ')
+  # Round-4 test-analyzer R4-F7: don't swallow find's stderr — let real
+  # errors (broken symlink loop, permission denied) surface to the
+  # operator. Trade-off accepted: a non-zero find exit propagates via
+  # set -e and aborts; that's the desired loud-failure behavior.
+  file_count=$(find "$d" -name '*.py' -type f | wc -l | tr -d ' ')
   if [ "$file_count" -eq 0 ]; then
     echo "  §14 WARN: $d has 0 Python files — gate cannot catch mocks here until Epic 4 ships modules"
   else
