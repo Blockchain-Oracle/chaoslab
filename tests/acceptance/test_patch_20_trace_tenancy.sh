@@ -48,16 +48,18 @@ assert_grep 'Phoenix Audit does NOT centralize audit traces in our vendor Phoeni
 # evaded the canonical NOT line (since "NOT" is uppercase). Whitelist
 # was dead code.
 #
-# Round-4 fix: case-insensitive matching + [A-Za-z'-]+ intermediate-word
-# class catches inflected forms, modal verbs in any case, and the
-# canonical NOT line. The `grep -v` whitelist filter is now load-bearing
-# (strips the canonical NOT line before counting) — match it
-# case-insensitively too.
+# Round-4 fix: case-insensitive + broader word class.
+# Round-5 H-3 fix: separator was `[[:space:]]+` between "Audit" and the
+# intermediate words — apostrophe-s ("Phoenix Audit's centralization")
+# and comma ("Phoenix Audit, the centralization") both evaded. Switched
+# to `[^A-Za-z]*` (zero or more non-alphabet chars) — accepts whitespace,
+# punctuation, apostrophes, commas as token separators while still
+# requiring alphabetic word characters for the intermediate tokens.
 #
 # Count of "Phoenix Audit + any centraliz* form" within a short token
 # window, MINUS the canonical-NOT line, MUST be zero.
 set +o pipefail
-adr013_bad_lines=$(grep -iE "(Phoenix )?Audit[[:space:]]+([A-Za-z'-]+[[:space:]]+){0,5}centraliz" docs/architecture.md \
+adr013_bad_lines=$(grep -iE "(Phoenix )?Audit[^A-Za-z]+([A-Za-z'-]+[^A-Za-z]*){0,5}centraliz" docs/architecture.md \
   | grep -ivE 'does not centralize audit traces in our vendor Phoenix project' \
   | wc -l | tr -d ' ')
 set -o pipefail
@@ -70,14 +72,20 @@ pass "ADR-013 (trace tenancy = customer-side Phoenix) lands in architecture.md; 
 # bare `audit_run_id` while line 325 used the namespaced form. Both must
 # now use `phoenix_audit.audit_run_id`. This anchor catches re-divergence.
 assert_grep 'filtered by `phoenix_audit\.audit_run_id` span attribute' docs/architecture.md
-# Round-3 silent-failure-hunter R3-4 + round-4 H-1: line-level shielding
-# attack: appending "bare `audit_run_id`" to a line that ALSO contains a
-# real bare reference would silently filter the line and hide the violation.
-# Count PER OCCURRENCE (grep -o), not per line. Subtract the labeled-bare
-# occurrences from total-bare; residual MUST be zero.
+# Round-3 silent-failure-hunter R3-4 + round-4 H-1 + round-5 H-1:
+# line-level shielding attack: appending "bare `audit_run_id`" to a line
+# that ALSO contains a real bare reference would silently filter the line
+# and hide the violation. Count PER OCCURRENCE (grep -o), not per line.
+# Subtract the labeled-bare occurrences from total-bare; residual MUST
+# be zero.
+#
+# Round-5 H-1: `[^.`]\`audit_run_id\`` requires a preceding char, so a
+# line-start `\`audit_run_id\`` slips through. Prepend a space to every
+# line via sed so the preceding-char class always has something to match
+# — robust against line-start regressions without requiring grep -P.
 set +o pipefail
-total_bare=$(grep -oE '[^.`]`audit_run_id`' docs/architecture.md | wc -l | tr -d ' ')
-labeled_bare=$(grep -oE 'bare `audit_run_id`' docs/architecture.md | wc -l | tr -d ' ')
+total_bare=$(sed 's/^/ /' docs/architecture.md | grep -oE '[^.`]`audit_run_id`' | wc -l | tr -d ' ')
+labeled_bare=$(sed 's/^/ /' docs/architecture.md | grep -oE 'bare `audit_run_id`' | wc -l | tr -d ' ')
 set -o pipefail
 unlabeled_bare=$((total_bare - labeled_bare))
 test "$unlabeled_bare" -eq 0 \
@@ -329,10 +337,10 @@ assert_no_grep 'zero cross-tenant evidence flow' docs/PRD.md
 # three files ANY "Phoenix Audit ... centraliz*" occurrence on a single
 # line is a regression.
 for f in docs/PRD.md docs/run-config-schema.md docs/audit-notes.md; do
-  # Round-4 case-insensitive + broader intermediate-word class; no
-  # canonical NOT line in these three files so no whitelist filter needed.
+  # Round-5 H-3: broader separator class so apostrophe-s + commas count
+  # as boundaries. No canonical NOT line in these 3 files → no whitelist.
   set +o pipefail
-  bad=$(grep -iE "(Phoenix )?Audit[[:space:]]+([A-Za-z'-]+[[:space:]]+){0,5}centraliz" "$f" | wc -l | tr -d ' ')
+  bad=$(grep -iE "(Phoenix )?Audit[^A-Za-z]+([A-Za-z'-]+[^A-Za-z]*){0,5}centraliz" "$f" | wc -l | tr -d ' ')
   set -o pipefail
   test "$bad" -eq 0 \
     || fail "$f contains 'Phoenix Audit ... centraliz*' (Model A regression — $bad line(s))"
