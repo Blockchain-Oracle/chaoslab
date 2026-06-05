@@ -303,6 +303,22 @@ The OSS memo identified two additional borrowings worth considering but NOT yet 
 - **Vijil `agent-audit-samples`** — ready-made malicious/benign ADK target agents. Could replace our hand-built S2.1 target. **Decision deferred** — S2.1 already shipped + working; swap is optional, not urgent.
 - **Inspect Evals safety subset** (UK AI Safety Institute, Apache-2.0) — adds AISI regulatory credibility. Could feed into our judge rubric. **Decision deferred** — review fit with AGT-taxonomy rewrite.
 
+### D4-8 — ADR-005 citation correction + Cloud Run fail-loud gating
+
+Surfaced during PR #25 (S2.3) review by the comment-analyzer subagent + verified empirically when the integration test failed with 404 against real Phoenix Cloud.
+
+**The miscitation:** Story-2.3, the implemented `observability.py` module, the `server.py` docstring, the README, and the acceptance test all cite **ADR-005** as the source of the `register(set_global_tracer_provider=False, batch=False)` flag mandate. That citation is **WRONG**. ADR-005 in `docs/architecture.md` is about *Phoenix MCP being partial — wrap Python SDK as ADK FunctionTool for write operations*. It has nothing to do with `register()` flags.
+
+The actual source of the flag mandate is `research/google-cloud-rapid-agent/architecture/02-phoenix-deep-dive.md §3.5` (Phoenix Agent Engine caveat). The spec-audit (`research/.../spec-audit/07-story-sample-audit.md:160`) actually flagged this drift pre-implementation; the warning was missed.
+
+**Correction (applied throughout the S2.3 commit):** every `per ADR-005` reference becomes `per architecture/02 §3.5` in observability.py, server.py, README, and acceptance test. Future stories must not propagate the old citation.
+
+**Empirical finding from the same review:** `set_global_tracer_provider=False` was found, by running the integration test against real Phoenix Cloud, to leave the GLOBAL OTel tracer provider as the no-op default. Because `tools.py` does `_tracer = trace.get_tracer(__name__)` at module load, the manual TOOL span never reaches Phoenix — only ADK-instrumented spans do.
+
+**Fix applied:** `setup_observability()` now ALSO calls `trace.set_tracer_provider(tracer_provider)` explicitly after `register()`. This preserves the spec-required `set_global_tracer_provider=False` shape (for Vertex Agent Engine portability) while making Cloud Run consumers reach Phoenix. Regression test landed: `test_global_tracer_provider_is_phoenix_wired_after_setup`.
+
+**Cloud Run safety hardening:** Per the silent-failure-hunter review's H1 finding, the graceful-degradation path (no-op `DegradedTracerProvider` when credentials are missing) is now gated on environment: Cloud Run (`K_SERVICE` env var set) defaults to fail-loud `ConfigurationError`. The `PHOENIX_OBSERVABILITY_OPTIONAL=1` env var opts back into the no-op path for explicit local-on-Cloud-Run testing. Local dev (no `K_SERVICE`) keeps the silent-degrade default for ergonomic library-mode imports.
+
 ### D4-7 — Spec-update propagation work (open issues to track)
 
 The D4-* amendments above touch the canonical spec set. Each propagation is tracked as a separate GitHub issue so they can be sequenced independently of feature stories:
