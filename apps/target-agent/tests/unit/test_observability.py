@@ -371,6 +371,136 @@ def test_degraded_tracer_provider_delegates_force_flush() -> None:
     sentinel.add_span_processor(SimpleSpanProcessor(exporter))
 
 
+def test_resolve_api_key_translates_grpc_rpc_error_by_type_name(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """F-2 transport-error catch: gRPC channel-shutdown races surface as
+    `RpcError` / `_InactiveRpcError` (type-name match because `grpc` is
+    only a transitive dep). Synthesize an exception with that type name.
+    """
+    monkeypatch.setenv("GCP_PROJECT_ID", "test-project-123")
+
+    # Synthesize an exception class whose type-name matches the grpc one.
+    # Real grpc.RpcError is non-trivial to instantiate; type-name match
+    # is what observability.py uses so we test it directly.
+    class RpcError(Exception):
+        pass
+
+    # §14 carve-out: test-side stub raising a fake transport error
+    class _FakeRpcErrorClient:
+        def access_secret_version(self, name: str) -> object:
+            del name
+            raise RpcError("channel reset mid-call")
+
+    import google.cloud.secretmanager as sm
+
+    # §14 carve-out: test-side stub
+    monkeypatch.setattr(sm, "SecretManagerServiceClient", _FakeRpcErrorClient)
+    with pytest.raises(ConfigurationError, match="transport error"):
+        _resolve_api_key()
+
+
+def _install_no_op_phoenix_stubs(monkeypatch: pytest.MonkeyPatch) -> TracerProvider:
+    """Replace phoenix.otel.register + GoogleADKInstrumentor with no-op stubs.
+
+    Without this, calling setup_observability() during unit tests causes
+    register() to install Phoenix as the global tracer provider AND attach
+    a real Phoenix exporter — both of which poison the conftest-managed
+    in-memory exporter that S2.1 tool tests depend on. Returns the stub
+    TracerProvider that register() will yield, so the test can compare
+    against `_otel_trace.get_tracer_provider()` results.
+    """
+    stub_provider = TracerProvider()
+
+    # §14 carve-out: test-side stub of phoenix.otel.register
+    import phoenix.otel as phx_otel
+
+    def _stub_register(**_kw: object) -> TracerProvider:
+        return stub_provider
+
+    # §14 carve-out: test-side stub
+    monkeypatch.setattr(phx_otel, "register", _stub_register)
+
+    # §14 carve-out: test-side stub of GoogleADKInstrumentor so it doesn't
+    # actually monkey-patch ADK during these tests.
+    import openinference.instrumentation.google_adk as adk_instr
+
+    class _StubInstrumentor:
+        def instrument(self, **_kw: object) -> None:
+            pass
+
+    # §14 carve-out: test-side stub
+    monkeypatch.setattr(adk_instr, "GoogleADKInstrumentor", _StubInstrumentor)
+
+    return stub_provider
+
+
+def test_setup_observability_raises_on_cloud_run_when_global_provider_was_overridden(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Behavioral coverage for the runtime check + Cloud Run fail-loud escalation.
+
+    Simulates OTel's "set-once" silent no-op by making
+    `opentelemetry.trace.get_tracer_provider()` return a sentinel that is
+    NOT the one register() returned. On Cloud Run this should raise
+    ConfigurationError (the H1 fail-loud pattern).
+
+    Covers Gap #1 (test-analyzer's HIGH finding): the defensive runtime
+    check would otherwise have no behavioral coverage.
+    """
+    monkeypatch.setenv("PHOENIX_API_KEY", "px-unit-dummy")
+    monkeypatch.setenv("K_SERVICE", "target-agent")
+    _install_no_op_phoenix_stubs(monkeypatch)
+
+    # §14 carve-out: make get_tracer_provider return a DIFFERENT provider
+    # than the one register() returned, simulating the set-once silent no-op
+    sentinel_global = TracerProvider()
+    import opentelemetry.trace as ot
+
+    # §14 carve-out: test-side stub
+    monkeypatch.setattr(ot, "get_tracer_provider", lambda: sentinel_global)
+
+    with (
+        structlog.testing.capture_logs() as captured,
+        pytest.raises(ConfigurationError, match="NOT installed as the OTel"),
+    ):
+        setup_observability(project_name="unit-test-runtime-check-raise")
+
+    raise_events = [
+        e
+        for e in captured
+        if e.get("event") == "phoenix_global_tracer_provider_not_installed_cloud_run"
+    ]
+    assert len(raise_events) == 1, f"expected fail-loud log event before raise; got: {captured}"
+    assert raise_events[0].get("env") == "cloud_run"
+
+
+def test_setup_observability_logs_warning_on_local_dev_when_global_provider_was_overridden(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Counterpart to the Cloud Run raise test: on local dev (no K_SERVICE),
+    the runtime check logs a warning but does NOT raise.
+    """
+    monkeypatch.setenv("PHOENIX_API_KEY", "px-unit-dummy")
+    # Deliberately NOT setting K_SERVICE — this is the local-dev path.
+    _install_no_op_phoenix_stubs(monkeypatch)
+
+    sentinel_global = TracerProvider()
+    import opentelemetry.trace as ot
+
+    # §14 carve-out: test-side stub
+    monkeypatch.setattr(ot, "get_tracer_provider", lambda: sentinel_global)
+
+    with structlog.testing.capture_logs() as captured:
+        # Should NOT raise on local dev
+        setup_observability(project_name="unit-test-runtime-check-warn")
+
+    warn_events = [
+        e for e in captured if e.get("event") == "phoenix_global_tracer_provider_not_installed"
+    ]
+    assert len(warn_events) == 1, f"expected local-dev warning log event; got: {captured}"
+
+
 def test_setup_observability_installs_global_tracer_provider_code_shape() -> None:
     """Regression guard for the empirical bug test-analyzer Gap #1 caught.
 

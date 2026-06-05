@@ -150,7 +150,11 @@ def _resolve_api_key() -> str:  # noqa: PLR0915 — narrow exception handling ne
             f"roles/secretmanager.secretAccessor to the Cloud Run service account."
         )
         raise ConfigurationError(msg) from e
-    except (gcp_exc.Unauthenticated, gcp_auth_exc.DefaultCredentialsError) as e:
+    except (gcp_exc.Unauthenticated, gcp_auth_exc.GoogleAuthError) as e:
+        # GoogleAuthError covers DefaultCredentialsError, RefreshError,
+        # MutualTLSChannelError, etc. — all the auth-side failure modes
+        # that bypass GoogleAPIError. isinstance via the tuple is cleaner
+        # than the previous string-name match.
         _logger.error(
             "secret_manager_unauthenticated",
             secret_path=secret_path,
@@ -171,10 +175,12 @@ def _resolve_api_key() -> str:  # noqa: PLR0915 — narrow exception handling ne
         msg = f"Secret Manager API error ({type(e).__name__}) for {secret_path}: {e}"
         raise ConfigurationError(msg) from e
     except Exception as e:
-        # Catch grpc.RpcError + google.auth.GoogleAuthError + any other
-        # leak past the gapic-transport mapping. We re-import grpc lazily
-        # so the dep isn't load-bearing — the broad catch covers it.
-        if type(e).__name__ in ("RpcError", "GoogleAuthError", "_InactiveRpcError"):
+        # Defensive: catch grpc.RpcError leaks past gapic-transport mapping.
+        # We string-match on type name so `grpc` doesn't have to be a direct
+        # import (it's only transitive via google-api-core[grpc]).
+        # GoogleAuthError is NOT in this list — it's caught by isinstance
+        # in the explicit except clause above, which is cleaner.
+        if type(e).__name__ in ("RpcError", "_InactiveRpcError"):
             _logger.error(
                 "secret_manager_transport_error",
                 error_type=type(e).__name__,
@@ -288,7 +294,27 @@ def setup_observability(
 
     current_global = _otel_trace.get_tracer_provider()
     if current_global is not tracer_provider:
-        _logger.error(
+        # On Cloud Run, this is a production-fatal misconfiguration:
+        # tools.py manual spans will silently disappear while ADK-
+        # instrumented spans land, producing a half-empty Attack Matrix
+        # at demo time. Fail loud (same H1 pattern as credential-missing).
+        # In local dev or with the explicit opt-in, log + degrade.
+        if _should_fail_loud():
+            _logger.error(
+                "phoenix_global_tracer_provider_not_installed_cloud_run",
+                current_global_type=type(current_global).__name__,
+                returned_provider_type=type(tracer_provider).__name__,
+                env="cloud_run",
+            )
+            msg = (
+                "Phoenix-wired tracer provider was NOT installed as the OTel "
+                "global on Cloud Run — some earlier code (likely an import-"
+                "order regression) installed one first. Fix server.py so "
+                "setup_observability() runs BEFORE any module that calls "
+                "trace.get_tracer() at import time."
+            )
+            raise ConfigurationError(msg)
+        _logger.warning(
             "phoenix_global_tracer_provider_not_installed",
             current_global_type=type(current_global).__name__,
             returned_provider_type=type(tracer_provider).__name__,
@@ -296,8 +322,8 @@ def setup_observability(
                 "OTel's set-once guard fired — some earlier code installed "
                 "a global TracerProvider before setup_observability ran. "
                 "Module-level trace.get_tracer() calls will route to the "
-                "earlier global, not Phoenix. In production this means "
-                "tools.py spans never reach Phoenix; fix the import order."
+                "earlier global, not Phoenix. Likely test-context only; "
+                "if this fires in production, fix import order in server.py."
             ),
         )
 

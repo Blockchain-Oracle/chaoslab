@@ -107,10 +107,9 @@ def test_target_tool_span_lands_in_phoenix_cloud(monkeypatch: pytest.MonkeyPatch
             # Empirical observation from this S2.3 test run: Phoenix Cloud's
             # /v1/projects/{name}/spans REST endpoint returns OpenInference
             # span kind as a top-level `span_kind` field (e.g.
-            # `"span_kind": "TOOL"`). Some other endpoints + the
-            # `phoenix.client.spans.get_spans_dataframe()` API may surface
-            # it as a nested attribute instead (per RAT-2 IF-13). Check both
-            # to remain robust across Phoenix response shapes.
+            # `"span_kind": "TOOL"`). Defensive: also check the nested
+            # `attributes.openinference.span.kind` path in case other
+            # endpoints or future Phoenix versions surface it that way.
             tool_spans = [
                 s
                 for s in spans
