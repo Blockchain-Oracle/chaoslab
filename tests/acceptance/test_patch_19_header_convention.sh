@@ -144,6 +144,38 @@ pass "ADR-015 cleanly takes the next number; ADR-014 reservation tracked; TBD-19
 # header convention is advisory; a malicious target could echo the
 # acknowledgment attribute without actually honoring. Spec must say so.
 assert_grep "advisory, not enforced" docs/header-convention.md
+# Round-3 silent-failure-hunter + test-analyzer: closed-vocabulary
+# anti-anchor regex is structurally flawed (each round adds N synonyms,
+# reviewers find M more). Switching to BYTE-LOCK the canonical threat-
+# model claims — same discipline as the warning fixture above. Any reword
+# of the load-bearing claims fails the gate; only ADDING contradictory
+# claims elsewhere needs the regex coarse-filter (which we keep below).
+IFS= read -r -d '' THREAT_MODEL_INTRO <<'EOF' || true
+The header convention is **advisory, not enforced.** Specifically:
+EOF
+THREAT_MODEL_INTRO="${THREAT_MODEL_INTRO%$'\n'}"
+assert_block_present "$THREAT_MODEL_INTRO" docs/header-convention.md 50
+IFS= read -r -d '' THREAT_CLAIM_1 <<'EOF' || true
+1. **A target that ignores the headers still executes side-effecting tools.**
+   The headers don't prevent execution; they only request the target opt into
+   dry-run. The audit-report warning above is the visible signal when a
+   target didn't opt in.
+EOF
+THREAT_CLAIM_1="${THREAT_CLAIM_1%$'\n'}"
+assert_block_present "$THREAT_CLAIM_1" docs/header-convention.md
+IFS= read -r -d '' THREAT_CLAIM_2 <<'EOF' || true
+2. **The acknowledgment attribute (`phoenix_audit.honored = true`) is
+   self-reported by the target.** A malicious target could emit the attribute
+   without actually short-circuiting its side-effecting tools.
+EOF
+THREAT_CLAIM_2="${THREAT_CLAIM_2%$'\n'}"
+assert_block_present "$THREAT_CLAIM_2" docs/header-convention.md
+IFS= read -r -d '' THREAT_CLAIM_3 <<'EOF' || true
+3. **Run-Id is not cryptographically bound.** A malicious target could log
+   or replay the Run-Id outside the audit window.
+EOF
+THREAT_CLAIM_3="${THREAT_CLAIM_3%$'\n'}"
+assert_block_present "$THREAT_CLAIM_3" docs/header-convention.md 50
 # Round-1 test-analyzer HIGH-1 + negative-space gap #4: anti-anchor against
 # any silent strengthening of the disclosure. Match lines making cryptographic
 # / enforcement / guaranteed claims, THEN strip lines that are:
@@ -158,7 +190,7 @@ deferral_lines=$(grep -nE 'TBD-19|post-hackathon|out of scope|deferred' docs/hea
   | cut -d: -f1 \
   | awk '{print $1; print $1+1; print $1+2; print $1+3; print $1+4}' \
   | sort -un)
-strengthening_bad=$(grep -niE '(cryptograph[a-z]*\s+(bound|verified|prevented|prevents|enforced|enforces|tight|secure|secures|bind|binds|block|blocks|guarantee|guarantees|sign|signs)|tamper-proof|enforced\s+via\s+crypt|guaranteed\s+(to\s+)?(prevent|short-circuit|block)|(MANDATES?|REQUIRES?)\s+(that|all|every|each|the\s+target)|(non-negotiable|non-optional|contractually\s+enforced|binding\s+(on|for))\s+(target|requirement|implementation)|(headers?|targets?)\s+(prevent|block|prohibit)s?\s+side\s*-?\s*effect|will\s+be\s+implemented|will\s+ship|cannot\s+proceed\s+without)' docs/header-convention.md \
+strengthening_bad=$(grep -niE '(cryptograph[a-z]*\s+(bound|verified|prevented|prevents|enforced|enforces|tight|secure|secures|bind|binds|block|blocks|guarantee|guarantees|sign|signs|authenticate[d]?)|tamper-proof|enforced\s+via\s+crypt|guaranteed\s+(to\s+)?(prevent|short-circuit|block)|(MANDATES?|REQUIRES?|DICTATES?|COMPELS?|IMPOSES?)\s+(that|all|every|each|the\s+target)|(non-negotiable|non-optional|contractually\s+enforced|binding\s+(on|for|requirement)|contractually\s+obligated|hard\s+requirement|unbreakable|inviolable|enforceable|COMPULSORY|OBLIGATORY)\s*(target|requirement|implementation|under)?|(headers?|targets?)\s+(prevent|block|prohibit|stop|halt|preclude|enforce)s?\s+(side\s*-?\s*effect|the\s+target)|(headers?|convention|run-id|attribute)\s+(will\s+be|shall\s+be)?\s*(enforced|honored\s+as|mandatory|required\s+via)|shall\s+(stop|block|prevent|prohibit|enforce|halt)|will\s+be\s+(implemented|enforced|blocked|honored|cryptographically)|will\s+ship|cannot\s+proceed\s+without|Failure\s+to\s+honor\s+results\s+in)' docs/header-convention.md \
   | grep -ivE '(not cryptograph|NOT cryptograph)' \
   | while IFS= read -r line; do
       ln=$(echo "$line" | cut -d: -f1)
@@ -240,7 +272,8 @@ DOWNSTREAM_SECTION=$(awk '/^## Downstream test obligations/{flag=1} flag && /^##
 # Write extracted section to a temp file so we can grep against it.
 DOWNSTREAM_TMPFILE=$(mktemp)
 echo "$DOWNSTREAM_SECTION" >"$DOWNSTREAM_TMPFILE"
-trap "rm -f $DOWNSTREAM_TMPFILE" EXIT
+# Round-3 LOW: quote the trap body to avoid premature expansion + clobber.
+trap 'rm -f "$DOWNSTREAM_TMPFILE"' EXIT
 # Epic 4 injector: three headers + refuse-on-missing semantic. INSIDE section.
 assert_grep 'X-Phoenix-Audit: true' "$DOWNSTREAM_TMPFILE"
 assert_grep 'X-Phoenix-Audit-Run-Id' "$DOWNSTREAM_TMPFILE"
