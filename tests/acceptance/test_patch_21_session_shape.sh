@@ -159,6 +159,10 @@ pass "Downstream obligations section-scoped (Epic 5) + per-probe single/2-turn +
 # Strategy: match overclaim adjective broadly, then word-boundary-filter
 # any line with an explicit negation/deferral/tradeoff token.
 for f in docs/session-shape.md docs/architecture.md docs/PRD.md docs/audit-notes.md; do
+  # Round-2 silent-failure F1 fix: assert_readable each file BEFORE the
+  # scan so a missing file fails loud with the helper's clear message
+  # instead of silently reporting 0 overclaims via `|| true`.
+  assert_readable "$f"
   # First pass: find overclaim candidates. Both `grep -c` and the
   # downstream `grep -v | wc -l` exit 1 on zero matches — disable pipefail
   # so set -e doesn't kill the script, and use `|| true` defensively.
@@ -192,7 +196,9 @@ pass "2-turn protocol declaration byte-locked (Epic 5 contract verbatim)"
 assert_grep 'phoenix_audit\.session_mode' docs/session-shape.md
 assert_grep 'phoenix_audit\.turn_index' docs/session-shape.md
 # Anti-anchor typo/case variants (kebab-case, double-underscore, etc.).
-typo_drift=$(grep -cE '(phoenix-audit\.session_mode|phoenixAudit\.session_mode|phoenix_audit_session_mode|phoenix\.audit\.session_mode|phoenix-audit\.turn_index|phoenixAudit\.turn_index)' docs/session-shape.md || true)
+# Round-2 silent-failure F2 fix: use grep_count helper for proper rc≥2
+# discrimination instead of raw `grep -cE | true`.
+typo_drift=$(grep_count '(phoenix-audit\.session_mode|phoenixAudit\.session_mode|phoenix_audit_session_mode|phoenix\.audit\.session_mode|phoenix-audit\.turn_index|phoenixAudit\.turn_index)' docs/session-shape.md)
 test "$typo_drift" -eq 0 \
   || fail "session-shape.md contains $typo_drift typo/drift variant(s) of the phoenix_audit.* namespace"
 pass "Per-turn namespace attributes anchored (phoenix_audit.session_mode + phoenix_audit.turn_index) with escaped-dot regex + typo anti-anchor"

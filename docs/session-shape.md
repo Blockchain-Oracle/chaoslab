@@ -121,10 +121,12 @@ mitigation works (drops wall-clock to roughly the slowest 2-turn probe ≈
 or (c) the demo runs partially overlapping with judge/patcher/reporter
 phases so the wall-clock is non-strictly-additive.
 
-**Honest disclosure:** the 90s budget is **projected, not measured.** If all
-three mitigations fail, the demo overruns to ~144s — the failure mode is
-"longer demo," not "silently incorrect audit." Cross-reference PRD Known
-Limitations ("Investigating the latency further is post-hackathon work").
+**Honest disclosure:** the 90s budget is **projected, not measured.** If
+none of (a), (b), (c) hold (the two RAT-2-listed mitigations + the
+phase-overlap scheduling assumption), the demo overruns to ~144s — the
+failure mode is "longer demo," not "silently incorrect audit." Cross-
+reference PRD Known Limitations ("Investigating the latency further is
+post-hackathon work").
 
 ---
 
