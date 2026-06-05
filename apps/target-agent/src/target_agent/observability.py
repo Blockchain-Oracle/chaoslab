@@ -3,34 +3,36 @@
 Wires the target agent's tool + LLM spans to Phoenix Cloud so Phoenix Audit's
 clusterer (and the demo Attack Matrix) can read them back.
 
-**Import-order constraint** (per research/.../architecture/02-phoenix-deep-dive.md §3.5
-and OpenInference instrumentor docs): this module must be imported and
-`setup_observability()` must be invoked BEFORE any `google.adk.*` import in
-calling modules. Empirically verified — see the acceptance-test AST check.
+**Import-order constraint** (verified at the source level by the acceptance-test
+AST check at `tests/acceptance/test_story_2_3_target_phoenix.sh`): this module
+must be imported and `setup_observability()` must be invoked BEFORE any
+`google.adk.*` import in calling modules. The OpenInference instrumentor
+monkey-patches ADK internals; doing it after consumers have bound module
+attributes leaves spans silently uninstrumented. The runtime failure mode
+is documented in `research/.../architecture/02-phoenix-deep-dive.md §3.4`.
 
-**Flag rationale** (per architecture/02 §3.5, NOT ADR-005 — see Day-4 amendment
-D4-8 in audit-notes correcting the prior miscitation):
+**Flag choices** (per architecture/02 §3.5 Cloud Run guidance):
 
-- `batch=False`  — forces `SimpleSpanProcessor` (synchronous export); the 90-
-  second demo cannot tolerate the default `BatchSpanProcessor`'s 5s flush
-  interval. This flag CARRIES THROUGH to Cloud Run and is mandatory for us.
-- `set_global_tracer_provider=False` — keeps `register()` from clobbering an
-  externally-installed global (Vertex Agent Engine installs its own; the flag
-  preserves portability there). On Cloud Run we IMMEDIATELY install the global
-  ourselves on the next line so consumers using `trace.get_tracer()` see the
-  Phoenix-wired provider. Without this we'd need `tools.py` to lazy-import the
-  tracer per-call — see test_observability::test_global_tracer_provider_is_phoenix_wired.
-- `auto_instrument=False` — we explicitly wire `GoogleADKInstrumentor`; do not
-  let Phoenix hook every installed openinference-* package and pollute spans.
+- `set_global_tracer_provider=True` (default) — Cloud Run is our locked
+  deploy target per ADR-003. §3.5 explicitly recommends defaults on Cloud
+  Run; we honor that. Vertex Agent Engine portability is a non-goal.
+- `batch=True` (default) — Cloud Run does NOT pause CPU between requests
+  like Agent Engine, so BatchSpanProcessor's 5s flush interval is fine.
+  Demo-urgency flushing is handled by the orchestrator calling
+  `force_flush()` at audit-end, not by switching the processor type.
+- `auto_instrument=False` — we explicitly wire `GoogleADKInstrumentor`;
+  do not let Phoenix hook every installed openinference-* package and
+  pollute spans.
 
 **Credential resolution for `PHOENIX_API_KEY`:**
 
   1. `os.environ["PHOENIX_API_KEY"]` if set (local dev convenience)
-  2. Google Secret Manager `phoenix-api-key/versions/latest` under `$GCP_PROJECT_ID`
+  2. Google Secret Manager `phoenix-api-key/versions/latest` under
+     `$GCP_PROJECT_ID` — planned for S2.4 Cloud Run deploy
   3. Raise `ConfigurationError` UNLESS:
      - Running on Cloud Run (`K_SERVICE` env var set): always fail loud
-     - `PHOENIX_OBSERVABILITY_OPTIONAL=1`: log warning + return no-op provider
-     - Default (local dev): log warning + return no-op provider
+     - `PHOENIX_OBSERVABILITY_OPTIONAL=1`: log warning + return no-op
+     - Default (local dev): log warning + return no-op
 """
 
 from __future__ import annotations
@@ -62,24 +64,24 @@ class DegradedTracerProvider:
 
     Returned by `setup_observability()` when credentials are missing AND
     fail-loud mode is not active. Lets callers + tests `isinstance`-check
-    whether observability is actually live vs silently dead.
+    whether observability is actually live vs silently dead. Transparently
+    delegates all TracerProvider methods (`get_tracer`, `force_flush`,
+    `shutdown`, `add_span_processor`) to the wrapped instance via
+    `__getattr__`.
     """
 
     def __init__(self, inner: _TPType) -> None:
         self._inner = inner
 
     def __getattr__(self, name: str) -> object:
-        # Delegate every attribute lookup to the wrapped provider so this is
-        # transparent to code that calls force_flush(), get_tracer(), etc.
         return getattr(self._inner, name)
 
 
-def _resolve_api_key() -> str:
+def _resolve_api_key() -> str:  # noqa: PLR0915 — narrow exception handling needs the statement budget
     """Resolve PHOENIX_API_KEY from env first, then Secret Manager.
 
     Returns the key string. Raises `ConfigurationError` with an actionable
-    operator message keyed to the specific failure mode (NotFound,
-    PermissionDenied, Unauthenticated, transient API error, etc.).
+    operator message keyed to the specific failure mode.
     """
     env_key = os.environ.get("PHOENIX_API_KEY")
     if env_key:
@@ -94,28 +96,44 @@ def _resolve_api_key() -> str:
         )
         raise ConfigurationError(msg)
 
-    # Deferred import: gates the GCP client import on actually needing it, so
-    # local dev with PHOENIX_API_KEY in env doesn't pay the GCP libs' cost.
+    # Deferred import: avoids the import-time CPU cost of
+    # google-cloud-secret-manager when the local-dev path resolves
+    # PHOENIX_API_KEY from env first. (The package is a hard runtime dep
+    # per pyproject.toml; this is purely a startup-latency optimization.)
     try:
         from google.cloud import secretmanager  # noqa: PLC0415
     except ImportError as e:
         msg = (
             "google-cloud-secret-manager is not installed; cannot resolve "
-            "PHOENIX_API_KEY via Secret Manager fallback."
+            "PHOENIX_API_KEY via Secret Manager fallback. Run `uv sync`."
         )
         raise ConfigurationError(msg) from e
 
     try:
         from google.api_core import exceptions as gcp_exc  # noqa: PLC0415
     except ImportError as e:
-        # If google-cloud-secret-manager is present, google-api-core must be too,
-        # but guard defensively for partial-install scenarios.
         msg = "google-api-core not installed; cannot classify Secret Manager errors."
         raise ConfigurationError(msg) from e
 
-    client = secretmanager.SecretManagerServiceClient()
-    secret_path = f"projects/{gcp_project}/secrets/{_SECRET_NAME}/versions/latest"
+    # google.auth.exceptions.GoogleAuthError is NOT a subclass of
+    # GoogleAPIError, so we import it separately and add it to the catch
+    # tuple. Same for grpc.RpcError which can leak past gapic-transport
+    # error mapping during channel-shutdown races.
     try:
+        from google.auth import exceptions as gcp_auth_exc  # noqa: PLC0415
+    except ImportError as e:
+        msg = "google-auth not installed; cannot classify Secret Manager errors."
+        raise ConfigurationError(msg) from e
+
+    secret_path = f"projects/{gcp_project}/secrets/{_SECRET_NAME}/versions/latest"
+
+    # Both the client constructor (which triggers ADC resolution) and the
+    # access_secret_version call are inside the try-block — ADC failure on
+    # Cloud Run with broken Workload Identity raises DefaultCredentialsError
+    # at construction time, which is exactly when we want the actionable
+    # ConfigurationError message instead of a raw GCP traceback.
+    try:
+        client = secretmanager.SecretManagerServiceClient()
         response = client.access_secret_version(name=secret_path)
     except gcp_exc.NotFound as e:
         _logger.error("secret_manager_secret_missing", secret_path=secret_path)
@@ -132,11 +150,16 @@ def _resolve_api_key() -> str:
             f"roles/secretmanager.secretAccessor to the Cloud Run service account."
         )
         raise ConfigurationError(msg) from e
-    except gcp_exc.Unauthenticated as e:
-        _logger.error("secret_manager_unauthenticated", secret_path=secret_path)
+    except (gcp_exc.Unauthenticated, gcp_auth_exc.DefaultCredentialsError) as e:
+        _logger.error(
+            "secret_manager_unauthenticated",
+            secret_path=secret_path,
+            error_type=type(e).__name__,
+        )
         msg = (
-            f"Unauthenticated reading {secret_path}. Workload Identity "
-            f"Federation may be broken; check service account binding."
+            f"Unauthenticated reading {secret_path} ({type(e).__name__}). "
+            f"Workload Identity Federation may be broken; check service "
+            f"account binding on the Cloud Run revision."
         )
         raise ConfigurationError(msg) from e
     except gcp_exc.GoogleAPIError as e:
@@ -147,6 +170,23 @@ def _resolve_api_key() -> str:
         )
         msg = f"Secret Manager API error ({type(e).__name__}) for {secret_path}: {e}"
         raise ConfigurationError(msg) from e
+    except Exception as e:
+        # Catch grpc.RpcError + google.auth.GoogleAuthError + any other
+        # leak past the gapic-transport mapping. We re-import grpc lazily
+        # so the dep isn't load-bearing — the broad catch covers it.
+        if type(e).__name__ in ("RpcError", "GoogleAuthError", "_InactiveRpcError"):
+            _logger.error(
+                "secret_manager_transport_error",
+                error_type=type(e).__name__,
+                secret_path=secret_path,
+            )
+            msg = (
+                f"Secret Manager transport error ({type(e).__name__}): {e}. "
+                f"This usually means the gRPC channel was reset mid-call; "
+                f"retry once. If persistent, check network egress."
+            )
+            raise ConfigurationError(msg) from e
+        raise
 
     secret = response.payload.data.decode("utf-8").strip()
     if not secret:
@@ -159,9 +199,10 @@ def _resolve_api_key() -> str:
 def _should_fail_loud() -> bool:
     """Return True if missing credentials should crash the boot.
 
-    Cloud Run sets `K_SERVICE` in every container; presence implies production.
-    `PHOENIX_OBSERVABILITY_OPTIONAL=1` is the explicit local-dev opt-in for
-    the graceful-degradation path.
+    `K_SERVICE` is set on every Cloud Run SERVICE container (Cloud Run jobs
+    use `CLOUD_RUN_JOB` instead). target-agent deploys as a service, so
+    presence implies production. `PHOENIX_OBSERVABILITY_OPTIONAL=1` is
+    the explicit local-dev opt-in for the graceful-degradation path.
     """
     on_cloud_run = bool(os.environ.get("K_SERVICE"))
     opted_in = os.environ.get("PHOENIX_OBSERVABILITY_OPTIONAL") == "1"
@@ -209,8 +250,10 @@ def setup_observability(
         return DegradedTracerProvider(TracerProvider())  # type: ignore[return-value]
 
     # Side-effect: writes PHOENIX_API_KEY + PHOENIX_COLLECTOR_ENDPOINT to
-    # os.environ because phoenix.otel.register() reads them from the env,
-    # not from kwargs. Idempotent across re-invocation.
+    # os.environ because the phoenix.otel.register() versions we support
+    # (arize-phoenix-otel >=0.10,<1.0.0) read these from the env. Newer
+    # 4.x+ versions also accept kwargs, but env-writes are conservative
+    # and work across version drift. Idempotent across re-invocation.
     os.environ["PHOENIX_API_KEY"] = api_key
     endpoint = os.environ.get("PHOENIX_COLLECTOR_ENDPOINT", _DEFAULT_COLLECTOR_ENDPOINT)
     os.environ.setdefault("PHOENIX_COLLECTOR_ENDPOINT", endpoint)
@@ -228,27 +271,38 @@ def setup_observability(
         )
         raise ConfigurationError(msg) from e
 
+    # Cloud Run defaults per architecture/02 §3.5: set_global_tracer_provider=True
+    # and batch=True. tools.py's module-level `trace.get_tracer()` will
+    # automatically pick up the global Phoenix-wired provider.
     tracer_provider = register(
         project_name=project_name,
-        set_global_tracer_provider=False,
-        batch=False,
         auto_instrument=False,
     )
 
-    # Explicitly install the Phoenix-wired provider as the global so
-    # `trace.get_tracer(...)` (used at module load in tools.py) routes to
-    # Phoenix instead of the no-op default. Why this is necessary
-    # empirically: the S2.3 integration test was failing with 404
-    # "project not found" before this line was added — manual tool spans
-    # were emitting to the no-op default, never reaching Phoenix.
+    # Defensive runtime check: if some upstream code already installed a
+    # global TracerProvider (e.g. a test-side conftest), register() may
+    # have silently no-op'd the global install (OTel emits a logger.warning
+    # then keeps the existing global). Surface this for production
+    # diagnostics — a no-op global means tools.py spans go nowhere.
     from opentelemetry import trace as _otel_trace  # noqa: PLC0415
 
-    _otel_trace.set_tracer_provider(tracer_provider)
+    current_global = _otel_trace.get_tracer_provider()
+    if current_global is not tracer_provider:
+        _logger.error(
+            "phoenix_global_tracer_provider_not_installed",
+            current_global_type=type(current_global).__name__,
+            returned_provider_type=type(tracer_provider).__name__,
+            note=(
+                "OTel's set-once guard fired — some earlier code installed "
+                "a global TracerProvider before setup_observability ran. "
+                "Module-level trace.get_tracer() calls will route to the "
+                "earlier global, not Phoenix. In production this means "
+                "tools.py spans never reach Phoenix; fix the import order."
+            ),
+        )
 
-    # ADK auto-instrumentor. Must run AFTER register() (needs the provider)
-    # and BEFORE any ADK import in calling modules. Deferred so the
-    # instrumentor never gets attached to a no-op global provider. Wrapped
-    # the same way as register() so partial installs surface clearly.
+    # ADK auto-instrumentor. Must run AFTER register() (needs the provider).
+    # Wrapped the same way as register() so partial installs surface clearly.
     try:
         from openinference.instrumentation.google_adk import (  # noqa: PLC0415
             GoogleADKInstrumentor,

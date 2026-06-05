@@ -38,10 +38,12 @@ _REQUIRES_PHOENIX_KEY = not bool(os.environ.get("PHOENIX_API_KEY"))
     _REQUIRES_PHOENIX_KEY,
     reason="Requires PHOENIX_API_KEY env var pointing at a real Phoenix Cloud workspace",
 )
-def test_target_tool_span_lands_in_phoenix_cloud() -> None:
+def test_target_tool_span_lands_in_phoenix_cloud(monkeypatch: pytest.MonkeyPatch) -> None:
     """A real lookup_order call surfaces as an OpenInference TOOL span."""
     test_project = f"target-agent-test-{uuid.uuid4().hex[:8]}"
-    os.environ["PHOENIX_PROJECT_NAME"] = test_project
+    # Use monkeypatch.setenv so the project name doesn't leak into the
+    # pytest session env after this test finishes.
+    monkeypatch.setenv("PHOENIX_PROJECT_NAME", test_project)
 
     # setup_observability must run before any google.adk import in this test;
     # since we haven't imported target_agent.agent at module level, this order
@@ -74,6 +76,7 @@ def test_target_tool_span_lands_in_phoenix_cloud() -> None:
 
     deadline = time.monotonic() + 30.0
     tool_spans: list[dict] = []
+    saw_any_span = False
     last_status: int | None = None
     last_body: str = ""
     last_error: str = ""
@@ -97,11 +100,17 @@ def test_target_tool_span_lands_in_phoenix_cloud() -> None:
             )
         if r.status_code == 200:
             spans = r.json().get("data", []) or r.json().get("spans", []) or []
-            if spans and not first_span_sample:
-                first_span_sample = json.dumps(spans[0], indent=2)[:1000]
-            # Phoenix REST flattens OpenInference span kind to a TOP-LEVEL
-            # `span_kind` field (per RAT-2 IF-13: standard OI attrs get
-            # their own columns; only custom-namespace attrs nest as a dict).
+            if spans:
+                saw_any_span = True
+                if not first_span_sample:
+                    first_span_sample = json.dumps(spans[0], indent=2)[:1000]
+            # Empirical observation from this S2.3 test run: Phoenix Cloud's
+            # /v1/projects/{name}/spans REST endpoint returns OpenInference
+            # span kind as a top-level `span_kind` field (e.g.
+            # `"span_kind": "TOOL"`). Some other endpoints + the
+            # `phoenix.client.spans.get_spans_dataframe()` API may surface
+            # it as a nested attribute instead (per RAT-2 IF-13). Check both
+            # to remain robust across Phoenix response shapes.
             tool_spans = [
                 s
                 for s in spans
@@ -115,13 +124,26 @@ def test_target_tool_span_lands_in_phoenix_cloud() -> None:
                 break
         time.sleep(1.0)
 
-    assert tool_spans, (
-        f"No TOOL spans found at {spans_url} within 30s. "
-        f"last_status={last_status}, last_body[:500]={last_body!r}, "
-        f"last_error={last_error!r}. "
-        f"First span shape (if any returned, may inform attribute-path debugging): "
-        f"{first_span_sample[:500]!r}. "
-        f"If 404 'project not found' persists: Phoenix may not have created the "
-        f"project yet — check the trace export endpoint. If 401/403 surfaced "
-        f"earlier the test would have fail-fast'd, so this is something else."
-    )
+    # Distinguish the three failure modes:
+    #   1. Never reached the project (404 throughout) — emission/wire failed
+    #   2. Reached the project but no spans landed (200 with empty data) —
+    #      Phoenix is up but our spans aren't getting ingested
+    #   3. Spans landed but none had span_kind=TOOL — instrumentor broken
+    if not tool_spans:
+        if not saw_any_span:
+            failure_mode = (
+                "no spans visible in Phoenix project — either emission/wire "
+                "failed (force_flush returned True but spans didn't land), or "
+                "Phoenix Cloud project never created"
+            )
+        else:
+            failure_mode = (
+                "spans landed in Phoenix but NONE had span_kind=TOOL — the "
+                "GoogleADKInstrumentor or tools.py manual span emission is broken"
+            )
+        pytest.fail(
+            f"No TOOL spans found at {spans_url} within 30s. "
+            f"Failure mode: {failure_mode}. "
+            f"last_status={last_status}, last_body[:500]={last_body!r}, "
+            f"last_error={last_error!r}, first_span_sample={first_span_sample!r}"
+        )
