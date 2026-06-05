@@ -25,7 +25,7 @@ dependencies = [
   # Cloud Run's container start command.
   "uvicorn[standard]>=0.34.0,<1.0.0",
   # OpenInference auto-instrumentation for ADK — emits the TOOL/AGENT spans
-  # Phoenix Audit reads back for trace clustering. Version pinned per IF-12.
+  # Phoenix Audit reads back for trace clustering.
   "openinference-instrumentation-google-adk>=0.1.15",
   # Phoenix client surface — needed when this agent ships traces to a
   # Phoenix project (Customer-controlled OR Phoenix Audit's project,
@@ -33,8 +33,7 @@ dependencies = [
   "arize-phoenix-otel>=0.10",
   # Structured logging for any non-print diagnostic.
   "structlog>=24",
-  # Pydantic — used by ADK + we'll use it for tool argument schemas
-  # in S2.2 (the to_a2a wiring); declaring here so the dep is present.
+  # Pydantic — transitively required by ADK; declared explicitly for visibility.
   "pydantic>=2",
 ]
 

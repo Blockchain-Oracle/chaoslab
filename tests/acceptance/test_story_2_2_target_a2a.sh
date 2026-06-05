@@ -35,13 +35,16 @@ assert callable(s.main), 'main is not callable'
 "
 pass "target_agent.server.a2a_app present and main is callable"
 
-# -- BDD: __init__.py re-exports a2a_app ----------------------------------------
+# -- BDD: target_agent package re-exports root_agent; a2a_app via server module --
+# (Deliberate: dropping a2a_app from __init__ avoids forcing all S2.1 unit tests
+# to instantiate the A2A machinery + emit 4 EXPERIMENTAL warnings per import.)
 run_silent uv run --directory apps/target-agent python -c "
-from target_agent import a2a_app, root_agent
+from target_agent import root_agent
+from target_agent.server import a2a_app
 assert a2a_app is not None
 assert root_agent.name == 'target_customer_support'
 "
-pass "target_agent package re-exports a2a_app + root_agent"
+pass "target_agent re-exports root_agent; a2a_app importable via target_agent.server"
 
 # -- BDD: server module starts cleanly without PHOENIX_API_KEY ------------------
 # (Phoenix wiring is S2.3; agent card must resolve without any Phoenix env var.)
@@ -132,7 +135,7 @@ INT_LOG="$(mktemp)"
   rm -f "$INT_LOG"
   fail "pytest tests/integration failed"
 }
-INT_PASSED=$(grep -cE "PASSED" "$INT_LOG" || true)
+INT_PASSED=$(grep_count "PASSED" "$INT_LOG")
 rm -f "$INT_LOG"
 if [ "$INT_PASSED" -lt 2 ]; then
   fail "expected ≥2 integration tests PASSED, got $INT_PASSED"
@@ -148,7 +151,7 @@ ALL_LOG="$(mktemp)"
   rm -f "$ALL_LOG"
   fail "full pytest suite failed"
 }
-ALL_PASSED=$(grep -cE "PASSED" "$ALL_LOG" || true)
+ALL_PASSED=$(grep_count "PASSED" "$ALL_LOG")
 rm -f "$ALL_LOG"
 if [ "$ALL_PASSED" -lt 12 ]; then
   fail "expected ≥12 tests PASSED total (unit + integration), got $ALL_PASSED"

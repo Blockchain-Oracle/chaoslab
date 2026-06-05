@@ -24,7 +24,7 @@ Detailed per-dimension findings below.
 
 ### What Phoenix Audit does
 
-Five-tier target-adapter strategy per `docs/architecture.md` lines 60-67:
+Three-tier target-adapter strategy per `docs/architecture.md` lines 60-67:
 
 - **Tier 1:** Google ADK A2A protocol (`adk_adapter.py`)
 - **Tier 2:** LangChain, CrewAI, OpenAI Agents SDK via OpenInference
