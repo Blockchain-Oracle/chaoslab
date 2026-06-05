@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import shutil
 import subprocess
+from collections.abc import Iterator
 from pathlib import Path
 
 import pytest
@@ -37,8 +38,14 @@ def docker_cli() -> str:
 
 
 @pytest.fixture(scope="module")
-def built_image(docker_cli: str) -> str:
-    """Build the image once per module (slow); subsequent tests reuse it."""
+def built_image(docker_cli: str) -> Iterator[str]:
+    """Build the image once per module (slow); subsequent tests reuse it.
+
+    Finalizer removes the image after the module's tests run so repeated
+    invocations don't leak `target-agent:pytest-s2-4` tags into the local
+    docker registry. Failure of `docker rmi` is warned, not raised — the
+    test suite shouldn't fail on cleanup hiccups.
+    """
     result = subprocess.run(  # noqa: S603 — docker_cli is shutil.which() resolved
         [
             docker_cli,
@@ -61,7 +68,23 @@ def built_image(docker_cli: str) -> str:
             f"--- stdout (last 2000 chars) ---\n{result.stdout[-2000:]}\n"
             f"--- stderr (last 2000 chars) ---\n{result.stderr[-2000:]}"
         )
-    return _IMAGE_TAG
+    yield _IMAGE_TAG
+    # Cleanup: don't let the image leak across runs. Warn-only on failure.
+    rm_result = subprocess.run(  # noqa: S603
+        [docker_cli, "rmi", "-f", _IMAGE_TAG],
+        capture_output=True,
+        text=True,
+        timeout=30,
+        check=False,
+    )
+    if rm_result.returncode != 0:
+        import warnings
+
+        warnings.warn(
+            f"docker rmi -f {_IMAGE_TAG} returned {rm_result.returncode}; "
+            f"image may leak across runs. stderr: {rm_result.stderr[-500:]}",
+            stacklevel=1,
+        )
 
 
 def test_dockerfile_builds_from_workspace_root_context(built_image: str) -> None:

@@ -10,7 +10,9 @@
 #
 # Building from inside apps/target-agent (the story spec's original
 # example) will fail with "uv.lock not found". The Cloud Run deploy
-# workflow (S1.6) passes the right context automatically.
+# workflow (S1.6, currently PENDING in sprint-status.yaml) will pass the
+# right context once shipped — until then, deploy commands must use
+# workspace-root context manually.
 #
 # Architecture: deps → build → runtime (slim, non-root, signal-safe).
 
@@ -105,8 +107,10 @@ COPY --from=build --chown=appuser:appuser /workspace/apps/target-agent/pyproject
 WORKDIR /app
 USER appuser
 
-# Cloud Run reads $PORT (default 8080) and ignores EXPOSE. The CMD respects
-# $PORT via server.py's main(). EXPOSE is documentary only.
+# Cloud Run reads $PORT (default 8080) and ignores EXPOSE entirely. The CMD
+# respects $PORT via server.py's main(). EXPOSE 8001 is documentary for
+# local-dev only — matches the _DEFAULT_PORT constant in server.py. Cloud Run
+# deployments bind 8080 regardless; this line is informational.
 EXPOSE 8001
 
 # Exec form (JSON array) — important for SIGTERM forwarding on Cloud Run scale-down.

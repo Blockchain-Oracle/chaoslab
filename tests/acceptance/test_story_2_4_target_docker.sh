@@ -11,17 +11,21 @@
 # shellcheck source=tests/acceptance/_lib.sh
 source "$(dirname "${BASH_SOURCE[0]}")/_lib.sh"
 
-# -- BDD: Dockerfile + .dockerignore exist ------------------------------------
+# -- BDD: Dockerfile + Dockerfile.dockerignore exist --------------------------
+# NOTE: the dockerignore file is named `Dockerfile.dockerignore` (NOT plain
+# `.dockerignore`) so BuildKit 1.7+ auto-discovers it under the workspace-
+# root-context build pattern. A subdirectory `.dockerignore` is silently
+# ignored by docker. See PR #27 W1 finding + Dockerfile.dockerignore preamble.
 assert_file apps/target-agent/Dockerfile
-assert_file apps/target-agent/.dockerignore
-pass "S2.4 file map present (Dockerfile + .dockerignore)"
+assert_file apps/target-agent/Dockerfile.dockerignore
+pass "S2.4 file map present (Dockerfile + Dockerfile.dockerignore)"
 
-# -- BDD: .dockerignore has key entries ---------------------------------------
-assert_grep "^\.git$" apps/target-agent/.dockerignore
-assert_grep "^\.venv$" apps/target-agent/.dockerignore
-assert_grep "^tests$" apps/target-agent/.dockerignore
-assert_grep "^__pycache__$" apps/target-agent/.dockerignore
-pass ".dockerignore excludes .git / .venv / tests / __pycache__"
+# -- BDD: Dockerfile.dockerignore has key entries -----------------------------
+assert_grep "^\.git$" apps/target-agent/Dockerfile.dockerignore
+assert_grep "^\.venv$" apps/target-agent/Dockerfile.dockerignore
+assert_grep "^tests$" apps/target-agent/Dockerfile.dockerignore
+assert_grep "^__pycache__$" apps/target-agent/Dockerfile.dockerignore
+pass "Dockerfile.dockerignore excludes .git / .venv / tests / __pycache__"
 
 # -- BDD: Dockerfile uses multi-stage build (deps, build, runtime) ------------
 assert_grep "FROM python:3\\.12-slim AS deps" apps/target-agent/Dockerfile
@@ -50,8 +54,19 @@ pass "server.py honors PUBLIC_URL env var for agent-card URL (issue #22)"
 run_silent python3 scripts/check_max_lines.py --strict
 pass "400-line guard clean (repo-wide scan)"
 
-# -- BDD: live docker build (if docker is available) --------------------------
-if command -v docker >/dev/null 2>&1; then
+# -- BDD: live docker build (if docker daemon is reachable) -------------------
+# H-3 from PR #27 silent-failure review: `command -v docker` only checks the
+# binary's presence in PATH, NOT the daemon's reachability. A CI runner with
+# docker CLI installed but daemon stopped (or wrong DOCKER_HOST, or no socket
+# perms) would enter this branch and fail late. The `docker info` probe catches
+# the daemon-not-reachable case loud + early. The skip path uses [SKIP] (not
+# [PASS]) so a misconfigured CI doesn't ring a false green.
+if ! command -v docker >/dev/null 2>&1; then
+  echo "[SKIP] docker not in PATH — live-build gates SKIPPED."
+  echo "[SKIP] If this is CI for S2.4, the runner is misconfigured — docker is required."
+elif ! docker info >/dev/null 2>&1; then
+  fail "docker CLI present but daemon unreachable. \`docker info\` failed. Start docker (e.g. \`colima start\`) or fix DOCKER_HOST."
+else
   echo "[INFO] docker found; running live build (~60-180s on cold cache)"
   BUILD_LOG="$(mktemp)"
   # Build context = workspace root (uv workspace requires lockfile at root).
@@ -98,9 +113,6 @@ if command -v docker >/dev/null 2>&1; then
     *) fail "target_agent module import failed inside container; output: $IMPORT_OUT" ;;
   esac
   pass "target_agent module imports cleanly inside container"
-else
-  echo "[INFO] docker not found in PATH — skipping live-build gates (file-shape gates above stand)"
-  pass "docker not available — live build gates SKIPPED (acceptable on CI without docker)"
 fi
 
 # -- §14: no mocks/fake/dummy/hardcoded in src --------------------------------

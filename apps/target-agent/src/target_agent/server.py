@@ -43,11 +43,15 @@ from google.adk.a2a.utils.agent_to_a2a import to_a2a  # noqa: E402
 
 from target_agent.agent import root_agent  # noqa: E402
 
-# Default port mirrors architecture/03-multi-agent-patterns.md §9.C.
-# Cloud Run overrides via $PORT (typically 8080).
+# Default port is a Phoenix Audit project choice per
+# architecture/03-multi-agent-patterns.md §9.C (which uses 8001 across the
+# target-agent examples). The ADK `to_a2a()` default is 8000 — we deliberately
+# diverge to leave the lower-numbered port for the orchestrator (Epic 4).
+# Cloud Run overrides via $PORT (typically 8080) at runtime.
 _DEFAULT_PORT = 8001
 _HTTPS_DEFAULT_PORT = 443
 _HTTP_DEFAULT_PORT = 80
+_SUPPORTED_PUBLIC_URL_SCHEMES = frozenset({"http", "https"})
 
 
 def _build_a2a_app() -> object:
@@ -61,15 +65,28 @@ def _build_a2a_app() -> object:
     then dispatches JSON-RPC to `http://localhost:8001/` — unreachable.
 
     `PUBLIC_URL` overrides the advertised URL with the actual external endpoint.
-    The Cloud Run deploy workflow (S1.6 / S2.4) injects this. Local dev keeps
-    the default `localhost:8001` shape so `curl localhost:8001/.well-known/...`
-    still works.
+    S2.4 (this story) adds the READ-side wiring; the Cloud Run deploy workflow
+    (S1.6, currently PENDING in sprint-status.yaml) will inject the env var via
+    `gcloud run services update --set-env-vars=PUBLIC_URL=<run.app URL>`.
+    Local dev keeps the default `localhost:8001` shape so
+    `curl localhost:8001/.well-known/...` loopback testing still works.
+
+    Validates the scheme strictly: only `http` and `https` are accepted. A
+    silently-coerced `ftp://target.run.app` would make the card advertise an
+    unreachable URL and break downstream `RemoteA2aAgent` dispatch — exactly
+    the failure mode the H-1 finding flagged.
     """
     public_url = os.environ.get("PUBLIC_URL")
     if not public_url:
         return to_a2a(root_agent, port=_DEFAULT_PORT)
 
     parsed = urlparse(public_url)
+    if parsed.scheme not in _SUPPORTED_PUBLIC_URL_SCHEMES:
+        msg = (
+            f"target-agent: PUBLIC_URL scheme must be 'http' or 'https', "
+            f"got {parsed.scheme!r} (full input: {public_url!r})"
+        )
+        raise SystemExit(msg)
     if not parsed.hostname:
         msg = (
             f"target-agent: PUBLIC_URL env var must be a parseable URL with a host, "
@@ -78,12 +95,13 @@ def _build_a2a_app() -> object:
         raise SystemExit(msg)
     # urlparse returns None for `.port` if omitted; default by scheme.
     port = parsed.port or (_HTTPS_DEFAULT_PORT if parsed.scheme == "https" else _HTTP_DEFAULT_PORT)
-    # to_a2a signature: host, port, protocol — all keyword args.
+    # to_a2a signature: host, port, protocol — all keyword args. parsed.scheme
+    # is guaranteed http/https by the whitelist check above; no fallback needed.
     return to_a2a(
         root_agent,
         host=parsed.hostname,
         port=port,
-        protocol=parsed.scheme or "http",
+        protocol=parsed.scheme,
     )
 
 
