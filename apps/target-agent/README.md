@@ -52,11 +52,12 @@ Cloud Run injects `$PORT=8080` automatically; the Dockerfile (S2.4) needs no spe
 
 Tool and LLM calls emit OpenInference-convention spans to Phoenix Cloud.
 The wiring lives in `src/target_agent/observability.py` and is imported by
-`server.py` **before any `google.adk.*` import**. Best practice for
-`wrapt`-based OpenInference instrumentors; empirically verified by the
-S2.3 acceptance test's AST-based ordering check. Source: research/.../
-architecture/02-phoenix-deep-dive.md §3.5 (NOT ADR-005 — audit-notes
-Day-4 amendment D4-8 corrects the prior miscitation).
+`server.py` **before any `google.adk.*` import**. OpenInference auto-
+instrumentors monkey-patch ADK internals; installing them before consumers
+bind module attributes is the documented practice. The S2.3 acceptance
+test's AST-based ordering check enforces this at the source level. The
+correct ordering pattern is shown in `research/.../architecture/02-phoenix-deep-dive.md §3.4`
+(Phoenix Cloud + ADK minimal snippet). Flag-citation history: `audit-notes.md` D4-8.
 
 Env vars (see `.env.example`):
 
