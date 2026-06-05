@@ -86,13 +86,13 @@ stories:
     merged_at: "2026-06-04T23:38:42Z"
   - id: story-2.2-target-a2a-exposure
     epic: "Epic 2 — Target agent"
-    status: PENDING
+    status: COMPLETE
     estimate_hours: 1.0
     tags: [backend, p0, target, a2a]
     depends_on: [story-2.1-naive-target-agent]
     issue_url: ""
-    pr_url: ""
-    merged_at: ""
+    pr_url: "https://github.com/Blockchain-Oracle/chaoslab/pull/18"
+    merged_at: "2026-06-05T00:00:00Z"
   - id: story-2.3-target-phoenix-instrumentation
     epic: "Epic 2 — Target agent"
     status: PENDING
