@@ -117,15 +117,27 @@ not in <any captured log line>`. Both assertions MUST land in Epic 4's
      the run-config object itself — `pydantic.BaseModel` does not implement
      `__enter__`/`__exit__`). Epic 4 ships a separate helper:
      `with audit_run_context(run_config) as ctx:` whose `__exit__` overwrites
-     `ctx.run_config.customer_phoenix.api_key` with `SecretStr("")`
-     (Pydantic v2 requires `model_config = ConfigDict(frozen=False)` +
-     `object.__setattr__` for the rewrite). After the audit returns,
-     `gc.collect()` + sentinel check (`assert not any(o == original_key
-for o in gc.get_referrers(...))`) verifies no surviving Python
-     reference holds the original secret value. **Honest caveat:** Python
-     strings are immutable; "scrub" here means "drop all references and
-     `gc.collect()`." Bytes-level zeroization of the underlying string is
-     not Python-guaranteed without `ctypes` memmove — out of scope for v1.
+     `ctx.run_config.customer_phoenix.api_key` with `SecretStr("")` via
+     `object.__setattr__(...)` (bypasses field validators; works regardless
+     of `model_config.frozen` setting — Pydantic v2's default
+     `frozen=False` does NOT by itself enable in-place rewrite because
+     field assignment normally routes through validators, so the
+     `object.__setattr__` escape hatch is required).
+
+     **Sentinel check (full spec, not a placeholder):** before entering
+     the context, capture the raw secret string:
+     `original_key = run_config.customer_phoenix.api_key.get_secret_value()`.
+     After `__exit__` returns + an explicit `gc.collect()`, scan
+     module-scope containers for survivors: assert that no `dict`/`list`/
+     `tuple` reachable from the current module's globals holds an item
+     equal to `original_key`. **Honest caveat:** `gc.get_referrers`
+     semantics in CPython are loose — false positives possible (test-frame
+     locals can keep the value reachable). The sentinel is defense-
+     in-depth on top of SecretStr-repr + log capture + `__exit__`
+     overwrite, not the actual security boundary. Python strings are
+     immutable; "scrub" means "drop all references and `gc.collect()`."
+     Bytes-level zeroization of the underlying string is not
+     Python-guaranteed without `ctypes` memmove — out of scope for v1.
 
 **RAT-2 Test 1 validates the cross-tenant read works.** Cross-tenant
 Phoenix read latency measured at 1.37s emit-to-visible. See

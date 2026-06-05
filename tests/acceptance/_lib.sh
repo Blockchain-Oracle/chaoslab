@@ -43,28 +43,35 @@ assert_readable() {
 
 assert_grep() {
   # Pattern must appear ≥1 times in file.
+  #
+  # Exit-code discrimination matters: grep 0=match, 1=no-match, ≥2=tool-error.
+  # Round-3 silent-failure-hunter R3-6 caught: `if grep ...; then` resets
+  # `$?` to 0 in the no-match branch, making the rc≥2 tool-error check
+  # unreachable. Capture explicitly into rc instead.
   local pattern="$1" file="$2"
   assert_readable "$file"
-  if grep -qE "$pattern" "$file"; then
-    return 0
-  fi
-  local rc=$?
+  local rc=0
+  grep -qE "$pattern" "$file" || rc=$?
   if [ "$rc" -ge 2 ]; then
     fail "grep failed against $file (exit $rc, pattern '$pattern')"
   fi
-  fail "pattern '$pattern' not found in $file"
+  if [ "$rc" -ne 0 ]; then
+    fail "pattern '$pattern' not found in $file"
+  fi
 }
 
 assert_no_grep() {
   # Pattern must NOT appear in file.
+  # Same exit-code discrimination as assert_grep (round-3 R3-6).
   local pattern="$1" file="$2"
   assert_readable "$file"
-  if grep -qE "$pattern" "$file"; then
-    fail "pattern '$pattern' UNEXPECTEDLY found in $file"
-  fi
-  local rc=$?
+  local rc=0
+  grep -qE "$pattern" "$file" || rc=$?
   if [ "$rc" -ge 2 ]; then
     fail "grep failed against $file (exit $rc, pattern '$pattern')"
+  fi
+  if [ "$rc" -eq 0 ]; then
+    fail "pattern '$pattern' UNEXPECTEDLY found in $file"
   fi
 }
 
@@ -146,17 +153,40 @@ sys.exit(0 if '$needle' in repr(d) else 1)
 # -- block / paragraph assertions (multi-line content lock) -------------------
 
 assert_block_present() {
-  # Verify a multi-line block is present verbatim (newline-delimited)
-  # inside a file. Strict — every line of the block must appear in order.
+  # Verify a multi-line block is present verbatim inside a file
+  # (substring match — every byte of the block must appear in order).
+  # Round-3 silent-failure-hunter R3-3: explicitly reject empty needle
+  # (Python's `"" in text` is trivially True; an empty needle would
+  # silently pass), and reject obviously-too-short needles (defensive
+  # against `read -r -d ''` heredoc parse failure leaving the variable
+  # empty or near-empty).
   # Usage: assert_block_present "$block_text" docs/foo.md
   local block="$1" file="$2"
+  [ -n "$block" ] || fail "assert_block_present: empty needle (heredoc parse failure?)"
+  if [ "${#block}" -lt 32 ]; then
+    fail "assert_block_present: needle suspiciously short (${#block} chars; expected ≥32 — heredoc parse failure?)"
+  fi
   assert_readable "$file"
-  python3 - "$file" "$block" <<'PY' || fail "block not found verbatim in $2"
+  python3 - "$file" "$block" <<'PY' || fail "block not found verbatim in $file"
 import sys, pathlib
 file_path, needle = sys.argv[1], sys.argv[2]
 text = pathlib.Path(file_path).read_text()
 sys.exit(0 if needle in text else 1)
 PY
+}
+
+assert_block_absent() {
+  # Inverse of assert_block_present — pattern MUST NOT appear verbatim.
+  local block="$1" file="$2"
+  [ -n "$block" ] || fail "assert_block_absent: empty needle"
+  assert_readable "$file"
+  python3 - "$file" "$block" <<'PY' || return 0
+import sys, pathlib
+file_path, needle = sys.argv[1], sys.argv[2]
+text = pathlib.Path(file_path).read_text()
+sys.exit(0 if needle in text else 1)
+PY
+  fail "block unexpectedly present in $file"
 }
 
 # -- safe recursive-grep scan (B1/B3/B4 discipline applied to multi-dir scan) -
@@ -169,14 +199,32 @@ assert_no_pattern_in_dirs() {
   # marker to be filtered out before the failure check.
   # Usage:
   #   assert_no_pattern_in_dirs PATTERN [--exclude-pattern STR] DIR [DIR...]
+  #
+  # Round-3 test-analyzer R3-F4 caught: original parser only checked $1
+  # for --exclude-pattern; a mis-ordered call (`PAT DIR --exclude-pattern
+  # MARK DIR`) would silently skip the filter. Now scans ALL args for `--`
+  # flags and fails on anything unrecognized (no silent fall-through).
   local pattern="$1"
   shift
   local exclude=""
-  if [ "${1:-}" = "--exclude-pattern" ]; then
-    exclude="$2"
-    shift 2
-  fi
-  local dirs=("$@")
+  local dirs=()
+  while [ "$#" -gt 0 ]; do
+    case "$1" in
+      --exclude-pattern)
+        [ -n "$exclude" ] && fail "assert_no_pattern_in_dirs: --exclude-pattern supplied twice"
+        [ "$#" -ge 2 ] || fail "assert_no_pattern_in_dirs: --exclude-pattern missing value"
+        exclude="$2"
+        shift 2
+        ;;
+      --*)
+        fail "assert_no_pattern_in_dirs: unknown flag '$1' (typo? supported: --exclude-pattern)"
+        ;;
+      *)
+        dirs+=("$1")
+        shift
+        ;;
+    esac
+  done
   [ "${#dirs[@]}" -gt 0 ] || fail "assert_no_pattern_in_dirs: no scan dirs supplied"
   for d in "${dirs[@]}"; do
     assert_dir "$d"
