@@ -9,8 +9,9 @@ The exposed ASGI app (`a2a_app`) automatically registers the canonical A2A
 endpoints, including `/.well-known/agent-card.json`. Skill discovery is
 populated from `root_agent.tools`.
 
-Phoenix tracing wiring is intentionally deferred to S2.3 — this module must
-import cleanly without `PHOENIX_API_KEY` set.
+**Import order is load-bearing (per ADR-005):** `setup_observability()` MUST
+be called BEFORE the ADK module attribute lookups, or `GoogleADKInstrumentor`
+patches an already-imported module set and emitted spans silently disappear.
 
 Local run:    uv run target-agent           # binds $PORT or 8001
 Cloud Run:    Dockerfile sets PORT=8080; Cloud Run injects it at runtime.
@@ -20,10 +21,21 @@ from __future__ import annotations
 
 import os
 
-import uvicorn
-from google.adk.a2a.utils.agent_to_a2a import to_a2a
+# (1) Phoenix instrumentation FIRST (per ADR-005). setup_observability()
+# resolves PHOENIX_API_KEY from env or Secret Manager, registers a Phoenix
+# tracer provider, and attaches GoogleADKInstrumentor. The returned provider
+# is held at module scope to prevent the span processor from being GC'd in
+# long-running ASGI apps.
+from target_agent.observability import setup_observability
 
-from target_agent.agent import root_agent
+_TRACER_PROVIDER = setup_observability()
+
+# (2) ONLY THEN: ADK imports + uvicorn. The instrumentor must already be
+# attached before any consumer holds references to ADK modules.
+import uvicorn  # noqa: E402 — must come after setup_observability()
+from google.adk.a2a.utils.agent_to_a2a import to_a2a  # noqa: E402
+
+from target_agent.agent import root_agent  # noqa: E402
 
 # Default port mirrors architecture/03-multi-agent-patterns.md §9.C.
 # Cloud Run overrides via $PORT (typically 8080).

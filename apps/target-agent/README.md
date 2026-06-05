@@ -48,9 +48,27 @@ curl http://localhost:8001/.well-known/agent-card.json
 
 Cloud Run injects `$PORT=8080` automatically; the Dockerfile (S2.4) needs no special config.
 
+## Phoenix observability
+
+Tool and LLM calls emit OpenInference-convention spans to Phoenix Cloud.
+The wiring lives in `src/target_agent/observability.py` and is imported by
+`server.py` **before any `google.adk.*` import** (ADR-005 — instrumentation
+must patch ADK module attributes before consumers hold pre-patch references).
+
+Env vars (see `.env.example`):
+
+- `PHOENIX_API_KEY` — Phoenix Cloud API key. Local dev sets the env var
+  directly; Cloud Run pulls from Google Secret Manager (`phoenix-api-key`
+  under `$GCP_PROJECT_ID`).
+- `PHOENIX_COLLECTOR_ENDPOINT` — defaults to `https://app.phoenix.arize.com`.
+  Some Phoenix Cloud workspaces require the space-scoped URL (`/s/<space>`);
+  update this if the integration test 404s on span ingestion.
+- `PHOENIX_PROJECT_NAME` — defaults to `target-agent`. Must match the
+  orchestrator's `--project` flag (Epic 4) and the demo's Phoenix deep-link.
+
 ## Where this fits
 
 - S2.1 — agent object + 3 tools + unit tests
-- **S2.2 (this story) — A2A server wiring (`to_a2a()` + `[project.scripts]` entry point)**
-- S2.3 — Phoenix tracing wiring (real `phoenix.otel.register()` + auto-instrumentor)
+- S2.2 — A2A server wiring (`to_a2a()` + `[project.scripts]` entry point)
+- **S2.3 (this story) — Phoenix tracing wiring (`phoenix.otel.register()` + GoogleADKInstrumentor)**
 - S2.4 — Cloud Run Dockerfile + deploy
