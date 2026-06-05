@@ -71,6 +71,7 @@ asyncio_mode = "auto"
 markers = [
   "integration: integration tests that spawn the live A2A server in a thread (no external services)",
   "online: tests that hit a real network service and incur cost (Phoenix Cloud, Gemini)",
+  "slow: tests that take >5s (docker build, full image rebuilds, etc.)",
 ]
 
 [tool.ruff]
