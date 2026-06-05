@@ -267,13 +267,13 @@ Abu has expanded v1 scope to include continuous monitoring as part of the shippe
 
 Architecture C estimated effort: ~6h, ONE new story. Add as **story-6.5-continuous-monitor-trace-pull** in sprint-status DAG. Depends on E4 (Phoenix tool wrappers — needs `client.spans` access) + E6 (Reporter — needs signed-PDF emission path).
 
-Demo arc gains a new line: *"On Friday we ran 6 synthetic adversarial tests. On Monday we ran the same scoring engine over the customer's live traffic. Here are both signed reports."* That's the regulator-ready continuous monitor.
+Demo arc gains a new line: _"On Friday we ran 6 synthetic adversarial tests. On Monday we ran the same scoring engine over the customer's live traffic. Here are both signed reports."_ That's the regulator-ready continuous monitor.
 
 ### D4-3 — Signing scheme lock: Ed25519 (NOT ML-DSA-65)
 
 Abu confirmed Ed25519 for the signed PDF report. Rationale: ubiquitous library support (cryptography.io, every JWT lib, SSH/Git baseline), fast verification, sufficient for hackathon + most real-world audit use cases today. ML-DSA-65 (Asqav's choice) is interesting future-proofing but adds library churn for marginal hackathon-day benefit.
 
-Update: `docs/architecture.md` ADR section to add **ADR-013 — Ed25519 signing for audit reports**. The signing key lives in Cloud KMS (HSM-backed, regulator-meaningful) keyed to the customer's compliance officer, NOT to Phoenix Audit ops. This preserves the "zero auditor/insurer conflict of interest" claim in the PRD.
+Update: `docs/architecture.md` ADR section to add **ADR-014 — Ed25519 signing for audit reports** (re-numbered from the original D4-3 reservation of ADR-013, because trace-tenancy patch #20 landed ADR-013 first per chronological order on disk). The signing key lives in Cloud KMS (HSM-backed, regulator-meaningful) keyed to the customer's compliance officer, NOT to Phoenix Audit ops. This preserves the "zero auditor/insurer conflict of interest" claim in the PRD.
 
 ### D4-4 — Failure-class taxonomy: OWASP Agentic Top 10 (AGT01–AGT10), drop internal F1–F4
 
@@ -309,7 +309,7 @@ Surfaced during PR #25 (S2.3) review + the post-merge retrospective review that 
 
 **Citation history (a 3-step error chain we walked through and corrected):**
 
-1. Story-2.3 + initial PR #25 cited **ADR-005** as the source of the `register(set_global_tracer_provider=False, batch=False)` flag mandate. **Wrong.** ADR-005 in `docs/architecture.md:261-265` is about *Phoenix MCP being partial — wrap Python SDK as ADK FunctionTool for write operations*. The spec-audit (`research/.../spec-audit/07-story-sample-audit.md:160`) had flagged this drift pre-implementation; the warning was missed.
+1. Story-2.3 + initial PR #25 cited **ADR-005** as the source of the `register(set_global_tracer_provider=False, batch=False)` flag mandate. **Wrong.** ADR-005 in `docs/architecture.md:261-265` is about _Phoenix MCP being partial — wrap Python SDK as ADK FunctionTool for write operations_. The spec-audit (`research/.../spec-audit/07-story-sample-audit.md:160`) had flagged this drift pre-implementation; the warning was missed.
 
 2. The first round of D4-8 corrected to cite `research/.../architecture/02-phoenix-deep-dive.md §3.5`. **Also wrong** — §3.5 explicitly says:
    - **Cloud Run** (our deploy target per ADR-003): use defaults — `set_global_tracer_provider=True`, `batch=True`. Standard.
@@ -321,7 +321,7 @@ Surfaced during PR #25 (S2.3) review + the post-merge retrospective review that 
 
 **Empirical regression check (kept after architecture fix):** the integration test in `apps/target-agent/tests/integration/test_phoenix_instrumentation.py` runs against real Phoenix Cloud with `force_flush()` synchronous wait, and the S2.3 acceptance test gates on its PASS when `~/.config/phoenix-rat/.env` is present. This catches any future regression where Phoenix isn't actually the global tracer provider after setup.
 
-**Cloud Run safety hardening:** The graceful-degradation path (no-op `DegradedTracerProvider` when credentials are missing) is gated on environment: Cloud Run (`K_SERVICE` env var set on every Cloud Run *service* container; jobs use `CLOUD_RUN_JOB` instead) defaults to fail-loud `ConfigurationError`. `PHOENIX_OBSERVABILITY_OPTIONAL=1` opts back into the no-op path for explicit local-on-Cloud-Run testing. Local dev keeps the silent-degrade default. The fail-loud branch emits a `phoenix_observability_required_but_missing` structlog event that unit tests assert on (G1 finding) so a regression in `_should_fail_loud()` cannot ship undetected.
+**Cloud Run safety hardening:** The graceful-degradation path (no-op `DegradedTracerProvider` when credentials are missing) is gated on environment: Cloud Run (`K_SERVICE` env var set on every Cloud Run _service_ container; jobs use `CLOUD_RUN_JOB` instead) defaults to fail-loud `ConfigurationError`. `PHOENIX_OBSERVABILITY_OPTIONAL=1` opts back into the no-op path for explicit local-on-Cloud-Run testing. Local dev keeps the silent-degrade default. The fail-loud branch emits a `phoenix_observability_required_but_missing` structlog event that unit tests assert on (G1 finding) so a regression in `_should_fail_loud()` cannot ship undetected.
 
 **Process lesson:** when correcting a fake citation, open the new citation and confirm it says what you claim. The same pattern (cite-without-verify) repeated three times before the post-merge retrospective caught it.
 
@@ -331,24 +331,24 @@ Memo 27 sub-question 9 surfaced the tenancy contradiction: PRD claimed "Customer
 
 **Formal spec landing in PR #28 (patch/20-trace-tenancy-customer-side):**
 
-- **`docs/architecture.md` ADR-014** — locked the Model C decision with empirical reference to RAT-2 Test 1's 1.37s emit-to-visible measurement. Acknowledges the Phoenix authn limitation (issue Arize-ai/phoenix#10504) as a post-hackathon improvement.
+- **`docs/architecture.md` ADR-013** — locked the Model C decision with empirical reference to RAT-2 Test 1's 1.37s emit-to-visible measurement. Acknowledges the Phoenix authn limitation (issue Arize-ai/phoenix#10504) as a post-hackathon improvement.
 - **`docs/run-config-schema.md`** — NEW spec doc declaring the run-config payload shape. The `customer_phoenix.endpoint` + `customer_phoenix.api_key` + `customer_phoenix.project_name` fields are the contract Epic 4's orchestrator + Epic 6's Reporter implement against. Validation rules locked: scheme MUST be `https`, project name MUST match Phoenix's `^[a-z0-9][a-z0-9_-]{0,62}$` pattern, credentials MUST be discarded after run.
 - **Report-template language locked** — the cover-page paragraph stating "Audit traces remain in the Customer's Phoenix project ... Phoenix Audit holds no copy" is the compliance hook for EU AI Act Annex IV chain-of-custody + the KMS pitch.
 - **No runtime code yet.** Patch #20 is spec-only per memo 27's "patches before orchestrator stories" recommendation. Epic 4's first orchestrator story will implement the run-config parser against this schema.
 
-**Cross-references:** ADR-014, `docs/run-config-schema.md`, `research/.../brainstorm/27-shape-a-architecture-validation.md` sub-question 9, RAT-2 Test 1.
+**Cross-references:** ADR-013, `docs/run-config-schema.md`, `research/.../brainstorm/27-shape-a-architecture-validation.md` sub-question 9, RAT-2 Test 1.
 
 ### D4-7 — Spec-update propagation work (open issues to track)
 
-The D4-* amendments above touch the canonical spec set. Each propagation is tracked as a separate GitHub issue so they can be sequenced independently of feature stories:
+The D4-\* amendments above touch the canonical spec set. Each propagation is tracked as a separate GitHub issue so they can be sequenced independently of feature stories:
 
-| # | Touch | Effort |
-|---|---|---|
-| (TBD-13) | PRD §Goal: add OSS-layer competitive cut + acknowledge AIR Blackbox / Asqav / MS AGT | 30 min |
-| (TBD-14) | architecture.md: add ADR-013 (Ed25519 signing) + cite OSS landscape refs | 45 min |
-| (TBD-15) | architecture.md + PRD + epics.md: F1–F4 → AGT01–AGT10 repin | 1.5h (mostly sed + manual review) |
-| (TBD-16) | data/lakera-pint/ submodule + loader + NOTICE attribution + tests | 2h |
-| (TBD-17) | new story file `story-6.5-continuous-monitor-trace-pull.md` + sprint-status.yaml DAG entry | 1h |
+| #        | Touch                                                                                      | Effort                            |
+| -------- | ------------------------------------------------------------------------------------------ | --------------------------------- |
+| (TBD-13) | PRD §Goal: add OSS-layer competitive cut + acknowledge AIR Blackbox / Asqav / MS AGT       | 30 min                            |
+| (TBD-14) | architecture.md: add ADR-014 (Ed25519 signing) + cite OSS landscape refs                   | 45 min                            |
+| (TBD-15) | architecture.md + PRD + epics.md: F1–F4 → AGT01–AGT10 repin                                | 1.5h (mostly sed + manual review) |
+| (TBD-16) | data/lakera-pint/ submodule + loader + NOTICE attribution + tests                          | 2h                                |
+| (TBD-17) | new story file `story-6.5-continuous-monitor-trace-pull.md` + sprint-status.yaml DAG entry | 1h                                |
 
 Open as actual issues when this section commits.
 

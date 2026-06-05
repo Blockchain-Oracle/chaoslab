@@ -306,13 +306,13 @@ mcp__plugin_context7_context7__query-docs context7CompatibleLibraryID="<id>" top
 
 **Rationale:** The deprecated classes still work in ADK 2.1.0 and have stable APIs documented in every official sample and the `agent-starter-pack` template. The new `Workflow` class requires reorganizing all sub-agent composition (E4 orchestrator + E5 injector + E6 judge/patcher all touch this). Migrating mid-hackathon would consume ~4 hours of refactor + retest budget with zero feature gain. **4-week judging-window risk:** if Google ships ADK 3.0 with the deprecated classes removed before 2026-07-06 (judging end), the demo URL would break. **Mitigation:** pin `google-adk>=2.1.0,<3.0.0` in `pyproject.toml` to lock the major version. Post-hackathon (post-2026-07-06) is the right time to migrate to `Workflow`. (Source: `spec-audit/01-adk-a2a-audit.md`.)
 
-### ADR-014: Trace tenancy = customer-side Phoenix project + cross-tenant read at report time (NEW 2026-06-05 per memo 27 sub-q 9)
+### ADR-013: Trace tenancy = customer-side Phoenix project + cross-tenant read at report time (NEW 2026-06-05 per memo 27 sub-q 9)
 
 **Decision:** Phoenix Audit does NOT centralize audit traces in our vendor Phoenix project. Model C (hybrid) is the locked tenancy model:
 
 - **Customer's target agent** emits OpenInference traces to **the Customer's Phoenix project** (standard ADK instrumentation pattern — `setup_observability()` reads `PHOENIX_API_KEY` + `PHOENIX_COLLECTOR_ENDPOINT` from env, which the Customer controls).
 - **Phoenix Audit's orchestrator** runs in our tenancy but holds the Customer's Phoenix credentials only for the duration of one audit run (passed via the run-config, NOT persisted server-side). At report-generation time, it pulls the relevant trace slice — filtered by `audit_run_id` span attribute — from the Customer's Phoenix project via `phoenix.client.Client(api_key=customer_phoenix.api_key, endpoint=customer_phoenix.endpoint).spans.get_spans_dataframe(...)`.
-- **Audit report** explicitly states: *"Audit traces remain in the Customer's Phoenix project (project ID: X) under the Customer's data-retention policy. Phoenix Audit holds no copy."*
+- **Audit report** explicitly states: _"Audit traces remain in the Customer's Phoenix project (project ID: X) under the Customer's data-retention policy. Phoenix Audit holds no copy."_
 
 **Rationale:** PRD + CLAUDE.md both claim "the customer's compliance officer signs the report with THEIR Cloud KMS key." That claim is theater if the underlying trace evidence sits in our vendor Phoenix tenancy:
 
@@ -322,7 +322,7 @@ mcp__plugin_context7_context7__query-docs context7CompatibleLibraryID="<id>" top
 
 **Run-config schema:** documented in `docs/run-config-schema.md`. The Customer supplies `customer_phoenix.endpoint` (URL, e.g. `https://app.phoenix.arize.com/s/<workspace-slug>`) + `customer_phoenix.api_key` (passed via a one-shot token, NOT persisted). Phoenix Audit's orchestrator (Epic 4) uses these to write spans during the audit + read them back at report time.
 
-**Tradeoff acknowledged:** Phoenix Cloud's authn model today (per https://github.com/Arize-ai/phoenix/issues/10504) doesn't yet support per-project access scoping at the API-key level — the Customer's API key has access to all their projects. Phoenix Audit only reads spans tagged with the audit-run-specific `audit_run_id` to avoid mixing audit-run data with the Customer's other Phoenix workloads. Post-hackathon: pursue the Phoenix scoped-key feature OR run via Customer-side service account.
+**Tradeoff acknowledged:** Phoenix Cloud's authn model today (per https://github.com/Arize-ai/phoenix/issues/10504) doesn't yet support per-project access scoping at the API-key level — the Customer's API key has access to all their projects. Phoenix Audit's mitigation is to namespace the filter attribute as `phoenix_audit.audit_run_id` (NOT bare `audit_run_id`, which a Customer's other observability workload might also set) AND to bind it cryptographically via `phoenix_audit.run_signature` = HMAC(audit_run_id, server-side nonce). Even with the namespaced+signed filter, Phoenix Audit DOES read the full project's span set into memory before filtering — the cover-page paragraph "Phoenix Audit holds no copy" applies only after report generation, NOT during the filter step. Post-hackathon: pursue Phoenix's scoped-key feature OR a server-side filter API so the in-process transient read goes away.
 
 **Source:** `research/google-cloud-rapid-agent/brainstorm/27-shape-a-architecture-validation.md` §"Sub-question 9 — Result persistence + revisability (trace tenancy)". Audit-notes D4-9 records the formal spec landing.
 
