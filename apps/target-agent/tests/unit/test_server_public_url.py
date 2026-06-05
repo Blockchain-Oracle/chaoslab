@@ -196,8 +196,9 @@ def test_build_a2a_app_rejects_scheme_relative_authority(
 def test_main_rejects_non_integer_port(monkeypatch: pytest.MonkeyPatch) -> None:
     """main() raises SystemExit when PORT env var isn't parseable as int.
 
-    This was added in PR #18 (F2 from the silent-failure-hunter findings)
-    but never had a direct test. test-analyzer Gap §5.2 caught the omission.
+    The PORT validation was added during the PR #18 review bundle but
+    never had a direct test until PR #27's round-1 test-analyzer review
+    caught the omission. Closes that gap.
     """
     monkeypatch.setenv("PORT", "not-a-number")
 
@@ -234,10 +235,13 @@ def test_server_source_references_public_url() -> None:
     """
     contents = _read_main_for_test()
     assert "PUBLIC_URL" in contents, (
-        "server.py must reference PUBLIC_URL — see issue #22 + audit-notes D4-8"
+        "server.py must reference PUBLIC_URL — see issue #22 "
+        "(root cause: to_a2a() hardcoded card.url to localhost:8001)"
     )
     assert "urlparse" in contents, "server.py must use urlparse to parse PUBLIC_URL safely"
-    # The whitelist check that closes silent-failure H-1.
+    # The whitelist check that closes the silent-acceptance-of-non-http-schemes
+    # failure mode surfaced during PR #27's round-1 silent-failure review.
     assert "_SUPPORTED_PUBLIC_URL_SCHEMES" in contents, (
-        "server.py must whitelist supported PUBLIC_URL schemes — see H-1 in PR #27 review"
+        "server.py must whitelist supported PUBLIC_URL schemes "
+        "(silent acceptance of ftp:// etc. was a real failure mode pre-fix)"
     )

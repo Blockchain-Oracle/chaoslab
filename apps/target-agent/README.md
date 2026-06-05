@@ -135,8 +135,8 @@ binds. Set `PUBLIC_URL` to the deployed Cloud Run URL so upstream
 card serves `localhost:8001`, which is correct for `curl localhost:8001/...`
 loopback testing. Strict validation: `PUBLIC_URL` must be a parseable
 `http://` or `https://` URL with a hostname — anything else (e.g.
-`ftp://...`, `//host`, `not-a-url`) raises `ConfigurationError` at boot
-rather than silently advertising a broken endpoint.
+`ftp://...`, `//host`, `not-a-url`) raises `SystemExit` at boot with
+the bad input echoed, rather than silently advertising a broken endpoint.
 
 ## Where this fits
 

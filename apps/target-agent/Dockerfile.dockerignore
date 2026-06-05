@@ -1,10 +1,12 @@
 # target-agent Dockerfile.dockerignore — keeps build context small + secret-safe.
 #
 # Filename matters: this MUST be `Dockerfile.dockerignore` (not `.dockerignore`)
-# so that BuildKit 1.7+ auto-discovers it for the workspace-root-context build
-# pattern. The Dockerfile opts in via `# syntax=docker/dockerfile:1.7`. A plain
-# `.dockerignore` in a subdirectory would be silently ignored — Docker only
-# reads a plain `.dockerignore` from the build context root.
+# so that BuildKit auto-discovers it adjacent to the Dockerfile for our
+# workspace-root-context build pattern. The Dockerfile opts in via
+# `# syntax=docker/dockerfile:1.7`. A plain `.dockerignore` in a subdirectory
+# would be silently ignored — Docker only reads a plain `.dockerignore` from
+# the build context root.
+# See: https://docs.docker.com/build/concepts/context/#dockerignore-files
 #
 # Without this file, `docker build -f apps/target-agent/Dockerfile .` would
 # ship the entire workspace (every .venv/, .git/, tests/, node_modules/, every

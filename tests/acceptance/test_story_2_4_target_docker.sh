@@ -13,9 +13,11 @@ source "$(dirname "${BASH_SOURCE[0]}")/_lib.sh"
 
 # -- BDD: Dockerfile + Dockerfile.dockerignore exist --------------------------
 # NOTE: the dockerignore file is named `Dockerfile.dockerignore` (NOT plain
-# `.dockerignore`) so BuildKit 1.7+ auto-discovers it under the workspace-
-# root-context build pattern. A subdirectory `.dockerignore` is silently
-# ignored by docker. See PR #27 W1 finding + Dockerfile.dockerignore preamble.
+# `.dockerignore`) so BuildKit auto-discovers it adjacent to the Dockerfile
+# under the workspace-root-context build pattern. A subdirectory plain
+# `.dockerignore` is silently ignored by docker — only the build-context-root
+# `.dockerignore` is honored for that filename. See PR #27 W1 finding +
+# Dockerfile.dockerignore preamble for the full resolution rules.
 assert_file apps/target-agent/Dockerfile
 assert_file apps/target-agent/Dockerfile.dockerignore
 pass "S2.4 file map present (Dockerfile + Dockerfile.dockerignore)"
