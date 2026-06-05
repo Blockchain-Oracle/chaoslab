@@ -2,7 +2,9 @@
 
 Skipped unless PHOENIX_API_KEY is set. Marked both @pytest.mark.integration
 and @pytest.mark.online so cost-conscious CI runs can exclude it with
-`-m "not online"`.
+`-m "not online"`. The S2.3 acceptance test asserts that, WHEN
+PHOENIX_API_KEY is set, this test actually PASSES (not just collected) —
+"no skipping" is explicit: skipping is mocking by another name.
 
 Test shape:
   1. Set a unique PHOENIX_PROJECT_NAME for this run (avoids polluting Phoenix
@@ -10,13 +12,16 @@ Test shape:
   2. Call setup_observability() to wire the Phoenix tracer + ADK instrumentor.
   3. Invoke `lookup_order` directly — emits a TOOL span tagged with the
      OpenInference convention attributes.
-  4. Force a span flush via the tracer provider's processor.
-  5. Poll Phoenix Cloud's REST API for spans tagged with our test project name.
+  4. Force a span flush via the tracer provider's processor; assert the
+     flush actually completed (catches local-pipeline failures so they
+     don't masquerade as Phoenix-side problems).
+  5. Poll Phoenix Cloud's REST API for spans tagged with our test project.
   6. Assert at least one TOOL span surfaces within 30 seconds.
 """
 
 from __future__ import annotations
 
+import json
 import os
 import time
 import uuid
@@ -51,14 +56,19 @@ def test_target_tool_span_lands_in_phoenix_cloud() -> None:
     result = lookup_order("12345")
     assert result["status"] == "shipped", f"unexpected tool result: {result}"
 
-    # Flush spans synchronously (batch=False already ensures this, but the
-    # explicit shutdown forces any pending exports to complete).
-    tracer_provider.force_flush(timeout_millis=5000)
+    # force_flush blocks until pending exports complete. If it returns False,
+    # the local OTel pipeline is broken (timeout) — fail fast here so a
+    # downstream 30s poll for Phoenix spans doesn't mask the real cause.
+    flushed = tracer_provider.force_flush(timeout_millis=5000)
+    assert flushed, (
+        "tracer_provider.force_flush(5000ms) returned False — local export "
+        "pipeline is broken before Phoenix even saw the span. Check the OTel "
+        "exporter logs above."
+    )
 
     # Poll Phoenix Cloud's REST API for the TOOL span we just emitted.
     api_key = os.environ["PHOENIX_API_KEY"]
     endpoint = os.environ.get("PHOENIX_COLLECTOR_ENDPOINT", "https://app.phoenix.arize.com")
-    # Spans endpoint per Phoenix REST API v1 (read-back path).
     spans_url = f"{endpoint.rstrip('/')}/v1/projects/{test_project}/spans"
     headers = {"Authorization": f"Bearer {api_key}"}
 
@@ -66,28 +76,52 @@ def test_target_tool_span_lands_in_phoenix_cloud() -> None:
     tool_spans: list[dict] = []
     last_status: int | None = None
     last_body: str = ""
+    last_error: str = ""
+    first_span_sample: str = ""
     while time.monotonic() < deadline:
         try:
             r = httpx.get(spans_url, headers=headers, timeout=5.0)
-            last_status = r.status_code
-            last_body = r.text[:500]
-            if r.status_code == 200:
-                spans = r.json().get("data", []) or r.json().get("spans", []) or []
-                tool_spans = [
-                    s
-                    for s in spans
-                    if isinstance(s, dict)
-                    and (s.get("attributes") or {}).get("openinference.span.kind") == "TOOL"
-                ]
-                if tool_spans:
-                    break
-        except httpx.HTTPError:
-            pass
+        except httpx.HTTPError as e:
+            last_error = f"{type(e).__name__}: {e}"
+            time.sleep(1.0)
+            continue
+
+        last_status = r.status_code
+        last_body = r.text[:500]
+        # Fail-fast on auth errors instead of looping for 30s pretending
+        # things might recover.
+        if r.status_code in (401, 403):
+            pytest.fail(
+                f"Phoenix Cloud auth failed: HTTP {r.status_code} at {spans_url}. "
+                f"Verify PHOENIX_API_KEY scope matches the workspace. Body: {last_body}"
+            )
+        if r.status_code == 200:
+            spans = r.json().get("data", []) or r.json().get("spans", []) or []
+            if spans and not first_span_sample:
+                first_span_sample = json.dumps(spans[0], indent=2)[:1000]
+            # Phoenix REST flattens OpenInference span kind to a TOP-LEVEL
+            # `span_kind` field (per RAT-2 IF-13: standard OI attrs get
+            # their own columns; only custom-namespace attrs nest as a dict).
+            tool_spans = [
+                s
+                for s in spans
+                if isinstance(s, dict)
+                and (
+                    s.get("span_kind") == "TOOL"
+                    or (s.get("attributes") or {}).get("openinference.span.kind") == "TOOL"
+                )
+            ]
+            if tool_spans:
+                break
         time.sleep(1.0)
 
     assert tool_spans, (
         f"No TOOL spans found at {spans_url} within 30s. "
-        f"last status={last_status}, last body[:500]={last_body!r}. "
-        f"If 404: the space-scoped URL form (https://app.phoenix.arize.com/s/<space>) "
-        f"may be required — update PHOENIX_COLLECTOR_ENDPOINT in .env.example."
+        f"last_status={last_status}, last_body[:500]={last_body!r}, "
+        f"last_error={last_error!r}. "
+        f"First span shape (if any returned, may inform attribute-path debugging): "
+        f"{first_span_sample[:500]!r}. "
+        f"If 404 'project not found' persists: Phoenix may not have created the "
+        f"project yet — check the trace export endpoint. If 401/403 surfaced "
+        f"earlier the test would have fail-fast'd, so this is something else."
     )

@@ -52,19 +52,27 @@ Cloud Run injects `$PORT=8080` automatically; the Dockerfile (S2.4) needs no spe
 
 Tool and LLM calls emit OpenInference-convention spans to Phoenix Cloud.
 The wiring lives in `src/target_agent/observability.py` and is imported by
-`server.py` **before any `google.adk.*` import** (ADR-005 — instrumentation
-must patch ADK module attributes before consumers hold pre-patch references).
+`server.py` **before any `google.adk.*` import**. Best practice for
+`wrapt`-based OpenInference instrumentors; empirically verified by the
+S2.3 acceptance test's AST-based ordering check. Source: research/.../
+architecture/02-phoenix-deep-dive.md §3.5 (NOT ADR-005 — audit-notes
+Day-4 amendment D4-8 corrects the prior miscitation).
 
 Env vars (see `.env.example`):
 
 - `PHOENIX_API_KEY` — Phoenix Cloud API key. Local dev sets the env var
-  directly; Cloud Run pulls from Google Secret Manager (`phoenix-api-key`
-  under `$GCP_PROJECT_ID`).
+  directly. **Planned for S2.4 (Cloud Run deploy):** pull from Google
+  Secret Manager (`phoenix-api-key` under `$GCP_PROJECT_ID`).
 - `PHOENIX_COLLECTOR_ENDPOINT` — defaults to `https://app.phoenix.arize.com`.
   Some Phoenix Cloud workspaces require the space-scoped URL (`/s/<space>`);
-  update this if the integration test 404s on span ingestion.
+  empirically confirmed in RAT-2 with form
+  `https://app.phoenix.arize.com/s/<workspace-slug>`. Update this if the
+  integration test 404s on span ingestion.
 - `PHOENIX_PROJECT_NAME` — defaults to `target-agent`. Must match the
   orchestrator's `--project` flag (Epic 4) and the demo's Phoenix deep-link.
+- `PHOENIX_OBSERVABILITY_OPTIONAL=1` — opt-in to the no-op graceful-degradation
+  path. On Cloud Run (where `K_SERVICE` is set), missing credentials normally
+  raise a hard `ConfigurationError` — this env var overrides that.
 
 ## Where this fits
 

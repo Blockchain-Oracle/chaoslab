@@ -9,9 +9,13 @@ The exposed ASGI app (`a2a_app`) automatically registers the canonical A2A
 endpoints, including `/.well-known/agent-card.json`. Skill discovery is
 populated from `root_agent.tools`.
 
-**Import order is load-bearing (per ADR-005):** `setup_observability()` MUST
-be called BEFORE the ADK module attribute lookups, or `GoogleADKInstrumentor`
-patches an already-imported module set and emitted spans silently disappear.
+**Import order is load-bearing.** Best practice with `wrapt`-based OpenInference
+instrumentors: install before any consumer imports the patched modules.
+Empirically verified for `GoogleADKInstrumentor` — see
+`tests/acceptance/test_story_2_3_target_phoenix.sh` (AST-based ordering check)
+and `tests/unit/test_observability.py::test_global_tracer_provider_is_phoenix_wired_after_setup`.
+Original source: `research/.../architecture/02-phoenix-deep-dive.md` §3.5
+(NOT ADR-005 — see audit-notes Day-4 amendment D4-8 correcting prior miscitation).
 
 Local run:    uv run target-agent           # binds $PORT or 8001
 Cloud Run:    Dockerfile sets PORT=8080; Cloud Run injects it at runtime.
@@ -21,17 +25,18 @@ from __future__ import annotations
 
 import os
 
-# (1) Phoenix instrumentation FIRST (per ADR-005). setup_observability()
-# resolves PHOENIX_API_KEY from env or Secret Manager, registers a Phoenix
-# tracer provider, and attaches GoogleADKInstrumentor. The returned provider
-# is held at module scope to prevent the span processor from being GC'd in
-# long-running ASGI apps.
+# (1) Phoenix instrumentation FIRST (per architecture/02 §3.5).
+# setup_observability() resolves PHOENIX_API_KEY (env → Secret Manager),
+# registers a Phoenix tracer provider, installs it as the global, and
+# attaches GoogleADKInstrumentor. The returned provider is held at module
+# scope to prevent the span processor from being GC'd in long-running ASGI.
 from target_agent.observability import setup_observability
 
 _TRACER_PROVIDER = setup_observability()
 
-# (2) ONLY THEN: ADK imports + uvicorn. The instrumentor must already be
-# attached before any consumer holds references to ADK modules.
+# (2) ONLY THEN: ADK imports + uvicorn. The instrumentor's wrapt-based
+# monkeypatching is most reliable when installed before any code path that
+# uses the patched modules executes.
 import uvicorn  # noqa: E402 — must come after setup_observability()
 from google.adk.a2a.utils.agent_to_a2a import to_a2a  # noqa: E402
 
