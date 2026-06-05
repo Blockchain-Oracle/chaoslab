@@ -25,12 +25,32 @@ uv run adk web .
 From the workspace root:
 
 ```bash
-uv run pytest apps/target-agent/tests/unit -v
+# Unit tests only (fast, no server):
+uv run --directory apps/target-agent pytest tests/unit -v
+
+# Integration tests (spawns the live A2A server in-process):
+uv run --directory apps/target-agent pytest tests/integration -v
 ```
+
+## Run the A2A server locally
+
+S2.2 wires the agent up as an A2A server so Phoenix Audit can call it over the wire (fault isolation per ADR-002 — when an adversarial test crashes this target, Phoenix Audit's orchestrator stays alive).
+
+```bash
+# From the workspace root — uses the [project.scripts] entry point:
+uv run target-agent
+# Binds 0.0.0.0:8001 by default; respects $PORT and $HOST env vars.
+
+# In another shell:
+curl http://localhost:8001/.well-known/agent-card.json
+# Returns: {"name": "target_customer_support", "skills": [{"name": "lookup_order", ...}, ...]}
+```
+
+Cloud Run injects `$PORT=8080` automatically; the Dockerfile (S2.4) needs no special config.
 
 ## Where this fits
 
-- S2.1 (this story) — agent object + 3 tools + unit tests
-- S2.2 — A2A server wiring (`to_a2a()` + `[project.scripts]` entry point)
+- S2.1 — agent object + 3 tools + unit tests
+- **S2.2 (this story) — A2A server wiring (`to_a2a()` + `[project.scripts]` entry point)**
 - S2.3 — Phoenix tracing wiring (real `phoenix.otel.register()` + auto-instrumentor)
 - S2.4 — Cloud Run Dockerfile + deploy
