@@ -1,0 +1,56 @@
+# target-agent Dockerfile.dockerignore — keeps build context small + secret-safe.
+#
+# Filename matters: this MUST be `Dockerfile.dockerignore` (not `.dockerignore`)
+# so that BuildKit auto-discovers it adjacent to the Dockerfile for our
+# workspace-root-context build pattern. The Dockerfile opts in via
+# `# syntax=docker/dockerfile:1.7`. A plain `.dockerignore` in a subdirectory
+# would be silently ignored — Docker only reads a plain `.dockerignore` from
+# the build context root.
+# See: https://docs.docker.com/build/concepts/context/#dockerignore-files
+#
+# Without this file, `docker build -f apps/target-agent/Dockerfile .` would
+# ship the entire workspace (every .venv/, .git/, tests/, node_modules/, every
+# .env file across all apps) into the build context — slow builds, large cache
+# churn, and real secret-leakage risk if a future COPY scope is loose.
+
+# Python build artifacts
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+*.egg-info
+*.egg
+
+# Tool caches
+.pytest_cache
+.mypy_cache
+.ruff_cache
+.ty_cache
+
+# Virtual environments — always built fresh inside the image
+.venv
+
+# Tests — runtime image must not ship test code or fixtures (saves ~MB +
+# tightens supply chain)
+tests
+
+# Documentation — workspace-level docs/ stays out of the build context.
+# README.md files DO need to be allowed because uv reads [project.readme]
+# at install time; excluding them breaks `uv sync`.
+docs
+
+# Local-only artifacts
+.env
+.env.*
+.DS_Store
+
+# Source control
+.git
+.gitignore
+
+# Coverage + build outputs
+htmlcov
+.coverage
+.coverage.*
+dist
+build
