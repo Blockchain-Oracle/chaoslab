@@ -56,8 +56,8 @@ The wiring lives in `src/target_agent/observability.py` and is imported by
 instrumentors monkey-patch ADK internals; installing them before consumers
 bind module attributes is the documented practice. The S2.3 acceptance
 test's AST-based ordering check enforces this at the source level. The
-runtime failure mode is documented in `research/.../architecture/02-phoenix-deep-dive.md §3.4`.
-Flag-citation history: `audit-notes.md` D4-8.
+correct ordering pattern is shown in `research/.../architecture/02-phoenix-deep-dive.md §3.4`
+(Phoenix Cloud + ADK minimal snippet). Flag-citation history: `audit-notes.md` D4-8.
 
 Env vars (see `.env.example`):
 

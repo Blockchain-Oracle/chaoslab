@@ -371,32 +371,72 @@ def test_degraded_tracer_provider_delegates_force_flush() -> None:
     sentinel.add_span_processor(SimpleSpanProcessor(exporter))
 
 
-def test_resolve_api_key_translates_grpc_rpc_error_by_type_name(
+@pytest.mark.parametrize("grpc_error_class_name", ["RpcError", "_InactiveRpcError"])
+def test_resolve_api_key_translates_grpc_transport_errors_by_type_name(
     monkeypatch: pytest.MonkeyPatch,
+    grpc_error_class_name: str,
 ) -> None:
     """F-2 transport-error catch: gRPC channel-shutdown races surface as
-    `RpcError` / `_InactiveRpcError` (type-name match because `grpc` is
-    only a transitive dep). Synthesize an exception with that type name.
+    `RpcError` (abstract base) or `_InactiveRpcError` (the concrete leaked
+    subclass — actually MORE common in production than the base).
+
+    `grpc` is only a transitive dep here so observability.py matches by
+    type-name string. Synthesize both type names to verify both branches
+    of the defensive `("RpcError", "_InactiveRpcError")` tuple.
     """
     monkeypatch.setenv("GCP_PROJECT_ID", "test-project-123")
 
-    # Synthesize an exception class whose type-name matches the grpc one.
-    # Real grpc.RpcError is non-trivial to instantiate; type-name match
-    # is what observability.py uses so we test it directly.
-    class RpcError(Exception):
-        pass
+    # Dynamically synthesize a class whose `__name__` matches the grpc one.
+    synthesized_error = type(grpc_error_class_name, (Exception,), {})
 
     # §14 carve-out: test-side stub raising a fake transport error
     class _FakeRpcErrorClient:
         def access_secret_version(self, name: str) -> object:
             del name
-            raise RpcError("channel reset mid-call")
+            raise synthesized_error("channel reset mid-call")
 
     import google.cloud.secretmanager as sm
 
     # §14 carve-out: test-side stub
     monkeypatch.setattr(sm, "SecretManagerServiceClient", _FakeRpcErrorClient)
     with pytest.raises(ConfigurationError, match="transport error"):
+        _resolve_api_key()
+
+
+@pytest.mark.parametrize(
+    "auth_error_class_name",
+    ["RefreshError", "MutualTLSChannelError", "TransportError"],
+)
+def test_resolve_api_key_translates_google_auth_subclasses(
+    monkeypatch: pytest.MonkeyPatch,
+    auth_error_class_name: str,
+) -> None:
+    """The narrowed `except (Unauthenticated, GoogleAuthError)` clause catches
+    the whole google.auth.exceptions family — not just DefaultCredentialsError.
+
+    Verifies the broader coverage claim made in audit-notes D4-8 and the
+    inline rationale comment in observability.py. Failure mode if regressed:
+    Cloud Run token refresh during a long-running instance raises raw
+    `RefreshError` instead of the actionable Workload-Identity message.
+    """
+    monkeypatch.setenv("GCP_PROJECT_ID", "test-project-123")
+
+    from google.auth import exceptions as gcp_auth_exc
+
+    # Each test param maps to a real GoogleAuthError subclass.
+    error_class = getattr(gcp_auth_exc, auth_error_class_name)
+
+    # §14 carve-out: test-side stub raising the real GoogleAuthError subclass
+    class _FakeAuthErrorClient:
+        def access_secret_version(self, name: str) -> object:
+            del name
+            raise error_class("simulated auth failure")
+
+    import google.cloud.secretmanager as sm
+
+    # §14 carve-out: test-side stub
+    monkeypatch.setattr(sm, "SecretManagerServiceClient", _FakeAuthErrorClient)
+    with pytest.raises(ConfigurationError, match="Workload Identity"):
         _resolve_api_key()
 
 

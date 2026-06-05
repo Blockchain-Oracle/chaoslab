@@ -13,8 +13,9 @@ populated from `root_agent.tools`.
 ADK internals; installing the instrumentor BEFORE any consumer imports the
 patched modules is the documented practice. The AST-based check at
 `tests/acceptance/test_story_2_3_target_phoenix.sh` enforces this at the
-source level. Background: `research/.../architecture/02-phoenix-deep-dive.md`
-§3.4 (instrumentation snippet). Citation history: `audit-notes.md` D4-8.
+source level. The correct ordering pattern is shown in
+`research/.../architecture/02-phoenix-deep-dive.md` §3.4 (Phoenix Cloud + ADK
+minimal snippet). Citation history: `audit-notes.md` D4-8.
 
 Local run:    uv run target-agent           # binds $PORT or 8001
 Cloud Run:    Dockerfile sets PORT=8080; Cloud Run injects it at runtime.

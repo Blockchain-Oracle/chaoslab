@@ -8,8 +8,9 @@ AST check at `tests/acceptance/test_story_2_3_target_phoenix.sh`): this module
 must be imported and `setup_observability()` must be invoked BEFORE any
 `google.adk.*` import in calling modules. The OpenInference instrumentor
 monkey-patches ADK internals; doing it after consumers have bound module
-attributes leaves spans silently uninstrumented. The runtime failure mode
-is documented in `research/.../architecture/02-phoenix-deep-dive.md §3.4`.
+attributes leaves spans silently uninstrumented. The correct ordering
+pattern is shown in `research/.../architecture/02-phoenix-deep-dive.md §3.4`
+(minimal Phoenix Cloud + ADK snippet).
 
 **Flag choices** (per architecture/02 §3.5 Cloud Run guidance):
 
@@ -38,7 +39,7 @@ is documented in `research/.../architecture/02-phoenix-deep-dive.md §3.4`.
 from __future__ import annotations
 
 import os
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import structlog
 
@@ -73,7 +74,9 @@ class DegradedTracerProvider:
     def __init__(self, inner: _TPType) -> None:
         self._inner = inner
 
-    def __getattr__(self, name: str) -> object:
+    def __getattr__(self, name: str) -> Any:
+        # `Any` return is correct: this is a transparent proxy and returns
+        # whatever the wrapped provider returns (methods, properties, etc.).
         return getattr(self._inner, name)
 
 
@@ -297,7 +300,9 @@ def setup_observability(
         # On Cloud Run, this is a production-fatal misconfiguration:
         # tools.py manual spans will silently disappear while ADK-
         # instrumented spans land, producing a half-empty Attack Matrix
-        # at demo time. Fail loud (same H1 pattern as credential-missing).
+        # at demo time. Fail loud — same fail-loud-on-Cloud-Run pattern
+        # as the credential-missing branch above (see _resolve_api_key
+        # call site + audit-notes D4-8 "Cloud Run safety hardening").
         # In local dev or with the explicit opt-in, log + degrade.
         if _should_fail_loud():
             _logger.error(
