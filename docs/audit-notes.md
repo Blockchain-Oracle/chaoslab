@@ -325,6 +325,19 @@ Surfaced during PR #25 (S2.3) review + the post-merge retrospective review that 
 
 **Process lesson:** when correcting a fake citation, open the new citation and confirm it says what you claim. The same pattern (cite-without-verify) repeated three times before the post-merge retrospective caught it.
 
+### D4-9 — Trace tenancy formal spec landing (Patch #20)
+
+Memo 27 sub-question 9 surfaced the tenancy contradiction: PRD claimed "Customer signs with THEIR Cloud KMS key" while the architecture routed all audit traces through our vendor Phoenix project. The fix path was already known (Model C — Customer-side tenancy with cross-tenant read) but had no formal spec landing.
+
+**Formal spec landing in PR #28 (patch/20-trace-tenancy-customer-side):**
+
+- **`docs/architecture.md` ADR-014** — locked the Model C decision with empirical reference to RAT-2 Test 1's 1.37s emit-to-visible measurement. Acknowledges the Phoenix authn limitation (issue Arize-ai/phoenix#10504) as a post-hackathon improvement.
+- **`docs/run-config-schema.md`** — NEW spec doc declaring the run-config payload shape. The `customer_phoenix.endpoint` + `customer_phoenix.api_key` + `customer_phoenix.project_name` fields are the contract Epic 4's orchestrator + Epic 6's Reporter implement against. Validation rules locked: scheme MUST be `https`, project name MUST match Phoenix's `^[a-z0-9][a-z0-9_-]{0,62}$` pattern, credentials MUST be discarded after run.
+- **Report-template language locked** — the cover-page paragraph stating "Audit traces remain in the Customer's Phoenix project ... Phoenix Audit holds no copy" is the compliance hook for EU AI Act Annex IV chain-of-custody + the KMS pitch.
+- **No runtime code yet.** Patch #20 is spec-only per memo 27's "patches before orchestrator stories" recommendation. Epic 4's first orchestrator story will implement the run-config parser against this schema.
+
+**Cross-references:** ADR-014, `docs/run-config-schema.md`, `research/.../brainstorm/27-shape-a-architecture-validation.md` sub-question 9, RAT-2 Test 1.
+
 ### D4-7 — Spec-update propagation work (open issues to track)
 
 The D4-* amendments above touch the canonical spec set. Each propagation is tracked as a separate GitHub issue so they can be sequenced independently of feature stories:
