@@ -25,12 +25,18 @@ dependencies = [
   # Cloud Run's container start command.
   "uvicorn[standard]>=0.34.0,<1.0.0",
   # OpenInference auto-instrumentation for ADK — emits the TOOL/AGENT spans
-  # Phoenix Audit reads back for trace clustering.
-  "openinference-instrumentation-google-adk>=0.1.15",
-  # Phoenix client surface — needed when this agent ships traces to a
-  # Phoenix project (Customer-controlled OR Phoenix Audit's project,
-  # depending on audit depth — see PRD §"Two audit depths").
-  "arize-phoenix-otel>=0.10",
+  # Phoenix Audit reads back for trace clustering. Wired in observability.py.
+  "openinference-instrumentation-google-adk>=0.1.15,<1.0.0",
+  # Phoenix register() + tracer provider builder. Wired in observability.py;
+  # called BEFORE google.adk imports per ADR-005.
+  "arize-phoenix-otel>=0.10,<1.0.0",
+  # Phoenix REST client — used by integration test to poll Phoenix Cloud
+  # for the spans the agent emitted (read-path verification). Workspace
+  # root pins >=2.7.0 (per RAT-2 IF-11 — DataFrame API path); honor that.
+  "arize-phoenix-client>=2.7.0,<3.0.0",
+  # Google Secret Manager — PHOENIX_API_KEY fallback for Cloud Run prod
+  # (env var is the local-dev shortcut; Secret Manager is the deploy path).
+  "google-cloud-secret-manager>=2.28.0,<3.0.0",
   # Structured logging for any non-print diagnostic.
   "structlog>=24",
   # Pydantic — transitively required by ADK; declared explicitly for visibility.
