@@ -366,6 +366,35 @@ Memo 27 sub-question 2 surfaced that the 6-probe demo battery was underspecified
 
 **Cross-references:** ADR-016, `docs/session-shape.md`, `research/.../brainstorm/27-shape-a-architecture-validation.md` sub-question 2, RAT-2 Risk A.
 
+### D4-12 — Hybrid Phoenix-hosting amendment (Patch #22; supersedes ADR-013's mode-specific claims)
+
+ADR-013 (Patch #20, merged 2026-06-05) locked Phoenix Audit's architecture to Customer-side Phoenix hosting exclusively. UX feedback 2026-06-05 + a 4-agent parallel research pass + a 2-agent empirical smoke-test surfaced that the Customer-side-only stance was both UX-hostile (forced 2-account onboarding) and load-bearing-incorrect on its legal/regulatory rationale.
+
+**Two ADR-013 load-bearing claims were overstated:**
+
+- "EU AI Act Annex IV requires Customer-side evidence storage" — **NOT TRUE.** Annex IV (and Article 11) specify the contents of the technical-documentation pack (10-year retention attaches to the signed report), not the storage location of the underlying probe traces. The hybrid model is legally clean under Annex IV.
+- "Signature integrity requires Customer-side evidence" — **NOT TRUE.** Chain-of-custody under ISO/IEC 27037 + eIDAS qualified-timestamp framework requires hash-at-acquisition + qualified timestamp + auditable chain log — not provenance location. Big-4 traditional audit precedent (Deloitte / EY / KPMG, AICPA AS 1215) holds the workpapers; the client signs the report. The auditor's signature is what matters, not where the data lived.
+
+**Empirical findings:**
+
+- Self-hosted Phoenix Docker is 6× faster than Arize Cloud (0.20s emit-to-visible Postgres backend vs 1.37s Arize Cloud RAT-2 IF-14). See `/tmp/phoenix-self-host-smoke-test.md`.
+- No Arize hackathon perks exist — `https://rapid-agent.devpost.com/details/arize-resources` explicitly equates self-host + Cloud paths. See `/tmp/arize-account-and-perks-research.md`.
+- Abu's existing Arize Cloud workspace `blockchainoracle-dev` has 39 projects + 10 GB storage at 0.085% used. Stays available as the optional BYO-Cloud variant.
+- Industry standard IS hybrid (Lakera + Promptfoo + DeepEval all ship hosted-default + Enterprise on-prem). See `/tmp/competitor-data-residency-research.md`.
+- GDPR Article 28 processor obligations apply to transient holds; recommended 24-hour SLA + Cloud KMS key-shred deletion method. See `/tmp/gdpr-retention-research.md`.
+
+**Formal spec landing in PR #<TBD> (patch/hybrid-phoenix-hosting):**
+
+- **`docs/architecture.md` ADR-017** — locks the hybrid model: default mode (Phoenix Audit hosts self-hosted Phoenix Docker) + BYO-key mode (Customer hosts their own Phoenix per the original ADR-013 contract). Explicitly supersedes ADR-013's mode-specific claims; ADR-013's BYO-mode-side claims remain valid for BYO mode only. Honest rationale documented: Big-4 precedent, Annex IV reading correction, ISO/IEC 27037 hash-at-acquisition framing.
+- **`docs/architecture.md` ADR-004 amended** — promotes self-hosted Phoenix Docker to production default (was dev-only).
+- **`docs/run-config-schema.md` amended** — `customer_phoenix` block becomes OPTIONAL; new top-level `phoenix_provider: "phoenix-audit" | "customer"` field (default `"phoenix-audit"`); two cover-paragraph variants byte-locked, one per mode.
+- **`docs/data-retention-policy.md` NEW** — 24-hour retention SLA + signature-trigger deletion + Cloud KMS key-shred + GDPR Article 28 processor obligations + sub-processor list + right-to-erasure pathway.
+- **`infra/phoenix-self-host/compose.yaml` fixed** — empty-default `PHOENIX_SECRET` crash on Phoenix 17.2.0 removed; image pinned to `:17.2.0`; Postgres sidecar added for per-customer-schema multi-tenancy.
+- **PRD + README updated** — hybrid positioning replaces Customer-side-only differentiator pitch; self-hosted Phoenix removed from out-of-scope.
+- **No runtime code yet.** Patch #22 is spec-only. Epic 4 orchestrator + Epic 6 Reporter own the runtime implementation.
+
+**Cross-references:** ADR-017, ADR-004 (amended), `docs/data-retention-policy.md`, `docs/run-config-schema.md` (Patch #22 amendment), research files at `/tmp/phoenix-hosting-research.md`, `/tmp/competitor-data-residency-research.md`, `/tmp/gdpr-retention-research.md`, `/tmp/arize-account-and-perks-research.md`, `/tmp/phoenix-self-host-smoke-test.md`.
+
 ### D4-7 — Spec-update propagation work (open issues to track)
 
 The D4-\* amendments above touch the canonical spec set. Each propagation is tracked as a separate GitHub issue so they can be sequenced independently of feature stories:

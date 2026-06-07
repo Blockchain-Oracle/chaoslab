@@ -237,22 +237,26 @@ pass "Namespaced phoenix_audit.audit_run_id is the v1 mitigation; HMAC tracked a
 # could silently drift. Now extracting the canonical fixture FROM the
 # schema's fenced text block at test-time — single source of truth.
 #
-# The schema's `Canonical fixture` section is rendered as a fenced text
-# block (```text ... ```) so awk can extract the contents reliably.
-# Round-4 test-analyzer R4-F3: guard against multi-block extraction
-# silently merging contents — there must be exactly ONE ```text block.
+# Patch #22 (ADR-017 hybrid amendment, 2026-06-07): the schema now has
+# TWO fenced text blocks — one per hosting mode (default + BYO). This
+# test locks the BYO-mode variant verbatim (the original ADR-013 cover
+# paragraph). The default-mode variant has its own byte-lock in
+# tests/acceptance/test_patch_22_hybrid_hosting.sh; this test stays
+# focused on Patch #20's BYO contract.
 fenced_text_count=$(grep_count '^```text$' docs/run-config-schema.md)
-test "$fenced_text_count" -eq 1 \
-  || fail "schema has $fenced_text_count fenced \`\`\`text blocks (expected exactly 1 — the canonical fixture); cover-fixture extraction would be ambiguous"
-COVER_FIXTURE=$(awk '/^```text$/{flag=1; next} /^```$/{flag=0} flag' docs/run-config-schema.md)
-# Defensive: if extraction produced an empty or implausibly-short string,
-# the schema has been gutted — fail loud rather than trivially "pass".
-[ "${#COVER_FIXTURE}" -ge 400 ] \
-  || fail "Cover-fixture extraction from schema produced ${#COVER_FIXTURE} chars (expected ≥400); schema's fenced text block missing or fenced markers drifted"
-# Now lock the extracted fixture against itself appearing in the schema —
-# trivially true post-extraction, but the extraction itself proves the
-# fenced block exists and is well-formed.
-assert_block_present "$COVER_FIXTURE" docs/run-config-schema.md
+test "$fenced_text_count" -eq 2 \
+  || fail "schema has $fenced_text_count fenced \`\`\`text blocks (expected exactly 2 post-Patch-#22 — default-mode + BYO-mode cover variants)"
+# Pin the BYO-mode cover-paragraph fixture as a HARDCODED literal in the
+# test script. Drift between this literal and the schema's BYO fenced
+# block fails the gate loud — Patch #29 round-2 lesson on assert_block_present
+# tautology applies here too (don't extract from doc + assert against doc).
+IFS= read -r -d '' COVER_FIXTURE_BYO <<'EOF' || true
+Audit traces remain in the Customer's Phoenix project (project ID: {project_name} at {endpoint}) under the Customer's data-retention policy. Phoenix Audit accessed the trace data only during the audit run window (start: {run_started_at}; end: {run_completed_at}) and holds no copy after report generation. This signed PDF is the only Phoenix Audit-side artifact; all underlying evidence remains in the Customer's tenancy.
+EOF
+COVER_FIXTURE_BYO="${COVER_FIXTURE_BYO%$'\n'}"
+[ "${#COVER_FIXTURE_BYO}" -ge 400 ] \
+  || fail "COVER_FIXTURE_BYO heredoc parsed to ${#COVER_FIXTURE_BYO} chars (expected ≥400); heredoc parse failure suspected"
+assert_block_present "$COVER_FIXTURE_BYO" docs/run-config-schema.md
 # Round-3 test-analyzer R3-F1/F2: dropped the phantom
 # `cover-page .*does not retain copies` single-line anchor. It (a) was
 # the loophole class the assert_block_present already closes, (b) had

@@ -252,11 +252,13 @@ mcp__plugin_context7_context7__query-docs context7CompatibleLibraryID="<id>" top
 
 **Rationale:** ChaosLab's workload is request/response in 60-180 second windows. Cloud Run's 60-minute HTTP timeout easily fits. Agent Runtime's 7-day continuous reasoning capability is a red herring for this wedge. Cloud Run gives full container control needed for the `npx @arizeai/phoenix-mcp` subprocess invocation. Cost projection: ~$72 over 9-day dev + 4-week judging window (Per `architecture/06 §5`). **Counter-intuitive cost note:** min-instances warm pool ($7/svc/mo) costs more than tokens ($25 judging window) at this scale. (Source: `architecture/06`.)
 
-### ADR-004: Phoenix Cloud (free tier) for demo + judging, self-hosted Docker Phoenix for dev
+### ADR-004: Self-hosted Docker Phoenix for default-mode production; Phoenix Cloud optional for BYO mode (AMENDED 2026-06-07 per ADR-017)
 
-**Decision:** Demo URL writes traces to Phoenix Cloud at `app.phoenix.arize.com`. Local dev uses `docker run arize-phoenix:latest`. Push only the canonical replay traces to Phoenix Cloud during judging (≤5k spans).
+**Decision (original 2026-06-02):** Demo URL writes traces to Phoenix Cloud at `app.phoenix.arize.com`. Local dev uses `docker run arize-phoenix:latest`. Push only the canonical replay traces to Phoenix Cloud during judging (≤5k spans).
 
-**Rationale:** Phoenix Cloud free tier is 25k spans/month / 15-day retention / 1GB — tight for active dev (~1,250 runs/month cap). Self-hosted Docker is unlimited + free for dev iteration. Judging window only needs the canonical replay subset visible. (Source: `architecture/02 §7`, `best-practices/01 §4`.)
+**AMENDED 2026-06-07 per ADR-017:** Self-hosted Docker Phoenix is now the production default for both Phoenix Audit's hosted demo AND the open-source self-host path. Phoenix Cloud is OPTIONAL infrastructure — Customers who pick BYO mode (ADR-017's BYO-key path) may point Phoenix Audit at their Arize Cloud project, but the default mode requires zero Arize Cloud dependency.
+
+**Rationale for the amendment:** Empirical smoke-test (2026-06-07, see `/tmp/phoenix-self-host-smoke-test.md`) measured self-hosted Phoenix at **0.20s emit-to-visible** on Postgres backend vs Arize Cloud's 1.37s (RAT-2 IF-14) — **6× faster**. Phoenix Cloud free tier's 25k spans/month cap is the original concern; self-hosted has no quota. The Arize sponsor page (`https://rapid-agent.devpost.com/details/arize-resources`) explicitly equates self-host and Cloud paths, so no hackathon-judging advantage to Cloud. Default-mode self-hosting also makes Phoenix Audit's open-source distribution work without forcing downstream users to sign up for Arize Cloud. (Source: `infra/phoenix-self-host/compose.yaml` post-Patch-#22; ADR-017 supersedes the mode-specific claims in ADR-013.)
 
 ### ADR-005: Phoenix MCP is partial — wrap Python SDK as ADK `FunctionTool` for write operations
 
@@ -366,6 +368,35 @@ The split (full table in `session-shape.md`):
 **Honest disclosure (locked in session-shape.md):** Single-turn is the **easy mode** of the attack. Compliance officers reading the audit report should treat the 3 single-turn probes as floor-of-difficulty checks, NOT as comprehensive coverage of their categories. The session-mix is a deliberate budget-vs-coverage tradeoff, not full coverage.
 
 **Source:** `research/google-cloud-rapid-agent/brainstorm/27-shape-a-architecture-validation.md` §"Sub-question 2 — Stateful vs stateless audit session". Audit-notes D4-11 records the formal spec landing.
+
+### ADR-017: Hybrid Phoenix-hosting — Phoenix Audit-side by default + optional Customer-side BYO (NEW 2026-06-07; supersedes ADR-013's "Customer-side-only" mode claims)
+
+**Decision:** Phoenix Audit ships a **hybrid** Phoenix-hosting model:
+
+- **Default mode (`phoenix_provider: "phoenix-audit"`)** — Phoenix Audit hosts the Phoenix instance. Customer pastes their agent URL + audit options; Phoenix Audit transparently writes + reads traces against its own Postgres-backed self-hosted Phoenix Docker. Trace data is retained for 24 hours after the cryptographic signature on the audit PDF is emitted, then cryptographically erased via Cloud KMS key-shred (see `docs/data-retention-policy.md`). Phoenix Audit acts as a GDPR Article 28 data processor for the duration of the retention window.
+- **BYO mode (`phoenix_provider: "customer"`)** — Customer provides their own Phoenix endpoint + API key + project name in the `customer_phoenix` block of the run-config (the original ADR-013 shape). Phoenix Audit writes + reads against the Customer's Phoenix; Phoenix Audit holds no copy after the audit run completes. This is the path regulated industries (banking, healthcare, EU AI Act-bound) will pick. Recommended but NOT required.
+
+The full schema lock lives in `docs/run-config-schema.md` (Patch #22 amendment).
+
+**This supersedes ADR-013's load-bearing "Customer-side-only" stance.** ADR-013 (Trace tenancy = Customer-side Phoenix project, 2026-06-05) locked Customer-side as the ONLY mode. That stance had two overstated load-bearing claims, both verified incorrect via the research findings cited below:
+
+1. **"EU AI Act Annex IV requires Customer-side evidence storage."** NOT TRUE. Annex IV specifies the technical-documentation pack contents (10-year retention attaches to the signed report), not the storage location of the underlying probe traces. The hybrid model is legally clean under Annex IV.
+2. **"Signature integrity requires Customer-side evidence."** NOT TRUE. Chain-of-custody under ISO/IEC 27037 + eIDAS qualified-timestamp framework requires hash-at-acquisition + a qualified timestamp + an auditable chain log — NOT provenance location. **Big-4 traditional audit precedent (Deloitte / EY / KPMG, AICPA AS 1215) holds the workpapers; the client signs the report.** The auditor's signature is what matters, not where the data lived.
+
+**Rationale for the hybrid amendment:**
+
+- **UX.** The 95% case is a startup or small-team Customer who wants to test their chatbot without first signing up for a Phoenix Cloud account. Customer-side-only made this a 2-account onboarding flow. Default-mode is paste-URL-and-click.
+- **Empirical performance.** Self-hosted Phoenix Docker at 0.20s emit-to-visible (Postgres backend) vs 1.37s Arize Cloud (RAT-2 IF-14) — **6× faster**. The 90-second demo window becomes substantially more achievable with self-hosted.
+- **Industry standard.** Lakera, Promptfoo, DeepEval all ship hosted-default + Enterprise on-prem. AIUC ($15M-seed competitor) ships hosted-only with no public residency stance — vulnerable to BYO competitors. Hybrid is the strongest competitive posture.
+- **Open-source future.** Per the Phoenix Audit feedback memory (open-source-self-hosted-first, 2026-06-05): architecture must work self-hosted end-to-end with no Arize Cloud dependency. The default mode being self-hosted Docker means an open-source self-hoster gets identical infrastructure to Phoenix Audit's hosted demo.
+
+**Honest threat-model disclosure (locked in `docs/run-config-schema.md`):**
+
+- Default mode = Phoenix Audit IS a data processor under GDPR Article 28 for the 24h retention window. We disclose the sub-processor list (Phoenix self-hosted Docker on the deployment infrastructure), the deletion trigger (signature-emission event, not fixed clock), and the deletion method (Cloud KMS key-shred / cryptographic erasure). Right-to-erasure is honored pre-deletion.
+- BYO mode = Customer is their own processor. Phoenix Audit's role narrows to a transient credential holder + read-only consumer during the audit window. ADR-013's original retention claim ("Phoenix Audit holds no copy after report generation") applies verbatim.
+- **Single-mode collapse is refused.** Hybrid means BOTH modes remain documented and supported. Patch #22's acceptance test anti-anchors against any silent regression that re-asserts either mode as the unconditional product stance — both directions are denials of the hybrid lock. (The specific phrases the gate rejects live in `tests/acceptance/test_patch_22_hybrid_hosting.sh`, kept there rather than inline so this prose and the gate cannot silently drift apart.)
+
+**Source:** `/tmp/phoenix-hosting-research.md` (Arize multi-tenant + pricing), `/tmp/competitor-data-residency-research.md` (Lakera + Promptfoo + DeepEval + AIUC + Big-4), `/tmp/gdpr-retention-research.md` (Article 28 + Annex IV reading + ISO/IEC 27037 hash-at-acquisition), `/tmp/phoenix-self-host-smoke-test.md` (empirical 0.20s Postgres emit-to-visible). Audit-notes D4-12 records the formal spec landing.
 
 ---
 
