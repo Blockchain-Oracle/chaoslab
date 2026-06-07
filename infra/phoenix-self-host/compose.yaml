@@ -1,29 +1,66 @@
-# Phoenix self-hosted — local + VPS-deployable
+# Phoenix self-hosted — Phoenix Audit's default-mode infrastructure.
 #
-# Why this exists: Phoenix Cloud free tier is 25,000 spans/month. RAT-2 measured
-# ~41 spans per A2A round-trip, so ~13 full audits/month max on free tier. Dev
-# iteration alone would blow through the quota in a day. Self-hosting Phoenix
-# locally (and later on Abu's VPS) gives us unlimited tracing for free.
+# Per ADR-017 (Hybrid Phoenix-hosting), Phoenix Audit hosts Phoenix on behalf of
+# Customers in the default (zero-friction) mode. This compose file is the
+# canonical reference deployment used by:
+#   1. Local development (Customers self-host their own Phoenix Audit instance).
+#   2. The Phoenix Audit hosted demo (we run this on Cloud Run / VPS).
+#   3. Anyone running an open-source fork of Phoenix Audit.
+#
+# Storage: Postgres-backed (per-schema multi-tenancy for default mode).
+# Auth: opt-in via PHOENIX_ENABLE_AUTH=true + PHOENIX_SECRET — see env-var
+#       precedence note below. Empirically verified: setting an empty
+#       PHOENIX_SECRET crashes Phoenix 17.2.0 with
+#       `ValueError: Phoenix secret must be non-empty` because
+#       get_env_phoenix_secret() validates unconditionally (regression vs
+#       earlier versions). Solution: never inject an empty default — only
+#       inject when the shell explicitly exports a non-empty value.
 #
 # Local usage (with Colima running):
 #   cd infra/phoenix-self-host && docker compose up -d
 #   open http://localhost:6006  (Phoenix UI)
 #   # OTLP collector available at http://localhost:6006/v1/traces
 #
-# VPS deployment (when Abu has it on his VPS):
+# VPS / Cloud Run deployment:
 #   scp -r infra/phoenix-self-host abu@vps:/srv/phoenix
-#   ssh abu@vps "cd /srv/phoenix && docker compose up -d"
+#   ssh abu@vps "cd /srv/phoenix && \
+#     export PHOENIX_ENABLE_AUTH=true PHOENIX_SECRET='<32+ char secret>' && \
+#     docker compose up -d"
 #   # Expose port 6006 behind nginx + TLS for remote use
 #
 # Stop:
 #   docker compose down            # keeps data
-#   docker compose down -v         # destroys data (volume)
+#   docker compose down -v         # destroys data (volumes)
 
 services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: phoenix-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: phoenix
+      POSTGRES_PASSWORD: phoenix
+      POSTGRES_DB: phoenix
+    volumes:
+      - phoenix-postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U phoenix -d phoenix"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
   phoenix:
-    image: arizephoenix/phoenix:latest
+    # Pinned to 17.2.0 (was :latest before Patch #22). Smoke-test confirmed
+    # this version works after the auth-default fix below. Floating to :latest
+    # would re-expose us to image-side regressions like the PHOENIX_SECRET
+    # validation tightening that broke earlier versions of this compose file.
+    image: arizephoenix/phoenix:17.2.0
     container_name: phoenix-self-host
     restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
 
     # Phoenix exposes:
     #   6006 — UI + REST API (HTTP)
@@ -32,27 +69,30 @@ services:
       - "6006:6006"
       - "127.0.0.1:4317:4317"
 
-    # Persistent storage — SQLite database for spans + experiments + datasets.
-    # When you `docker compose down -v`, this is destroyed; without -v it stays.
+    # Persistent storage — Postgres-backed for per-schema multi-tenancy in
+    # default mode (per ADR-017). Working dir kept on a volume for any
+    # ancillary Phoenix files (uploads, exports).
     volumes:
       - phoenix-data:/mnt/data
 
     environment:
-      # Storage backend — SQLite is fine for our scale (mid-market customers
-      # running ~100 audits/month per tenant). For >10K spans/day, switch to
-      # PHOENIX_SQL_DATABASE_URL=postgresql+psycopg2://... per Phoenix docs.
+      # Postgres backend — empirically 0.20s emit-to-visible vs 0.22s SQLite;
+      # multi-tenancy via schemas not available on SQLite.
+      - PHOENIX_SQL_DATABASE_URL=postgresql://phoenix:phoenix@postgres:5432/phoenix
       - PHOENIX_WORKING_DIR=/mnt/data
 
-      # Auth: by default Phoenix self-hosted is open. For VPS deploys, set
-      # PHOENIX_ENABLE_AUTH=true + a strong PHOENIX_SECRET in your shell env
-      # BEFORE running `docker compose up`. We leave it open for local dev
-      # since traffic is localhost-only. Note: env-var substitution with
-      # ${VAR:-default} means the shell's exported value WINS — that's the
-      # whole point. Hardcoding `PHOENIX_ENABLE_AUTH=false` here would
-      # silently override `export PHOENIX_ENABLE_AUTH=true` and leak traces.
+      # Auth: by default Phoenix self-hosted is open. For VPS / Cloud Run
+      # deploys, set PHOENIX_ENABLE_AUTH=true + a strong PHOENIX_SECRET in
+      # your shell env BEFORE running `docker compose up`. We leave auth off
+      # by default for local dev since traffic is localhost-only.
+      #
+      # IMPORTANT: do NOT inject PHOENIX_SECRET / PHOENIX_DEFAULT_ADMIN_INITIAL_PASSWORD
+      # with empty-string defaults like `${VAR:-}`. Phoenix 17.2.0's
+      # get_env_phoenix_secret() validates the value unconditionally (before
+      # checking PHOENIX_ENABLE_AUTH), so an empty default crashes startup.
+      # The clean pattern: only forward those vars when the shell explicitly
+      # exports them via `env_file` or pre-export.
       - PHOENIX_ENABLE_AUTH=${PHOENIX_ENABLE_AUTH:-false}
-      - PHOENIX_SECRET=${PHOENIX_SECRET:-}
-      - PHOENIX_DEFAULT_ADMIN_INITIAL_PASSWORD=${PHOENIX_DEFAULT_ADMIN_INITIAL_PASSWORD:-}
 
       # Optional log level (debug | info | warning | error)
       - PHOENIX_LOG_LEVEL=info
@@ -63,8 +103,10 @@ services:
       interval: 30s
       timeout: 5s
       retries: 3
-      start_period: 15s
+      start_period: 30s
 
 volumes:
   phoenix-data:
     name: phoenix-self-host-data
+  phoenix-postgres-data:
+    name: phoenix-self-host-postgres-data

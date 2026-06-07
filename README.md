@@ -47,7 +47,7 @@ For more: `docs/cicd.md` (cloud deploy), `docs/PRD.md` (what it is), `CLAUDE.md`
 
 Phoenix observability tools (Phoenix itself, Langfuse, Helicone, Portkey) capture traces. They don't produce attestations. AI insurance products (Klaimee, Mount) underwrite the certificate. They don't run the audit. Enterprise governance platforms (AIUC, Credo AI, Fiddler) ship quarterly external audits. Mid-market teams can't afford them.
 
-**Phoenix Audit sells you the auditable evidence — your traces, retrievable forever, signed by your own compliance officer.** Continuous. Self-serve. Phoenix-native. No conflict of interest.
+**Phoenix Audit sells you the auditable evidence — signed by your own compliance officer's Cloud KMS key.** Two hosting modes (per ADR-017): **default zero-friction mode** runs Phoenix Audit-hosted with a 24h trace-retention SLA and cryptographic erasure (paste your agent URL, click audit — no Phoenix Cloud account needed); **BYO-key mode** for regulated industries lets you bring your own Phoenix project so the trace evidence stays in your tenancy end-to-end. Continuous. Self-serve. Phoenix-native. No conflict of interest.
 
 ---
 
