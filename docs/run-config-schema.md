@@ -19,9 +19,17 @@ for readability; the live API payload is JSON.
 ```yaml
 audit_run_id: string # UUIDv4 generated server-side, returned to the Customer.
 target: TargetConfig # The agent being audited.
-customer_phoenix: PhoenixConfig # WHERE the audit traces live (Customer-side per ADR-013).
+phoenix_provider: "phoenix-audit" | "customer" # Hosting mode per ADR-017. Default: "phoenix-audit".
+customer_phoenix: PhoenixConfig | null # OPTIONAL — required only when phoenix_provider == "customer".
 options: AuditOptions # Audit-shape knobs (test count, judge model, etc.).
 ```
+
+**Note on `phoenix_provider` (ADR-017 hybrid amendment).** This field selects between the two hosting modes:
+
+- `"phoenix-audit"` (DEFAULT) — Phoenix Audit hosts the Phoenix instance. Customer pastes their agent URL + audit options and the run completes without any Phoenix credentials. Trace data follows the 24h retention policy in `docs/data-retention-policy.md`. This is the zero-friction path for the 95% case.
+- `"customer"` — Customer provides their own Phoenix endpoint + API key. The `customer_phoenix` block becomes REQUIRED in this mode. Recommended for regulated industries (banking, healthcare, EU AI Act-bound) that prefer full data sovereignty.
+
+The `customer_phoenix` block is **OPTIONAL** when `phoenix_provider == "phoenix-audit"`. Orchestrator rejects the run-config with `ConfigurationError` if `phoenix_provider == "customer"` and `customer_phoenix` is absent or incomplete.
 
 ---
 
@@ -51,11 +59,9 @@ and `mtls` are v2 backlog.
 
 ---
 
-## `customer_phoenix` — Customer's Phoenix project (ADR-013)
+## `customer_phoenix` — Customer's Phoenix project (ADR-013 + ADR-017 BYO mode)
 
-This is the load-bearing schema for Patch #20. Customer-side trace tenancy
-is the locked architectural decision; this is the contract Phoenix Audit
-needs to honor it.
+This block is the BYO-key contract. **OPTIONAL** when `phoenix_provider == "phoenix-audit"` (default mode). **REQUIRED** when `phoenix_provider == "customer"`. The validation rules below apply only in BYO mode.
 
 ```yaml
 customer_phoenix:
@@ -181,12 +187,40 @@ options:
 
 ---
 
-## Report template language (locked per ADR-013)
+## Report template language (locked per ADR-013 + ADR-017)
 
-When the Reporter (Epic 6) generates the signed PDF, the cover-page MUST
-include this EXACT paragraph (verbatim — no "translation-equivalent"
-carve-out, because legal substance is too easy to silently water down
-under that framing):
+The audit PDF's cover-page paragraph is **mode-conditional**. The Reporter
+(Epic 6) selects between two variants based on `phoenix_provider`:
+
+### Default-mode variant (`phoenix_provider == "phoenix-audit"`)
+
+When Phoenix Audit hosts Phoenix on the Customer's behalf, the cover-page
+MUST include this EXACT paragraph (verbatim — no rewording for length,
+style, or tone; same lock-discipline as the BYO variant below):
+
+> Audit traces are retained in Phoenix Audit's hosted Phoenix project
+> for 24 hours after this report's cryptographic signature is emitted,
+> then cryptographically erased via Cloud KMS key-shred. Phoenix Audit
+> acts as a GDPR Article 28 data processor for the duration of the
+> retention window. This signed PDF is the durable artifact; all
+> underlying probe-and-response data is destroyed after the retention
+> window closes.
+
+**Canonical fixture (default mode)** — Epic 6 SHOULD copy verbatim into
+the snapshot-test constant; this fenced block is the machine-readable lock:
+
+<!-- prettier-ignore -->
+```text
+Audit traces are retained in Phoenix Audit's hosted Phoenix project for 24 hours after this report's cryptographic signature is emitted, then cryptographically erased via Cloud KMS key-shred. Phoenix Audit acts as a GDPR Article 28 data processor for the duration of the retention window. This signed PDF is the durable artifact; all underlying probe-and-response data is destroyed after the retention window closes.
+```
+
+The retention SLA + key-shred + GDPR Article 28 framing are load-bearing
+compliance hooks; see `docs/data-retention-policy.md` for the full policy.
+
+### BYO-mode variant (`phoenix_provider == "customer"`)
+
+When the Customer hosts their own Phoenix (regulated-industry default),
+the cover-page MUST include this EXACT paragraph (verbatim — no rewording):
 
 > Audit traces remain in the Customer's Phoenix project (project ID:
 > `{project_name}` at `{endpoint}`) under the Customer's data-retention
@@ -199,11 +233,10 @@ under that framing):
 This text is the compliance hook for the EU AI Act Annex IV chain-of-custody
 claim and the "Customer signs with THEIR Cloud KMS key" pitch.
 
-**Canonical fixture** (use this exact string in Epic 6's snapshot test;
-the blockquote above is for human reading, this fenced block is the
-machine-readable lock — Epic 6 SHOULD copy this fixture verbatim into a
-test constant, not parse the markdown blockquote):
+**Canonical fixture (BYO mode)** — Epic 6 SHOULD copy verbatim into
+the snapshot-test constant:
 
+<!-- prettier-ignore -->
 ```text
 Audit traces remain in the Customer's Phoenix project (project ID: {project_name} at {endpoint}) under the Customer's data-retention policy. Phoenix Audit accessed the trace data only during the audit run window (start: {run_started_at}; end: {run_completed_at}) and holds no copy after report generation. This signed PDF is the only Phoenix Audit-side artifact; all underlying evidence remains in the Customer's tenancy.
 ```
