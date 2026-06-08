@@ -37,7 +37,7 @@ Exact files the coding agent creates or modifies for this story:
   - `from google.adk.tools.base_tool import BaseTool`
   - `class AgentSpec(BaseModel)` — pydantic wrapper carrying `name: str`, `description: str = Field(min_length=20)`, `model: Literal["gemini-3.5-flash"]` (ADR-007 enforced at type level), `output_key: str | None = None`, `tools: list[str] = []` (tool names, resolved separately to avoid serializing FunctionTool). Validators ensure the model is exactly `gemini-3.5-flash`.
   - `class RunState(BaseModel)` — `run_id: str = Field(pattern=r"^run_[a-z0-9]{12}$")`, `phase: Literal["queued", "running", "injecting", "judging", "patching", "done", "error"]`, `target_url: str`, `created_at: str`, `pass_rate_baseline: float | None = None`, `pass_rate_post_patch: float | None = None`, `current_event_index: int = 0`. (Used by S4.2 SSE wiring; defined here for type-safety.)
-  - `class RunEvent(BaseModel)` — `event_type: Literal["hello", "phase_change", "attack_progress", "cluster_emitted", "recipe_generated", "done", "error", "heartbeat"]`, `data: dict`, `emitted_at: str`.
+  - `class RunEvent(BaseModel)` — `event_type: Literal["hello", "phase_change", "attack_progress", "cluster_emitted", "recipe_generated", "done", "error", "heartbeat", "complete", "cancelled"]`, `data: dict`, `emitted_at: str`. (`"complete"` + `"cancelled"` were added by the S4.2 `_drive_orchestrator` SSE emitter and are part of the wire contract.)
   - `__all__` list explicitly enumerates every export so a `from chaoslab_agent.adk_types import *` is safe (it's banned in src/ but tests use it).
   - ~150 lines.
 - `apps/chaoslab-agent/src/chaoslab_agent/main.py` — UPDATE — replace the S4.1 `try/except ImportError` guard with a proper startup sequence:
