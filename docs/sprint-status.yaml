@@ -227,13 +227,13 @@ stories:
   # ---------- Epic 5 — Fault injection (4 fault classes) ----------
   - id: story-5.1-vendor-agent-chaos
     epic: "Epic 5 — Fault injection"
-    status: PENDING
+    status: COMPLETE
     estimate_hours: 1.0
     tags: [backend, p0, injector, vendor]
     depends_on: [story-4.5-observability-and-types]
     issue_url: ""
-    pr_url: ""
-    merged_at: ""
+    pr_url: "https://github.com/Blockchain-Oracle/chaoslab/pull/39"
+    merged_at: "2026-06-08T11:55:00Z"
   - id: story-5.2-fault-malformed-tool
     epic: "Epic 5 — Fault injection"
     status: PENDING
