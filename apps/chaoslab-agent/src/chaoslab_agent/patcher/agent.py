@@ -8,8 +8,7 @@ implementation replaces the factory body without changing the contract.
 
 from __future__ import annotations
 
-from google.adk.agents.llm_agent import LlmAgent
-
+from chaoslab_agent.adk_types import LlmAgent
 from chaoslab_agent.config import get_settings
 
 PATCHER_NAME = "Patcher"

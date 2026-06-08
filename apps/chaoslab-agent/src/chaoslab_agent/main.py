@@ -11,7 +11,6 @@ the client cancels the background task.
 from __future__ import annotations
 
 import asyncio
-import importlib.util
 import json
 import logging
 import os
@@ -193,16 +192,14 @@ def _schedule_run_cleanup(run_id: str, delay: float = _RUN_CLEANUP_DELAY_SEC) ->
 
 @asynccontextmanager
 async def _lifespan(app: FastAPI) -> AsyncIterator[None]:
-    # Observability boot policy: if the observability module is absent, log degraded
-    # mode and continue (compliance product still serves /run + /audit). If present,
-    # ANY error inside setup_logging() propagates by design — silent observability
-    # loss on the hot path of a compliance product is unacceptable.
-    if importlib.util.find_spec("chaoslab_agent.observability") is not None:
-        from chaoslab_agent.observability import setup_logging  # ty: ignore[unresolved-import]
+    # Observability is mandatory now (S4.5 lands the module + Phoenix register).
+    # ANY error inside setup propagates by design — silent observability loss on
+    # a compliance product is unacceptable.
+    from chaoslab_agent.observability import setup_logging, setup_phoenix_otel
 
-        setup_logging()
-    else:
-        logger.info("observability_degraded reason=module_absent")
+    settings = get_settings()
+    setup_logging(env=settings.environment)
+    setup_phoenix_otel(settings)
     yield
 
 
