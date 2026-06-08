@@ -124,6 +124,8 @@ def main() -> None:
         msg = f"target-agent: PORT env var must be an integer, got {port_raw!r}"
         raise SystemExit(msg) from e
     host = os.environ.get("HOST", "0.0.0.0")  # noqa: S104 — Cloud Run requires 0.0.0.0
+    # Suppression rationale: a2a_app is a Starlette-derived ASGI app; uvicorn's type
+    # stubs lag the ASGI3 protocol and reject the structural match.
     uvicorn.run(a2a_app, host=host, port=port)  # ty: ignore[invalid-argument-type]
 
 

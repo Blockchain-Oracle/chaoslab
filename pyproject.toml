@@ -38,8 +38,7 @@ ignore = [
 ]
 
 [tool.ruff.lint.per-file-ignores]
-"tests/**" = ["S101", "S105", "S106", "PLR2004", "T201"]
-"**/tests/**" = ["S101", "S105", "S106", "PLR2004", "T201"]  # workspace-member tests (apps/*/tests/)
+"**/tests/**" = ["S101", "S105", "S106", "PLR2004", "T201"]  # root + workspace-member tests
 "scripts/**" = ["T201"]  # CLI scripts legitimately print diagnostic output
 "research/**" = ["T201", "S101", "PLR2004", "E402", "F401"]  # RAT smoke scripts: CLI-style, throwaway, intentional layout
 "__init__.py" = ["F401"]

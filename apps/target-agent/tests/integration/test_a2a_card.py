@@ -64,6 +64,8 @@ class _ServerThread:
     """
 
     def __init__(self, host: str, port: int) -> None:
+        # Suppression rationale: a2a_app is a Starlette-derived ASGI app; uvicorn's
+        # type stubs lag the ASGI3 protocol and reject the structural match.
         config = uvicorn.Config(
             a2a_app,  # ty: ignore[invalid-argument-type]
             host=host,
