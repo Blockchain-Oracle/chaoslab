@@ -1,0 +1,46 @@
+"""SequentialAgent orchestrator: Injector -> Judge -> Patcher pipeline.
+
+State flows via ADK's `output_key` + `{key}` template substitution
+(reference: research/.../architecture/03-multi-agent-patterns.md §3.1). The
+SequentialAgent's deterministic execution order is the load-bearing invariant
+for trace-as-assertion gates: parent span name + 3 ordered children.
+
+The sub-agents themselves are stubs in S4.2 (Epic 5 and Epic 6 land the real
+implementations); the stubs are real `LlmAgent` instances backed by real
+Gemini, not mocks. The "STUB:" prefix inside instruction strings is documented
+as the §14 carve-out in the story file.
+
+ADR-012: ADK's `SequentialAgent` is the deprecated-but-pinned API per the
+google-adk[a2a]>=2.1.0,<3.0.0 constraint. Workflow (the v3 replacement) is
+out-of-scope until the upstream major version bump is planned.
+"""
+
+from __future__ import annotations
+
+# ADR-012: ADK pinned at >=2.1.0,<3.0.0 explicitly uses SequentialAgent / LoopAgent /
+# ParallelAgent — the v3 Workflow replacement migration is out of scope. The
+# `deprecated` diagnostics from ty are accepted noise, not actionable.
+from google.adk.agents.sequential_agent import SequentialAgent  # ty: ignore[deprecated]
+
+from chaoslab_agent.injector.agent import build_injector_agent
+from chaoslab_agent.judge.agent import build_judge_agent
+from chaoslab_agent.patcher.agent import build_patcher_agent
+
+ORCHESTRATOR_NAME = "ChaosLabOrchestrator"
+
+
+def build_orchestrator() -> SequentialAgent:  # ty: ignore[deprecated]
+    """Construct the three-stage Phoenix Audit pipeline.
+
+    Returns a fresh `SequentialAgent` instance per call so tests can hold
+    independent runners without state leakage. Production callers should
+    cache the result at app startup via `functools.lru_cache` or app state.
+    """
+    return SequentialAgent(  # ty: ignore[deprecated]
+        name=ORCHESTRATOR_NAME,
+        sub_agents=[
+            build_injector_agent(),
+            build_judge_agent(),
+            build_patcher_agent(),
+        ],
+    )

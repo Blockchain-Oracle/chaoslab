@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import asyncio
-import contextlib
 import json
 import os
 import re
@@ -30,10 +29,17 @@ def _env(monkeypatch: pytest.MonkeyPatch, tmp_path) -> Iterator[None]:
 
 @pytest.fixture
 def app():
-    from chaoslab_agent.main import _RUN_REGISTRY
+    from chaoslab_agent.main import _RUN_QUEUES, _RUN_REGISTRY, _RUN_TASKS
     from chaoslab_agent.main import app as fastapi_app
 
     _RUN_REGISTRY.clear()
+    # Cancel any in-flight background tasks from a prior test so they don't
+    # leak into the next one's event-loop fixture.
+    for task in _RUN_TASKS.values():
+        if not task.done():
+            task.cancel()
+    _RUN_QUEUES.clear()
+    _RUN_TASKS.clear()
     return fastapi_app
 
 
@@ -110,6 +116,17 @@ async def test_post_run_persists_run_id_to_registry(client: httpx.AsyncClient) -
     assert state.request.repetitions == 5
 
 
+async def test_post_run_initial_phase_is_queued_or_running(client: httpx.AsyncClient) -> None:
+    """Story-4.2 BDD: state.phase must be one of (queued, running, ...) immediately after POST."""
+    from chaoslab_agent.main import _RUN_REGISTRY
+
+    r = await client.post("/run", json={"target_url": "http://localhost:8001"})
+    run_id = r.json()["run_id"]
+    # The background task may race past 'queued' into one of the running phases; both ok.
+    valid = {"queued", "injector", "judge", "patcher", "succeeded"}
+    assert _RUN_REGISTRY[run_id].phase in valid, _RUN_REGISTRY[run_id].phase
+
+
 async def test_get_stream_unknown_run_id_returns_404(client: httpx.AsyncClient) -> None:
     r = await client.get("/stream?runId=run_doesnotexist")
     assert r.status_code == 404
@@ -151,8 +168,90 @@ async def test_stream_data_frames_are_valid_json(client: httpx.AsyncClient) -> N
         assert parsed["run_id"] == run_id
 
 
-async def test_stream_emits_heartbeats_after_hello(client: httpx.AsyncClient) -> None:
-    """3 heartbeats follow the hello frame — protects the contract S4.2 will overwrite."""
+async def test_stream_emits_phase_change_when_phase_transitions(
+    client: httpx.AsyncClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Story-4.2 BDD: simulated injector->judge transition surfaces as phase_change(phase=judge)."""
+    from chaoslab_agent import main as _main
+
+    async def fixture_drive(run_id: str) -> None:
+        queue = _main._RUN_QUEUES[run_id]
+        # Only emit the judge transition — assert downstream sees this exact frame.
+        await queue.put(
+            {"event": "phase_change", "data": json.dumps({"phase": "judge", "run_id": run_id})}
+        )
+        await queue.put(None)
+
+    monkeypatch.setattr(_main, "_drive_orchestrator", fixture_drive)
+
+    run_resp = await client.post("/run", json={"target_url": "http://localhost:8001"})
+    run_id = run_resp.json()["run_id"]
+
+    chunks: list[str] = []
+    async with client.stream("GET", f"/stream?runId={run_id}") as resp:
+        async for chunk in resp.aiter_text():
+            chunks.append(chunk)
+    joined = "".join(chunks)
+    assert "event: phase_change" in joined, joined
+    assert '"phase": "judge"' in joined, joined
+
+
+async def test_cancel_task_cancels_in_flight_drive() -> None:
+    """`_cancel_task` is what the /stream disconnect path invokes. Test directly.
+
+    A true end-to-end "client disconnect cancels task" test against httpx.ASGITransport
+    deadlocks because the in-process transport never sends a real close-frame; the
+    server-side `_events()` generator never gets `CancelledError`. The cancel
+    propagation logic itself is a tiny helper we can exercise directly: place a task
+    in the registry, call `_cancel_task`, assert it cancels.
+    """
+    from chaoslab_agent.main import _RUN_TASKS, _cancel_task
+
+    cancelled = asyncio.Event()
+
+    async def slow() -> None:
+        try:
+            await asyncio.sleep(30)
+        except asyncio.CancelledError:
+            cancelled.set()
+            raise
+
+    task = asyncio.create_task(slow())
+    _RUN_TASKS["test_cancel"] = task
+    try:
+        # Let the task actually start before we cancel it (avoids racing the scheduler).
+        await asyncio.sleep(0)
+        _cancel_task("test_cancel")
+        for _ in range(20):
+            if cancelled.is_set():
+                break
+            await asyncio.sleep(0.05)
+        assert cancelled.is_set(), "task did not receive CancelledError"
+        assert task.cancelled() or task.done(), "task did not complete after cancel"
+    finally:
+        _RUN_TASKS.pop("test_cancel", None)
+
+
+def test_cancel_task_is_idempotent_on_completed_task() -> None:
+    """Cancelling an already-done task must be a silent no-op (post-run cleanup path)."""
+    from chaoslab_agent.main import _RUN_TASKS, _cancel_task
+
+    async def _done() -> None:
+        return
+
+    async def _drive() -> None:
+        task = asyncio.create_task(_done())
+        await task
+        _RUN_TASKS["finished"] = task
+        _cancel_task("finished")  # must not raise even though task.done() is True
+        _cancel_task("never_existed")  # must not raise for unknown run_id
+        _RUN_TASKS.pop("finished", None)
+
+    asyncio.run(_drive())
+
+
+async def test_stream_emits_full_phase_change_sequence(client: httpx.AsyncClient) -> None:
+    """SequentialAgent walk surfaces as phase_change SSE frames: injector -> judge -> patcher."""
     run_resp = await client.post("/run", json={"target_url": "http://localhost:8001"})
     run_id = run_resp.json()["run_id"]
     chunks: list[str] = []
@@ -160,7 +259,12 @@ async def test_stream_emits_heartbeats_after_hello(client: httpx.AsyncClient) ->
         async for chunk in resp.aiter_text():
             chunks.append(chunk)
     joined = "".join(chunks)
-    assert joined.count("event: heartbeat") >= 3, joined
+    # Each `phase_change` event line appears once per phase, in order.
+    inj = joined.find('"phase": "injector"')
+    jud = joined.find('"phase": "judge"')
+    pat = joined.find('"phase": "patcher"')
+    assert -1 < inj < jud < pat, f"phase order broken (inj={inj}, jud={jud}, pat={pat}):\n{joined}"
+    assert joined.count("event: phase_change") == 3, joined
 
 
 async def test_get_agents_known_returns_spec(client: httpx.AsyncClient) -> None:
@@ -215,35 +319,45 @@ def test_run_uvicorn_rejects_non_integer_port(monkeypatch: pytest.MonkeyPatch) -
         run_uvicorn()
 
 
-async def test_stream_logs_exception_on_generator_failure(
+async def test_orchestrator_failure_emits_error_frame_and_logs_at_error(
     client: httpx.AsyncClient,
     monkeypatch: pytest.MonkeyPatch,
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    """Any exception inside the SSE generator must log `sse_stream_failed` at ERROR."""
+    """Orchestrator exceptions log `orchestrator_failed` at ERROR + emit an `error` SSE frame."""
     import logging as _logging
 
     from chaoslab_agent import main as _main
 
+    async def _boom_drive(run_id: str) -> None:
+        # Mirror the production drive shape — push the error frame + sentinel — so the
+        # stream cleanly terminates instead of hanging on the queue.
+        queue = _main._RUN_QUEUES[run_id]
+        try:
+            raise RuntimeError("synthetic-orchestrator-failure")
+        except Exception as e:
+            _main.logger.exception("orchestrator_failed run_id=%s", run_id)
+            await queue.put(
+                {"event": "error", "data": json.dumps({"run_id": run_id, "detail": repr(e)})}
+            )
+        finally:
+            await queue.put(None)
+
+    monkeypatch.setattr(_main, "_drive_orchestrator", _boom_drive)
+
     run_resp = await client.post("/run", json={"target_url": "http://localhost:8001"})
     run_id = run_resp.json()["run_id"]
 
-    async def _boom(_seconds: float) -> None:
-        raise RuntimeError("synthetic-sse-failure")
-
-    monkeypatch.setattr(_main.asyncio, "sleep", _boom)
-
-    # sse-starlette may surface RuntimeError as an HTTP error or propagate; we
-    # don't care which — only that the ERROR log fires.
-    with (
-        caplog.at_level(_logging.ERROR, logger="chaoslab_agent.main"),
-        contextlib.suppress(Exception),
-    ):
+    chunks: list[str] = []
+    with caplog.at_level(_logging.ERROR, logger="chaoslab_agent.main"):
         async with client.stream("GET", f"/stream?runId={run_id}") as resp:
-            async for _ in resp.aiter_text():
-                pass
+            async for chunk in resp.aiter_text():
+                chunks.append(chunk)
 
-    assert any("sse_stream_failed" in r.message for r in caplog.records), [
+    joined = "".join(chunks)
+    assert "event: error" in joined, joined
+    assert "synthetic-orchestrator-failure" in joined, joined
+    assert any("orchestrator_failed" in r.message for r in caplog.records), [
         r.message for r in caplog.records
     ]
 

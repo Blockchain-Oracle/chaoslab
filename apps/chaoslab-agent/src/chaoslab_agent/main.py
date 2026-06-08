@@ -2,8 +2,10 @@
 
 Endpoints: `/health`, `/run`, `/stream` (SSE), `/agents/{id}`.
 
-`/stream` emits a `hello` frame and a heartbeat placeholder; the real orchestrator
-overwrites the placeholder by pushing `phase_change` events into the run's queue.
+`POST /run` spawns a background `asyncio.Task` that drives the SequentialAgent
+pipeline (Injector -> Judge -> Patcher) and pushes `phase_change` events into a
+per-run `asyncio.Queue`. `GET /stream` drains the queue as SSE frames; closing
+the client cancels the background task.
 """
 
 from __future__ import annotations
@@ -26,6 +28,12 @@ from sse_starlette.sse import EventSourceResponse
 from chaoslab_agent.config import get_settings
 
 logger = logging.getLogger(__name__)
+
+# Sentinel pushed onto a run's queue to signal the producer is done; /stream
+# stops draining when it sees this. Using `None` keeps the type Optional[dict].
+_QUEUE_SENTINEL: None = None
+
+RunPhase = Literal["queued", "injector", "judge", "patcher", "succeeded", "failed"]
 
 
 class RunRequest(BaseModel):
@@ -65,7 +73,7 @@ class _RunState(BaseModel):
     run_id: str
     request: RunRequest
     created_at: str
-    status: Literal["pending", "running", "succeeded", "failed"] = "pending"
+    phase: RunPhase = "queued"
 
 
 # In-process registries. The current Cloud Run config (story-4.6) sets
@@ -74,6 +82,8 @@ class _RunState(BaseModel):
 # "run evicted." Single-replica enforcement is deferred work — until then,
 # sticky-routing or external state is the next correctness step.
 _RUN_REGISTRY: dict[str, _RunState] = {}
+_RUN_QUEUES: dict[str, asyncio.Queue[dict[str, Any] | None]] = {}
+_RUN_TASKS: dict[str, asyncio.Task[None]] = {}
 
 # Demo target — replaced by the real cross-framework adapter registry.
 _AGENT_REGISTRY: dict[str, AgentSpec] = {
@@ -94,6 +104,53 @@ def _iso_now() -> str:
 def _new_run_id() -> str:
     """`run_` + 12 hex chars (48 bits). Format gated by `^run_[a-z0-9]{12}$`."""
     return "run_" + secrets.token_hex(6)
+
+
+async def _drive_orchestrator(run_id: str) -> None:
+    """Background coroutine that walks the SequentialAgent phases for a run.
+
+    S4.2 ships a deterministic phase walker (Injector -> Judge -> Patcher) that
+    emits `phase_change` SSE frames. S4.3+ swap this body for an `InMemoryRunner`
+    that drives the real `build_orchestrator()` and maps ADK events to phases.
+
+    Tests monkeypatch this function directly to simulate phase transitions
+    without spinning up the real Gemini-backed orchestrator (story-4.2 BDD).
+    """
+    state = _RUN_REGISTRY[run_id]
+    queue = _RUN_QUEUES[run_id]
+    try:
+        for phase in ("injector", "judge", "patcher"):
+            state.phase = phase  # type: ignore[assignment]
+            await queue.put(
+                {
+                    "event": "phase_change",
+                    "data": json.dumps({"phase": phase, "run_id": run_id}),
+                }
+            )
+            # Yield to the event loop so /stream can drain between phases.
+            await asyncio.sleep(0)
+        state.phase = "succeeded"
+        await queue.put(
+            {
+                "event": "complete",
+                "data": json.dumps({"phase": "succeeded", "run_id": run_id}),
+            }
+        )
+    except asyncio.CancelledError:
+        state.phase = "failed"
+        await queue.put({"event": "cancelled", "data": json.dumps({"run_id": run_id})})
+        raise
+    except Exception as e:
+        state.phase = "failed"
+        logger.exception("orchestrator_failed run_id=%s", run_id)
+        await queue.put(
+            {
+                "event": "error",
+                "data": json.dumps({"run_id": run_id, "detail": repr(e)}),
+            }
+        )
+    finally:
+        await queue.put(_QUEUE_SENTINEL)
 
 
 @asynccontextmanager
@@ -135,6 +192,8 @@ async def start_run(payload: RunRequest) -> RunResponse:
     run_id = _new_run_id()
     created = _iso_now()
     _RUN_REGISTRY[run_id] = _RunState(run_id=run_id, request=payload, created_at=created)
+    _RUN_QUEUES[run_id] = asyncio.Queue()
+    _RUN_TASKS[run_id] = asyncio.create_task(_drive_orchestrator(run_id))
     return RunResponse(run_id=run_id, sse_url=f"/stream?runId={run_id}", created_at=created)
 
 
@@ -147,22 +206,39 @@ async def stream(
         logger.warning("stream_404 run_id=%s known_runs=%d", runId, len(_RUN_REGISTRY))
         raise HTTPException(status_code=404, detail=f"run_id not found: {runId}")
 
+    queue = _RUN_QUEUES[runId]
+
     async def _events() -> AsyncIterator[dict[str, Any]]:
         try:
             yield {"event": "hello", "data": json.dumps({"run_id": runId, "status": "connected"})}
-            for _ in range(3):
-                if await request.is_disconnected():
+            while True:
+                # 0.5s timeout = disconnect-check tick; balances responsiveness vs. wakeup cost.
+                try:
+                    frame = await asyncio.wait_for(queue.get(), timeout=0.5)
+                except TimeoutError:
+                    if await request.is_disconnected():
+                        _cancel_task(runId)
+                        return
+                    continue
+                if frame is _QUEUE_SENTINEL:
                     return
-                await asyncio.sleep(0.05)
-                yield {"event": "heartbeat", "data": json.dumps({"run_id": runId})}
+                yield frame
         except asyncio.CancelledError:
             logger.info("sse_client_disconnect run_id=%s", runId)
+            _cancel_task(runId)
             raise
         except Exception:
             logger.exception("sse_stream_failed run_id=%s", runId)
             raise
 
     return EventSourceResponse(_events())
+
+
+def _cancel_task(run_id: str) -> None:
+    """Cancel a run's background orchestrator task if still in-flight (idempotent)."""
+    task = _RUN_TASKS.get(run_id)
+    if task is not None and not task.done():
+        task.cancel()
 
 
 @app.get("/agents/{agent_id}", response_model=AgentSpec)
