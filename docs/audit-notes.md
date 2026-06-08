@@ -395,6 +395,21 @@ ADR-013 (Patch #20, merged 2026-06-05) locked Phoenix Audit's architecture to Cu
 
 **Cross-references:** ADR-017, ADR-004 (amended), `docs/data-retention-policy.md`, `docs/run-config-schema.md` (Patch #22 amendment), research files at `/tmp/phoenix-hosting-research.md`, `/tmp/competitor-data-residency-research.md`, `/tmp/gdpr-retention-research.md`, `/tmp/arize-account-and-perks-research.md`, `/tmp/phoenix-self-host-smoke-test.md`.
 
+### D4-13 — OpenInference Google-ADK span naming (story-4.2 BDD criterion 5 amendment)
+
+**Implementation finding from story-4.2 trace-as-assertion test:** the story's BDD criterion 5 expected captured spans literally named `"ChaosLabOrchestrator"` / `"Injector"` / `"Judge"` / `"Patcher"` with `openinference.span.kind == "CHAIN"`. The actual `openinference-instrumentation-google-adk>=0.1.15` instrumentor wraps `BaseAgent.run_async` and produces:
+
+- **Span name:** `"agent_run [<agent.name>]"` (e.g. `"agent_run [ChaosLabOrchestrator]"`)
+- **Span kind:** `OPENINFERENCE_SPAN_KIND = "AGENT"` for agent-level spans
+- **Agent identifier:** carried on the `agent.name` attribute, not the span name
+- **`CHAIN` kind:** reserved for the **runner-level** wrapper span (`"invocation [<app_name>]"`) created by `Runner.run_async`
+
+Source: `openinference/instrumentation/google_adk/_wrappers.py` `_RunnerRunAsync` (line 97 sets `CHAIN`) + `_BaseAgentRunAsync` (line 177 sets `AGENT`).
+
+**Resolution:** The S4.2 trace test (`tests/unit/test_orchestrator.py::test_orchestrator_emits_three_ordered_agent_spans`) asserts on the load-bearing `agent.name` attribute and the actual `AGENT` kind, which is the correct correctness signal. Future story-4.2 spec edits should update criterion 5 to match this reality.
+
+**Cross-references:** `story-4.2-sequential-orchestrator.md` BDD criterion 5 (needs amendment), `apps/chaoslab-agent/tests/unit/test_orchestrator.py` (canonical assertion shape).
+
 ### D4-7 — Spec-update propagation work (open issues to track)
 
 The D4-\* amendments above touch the canonical spec set. Each propagation is tracked as a separate GitHub issue so they can be sequenced independently of feature stories:
@@ -408,6 +423,7 @@ The D4-\* amendments above touch the canonical spec set. Each propagation is tra
 | (TBD-17) | new story file `story-6.5-continuous-monitor-trace-pull.md` + sprint-status.yaml DAG entry                                                                                                                                                                                                                                                          | 1h                                |
 | (TBD-18) | architecture.md ADR-013 + run-config-schema.md: implement `phoenix_audit.run_signature` HMAC mitigation deferred from Patch #20 (per-run ephemeral key, server-side mint, scrub on `__exit__`). Touches Epic 4 orchestrator story + report-time reader.                                                                                             | 2h                                |
 | (TBD-19) | architecture.md ADR-015 + header-convention.md: implement HMAC-bound `X-Phoenix-Audit-Run-Id` header deferred from Patch #19 (per-run ephemeral key, shared lifecycle with TBD-18 so both binders use the same infrastructure). Cryptographic verification of target acknowledgment, defending the convention against actively-adversarial targets. | 1.5h                              |
+| (TBD-20) | `docs/stories/story-4.2-sequential-orchestrator.md` BDD criterion 5: rewrite the expected span-shape assertion to match the actual openinference-google-adk instrumentor — assert on `agent.name` attribute + `openinference.span.kind == "AGENT"` instead of literal Injector/Judge/Patcher names + CHAIN kind. See D4-13 for the reality.         | 20 min                            |
 
 Open as actual issues when this section commits.
 
