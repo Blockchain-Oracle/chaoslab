@@ -207,6 +207,11 @@ def test_container_health_endpoint_returns_ok(built_image: str) -> None:
                     payload = resp.json()
                     assert payload.get("status") == "ok", payload
                     assert payload.get("judge_llm") == "gemini-3.5-flash", payload
+                    # SERVICE_VERSION threading: the env var must reach
+                    # `Settings.service_version` and surface in /health JSON.
+                    # Without this assertion, a refactor that drops the env
+                    # var plumbing silently breaks the deployed-sha display.
+                    assert payload.get("version") == "test", payload
                     return
                 last_err = f"status={resp.status_code} body={resp.text[:200]}"
             except (httpx.HTTPError, ConnectionError) as e:
@@ -251,7 +256,33 @@ def test_running_container_uid_is_10001(built_image: str) -> None:
         check=True,
     )
     try:
-        time.sleep(2)  # let the entrypoint settle
+        # Poll Running=true (up to 5s) instead of a flat sleep. Guards against
+        # `docker exec` hitting a container that's already exited (e.g.,
+        # Settings validation crash); failure path dumps logs for diagnosis.
+        deadline = time.monotonic() + 5
+        running = False
+        while time.monotonic() < deadline:
+            inspect = subprocess.run(
+                ["docker", "inspect", "--format", "{{.State.Running}}", SMOKE_CONTAINER],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            if inspect.returncode == 0 and inspect.stdout.strip() == "true":
+                running = True
+                break
+            time.sleep(0.2)
+        if not running:
+            logs = subprocess.run(
+                ["docker", "logs", SMOKE_CONTAINER],
+                capture_output=True,
+                text=True,
+                check=False,
+            ).stdout
+            pytest.fail(
+                f"container never reached Running=true within 5s.\n"
+                f"--- container logs ---\n{logs[-2000:]}"
+            )
         result = subprocess.run(
             ["docker", "exec", SMOKE_CONTAINER, "id", "-u"],
             capture_output=True,
@@ -270,17 +301,29 @@ def test_running_container_uid_is_10001(built_image: str) -> None:
 
 @pytest.mark.integration
 def test_dockerignore_excludes_secrets_and_caches() -> None:
-    """`.dockerignore` MUST exclude .env*, .venv/, tests/, __pycache__/, .git/."""
+    """`.dockerignore` MUST exclude .env*, .venv/, tests/, __pycache__/, .git/.
+
+    Parses line-by-line, strips comments + whitespace, then checks the
+    resulting active-pattern set. Substring `in body` would be fooled by a
+    commented-out entry (e.g. `# .env`).
+    """
     ignore_file = APP_DIR / ".dockerignore"
     assert ignore_file.exists(), f"missing {ignore_file}"
-    body = ignore_file.read_text(encoding="utf-8")
+    active_patterns: set[str] = set()
+    for raw in ignore_file.read_text(encoding="utf-8").splitlines():
+        line = raw.strip()
+        if not line or line.startswith("#"):
+            continue
+        active_patterns.add(line)
     for required in (".env", ".venv/", "tests/", "__pycache__/"):
-        assert required in body, f".dockerignore missing entry: {required}"
+        assert required in active_patterns, (
+            f".dockerignore missing active entry: {required!r} " f"(saw {sorted(active_patterns)})"
+        )
 
 
 @pytest.mark.integration
 def test_workflow_has_required_safety_gates() -> None:
-    """`.github/workflows/staging-deploy.yaml` ships the ADR-required gates."""
+    """`.github/workflows/staging-deploy.yaml` ships the ADR-required gates + Round-2 guards."""
     workflow_file = REPO_ROOT / ".github" / "workflows" / "staging-deploy.yaml"
     assert workflow_file.exists(), f"missing {workflow_file}"
     body = workflow_file.read_text(encoding="utf-8")
@@ -295,3 +338,10 @@ def test_workflow_has_required_safety_gates() -> None:
     assert "GEMINI_API_KEY=gemini-api-key:latest" in body, "secrets binding missing"
     # Non-public.
     assert "--no-allow-unauthenticated" in body, "public traffic not blocked"
+    # Round-2 silent-failure-hunter findings:
+    assert "Guard required repo variables" in body, "PROJECT_HASH guard step missing"
+    assert "Pre-flight Secret Manager check" in body, "pre-flight secret check missing"
+    assert (
+        "Cleanup candidate revision on failure" in body
+    ), "if: failure() cleanup step missing — failed deploys accumulate revisions"
+    assert "if: failure()" in body, "failure-conditional cleanup trigger missing"

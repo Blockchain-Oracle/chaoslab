@@ -26,6 +26,21 @@ uv run --package chaoslab-agent uvicorn chaoslab_agent.main:app --host 0.0.0.0 -
 | GET    | `/stream?runId=` | SSE stream of `RunEvent` frames for the given run.                                |
 | GET    | `/agents/{id}`   | Look up a registered target agent (Epic 3 ships the real registry).               |
 
+## Cloud Run deploy — required setup
+
+Before the `.github/workflows/staging-deploy.yaml` workflow can run, three
+repo-level GitHub Actions variables must be set (`gh variable set NAME --body=...`):
+
+| Variable           | Source                                                                                                                                                                            |
+| ------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `GCP_PROJECT_ID`   | `gcloud projects describe $PROJECT` → `projectId` field                                                                                                                           |
+| `GCP_PROJECT_HASH` | The 8-char suffix Cloud Run appends to service URLs (run `gcloud run services describe target-agent` and read the `url` field; suffix is between the service name and `.run.app`) |
+| `GCP_WIF_PROVIDER` | Workload Identity Federation provider resource path (`projects/.../locations/global/workloadIdentityPools/.../providers/...`); created in S1.4                                    |
+
+Three Secret Manager secrets must also exist: `phoenix-api-key`, `gemini-api-key`,
+`gitlab-token`. The workflow's pre-flight step `gcloud secrets describe` each
+and fails loud if any is missing.
+
 ## Container
 
 Multi-stage build → multi-stage cache → non-root runtime per ADR-003. The

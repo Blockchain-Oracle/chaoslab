@@ -13,12 +13,16 @@
 #
 # Architecture: deps -> build -> runtime (slim, non-root, signal-safe).
 
+# `ARG` declared at the TOP scope; each stage must re-declare it before
+# referencing in a `COPY --from=...:${UV_VERSION}` line (Docker's intentional
+# isolation). Bumping uv = bump ONE place here + re-declare line in each stage.
 ARG UV_VERSION=0.11.18
 
 # -----------------------------------------------------------------------------
 # Stage 1: deps — install workspace dependencies into a virtualenv
 # -----------------------------------------------------------------------------
 FROM python:3.12-slim AS deps
+ARG UV_VERSION
 
 ENV UV_LINK_MODE=copy \
     UV_COMPILE_BYTECODE=1 \
@@ -32,7 +36,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         ca-certificates curl \
     && rm -rf /var/lib/apt/lists/*
 
-COPY --from=ghcr.io/astral-sh/uv:0.11.18 /uv /uvx /usr/local/bin/
+COPY --from=ghcr.io/astral-sh/uv:${UV_VERSION} /uv /uvx /usr/local/bin/
 
 WORKDIR /workspace
 
@@ -53,12 +57,13 @@ RUN uv sync --frozen --no-install-project --no-dev --package chaoslab-agent
 # Stage 2: build — copy project source + install the project itself
 # -----------------------------------------------------------------------------
 FROM python:3.12-slim AS build
+ARG UV_VERSION
 
 ENV UV_LINK_MODE=copy \
     UV_COMPILE_BYTECODE=1 \
     UV_PYTHON_DOWNLOADS=never
 
-COPY --from=ghcr.io/astral-sh/uv:0.11.18 /uv /uvx /usr/local/bin/
+COPY --from=ghcr.io/astral-sh/uv:${UV_VERSION} /uv /uvx /usr/local/bin/
 
 WORKDIR /workspace
 
@@ -78,14 +83,17 @@ RUN uv sync --frozen --no-dev --package chaoslab-agent --no-editable
 # Stage 3: runtime — slim, non-root, signal-safe
 # -----------------------------------------------------------------------------
 FROM python:3.12-slim AS runtime
+ARG UV_VERSION
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     PATH="/opt/venv/bin:/usr/local/bin:/usr/bin:/bin"
 
-# Non-root user. uid 10001 is out of the common-collision range. Direct
-# /etc/passwd write — python:3.12-slim lacks groupadd/useradd by default
-# (they're in the `passwd` package we don't want to pull in just for one user).
+# Non-root user. uid 10001 is out of the common-collision range (uids <1000 are
+# system; 1000-9999 commonly used for host users; >=10000 leaves a clean buffer
+# above typical host-user collisions in bind-mount scenarios). Direct /etc/passwd
+# write — python:3.12-slim lacks groupadd/useradd by default (they're in the
+# `passwd` package we don't want to pull in just for one user).
 RUN echo 'appuser:x:10001:10001::/app:/bin/sh' >> /etc/passwd \
     && echo 'appuser:x:10001:' >> /etc/group \
     && mkdir -p /app \
@@ -96,7 +104,7 @@ RUN echo 'appuser:x:10001:10001::/app:/bin/sh' >> /etc/passwd \
 RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
-COPY --from=ghcr.io/astral-sh/uv:0.11.18 /uv /uvx /usr/local/bin/
+COPY --from=ghcr.io/astral-sh/uv:${UV_VERSION} /uv /uvx /usr/local/bin/
 
 COPY --from=build --chown=appuser:appuser /workspace/.venv /opt/venv
 COPY --from=build --chown=appuser:appuser /workspace/apps/chaoslab-agent/src /app/src
@@ -108,12 +116,14 @@ USER appuser
 # EXPOSE 8080 documents the FastAPI port — Cloud Run rebinds via $PORT regardless.
 EXPOSE 8080
 
-# Local `docker run` health probe — Cloud Run uses its own configured liveness
-# check via `gcloud run services update --liveness-probe-path=/health` (out of
-# scope for the Dockerfile itself).
+# Local `docker run` health probe only. Cloud Run uses its own configured
+# liveness check via the service's `--liveness-probe=httpGet.path=/health,...`
+# args (or the equivalent YAML); the HEALTHCHECK here is debugging convenience.
+# Writes the underlying exception to stderr on failure so `docker logs` /
+# `docker inspect` show WHY the probe failed (httpx.ConnectError vs.
+# HTTPStatusError vs. ImportError) instead of an opaque exit 1.
 HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
-    CMD python -c "import httpx; httpx.get('http://localhost:8080/health').raise_for_status()" \
-        || exit 1
+    CMD ["python", "-c", "import sys, httpx;\nimport traceback\ntry:\n    httpx.get('http://localhost:8080/health', timeout=2).raise_for_status()\nexcept Exception as e:\n    sys.stderr.write(f'healthcheck failed: {e!r}\\n')\n    traceback.print_exc()\n    sys.exit(1)"]
 
 # Exec form (JSON array) — important for SIGTERM forwarding on Cloud Run scale-down.
 # `uv run` activates the venv; `chaoslab-agent` is the console script
