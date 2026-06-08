@@ -1,4 +1,10 @@
-"""Judge LlmAgent factory (stub — real implementation in Epic 6)."""
+"""Judge LlmAgent factory.
+
+Reads `{injector_result}` via ADK template substitution; emits a JSON object
+`{cluster_id, failure_count, root_cause}` into state['judge_result'] for
+downstream Patcher consumption. Currently ships a STUB instruction; a real
+implementation replaces the factory body without changing the contract.
+"""
 
 from __future__ import annotations
 
@@ -18,12 +24,12 @@ _DESCRIPTION = (
 _INSTRUCTION = (
     "STUB: given upstream injector output {injector_result}, emit a JSON object "
     "with keys ['cluster_id', 'failure_count', 'root_cause']. "
-    "Real implementation lands in Epic 6."
+    "Stub-mode response is acceptable."
 )
 
 
 def build_judge_agent() -> LlmAgent:
-    """Construct the Judge stub for the SequentialAgent pipeline."""
+    """Construct the Judge for the SequentialAgent pipeline."""
     return LlmAgent(
         name=JUDGE_NAME,
         description=_DESCRIPTION,

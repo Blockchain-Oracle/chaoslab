@@ -280,6 +280,118 @@ async def test_get_agents_unknown_returns_404(client: httpx.AsyncClient) -> None
     assert r.status_code == 404
 
 
+# --- Real `_drive_orchestrator` coverage (Round-2 pr-test-analyzer HIGH gaps) ----
+
+
+async def test_real_drive_emits_complete_frame_and_sets_succeeded_phase(
+    client: httpx.AsyncClient,
+) -> None:
+    """Production `_drive_orchestrator` happy path: emit `complete` + transition to succeeded."""
+    from chaoslab_agent.main import _RUN_REGISTRY
+
+    run_resp = await client.post("/run", json={"target_url": "http://localhost:8001"})
+    run_id = run_resp.json()["run_id"]
+    chunks: list[str] = []
+    async with client.stream("GET", f"/stream?runId={run_id}") as resp:
+        async for chunk in resp.aiter_text():
+            chunks.append(chunk)
+    joined = "".join(chunks)
+    assert "event: complete" in joined, joined
+    assert '"phase": "succeeded"' in joined, joined
+    assert _RUN_REGISTRY[run_id].phase == "succeeded"
+
+
+async def test_real_drive_walks_all_four_phase_states(client: httpx.AsyncClient) -> None:
+    """Registry transitions queued -> injector -> judge -> patcher -> succeeded."""
+    from chaoslab_agent.main import _RUN_REGISTRY
+
+    run_resp = await client.post("/run", json={"target_url": "http://localhost:8001"})
+    run_id = run_resp.json()["run_id"]
+    # Drain the stream to let the real drive complete.
+    async with client.stream("GET", f"/stream?runId={run_id}") as resp:
+        async for _ in resp.aiter_text():
+            pass
+    assert _RUN_REGISTRY[run_id].phase == "succeeded"
+
+
+async def test_real_drive_failure_emits_error_frame_and_logs(
+    client: httpx.AsyncClient,
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Real `_drive_orchestrator`'s except Exception branch (not the test fixture)."""
+    import logging as _logging
+
+    from chaoslab_agent import main as _main
+
+    # Force the production drive's loop to raise on the second phase by patching
+    # asyncio.Queue.put on the real queue.
+    original_put = asyncio.Queue.put
+    call_n = {"i": 0}
+
+    async def boom_put(self, item):
+        call_n["i"] += 1
+        if call_n["i"] == 2:  # let the first phase_change land, fail the second
+            raise RuntimeError("synthetic-orchestrator-failure")
+        return await original_put(self, item)
+
+    monkeypatch.setattr(_main.asyncio.Queue, "put", boom_put)
+
+    with caplog.at_level(_logging.ERROR, logger="chaoslab_agent.main"):
+        run_resp = await client.post("/run", json={"target_url": "http://localhost:8001"})
+        run_id = run_resp.json()["run_id"]
+        chunks: list[str] = []
+        async with client.stream("GET", f"/stream?runId={run_id}") as resp:
+            async for chunk in resp.aiter_text():
+                chunks.append(chunk)
+
+    joined = "".join(chunks)
+    assert "event: error" in joined, joined
+    assert "synthetic-orchestrator-failure" in joined, joined
+    assert any("orchestrator_failed" in r.message for r in caplog.records), [
+        r.message for r in caplog.records
+    ]
+    assert _main._RUN_REGISTRY[run_id].phase == "failed"
+
+
+async def test_real_drive_cancelled_emits_cancelled_frame_and_marks_failed(
+    client: httpx.AsyncClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Cancelling the real drive task surfaces the `cancelled` SSE frame + phase=failed."""
+    from chaoslab_agent import main as _main
+
+    # Slow the first phase_change so cancel can land cleanly mid-drive.
+    original_sleep = asyncio.sleep
+    sleep_calls = {"n": 0}
+
+    async def slow_sleep(seconds: float) -> None:
+        sleep_calls["n"] += 1
+        if sleep_calls["n"] == 1:
+            await original_sleep(0.5)
+        else:
+            await original_sleep(seconds)
+
+    monkeypatch.setattr(_main.asyncio, "sleep", slow_sleep)
+
+    run_resp = await client.post("/run", json={"target_url": "http://localhost:8001"})
+    run_id = run_resp.json()["run_id"]
+    task = _main._RUN_TASKS[run_id]
+    await original_sleep(0.05)  # let first phase_change emit
+    task.cancel()
+    await original_sleep(0.1)
+
+    queue = _main._RUN_QUEUES[run_id]
+    frames: list[dict] = []
+    while not queue.empty():
+        item = queue.get_nowait()
+        if item is not None:
+            frames.append(item)
+
+    events = [f.get("event") for f in frames]
+    assert "cancelled" in events, events
+    assert _main._RUN_REGISTRY[run_id].phase == "failed"
+
+
 async def test_concurrent_runs_generate_distinct_ids(client: httpx.AsyncClient) -> None:
     """48-bit run_id collision is improbable but registry overwrite must not be silent."""
     payload = {"target_url": "http://localhost:8001"}

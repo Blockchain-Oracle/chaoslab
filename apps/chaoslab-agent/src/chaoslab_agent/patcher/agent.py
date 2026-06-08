@@ -1,4 +1,10 @@
-"""Patcher LlmAgent factory (stub — real implementation in Epic 6)."""
+"""Patcher LlmAgent factory.
+
+Reads `{judge_result}` via ADK template substitution; emits a JSON object
+`{recipe_id, prompt_patches, tool_validation_diffs}` into state['patcher_result']
+as the terminal pipeline output. Currently ships a STUB instruction; a real
+implementation replaces the factory body without changing the contract.
+"""
 
 from __future__ import annotations
 
@@ -17,12 +23,12 @@ _DESCRIPTION = (
 _INSTRUCTION = (
     "STUB: given upstream judge output {judge_result}, emit a JSON object "
     "with keys ['recipe_id', 'prompt_patches', 'tool_validation_diffs']. "
-    "Real implementation lands in Epic 6."
+    "Stub-mode response is acceptable."
 )
 
 
 def build_patcher_agent() -> LlmAgent:
-    """Construct the Patcher stub for the SequentialAgent pipeline."""
+    """Construct the Patcher for the SequentialAgent pipeline."""
     return LlmAgent(
         name=PATCHER_NAME,
         description=_DESCRIPTION,

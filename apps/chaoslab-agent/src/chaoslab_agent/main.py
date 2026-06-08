@@ -22,7 +22,7 @@ from contextlib import asynccontextmanager
 from typing import Any, Literal
 
 from fastapi import FastAPI, HTTPException, Request
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 from sse_starlette.sse import EventSourceResponse
 
 from chaoslab_agent.config import get_settings
@@ -30,8 +30,13 @@ from chaoslab_agent.config import get_settings
 logger = logging.getLogger(__name__)
 
 # Sentinel pushed onto a run's queue to signal the producer is done; /stream
-# stops draining when it sees this. Using `None` keeps the type Optional[dict].
+# stops draining when it sees this.
 _QUEUE_SENTINEL: None = None
+
+# How long to keep finished run state in the registries before sweeping it out
+# (in seconds). A /stream client may still be replaying a just-finished run, so
+# the registry isn't dropped immediately on task completion.
+_RUN_CLEANUP_DELAY_SEC = 300.0
 
 RunPhase = Literal["queued", "injector", "judge", "patcher", "succeeded", "failed"]
 
@@ -70,6 +75,11 @@ class AgentSpec(BaseModel):
 
 
 class _RunState(BaseModel):
+    # validate_assignment=True enforces the RunPhase Literal at runtime — without it,
+    # a typo'd `state.phase = "injecter"` slips past pydantic and breaks the frontend's
+    # phase-discriminator silently.
+    model_config = ConfigDict(validate_assignment=True)
+
     run_id: str
     request: RunRequest
     created_at: str
@@ -85,7 +95,8 @@ _RUN_REGISTRY: dict[str, _RunState] = {}
 _RUN_QUEUES: dict[str, asyncio.Queue[dict[str, Any] | None]] = {}
 _RUN_TASKS: dict[str, asyncio.Task[None]] = {}
 
-# Demo target — replaced by the real cross-framework adapter registry.
+# Demo target — a hardcoded seed for `/agents/{id}` resolution. The real
+# cross-framework adapter registry is the responsibility of Epic 3.
 _AGENT_REGISTRY: dict[str, AgentSpec] = {
     "demo-target": AgentSpec(
         agent_id="demo-target",
@@ -106,28 +117,34 @@ def _new_run_id() -> str:
     return "run_" + secrets.token_hex(6)
 
 
+_ORCHESTRATOR_PHASES: tuple[RunPhase, ...] = ("injector", "judge", "patcher")
+
+
 async def _drive_orchestrator(run_id: str) -> None:
     """Background coroutine that walks the SequentialAgent phases for a run.
 
-    S4.2 ships a deterministic phase walker (Injector -> Judge -> Patcher) that
-    emits `phase_change` SSE frames. S4.3+ swap this body for an `InMemoryRunner`
-    that drives the real `build_orchestrator()` and maps ADK events to phases.
-
-    Tests monkeypatch this function directly to simulate phase transitions
-    without spinning up the real Gemini-backed orchestrator (story-4.2 BDD).
+    Currently a deterministic phase walker (Injector -> Judge -> Patcher) emitting
+    `phase_change` SSE frames; the real `InMemoryRunner(build_orchestrator())` wiring
+    is the next swap-in. Tests monkeypatch this function directly to simulate phase
+    transitions without spinning up the real Gemini-backed orchestrator.
     """
+    # Registry lookups outside the try block — a missing run_id is a programmer
+    # error (task scheduled before registration), not an orchestrator failure;
+    # let it crash the task rather than surface as a user-facing SSE error frame.
     state = _RUN_REGISTRY[run_id]
     queue = _RUN_QUEUES[run_id]
     try:
-        for phase in ("injector", "judge", "patcher"):
-            state.phase = phase  # type: ignore[assignment]
+        for phase in _ORCHESTRATOR_PHASES:
+            state.phase = phase
             await queue.put(
                 {
                     "event": "phase_change",
                     "data": json.dumps({"phase": phase, "run_id": run_id}),
                 }
             )
-            # Yield to the event loop so /stream can drain between phases.
+            # Cooperative yield so /stream gets scheduled at least once between
+            # phases under InMemoryRunner — NOT a backpressure guarantee (the queue
+            # is unbounded).
             await asyncio.sleep(0)
         state.phase = "succeeded"
         await queue.put(
@@ -138,19 +155,40 @@ async def _drive_orchestrator(run_id: str) -> None:
         )
     except asyncio.CancelledError:
         state.phase = "failed"
-        await queue.put({"event": "cancelled", "data": json.dumps({"run_id": run_id})})
+        # put_nowait so re-entrant CancelledError on the next await can't suppress
+        # the cancelled frame or sentinel; queue is unbounded so put_nowait is safe.
+        queue.put_nowait({"event": "cancelled", "data": json.dumps({"run_id": run_id})})
+        queue.put_nowait(_QUEUE_SENTINEL)
         raise
     except Exception as e:
         state.phase = "failed"
         logger.exception("orchestrator_failed run_id=%s", run_id)
-        await queue.put(
+        queue.put_nowait(
             {
                 "event": "error",
                 "data": json.dumps({"run_id": run_id, "detail": repr(e)}),
             }
         )
-    finally:
-        await queue.put(_QUEUE_SENTINEL)
+        queue.put_nowait(_QUEUE_SENTINEL)
+        return
+    queue.put_nowait(_QUEUE_SENTINEL)
+
+
+def _schedule_run_cleanup(run_id: str, delay: float = _RUN_CLEANUP_DELAY_SEC) -> None:
+    """Sweep a run's registry/queue/task entries `delay` seconds after the task ends.
+
+    /stream consumers that haven't reconnected within the window lose access to the
+    replay; the trade-off prevents unbounded growth in `_RUN_REGISTRY` / `_RUN_QUEUES`
+    on a long-lived Cloud Run instance.
+    """
+    loop = asyncio.get_running_loop()
+
+    def _sweep() -> None:
+        _RUN_REGISTRY.pop(run_id, None)
+        _RUN_QUEUES.pop(run_id, None)
+        _RUN_TASKS.pop(run_id, None)
+
+    loop.call_later(delay, _sweep)
 
 
 @asynccontextmanager
@@ -193,7 +231,9 @@ async def start_run(payload: RunRequest) -> RunResponse:
     created = _iso_now()
     _RUN_REGISTRY[run_id] = _RunState(run_id=run_id, request=payload, created_at=created)
     _RUN_QUEUES[run_id] = asyncio.Queue()
-    _RUN_TASKS[run_id] = asyncio.create_task(_drive_orchestrator(run_id))
+    task = asyncio.create_task(_drive_orchestrator(run_id))
+    task.add_done_callback(lambda _t: _schedule_run_cleanup(run_id))
+    _RUN_TASKS[run_id] = task
     return RunResponse(run_id=run_id, sse_url=f"/stream?runId={run_id}", created_at=created)
 
 

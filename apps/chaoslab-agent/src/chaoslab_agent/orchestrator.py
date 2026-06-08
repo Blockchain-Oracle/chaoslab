@@ -5,10 +5,10 @@ State flows via ADK's `output_key` + `{key}` template substitution
 SequentialAgent's deterministic execution order is the load-bearing invariant
 for trace-as-assertion gates: parent span name + 3 ordered children.
 
-The sub-agents themselves are stubs in S4.2 (Epic 5 and Epic 6 land the real
-implementations); the stubs are real `LlmAgent` instances backed by real
-Gemini, not mocks. The "STUB:" prefix inside instruction strings is documented
-as the §14 carve-out in the story file.
+Sub-agents are produced by per-module factories so production can swap
+implementations without touching this file. The stubs are real `LlmAgent`
+instances backed by real Gemini, not mocks; the `STUB:` prefix inside
+instruction strings is the §14 carve-out documented in the story file.
 
 ADR-012: ADK's `SequentialAgent` is the deprecated-but-pinned API per the
 google-adk[a2a]>=2.1.0,<3.0.0 constraint. Workflow (the v3 replacement) is

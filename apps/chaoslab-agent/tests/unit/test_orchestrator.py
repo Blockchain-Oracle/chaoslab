@@ -179,10 +179,20 @@ async def test_orchestrator_emits_three_ordered_agent_spans(  # noqa: PLR0915 �
     instrumentor = GoogleADKInstrumentor()
     instrumentor.instrument(tracer_provider=tp)
 
+    # Guard against ADK API drift: if `_run_async_impl` is ever renamed, monkeypatch
+    # would silently no-op and the test would hit real Gemini with a fake API key.
+    assert hasattr(LlmAgent, "_run_async_impl"), (
+        "ADK API drift: LlmAgent._run_async_impl no longer exists; "
+        "trace-as-assertion test would silently call real Gemini"
+    )
+
+    fake_call_count = {"n": 0}
+
     async def fake_run_async_impl(
         self: LlmAgent, ctx: InvocationContext
     ) -> AsyncGenerator[Event, None]:
         """Bypass Gemini: yield a single synthetic final-response event per sub-agent."""
+        fake_call_count["n"] += 1
         content = Content(role="model", parts=[Part(text=f"{{}}stub-{self.name}-output")])
         yield Event(invocation_id=ctx.invocation_id, author=self.name, content=content)
         ctx.set_agent_state(self.name, end_of_agent=True)
@@ -243,12 +253,24 @@ async def test_orchestrator_emits_three_ordered_agent_spans(  # noqa: PLR0915 �
             kind == "AGENT"
         ), f"{attrs.get('agent.name')!r} span.kind = {kind!r}, expected 'AGENT'"
 
-    # 4. Sequential execution proven: Patcher started AFTER Judge ended.
-    judge = next(s for s in children if dict(s.attributes or {}).get("agent.name") == "Judge")
-    patcher = next(s for s in children if dict(s.attributes or {}).get("agent.name") == "Patcher")
-    assert patcher.start_time is not None, "Patcher span missing start_time"
-    assert judge.end_time is not None, "Judge span missing end_time"
-    assert patcher.start_time >= judge.end_time, (
-        f"Patcher started before Judge ended (start={patcher.start_time}, "
-        f"judge_end={judge.end_time}) — parallel execution detected, expected sequential"
+    # 4. Sequential execution proven: each child starts AFTER its predecessor ends.
+    # Pairwise across all adjacent children — a parallel runtime could otherwise
+    # satisfy only the last pair while overlapping the first two.
+    import itertools
+
+    for prev, curr in itertools.pairwise(children):
+        prev_name = dict(prev.attributes or {}).get("agent.name")
+        curr_name = dict(curr.attributes or {}).get("agent.name")
+        assert prev.end_time is not None, f"{prev_name} span missing end_time"
+        assert curr.start_time is not None, f"{curr_name} span missing start_time"
+        assert curr.start_time >= prev.end_time, (
+            f"{curr_name} started before {prev_name} ended "
+            f"(start={curr.start_time}, prev_end={prev.end_time}) — "
+            f"overlap detected, sequential execution gate failed"
+        )
+
+    # 5. Bypass actually fired — silent no-op would have routed to real Gemini.
+    assert fake_call_count["n"] == 3, (
+        f"fake _run_async_impl fired {fake_call_count['n']}x; expected 3 (one per sub-agent). "
+        "If 0, monkeypatch missed the target — confirm LlmAgent._run_async_impl path."
     )
