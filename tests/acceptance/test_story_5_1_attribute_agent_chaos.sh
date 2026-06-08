@@ -12,8 +12,17 @@ source "$(dirname "${BASH_SOURCE[0]}")/_lib.sh"
 # NOTICE is the single source of truth for the pinned upstream SHA. Extract
 # it here so a future repin only edits NOTICE; the test follows automatically
 # and the __init__.py docstring does not duplicate the literal.
-NOTICE_SHA="$(grep -oE '[0-9a-f]{40}' NOTICE | head -n 1 || true)"
-[ -n "$NOTICE_SHA" ] || fail "no 40-char upstream SHA found in NOTICE"
+#
+# Anchor the extraction to the deepankarm/agent-chaos attribution block —
+# a naive `head -n 1` over all 40-char hex in NOTICE would silently lock to
+# the wrong SHA if a future Apache-2.0 dependency with its own commit hash
+# is listed above this block (reproduced by test-analyzer in PR #39 R2).
+NOTICE_SHA="$(awk '
+  /^### deepankarm\/agent-chaos/ {in_block=1; next}
+  /^### / && in_block       {exit}
+  in_block
+' NOTICE | grep -oE '[0-9a-f]{40}' | head -n 1 || true)"
+[ -n "$NOTICE_SHA" ] || fail "no 40-char upstream SHA found in the deepankarm/agent-chaos NOTICE block"
 
 # -- BDD-1: NOTICE attributes deepankarm/agent-chaos + has a pinned SHA ------
 assert_file NOTICE
@@ -65,32 +74,30 @@ assert_grep "deepankarm/agent-chaos" "${faults_dir}/__init__.py"
 assert_grep "Apache-2.0" "${faults_dir}/__init__.py"
 pass "faults/__init__.py credits deepankarm/agent-chaos + Apache-2.0"
 
-# -- BDD-6: every fault module in faults/ credits upstream -------------------
+# -- BDD-6: every fault module under faults/ (recursively) credits upstream --
 # Inclusive default: ANY .py landed under injector/faults/ (other than
 # __init__.py) must carry the attribution. Glob-by-filename-convention was
 # too narrow — the planned F1-F4 modules use semantic names
 # (malformed_tool_output.py, prompt_injection.py, context_poisoning.py,
 # latency_spike.py per S5.2-S5.5) and a shared helper / base.py could land
-# alongside them. Catch them all and let an explicit allowlist carve out
-# legitimately-native modules later if needed.
-# `shopt -p nullglob` exits 1 when the option is off (its default), which
-# would trip `set -e` during the capture below. The `|| true` is necessary,
-# not noise — it lets us snapshot the prior state for later restore.
-prev_nullglob="$(shopt -p nullglob || true)"
-shopt -s nullglob
-fault_modules=("$faults_dir"/*.py)
-eval "$prev_nullglob"
-filtered=()
-for m in "${fault_modules[@]}"; do
-  [ "$(basename "$m")" = "__init__.py" ] && continue
-  filtered+=("$m")
-done
-if [ "${#filtered[@]}" -gt 0 ]; then
-  for m in "${filtered[@]}"; do
+# alongside them. Recurse because subdirs (e.g. faults/helpers/) are still
+# part of the faults package surface (test-analyzer PR #39 R2 finding).
+# `mapfile` is bash 4+; macOS ships bash 3.2. `find -print0` + `read -d ''`
+# is the portable equivalent and is null-safe against paths with spaces.
+fault_modules=()
+set +e
+while IFS= read -r -d '' m; do
+  fault_modules+=("$m")
+done < <(find "$faults_dir" -type f -name '*.py' -not -name '__init__.py' -print0)
+rc=$?
+set -e
+[ "$rc" -eq 0 ] || fail "find tool error scanning $faults_dir (rc=$rc)"
+if [ "${#fault_modules[@]}" -gt 0 ]; then
+  for m in "${fault_modules[@]}"; do
     assert_grep "deepankarm/agent-chaos" "$m"
     assert_grep "Apache-2.0" "$m"
   done
-  pass "all ${#filtered[@]} non-__init__ fault modules credit deepankarm/agent-chaos + Apache-2.0"
+  pass "all ${#fault_modules[@]} non-__init__ fault modules credit deepankarm/agent-chaos + Apache-2.0"
 else
   pass "no F1-F4 fault modules present yet (S5.2-S5.5 will populate)"
 fi
