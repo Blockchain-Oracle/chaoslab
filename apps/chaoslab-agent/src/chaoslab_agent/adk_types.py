@@ -26,6 +26,7 @@ from google.adk.events import Event as AdkEvent
 from google.adk.runners import InMemoryRunner, Runner
 from google.adk.tools import FunctionTool
 from google.adk.tools.base_tool import BaseTool
+from google.adk.tools.tool_context import ToolContext
 from pydantic import BaseModel, Field, field_validator
 
 # Pinned per ADR-007 + CLAUDE.md hard rule.
@@ -122,4 +123,5 @@ __all__ = [
     "RunState",
     "Runner",
     "SequentialAgent",
+    "ToolContext",
 ]

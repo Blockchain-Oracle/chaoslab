@@ -10,3 +10,10 @@ against the Google ADK callback system per docs/architecture.md ADR-006
 
 Each fault class is re-exported from this package once its module lands.
 """
+
+from chaoslab_agent.injector.faults.malformed_tool_output import (
+    MalformationMode,
+    MalformedToolOutputFault,
+)
+
+__all__ = ["MalformationMode", "MalformedToolOutputFault"]
