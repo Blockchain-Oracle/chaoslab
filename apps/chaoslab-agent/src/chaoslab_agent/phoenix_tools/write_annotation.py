@@ -13,6 +13,7 @@ the shared client + scrub helpers into a `_common.py` module.
 from __future__ import annotations
 
 import datetime as _dt
+import math
 import re
 from typing import Literal, cast
 
@@ -49,13 +50,21 @@ _MIN_SPAN_ID_LEN = 8
 _MAX_SPAN_ID_LEN = 32
 _SPAN_ID_RE = re.compile(r"^[0-9a-fA-F]{8,32}$")
 
-# Reason cap. Phoenix's OpenAPI doesn't publish a max; ~8KB is the documented
-# practical ceiling for sync writes. Above that we fail loud locally instead of
-# letting the SDK time out + surface an opaque server error.
+# `cluster_id` is interpolated into the dedup identifier. A malicious or sloppy
+# caller passing `cluster_id="evil/../other"` would let the identifier alias
+# `cluster_id="other"` — exactly the silent-overwrite family of bug the Round-2
+# BLOCKER fix is meant to close. Accept ASCII alphanumeric + `_.-` only.
+_CLUSTER_ID_RE = re.compile(r"^[A-Za-z0-9_.-]{1,64}$")
+
+# Reason cap. Phoenix's OpenAPI does not publish a maximum; 8KB is our chosen
+# defensive ceiling (large enough for realistic LLM rationales, small enough
+# to keep the sync POST under typical proxy timeouts). Above it we fail loud
+# locally instead of letting the SDK time out + surface an opaque server error.
 _MAX_REASON_LEN = 8192
 
-# ASCII control characters below this codepoint break Postgres' `text` storage
-# (Phoenix's backend). \t, \n, \r are whitelisted as printable whitespace.
+# `\x00` is the hard Postgres-text rejection in Phoenix's backend; the rest of
+# the ASCII control range (< 32, excluding `\t\n\r`) is rejected defensively
+# to keep stored explanations renderable in downstream UI.
 _PRINTABLE_THRESHOLD = 32
 
 
@@ -97,7 +106,7 @@ def _iso_now() -> str:
 
 
 def _default_identifier(span_id: str, cluster_id: str, settings: Settings) -> str:
-    """Stable, address able identifier for a cluster annotation.
+    """Stable, addressable identifier for a cluster annotation.
 
     Phoenix dedups on `(name, span_id, identifier)`. An empty identifier means
     "second write overwrites first" — which silently loses Judge cluster scores
@@ -105,6 +114,19 @@ def _default_identifier(span_id: str, cluster_id: str, settings: Settings) -> st
     Phoenix Audit version + cluster id so multiple judges coexist.
     """
     return f"chaoslab/{settings.service_version}/{cluster_id or 'default'}/{span_id[:16]}"
+
+
+def _validate_cluster_id(cluster_id: str) -> None:
+    """Reject cluster_id values that would break the dedup identifier formula.
+
+    `cluster_id` is concatenated into the identifier path. A `cluster_id` containing
+    `/` or `..` would let two distinct clusters alias to the same identifier — the
+    same silent-overwrite family of bug the BLOCKER fix closed for the empty-id case.
+    """
+    if not _CLUSTER_ID_RE.fullmatch(cluster_id):
+        raise PhoenixAnnotationError(
+            f"cluster_id must match {_CLUSTER_ID_RE.pattern!r}, got {cluster_id!r}"
+        )
 
 
 def _validate_inputs(span_id: str, score: float, reason: str, annotator: str) -> AnnotatorKind:
@@ -118,9 +140,7 @@ def _validate_inputs(span_id: str, score: float, reason: str, annotator: str) ->
         raise PhoenixAnnotationError(
             f"span_id must be 8-32 hex chars (OTel SpanID shape), got {span_id!r}"
         )
-    import math as _math
-
-    if _math.isnan(score) or not (0.0 <= score <= 1.0):
+    if math.isnan(score) or not (0.0 <= score <= 1.0):
         raise PhoenixAnnotationError(f"score out of bounds [0,1]: {score!r}")
     if not reason or not reason.strip():
         raise PhoenixAnnotationError("reason must be a non-empty string")
@@ -136,6 +156,7 @@ def _validate_inputs(span_id: str, score: float, reason: str, annotator: str) ->
         raise PhoenixAnnotationError(
             f"unknown annotator: {annotator!r} (allowed={sorted(_ANNOTATOR_KIND)!r})"
         )
+    # Cast safe: the membership check above narrows `annotator` to AnnotatorLiteral.
     return _ANNOTATOR_KIND[cast(AnnotatorLiteral, annotator)]
 
 
@@ -209,6 +230,7 @@ async def write_span_annotation(
     overwriting (Phoenix dedups on `(name, span_id, identifier)`).
     """
     settings = get_settings()
+    _validate_cluster_id(cluster_id)
     annotator_kind = _validate_inputs(span_id, score, reason, annotator)
     identifier = _default_identifier(span_id, cluster_id, settings)
     annotation = _build_annotation(

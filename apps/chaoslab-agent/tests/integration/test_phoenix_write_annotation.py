@@ -224,6 +224,24 @@ async def test_identifier_is_deterministic_and_uses_cluster_id(
     assert result.annotation_identifier != ""
 
 
+@pytest.mark.parametrize(
+    "bad_cluster_id",
+    ["evil/../other", "with space", "has:colon", "x" * 65, "", "path/traversal"],
+)
+async def test_wrapper_rejects_malformed_cluster_id_before_http(
+    monkeypatch: pytest.MonkeyPatch, bad_cluster_id: str
+) -> None:
+    """`cluster_id` regex blocks shapes that would collide with other clusters' identifiers."""
+    from chaoslab_agent.phoenix_tools import write_annotation as mod
+
+    captured: dict = {}
+    monkeypatch.setattr(mod, "AsyncClient", _fake_client_factory(captured))
+
+    with pytest.raises(PhoenixAnnotationError, match=r"cluster_id"):
+        await mod.write_span_annotation(_SPAN_ID, 0.5, "reason", cluster_id=bad_cluster_id)
+    assert captured.get("call_count", 0) == 0
+
+
 async def test_two_distinct_cluster_ids_produce_distinct_identifiers(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
