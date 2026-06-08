@@ -27,17 +27,23 @@ from chaoslab_agent.errors import AdapterConnectionError
 from chaoslab_agent.injector.target_adapters import AdapterTier, ADKAdapter, TargetSpec
 from chaoslab_agent.injector.target_adapters.base import AdapterInvocation
 
-pytestmark = pytest.mark.integration
-
 _TARGET_URL = os.environ.get("TARGET_AGENT_URL", "http://localhost:8001")
 
 
 def _target_reachable() -> bool:
+    """Return True if the target's TCP+HTTP stack responds at all.
+
+    We deliberately only treat transport-level failures (``httpx.RequestError``
+    — connect refused, DNS, timeout, ELOOP) as "down". A 4xx or 5xx means the
+    target IS up and the test should run + assert on the actual behaviour; a
+    broken AgentCard endpoint should surface as a failed integration test,
+    NOT be silently skipped as "target down" (test-analyzer PR #41 Round-1).
+    """
     try:
-        r = httpx.get(f"{_TARGET_URL}/.well-known/agent-card.json", timeout=2.0)
-    except (httpx.ConnectError, httpx.ConnectTimeout, httpx.ReadTimeout):
+        httpx.get(f"{_TARGET_URL}/.well-known/agent-card.json", timeout=2.0)
+    except httpx.RequestError:
         return False
-    return r.status_code == 200
+    return True
 
 
 _SKIP_REASON = (
@@ -45,6 +51,8 @@ _SKIP_REASON = (
     "`uv run --project apps/target-agent python -m target_agent.server`"
 )
 
+# Single pytestmark assignment (the earlier draft assigned it twice — harmless
+# but visually misleading, flagged by code-reviewer).
 pytestmark = [
     pytest.mark.integration,
     pytest.mark.skipif(not _target_reachable(), reason=_SKIP_REASON),

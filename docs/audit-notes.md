@@ -222,54 +222,75 @@ paths = [
 
 **Implication for future stories:** ty's TOML schema is still pre-1.0 and evolving. Don't pile config into `[tool.ty]` until ty hits 1.0 — pass everything via CLI flags. Re-evaluate after S2.1 introduces actual Python source.
 
-### IF-10 — `RemoteA2aAgent` does NOT exist in ADK 2.x; use `a2a.client.A2AClient` instead (S3.2, 2026-06-08)
+### IF-10 — `RemoteA2aAgent` does NOT exist in ADK 2.x; use `a2a.client.ClientFactory` (S3.2, 2026-06-08)
 
-**Discovered in:** S3.2 implementation. The story-3.2 spec at lines 24, 239, 248 specifies
-`from google.adk.agents import RemoteA2aAgent`, but our pinned `google-adk>=2.1.0,<3.0.0`
-does not ship that symbol — `ImportError: cannot import name 'RemoteA2aAgent' from
-'google.adk.agents'` (verified locally on the installed `.venv`).
+**TL;DR for downstream adapter stories.** Use **`a2a.client.ClientFactory`** —
+NOT `a2a.client.legacy.A2AClient`. The legacy class is deprecated within the
+same installed `a2a-sdk` version; both ship side-by-side in 0.3.x but only
+`ClientFactory` is the supported path.
 
-**The actual client class** is `a2a.client.ClientFactory` from `a2a-sdk 0.3.x`
+**Discovered in:** S3.2 implementation. The story-3.2 spec (in its "Required wire
+path" code template + "Known pitfalls" section) specifies
+`from google.adk.agents import RemoteA2aAgent`, but our pinned
+`google-adk>=2.1.0,<3.0.0` does not ship that symbol — `ImportError: cannot
+import name 'RemoteA2aAgent' from 'google.adk.agents'` (verified locally on
+the installed `.venv`).
+
+**The actual client class** is `a2a.client.ClientFactory` from `a2a-sdk 0.3.26`
 (transitively pulled in by `google-adk[a2a]>=2.1.0`; do NOT pin `a2a-sdk`
-explicitly per CLAUDE.md "load-bearing gotchas"). Note: the older
-`a2a.client.A2AClient` (under `a2a.client.legacy`) is **deprecated within the
-same installed version** in favor of `ClientFactory`; downstream stories should
-use `ClientFactory` directly, not `A2AClient`. API surface:
+explicitly per CLAUDE.md "load-bearing gotchas"). API surface:
 
 - `A2ACardResolver(httpx_client, base_url, agent_card_path="/.well-known/agent-card.json")` → `await get_agent_card() -> AgentCard`
 - `ClientFactory(ClientConfig(httpx_client=..., streaming=bool, supported_transports=[TransportProtocol.jsonrpc]))`
   - `.create(card)` → `Client` (transport-negotiated)
   - Or `await ClientFactory.connect(agent=url, client_config=cfg, relative_card_path=...)` for one-shot discovery + client creation
-- `Client.send_message(message)` returns `AsyncIterator[ClientEvent | Message]` where `ClientEvent = (Task, Update | None)`. With `streaming=False`, the iterator yields aggregated terminal events; iterate to completion and concatenate.
+- `Client.send_message(message)` returns `AsyncIterator[ClientEvent | Message]` where `ClientEvent = (Task, Update | None)`. With `streaming=False`, the iterator yields aggregated terminal events; for the synchronous-reply case it yields a bare `Message`. The terminal `Task` may carry text in `status.message` or fall back to `history` filtered to `Role.agent` (do NOT concatenate user-role history — it would echo the prompt back).
 - Helper: `a2a.client.create_text_message_object(role="user", content=prompt) -> Message`
-- Errors: `A2AClientHTTPError` (has `.status_code`), `A2AClientJSONError` (malformed JSON), and the usual `httpx.ConnectError` family on transport failures.
+- Errors: `A2AClientError` (base), `A2AClientHTTPError` (has `.status_code`), `A2AClientJSONError` (malformed JSON / missing required fields), `A2AClientJSONRPCError` (target returned a JSON-RPC error response). Note: `A2ACardResolver.get_agent_card` already wraps every `httpx.RequestError` (ConnectError / ConnectTimeout / ReadTimeout / etc.) as `A2AClientHTTPError(status_code=503)` — do NOT add a redundant `except (httpx.ConnectError, ...)` branch, it's unreachable.
 
-**Quarantine impact:** `a2a.*` is NOT covered by the `google.adk.*` quarantine
-rule (CLAUDE.md "Don't import `google.adk.*` outside `chaoslab_agent.adk_types`").
-S3.2 can import `a2a.client` directly from `adk_adapter.py` — no wrapper module
-needed for compliance purposes.
+**DO NOT use `a2a.client.legacy.A2AClient`.** It is the same-version deprecated
+client; importing it emits a `DeprecationWarning` pointing at `ClientFactory`.
+S3.2's first draft used it before Abu flagged the choice; the migration to
+`ClientFactory` is in `apps/chaoslab-agent/src/chaoslab_agent/injector/target_adapters/adk_adapter.py`.
+
+**Quarantine impact:** `a2a` is a separate top-level distribution, not a
+submodule of `google.adk`. The `google.adk.*` quarantine rule (CLAUDE.md "Don't
+import `google.adk.*` outside `chaoslab_agent.adk_types`") therefore does NOT
+cover `a2a.*`. S3.2 imports `a2a.client` and `a2a.types` directly from
+`adk_adapter.py`; no wrapper module is needed for compliance.
 
 **`RemoteA2aAgentWrapper` in adk_types.py — not required.** The original spec
 template described it as a quarantine wrapper for `google.adk.agents.RemoteA2aAgent`;
-since that class doesn't exist and the actual `a2a-sdk` client isn't quarantined,
-a wrapper would add a module for no compliance benefit. S3.2 implements `ADKAdapter`
-directly against `a2a.client.A2AClient`.
+since that class doesn't exist and `a2a.*` isn't quarantined, a wrapper would add
+a module for no compliance benefit. S3.2 implements `ADKAdapter` directly against
+`a2a.client.ClientFactory` + `A2ACardResolver`.
 
-**Span ID capture — partial vs spec.** Spec line 209/241 calls for
-`last_child_span_ids()` to harvest framework child-span IDs. This requires non-trivial
-OpenTelemetry tracer-provider plumbing (the active-processor approach the spec hints
-at is unreliable — OTEL processors don't expose finished spans). For S3.2 we capture
-only the adapter's outer wrapper span; child-span harvesting via Phoenix server-side
-trace correlation is deferred to Epic 6 (Judge needs the spans for scoring; we can
-fetch them from Phoenix by trace_id at scoring time).
+**Failure-handling contract (per the frozen S3.1 `AdapterResult` docstring).**
+Adapters MUST raise on transport / protocol / framework errors. The `error`
+field is reserved for Epic 5+ soft-failure semantics. S3.2's `ADKAdapter.invoke`
+catches `A2AClientError` and `httpx.HTTPError` and re-raises them as
+`AdapterConnectionError`; everything else (our bugs) propagates. Do NOT use a
+bare `except Exception` to populate `result.error` — that violates the contract
+and hides real bugs as "target said no."
+
+**Span ID capture — partial vs spec.** Story-3.2's "Notes for coding agent —
+Span ID capture" section calls for `last_child_span_ids()` to harvest framework
+child-span IDs. This requires non-trivial OpenTelemetry tracer-provider plumbing
+(the active-processor approach the spec hints at is unreliable — OTEL processors
+don't expose finished spans). For S3.2 we capture only the adapter's outer
+wrapper span; child-span harvesting via Phoenix server-side trace correlation is
+deferred to Epic 6 (Judge needs the spans for scoring; we can fetch them from
+Phoenix by trace_id at scoring time).
 
 **Implication for future stories:**
 
-- S3.3-S3.6 (LangChain / CrewAI / OpenAI-SDK / HTTP black-box adapters) face the
-  same SDK-shape-vs-spec risk. Each should verify the actual import path with a
-  Python probe before writing the implementation.
-- S6.x Judge can correlate via Phoenix `trace_id` rather than relying on adapter-returned
-  child span IDs. The single outer span ID is enough to anchor the trace.
+- The remaining Tier 1/2/3 adapter stories (LangChain, CrewAI, OpenAI-SDK,
+  HTTP black-box adapters) face the same SDK-shape-vs-spec risk. Each should
+  verify the actual import path with a Python probe before writing the
+  implementation.
+- The Judge sub-agent (Epic 6) can correlate via Phoenix `trace_id` rather than
+  relying on adapter-returned child span IDs. The single outer span ID is enough
+  to anchor the trace.
 
 ### IF-7 — 400-line rule scope ambiguity for `docs/` (S1.2, PR #2 code-reviewer)
 
