@@ -68,10 +68,11 @@ class _RunState(BaseModel):
     status: Literal["pending", "running", "succeeded", "failed"] = "pending"
 
 
-# In-process registries — Cloud Run min-instances=1 / max-instances=1 keeps this
-# single-replica. A multi-replica deploy would silently split state across pods;
-# `/stream` 404s would be indistinguishable from "evicted." See ADR-017 + the
-# follow-up tracking issue.
+# In-process registries. The current Cloud Run config (story-4.6) sets
+# `--min-instances=1 --max-instances=3`, so registry state CAN split across
+# pods; `/stream` 404s on a wrong-pod request are indistinguishable from
+# "run evicted." Single-replica enforcement is deferred work — until then,
+# sticky-routing or external state is the next correctness step.
 _RUN_REGISTRY: dict[str, _RunState] = {}
 
 # Demo target — replaced by the real cross-framework adapter registry.
@@ -97,16 +98,16 @@ def _new_run_id() -> str:
 
 @asynccontextmanager
 async def _lifespan(app: FastAPI) -> AsyncIterator[None]:
-    # Observability is best-effort during boot: a missing setup_logging() must not
-    # crash the app (degraded path). Once `chaoslab_agent.observability` ships,
-    # fail loud if its setup raises — we never want silent observability loss on
-    # the hot path of a compliance product.
+    # Observability boot policy: if the observability module is absent, log degraded
+    # mode and continue (compliance product still serves /run + /audit). If present,
+    # ANY error inside setup_logging() propagates by design — silent observability
+    # loss on the hot path of a compliance product is unacceptable.
     if importlib.util.find_spec("chaoslab_agent.observability") is not None:
         from chaoslab_agent.observability import setup_logging  # ty: ignore[unresolved-import]
 
         setup_logging()
     else:
-        logger.info("observability module not yet wired; tracing/logging in degraded mode")
+        logger.info("observability_degraded reason=module_absent")
     yield
 
 
@@ -138,7 +139,10 @@ async def start_run(payload: RunRequest) -> RunResponse:
 
 
 @app.get("/stream")
-async def stream(runId: str, request: Request) -> EventSourceResponse:  # noqa: N803
+async def stream(
+    runId: str,  # noqa: N803 — camelCase preserved by frontend SSE/EventSource contract
+    request: Request,
+) -> EventSourceResponse:
     if runId not in _RUN_REGISTRY:
         logger.warning("stream_404 run_id=%s known_runs=%d", runId, len(_RUN_REGISTRY))
         raise HTTPException(status_code=404, detail=f"run_id not found: {runId}")

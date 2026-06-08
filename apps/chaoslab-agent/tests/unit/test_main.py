@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import json
 import os
 import re
@@ -202,3 +203,72 @@ def test_run_uvicorn_honors_port_env(monkeypatch: pytest.MonkeyPatch) -> None:
     run_uvicorn()
     assert captured["host"] == "127.0.0.1"
     assert captured["port"] == 9123
+
+
+def test_run_uvicorn_rejects_non_integer_port(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A garbage $PORT must crash loudly (Cloud Run treats non-zero exit as crashloop)."""
+    monkeypatch.setenv("PORT", "not-a-port")
+
+    from chaoslab_agent.main import run_uvicorn
+
+    with pytest.raises(SystemExit, match="must be an integer"):
+        run_uvicorn()
+
+
+async def test_stream_logs_exception_on_generator_failure(
+    client: httpx.AsyncClient,
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Any exception inside the SSE generator must log `sse_stream_failed` at ERROR."""
+    import logging as _logging
+
+    from chaoslab_agent import main as _main
+
+    run_resp = await client.post("/run", json={"target_url": "http://localhost:8001"})
+    run_id = run_resp.json()["run_id"]
+
+    async def _boom(_seconds: float) -> None:
+        raise RuntimeError("synthetic-sse-failure")
+
+    monkeypatch.setattr(_main.asyncio, "sleep", _boom)
+
+    # sse-starlette may surface RuntimeError as an HTTP error or propagate; we
+    # don't care which — only that the ERROR log fires.
+    with (
+        caplog.at_level(_logging.ERROR, logger="chaoslab_agent.main"),
+        contextlib.suppress(Exception),
+    ):
+        async with client.stream("GET", f"/stream?runId={run_id}") as resp:
+            async for _ in resp.aiter_text():
+                pass
+
+    assert any("sse_stream_failed" in r.message for r in caplog.records), [
+        r.message for r in caplog.records
+    ]
+
+
+async def test_stream_stops_when_client_disconnects(
+    client: httpx.AsyncClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """`request.is_disconnected()` truthy must short-circuit the heartbeat loop."""
+    from starlette.requests import Request
+
+    call_count = {"n": 0}
+
+    async def fake_disconnected(self: Request) -> bool:
+        call_count["n"] += 1
+        return call_count["n"] >= 2  # first call False (hello frame already past), then True
+
+    monkeypatch.setattr(Request, "is_disconnected", fake_disconnected)
+
+    run_resp = await client.post("/run", json={"target_url": "http://localhost:8001"})
+    run_id = run_resp.json()["run_id"]
+
+    chunks: list[str] = []
+    async with client.stream("GET", f"/stream?runId={run_id}") as resp:
+        async for chunk in resp.aiter_text():
+            chunks.append(chunk)
+    joined = "".join(chunks)
+    assert joined.count("event: heartbeat") < 3, f"disconnect did not short-circuit: {joined!r}"
