@@ -132,18 +132,24 @@ def test_target_spec_optional_fields_default_to_none() -> None:
 
 
 def test_target_spec_auth_is_secretstr_and_redacts_in_json_dump() -> None:
-    """SecretStr lock — bearer tokens / API keys must not surface in logs.
+    """SecretStr lock — bearer tokens / API keys must not surface in any path.
 
-    `model_dump_json()` is what structlog's JSON renderer + every external
-    serialization path goes through. pydantic 2's SecretStr renders as
-    '**********' in that path by default.
+    Three paths matter for log leaks:
+    - ``model_dump_json()`` — structlog's JSON renderer + external serializers
+    - ``str(secret)`` — fallback when something stringifies the value directly
+    - ``repr(spec)`` — ``logger.exception("spec=%r", spec)`` and pdb / print(repr)
+
+    The TargetSpec docstring promises all three redact; this test locks the
+    promise so it can't quietly rot.
     """
     spec = _spec(auth={"bearer": "super-secret-token-XYZ"})
     assert spec.auth is not None
     assert isinstance(spec.auth["bearer"], SecretStr)
-    dumped = json.loads(spec.model_dump_json())
-    assert "super-secret-token-XYZ" not in spec.model_dump_json()
-    assert dumped["auth"]["bearer"] == "**********"
+    dumped_json = spec.model_dump_json()
+    assert "super-secret-token-XYZ" not in dumped_json
+    assert json.loads(dumped_json)["auth"]["bearer"] == "**********"
+    assert str(spec.auth["bearer"]) == "**********"
+    assert "super-secret-token-XYZ" not in repr(spec)
 
 
 # -- AdapterInvocation validation --------------------------------------------
