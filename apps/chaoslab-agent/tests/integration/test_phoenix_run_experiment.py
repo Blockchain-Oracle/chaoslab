@@ -242,17 +242,23 @@ async def test_wrapper_429_retries_three_times_total(
     ), "Wrapper must hand off to SDK exactly once; SDK owns the internal retry loop."
 
 
+@pytest.mark.parametrize("status_code", [429, 500, 503])
 async def test_wrapper_http_status_error_surfaces_sanitized_status(
-    monkeypatch: pytest.MonkeyPatch,
+    monkeypatch: pytest.MonkeyPatch, status_code: int
 ) -> None:
-    """`httpx.HTTPStatusError` surfaces as PhoenixExperimentError naming the status code."""
+    """`httpx.HTTPStatusError` surfaces as PhoenixExperimentError naming the status code.
+
+    Parametrized over rate-limit (429) + server errors (500/503) so the HTTPStatusError
+    catch branch is gated for every shape the SDK might surface — not just one.
+    """
     from chaoslab_agent.phoenix_tools import run_experiment as mod
 
     response = httpx.Response(
-        status_code=500, request=httpx.Request("POST", "https://phoenix.example.test/x")
+        status_code=status_code,
+        request=httpx.Request("POST", "https://phoenix.example.test/x"),
     )
     err = httpx.HTTPStatusError(
-        "internal server error", request=response.request, response=response
+        f"status {status_code}", request=response.request, response=response
     )
     monkeypatch.setattr(mod, "AsyncClient", _build_fake_client_factory({}, raises=err))
     monkeypatch.setitem(mod._EVALUATOR_REGISTRY, "t", object())
@@ -261,7 +267,7 @@ async def test_wrapper_http_status_error_surfaces_sanitized_status(
         await mod.run_phoenix_experiment("ds", ["t"])
     msg = str(exc_info.value)
     assert "ds" in msg
-    assert "500" in msg
+    assert str(status_code) in msg
     assert "test-phoenix-key-DO-NOT-LEAK" not in msg
 
 
@@ -319,15 +325,29 @@ def test_resolve_evaluators_returns_registered_instance_when_name_known(
     assert resolved == [sentinel]
 
 
-def test_extract_result_raises_on_missing_required_attribute() -> None:
-    """`_extract_required` fails loud when the SDK returns a malformed RanExperiment."""
+@pytest.mark.parametrize("missing_attr", ["id", "metrics", "span_ids", "total_examples"])
+def test_extract_result_raises_on_each_missing_required_attribute(missing_attr: str) -> None:
+    """Every required RanExperiment attribute must independently raise PhoenixExperimentError.
+
+    The Round-2 `Empty` class only exercised the FIRST attribute checked (`id`). This
+    parametrize asserts that dropping ANY of the four required fields fails loud — gates
+    against a regression that silently defaults `total_examples=0` etc.
+    """
     from chaoslab_agent.phoenix_tools.run_experiment import _extract_result
 
-    class Empty:  # no required attrs
-        pass
-
-    with pytest.raises(PhoenixExperimentError, match=r"malformed RanExperiment"):
-        _extract_result(Empty(), "ds", ["t"])
+    full = {
+        "id": "exp_abc123def",
+        "metrics": {"t": 1.0},
+        "span_ids": ["sp1"],
+        "total_examples": 1,
+        "elapsed": 0.1,
+    }
+    full.pop(missing_attr)
+    partial_cls = type("PartialRanExperiment", (), full)
+    with pytest.raises(
+        PhoenixExperimentError, match=rf"missing required attribute '{missing_attr}'"
+    ):
+        _extract_result(partial_cls(), "ds", ["t"])
 
 
 async def test_elapsed_seconds_backfilled_when_sdk_returns_zero(
@@ -346,13 +366,41 @@ async def test_elapsed_seconds_backfilled_when_sdk_returns_zero(
     ), f"backfill should produce a non-zero elapsed (got {result.elapsed_seconds!r})"
 
 
-def test_scrub_secret_handles_common_patterns() -> None:
-    """`_scrub_secret` redacts api_key / Authorization / Bearer occurrences."""
+def test_scrub_secret_redacts_keyword_adjacent_tokens(monkeypatch: pytest.MonkeyPatch) -> None:
+    """`_scrub_secret` redacts api_key / Authorization / Bearer tokens + removes literal token."""
     from chaoslab_agent.phoenix_tools.run_experiment import _scrub_secret
 
-    assert "<redacted>" in _scrub_secret("api_key=abcdefghijkl")
-    assert "<redacted>" in _scrub_secret("Authorization: Bearer abcdefghijkl")
-    assert "<redacted>" in _scrub_secret("Bearer abcdefghijkl was rejected")
+    # Pass settings=None to isolate the keyword-adjacency branch from the
+    # literal-key reverse-scrub (covered in the next test).
+    for original in [
+        "api_key=abcdefghijkl",
+        "Authorization: Bearer abcdefghijkl",
+        "Bearer abcdefghijkl was rejected",
+    ]:
+        scrubbed = _scrub_secret(original, settings=None)
+        assert "<redacted>" in scrubbed, original
+        # Regression guard: the actual secret token must be absent post-scrub.
+        assert (
+            "abcdefghijkl" not in scrubbed
+        ), f"keyword-adjacent token leaked through scrub: {scrubbed!r}"
+
+
+def test_scrub_secret_reverse_scrubs_literal_configured_key(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Even without a keyword nearby, the literal configured API key value is scrubbed.
+
+    Defends against SDK leaks that surface the key as a bare token (stack trace
+    formatting, JSON body echo, raw `repr(e)` outputs that don't include `api_key=`).
+    """
+    from chaoslab_agent.phoenix_tools.run_experiment import _scrub_secret
+
+    leaked = "connection refused; debug context test-phoenix-key-DO-NOT-LEAK in payload"
+    scrubbed = _scrub_secret(leaked)  # uses get_settings() under the hood
+    assert (
+        "test-phoenix-key-DO-NOT-LEAK" not in scrubbed
+    ), f"literal key leaked through reverse-scrub: {scrubbed!r}"
+    assert "<redacted>" in scrubbed
 
 
 def test_derive_base_url_strips_trace_suffix(monkeypatch: pytest.MonkeyPatch) -> None:

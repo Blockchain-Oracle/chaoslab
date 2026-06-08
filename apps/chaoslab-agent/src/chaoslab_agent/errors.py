@@ -23,4 +23,4 @@ class PhoenixExperimentError(ChaosLabError):
 
 
 class PhoenixAnnotationError(ChaosLabError):
-    """Raised when `write_phoenix_annotation` fails (used in S4.4)."""
+    """Raised when `write_phoenix_annotation` fails."""

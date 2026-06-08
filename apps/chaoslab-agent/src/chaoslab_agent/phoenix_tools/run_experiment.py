@@ -28,6 +28,10 @@ from chaoslab_agent.errors import PhoenixExperimentError
 # Phoenix's experiment id is a stable wire contract; the regex anchors it.
 _EXPERIMENT_ID_RE = r"^exp_[a-z0-9]+$"
 
+# Minimum length for the literal-key reverse scrub. Any configured key shorter
+# than this is treated as a test sentinel + skipped (avoids false-positive scrubs).
+_MIN_SECRET_LEN = 8
+
 # Regex matching anything that looks like a Phoenix API key — used to scrub
 # SDK error messages before surfacing. Phoenix keys are opaque strings; any
 # token longer than 20 chars adjacent to "key" / "Authorization" / "Bearer"
@@ -71,9 +75,24 @@ TASK_REGISTRY: dict[str, Callable[[Any], Any | Awaitable[Any]]] = {
 _EVALUATOR_REGISTRY: dict[str, object] = {}
 
 
-def _scrub_secret(message: str) -> str:
-    """Best-effort scrub of `(api_?key|authorization|bearer)\\s*[:=]\\s*<token>` substrings."""
-    return _SECRET_SCRUB_RE.sub(r"\1=<redacted>", message)
+def _scrub_secret(message: str, settings: Settings | None = None) -> str:
+    """Best-effort scrub of API key material from a message.
+
+    Two passes: (1) regex match on `(api_?key|authorization|bearer)<sep><token>`
+    keyword-adjacent patterns (see `_SECRET_SCRUB_RE`); (2) literal-string scrub
+    of the actually-configured `phoenix_api_key` value, which defends against
+    SDK leaks that don't include a keyword (raw token in a stack trace, JSON
+    body echo, etc.). Pass `settings=None` to skip pass 2 (used in unit tests).
+    """
+    scrubbed = _SECRET_SCRUB_RE.sub(r"\1=<redacted>", message)
+    s = settings if settings is not None else get_settings()
+    if s.phoenix_api_key is not None:
+        key_value = s.phoenix_api_key.get_secret_value()
+        # Only attempt literal scrub if the key is long enough to be a real
+        # secret; avoids accidentally scrubbing short test sentinels.
+        if len(key_value) >= _MIN_SECRET_LEN and key_value in scrubbed:
+            scrubbed = scrubbed.replace(key_value, "<redacted>")
+    return scrubbed
 
 
 def _resolve_evaluators(names: list[str]) -> list[object]:
@@ -230,9 +249,12 @@ async def run_phoenix_experiment(
             f"experiment failed: dataset={dataset_name} status={e.response.status_code}"
         ) from e
     except Exception as e:
+        # Scrub passes the cached settings explicitly so a future test fixture
+        # that monkeypatches `get_settings` doesn't accidentally bypass the
+        # literal-key reverse-scrub.
         raise PhoenixExperimentError(
             f"experiment failed: dataset={dataset_name} "
-            f"cause={type(e).__name__}: {_scrub_secret(str(e))}"
+            f"cause={type(e).__name__}: {_scrub_secret(str(e), get_settings())}"
         ) from e
     return _finalize_result(ran, dataset_name, evaluators, start)
 
