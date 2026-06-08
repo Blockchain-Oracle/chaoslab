@@ -65,7 +65,7 @@ class _ServerThread:
 
     def __init__(self, host: str, port: int) -> None:
         config = uvicorn.Config(
-            a2a_app,
+            a2a_app,  # ty: ignore[invalid-argument-type]
             host=host,
             port=port,
             log_level="warning",
