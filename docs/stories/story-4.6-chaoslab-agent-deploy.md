@@ -7,6 +7,20 @@
 **Status:** PENDING
 **tags:** [backend, p0, docker, cloud-run, infra]
 
+> **AMENDED 2026-06-08 (PR #38 Round-1 reviews):** Two deviations from the
+> original spec are intentional + load-bearing:
+>
+> 1. **Non-root user is `appuser` uid `10001`**, not `chaoslab` uid `1000` as
+>    the spec wrote. Mirrors the target-agent Dockerfile (PR #27, already on
+>    main) which uses 10001 to stay clear of common host-uid collisions in
+>    bind-mount scenarios + avoids pulling the `passwd` apt package just for
+>    one user. The BDD `id -u` check is now `== 10001`. Original uid 1000 was
+>    a placeholder, not load-bearing.
+> 2. **Liveness-probe flag in the Note "Cloud Run does its own health probing
+>    via `--liveness-probe-path=/health`" is NOT a real gcloud flag.** Cloud
+>    Run liveness probes use `--liveness-probe=httpGet.path=/health,initialDelaySeconds=...`
+>    or YAML. Dockerfile comment + this Note both corrected.
+
 ---
 
 ## User story

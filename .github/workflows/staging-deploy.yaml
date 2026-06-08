@@ -1,0 +1,150 @@
+## Phoenix Audit staging deploy — Cloud Run build → push → blue/green promote.
+##
+## This file is shared across services (S1.6 will land the canonical orchestration
+## for chaoslab-web + target-agent + chaoslab-agent). For now S4.6 ships the
+## chaoslab-agent job; later stories append target-agent + chaoslab-web jobs
+## following the same shape per ADR-008 (build-once-promote-everywhere).
+##
+## ADR-009 (Workload Identity Federation): auth uses `google-github-actions/auth@v3`
+## with WIF — no service-account JSON keys ever touch the repo or runner.
+
+name: staging-deploy
+on:
+  push:
+    branches: [main]
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+  id-token: write # required by WIF (google-github-actions/auth)
+
+env:
+  REGION: us-central1
+  PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+  # PROJECT_HASH is the 8-char suffix Cloud Run appends to service URLs.
+  # Set as a repo-level variable so workflows + smoke-test curls can share it.
+  PROJECT_HASH: ${{ vars.GCP_PROJECT_HASH }}
+
+jobs:
+  chaoslab-agent:
+    name: Build + deploy chaoslab-agent
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Guard required repo variables
+        # Empty `vars.*` references expand to "" in bash and silently malform
+        # downstream URLs (e.g. `candidate---chaoslab-agent-.run.app` 404s).
+        # Fail loud at the TOP of the job so the operator sees the missing var
+        # immediately instead of debugging a 25s smoke timeout.
+        run: |
+          set -e
+          [ -n "${{ vars.GCP_PROJECT_ID }}" ] || { echo "::error::GCP_PROJECT_ID repo variable unset"; exit 1; }
+          [ -n "${{ vars.GCP_PROJECT_HASH }}" ] || { echo "::error::GCP_PROJECT_HASH repo variable unset (Cloud Run URL suffix; gcloud run services describe target-agent | grep url)"; exit 1; }
+          [ -n "${{ vars.GCP_WIF_PROVIDER }}" ] || { echo "::error::GCP_WIF_PROVIDER repo variable unset (WIF provider resource path)"; exit 1; }
+
+      - name: Auth to Google Cloud (WIF)
+        uses: google-github-actions/auth@v3
+        with:
+          workload_identity_provider: ${{ vars.GCP_WIF_PROVIDER }}
+          service_account: github-actions-deployer@${{ env.PROJECT_ID }}.iam.gserviceaccount.com
+
+      - name: Set up gcloud
+        uses: google-github-actions/setup-gcloud@v3
+
+      - name: Pre-flight Secret Manager check
+        # Fail loud BEFORE `gcloud run deploy` if a secret is missing —
+        # otherwise the deploy fails mid-step with an opaque gcloud error.
+        run: |
+          set -e
+          for secret in phoenix-api-key gemini-api-key gitlab-token; do
+            if ! gcloud secrets describe "$secret" --project="${PROJECT_ID}" >/dev/null 2>&1; then
+              echo "::error::Secret Manager secret missing: ${secret} (create via infra/secret-manager-setup.sh)"
+              exit 1
+            fi
+          done
+
+      - name: Configure Artifact Registry docker auth
+        run: gcloud auth configure-docker ${{ env.REGION }}-docker.pkg.dev --quiet
+
+      - name: Build image
+        run: |
+          IMAGE="${REGION}-docker.pkg.dev/${PROJECT_ID}/chaoslab/chaoslab-agent:${GITHUB_SHA}"
+          docker build \
+            -f apps/chaoslab-agent/Dockerfile \
+            -t "${IMAGE}" \
+            .
+          echo "IMAGE=${IMAGE}" >> "${GITHUB_ENV}"
+
+      - name: Push image
+        run: docker push "${IMAGE}"
+
+      - name: Deploy to Cloud Run (candidate, no traffic)
+        # ADR-008 blue/green: --tag=candidate + --no-traffic stages the new
+        # revision behind a candidate URL so the smoke-test runs against the
+        # next image without affecting live traffic.
+        # ADR-007 hard rule: JUDGE_LLM=gemini-3.5-flash (NEVER gemini-pro / 2.0-flash).
+        # ADR-009: secrets mounted from Secret Manager via --set-secrets, never
+        # baked into the image or env vars.
+        run: |
+          gcloud run deploy chaoslab-agent \
+            --image="${IMAGE}" \
+            --region="${REGION}" \
+            --platform=managed \
+            --service-account="chaoslab-agent-runtime@${PROJECT_ID}.iam.gserviceaccount.com" \
+            --min-instances=1 \
+            --max-instances=3 \
+            --memory=1Gi \
+            --cpu=1 \
+            --port=8080 \
+            --no-allow-unauthenticated \
+            --set-secrets="PHOENIX_API_KEY=phoenix-api-key:latest,GEMINI_API_KEY=gemini-api-key:latest,GITLAB_TOKEN=gitlab-token:latest" \
+            --set-env-vars="ENVIRONMENT=staging,JUDGE_LLM=gemini-3.5-flash,SERVICE_VERSION=${GITHUB_SHA},TARGET_DEFAULT_URL=https://target-agent-${PROJECT_HASH}.run.app" \
+            --tag=candidate \
+            --no-traffic
+
+      - name: Smoke-test candidate revision
+        # 8x retry with 5s spacing — the candidate revision has zero warm
+        # instances until promoted, so the first probe pays cold-start cost
+        # (typically ~10s, occasionally longer on first deploy of a service).
+        # Log HTTP status + body per attempt so a failure is debuggable.
+        id: smoke
+        run: |
+          CANDIDATE_URL="https://candidate---chaoslab-agent-${PROJECT_HASH}.run.app"
+          for i in 1 2 3 4 5 6 7 8; do
+            HTTP_STATUS=$(curl -s -o /tmp/smoke-body -w "%{http_code}" "${CANDIDATE_URL}/health" || echo "000")
+            echo "smoke attempt ${i}: HTTP ${HTTP_STATUS}; body=$(head -c 200 /tmp/smoke-body)"
+            if [ "${HTTP_STATUS}" = "200" ] && grep -q '"status":"ok"' /tmp/smoke-body; then
+              echo "smoke OK"
+              exit 0
+            fi
+            sleep 5
+          done
+          echo "::error::smoke failed after 8 retries against ${CANDIDATE_URL}/health"
+          exit 1
+
+      - name: Promote to 100% traffic
+        # ADR-008 second half: once smoke passes, flip all traffic to the
+        # candidate revision. Free on Cloud Run — no excuse not to use it.
+        # On promote failure: traffic stays on the OLD revision (safe), but the
+        # candidate revision remains for triage. The error log makes that
+        # explicit so the operator knows the rollback was automatic.
+        run: |
+          if ! gcloud run services update-traffic chaoslab-agent \
+              --to-latest=100 \
+              --region="${REGION}"; then
+            echo "::error::promote FAILED — old revision still serves 100% traffic; candidate revision ${GITHUB_SHA::8} preserved for triage. smoke had passed; investigate IAM / quota."
+            exit 1
+          fi
+
+      - name: Cleanup candidate revision on failure
+        # If any prior step in this job failed, the candidate revision is dead
+        # weight. Cloud Run caps services at ~1000 revisions and silently fails
+        # past that — explicit cleanup keeps the service tidy.
+        if: failure()
+        run: |
+          REV_NAME="chaoslab-agent-${GITHUB_SHA::8}"
+          echo "Attempting cleanup of failed candidate revision ${REV_NAME}..."
+          gcloud run revisions delete "${REV_NAME}" \
+            --region="${REGION}" \
+            --quiet || echo "(cleanup best-effort; revision may not have been created)"
