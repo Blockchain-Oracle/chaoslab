@@ -83,15 +83,22 @@ pass "faults/__init__.py credits deepankarm/agent-chaos + Apache-2.0"
 # alongside them. Recurse because subdirs (e.g. faults/helpers/) are still
 # part of the faults package surface (test-analyzer PR #39 R2 finding).
 # `mapfile` is bash 4+; macOS ships bash 3.2. `find -print0` + `read -d ''`
-# is the portable equivalent and is null-safe against paths with spaces.
-fault_modules=()
+# is the portable, null-safe equivalent. Note: process substitution
+# `< <(find ...)` swallows find's exit code — `rc=$?` after the loop
+# captures the `while`'s status, NOT find's. Spill to a tempfile so we can
+# check find's rc directly before consuming the listing (silent-failure-hunter
+# PR #39 R3 finding).
+tmpfile="$(mktemp)"
 set +e
-while IFS= read -r -d '' m; do
-  fault_modules+=("$m")
-done < <(find "$faults_dir" -type f -name '*.py' -not -name '__init__.py' -print0)
+find "$faults_dir" -type f -name '*.py' -not -name '__init__.py' -print0 > "$tmpfile"
 rc=$?
 set -e
-[ "$rc" -eq 0 ] || fail "find tool error scanning $faults_dir (rc=$rc)"
+[ "$rc" -eq 0 ] || { rm -f "$tmpfile"; fail "find tool error scanning $faults_dir (rc=$rc)"; }
+fault_modules=()
+while IFS= read -r -d '' m; do
+  fault_modules+=("$m")
+done < "$tmpfile"
+rm -f "$tmpfile"
 if [ "${#fault_modules[@]}" -gt 0 ]; then
   for m in "${fault_modules[@]}"; do
     assert_grep "deepankarm/agent-chaos" "$m"
