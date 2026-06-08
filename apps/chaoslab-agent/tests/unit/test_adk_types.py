@@ -28,12 +28,16 @@ def test_only_quarantine_imports_google_adk() -> None:
 
     pattern = re.compile(r"^(from|import) google\.adk", re.MULTILINE)
     matched: list[Path] = []
-    for py_file in src_dir.rglob("*.py"):
-        try:
-            if pattern.search(py_file.read_text(encoding="utf-8")):
-                matched.append(py_file)
-        except UnicodeDecodeError:
-            continue
+    # Glob both `.py` and `.pyi` — a stub file with `from google.adk import X`
+    # would smuggle past a .py-only gate even though the static type-checker
+    # would treat it as a real import.
+    for ext in ("*.py", "*.pyi"):
+        for py_file in src_dir.rglob(ext):
+            try:
+                if pattern.search(py_file.read_text(encoding="utf-8")):
+                    matched.append(py_file)
+            except UnicodeDecodeError:
+                continue
 
     listed = sorted(str(p) for p in matched)
     expected = [str(src_dir / "adk_types.py")]

@@ -7,8 +7,9 @@ must import them from here. The invariant is gate-tested by
 
 Pydantic wrappers (`AgentSpec`, `RunState`, `RunEvent`) carry the project's
 type-level invariants: judge_llm is `gemini-3.5-flash` (ADR-007), run_id matches
-`^run_[a-z0-9]{12}$` (S4.1 frontend contract), descriptions are >=20 chars
-(architecture/03 §1.1 supervisor-routing requirement).
+`^run_[a-z0-9]{12}$` (the chaoslab-web frontend SSE contract — see
+`docs/run-config-schema.md`), descriptions are >=20 chars per
+architecture/03 §1.1 (supervisor-routing requirement).
 """
 
 from __future__ import annotations
@@ -49,15 +50,15 @@ class AgentSpec(BaseModel):
     tools: list[str] = Field(default_factory=list)
 
 
-# Run lifecycle phases. The SSE `phase_change` event from S4.2 carries one of these
-# strings. Extending the Literal here automatically widens the frontend contract.
+# Run lifecycle phases. The SSE `phase_change` event on /stream carries one of
+# these strings; extending the Literal widens the frontend wire contract.
 RunPhaseLiteral = Literal["queued", "running", "injecting", "judging", "patching", "done", "error"]
 
 
 class RunState(BaseModel):
-    """In-process run state for the FastAPI `_RUN_REGISTRY`.
+    """In-process run state shared by the FastAPI `_RUN_REGISTRY` + SSE stream.
 
-    Defined in the quarantine so the orchestrator + SSE machinery can share one
+    Defined in the quarantine so the orchestrator and SSE consumer share one
     type definition without re-importing pydantic everywhere.
     """
 
@@ -65,6 +66,9 @@ class RunState(BaseModel):
     phase: RunPhaseLiteral
     target_url: str
     created_at: str
+    # Closed-loop delta: baseline is the pass-rate BEFORE the Injector probes the
+    # target; post_patch is the pass-rate AFTER the Patcher's recipe is applied.
+    # The frontend's Resilience Curve renders the delta.
     pass_rate_baseline: float | None = None
     pass_rate_post_patch: float | None = None
     current_event_index: int = 0

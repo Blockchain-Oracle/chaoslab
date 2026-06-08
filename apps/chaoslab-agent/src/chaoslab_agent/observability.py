@@ -1,13 +1,17 @@
 """Structured logging + Phoenix OTel registration for chaoslab-agent.
 
 `setup_logging` configures structlog with a custom processor that injects the
-active Phoenix `trace_id` + `span_id` into every log line — that's the recursive
-observability story (any log message links to its originating span).
+active Phoenix `trace_id` + `span_id` into every log line, so every log message
+can be cross-referenced with its originating Phoenix span.
 
 `setup_phoenix_otel` calls `phoenix.otel.register(...)` then installs the
-`GoogleADKInstrumentor` so every ADK event surfaces as a span. MUST be called
-BEFORE any `google.adk.*` import path executes (per coding-standards.md
-ADK-specific patterns + ADR-005).
+`GoogleADKInstrumentor`. MUST be called BEFORE any `google.adk.*` import path
+executes (per coding-standards.md ADK-specific patterns + ADR-005).
+
+Secret hygiene: structlog's processor chain includes `_mask_secrets`, which
+replaces any `SecretStr` or kwarg whose key matches `(api_key|token|secret|
+password)` with `"***"` before rendering. This defends against the developer
+foot-gun of `log.info("phoenix_call", api_key=settings.phoenix_api_key.get_secret_value())`.
 """
 
 from __future__ import annotations
@@ -18,13 +22,19 @@ from typing import Any
 
 import structlog
 from opentelemetry import trace as _otel_trace
+from pydantic import SecretStr
 
 from chaoslab_agent.config import Settings
 
 # Tracks whether setup_logging has already configured structlog this process;
 # letting `setup_logging` no-op on second call is the documented idempotency
-# requirement. Stored in a dict so we don't need a `global` declaration (PLW0603).
-_STATE: dict[str, bool] = {"logging_configured": False}
+# requirement. A second call with a different `env` value is a programmer error
+# and raises. Stored in a dict to avoid a `global` declaration.
+_STATE: dict[str, Any] = {"logging_configured": False, "env": None}
+
+# Substrings (case-insensitive) that mark a kwarg key as carrying secret material.
+# Values bound to such keys are scrubbed before rendering.
+_SECRET_KEY_MARKERS = ("api_key", "apikey", "token", "secret", "password", "authorization")
 
 
 def _add_phoenix_trace_id(
@@ -44,13 +54,41 @@ def _add_phoenix_trace_id(
     return event_dict
 
 
+def _mask_secrets(
+    _logger: Any, _method_name: str, event_dict: MutableMapping[str, Any]
+) -> MutableMapping[str, Any]:
+    """Mask any SecretStr value + any value bound to a secret-named key.
+
+    Defends against the developer foot-gun of binding `get_secret_value()`
+    output (a plain str) into a kwarg structlog will then render to JSON.
+    """
+    for key, value in list(event_dict.items()):
+        if isinstance(value, SecretStr) or (
+            isinstance(value, str) and any(m in key.lower() for m in _SECRET_KEY_MARKERS)
+        ):
+            event_dict[key] = "***"
+    return event_dict
+
+
 def setup_logging(env: str = "production") -> None:
     """Configure structlog. Idempotent — safe to call multiple times.
 
     `env="production"` emits JSON (Cloud Logging native); other values emit a
     colored console renderer for local dev. Log level is INFO+ in both modes.
+
+    Calling a SECOND time with a different `env` value raises — that's a
+    programmer error (structlog config is process-global; the second caller's
+    expectations would be silently broken without a clear signal).
     """
     if _STATE["logging_configured"]:
+        cached_env = _STATE.get("env")
+        if cached_env != env:
+            msg = (
+                f"setup_logging already configured with env={cached_env!r}; "
+                f"refusing to reconfigure with env={env!r}. "
+                f"Call `structlog.reset_defaults()` first if reconfiguration is genuinely needed."
+            )
+            raise RuntimeError(msg)
         return
     renderer: structlog.types.Processor = (
         structlog.processors.JSONRenderer()
@@ -62,6 +100,7 @@ def setup_logging(env: str = "production") -> None:
             structlog.contextvars.merge_contextvars,
             structlog.processors.add_log_level,
             structlog.processors.TimeStamper(fmt="iso"),
+            _mask_secrets,
             _add_phoenix_trace_id,
             renderer,
         ],
@@ -69,21 +108,38 @@ def setup_logging(env: str = "production") -> None:
         cache_logger_on_first_use=True,
     )
     _STATE["logging_configured"] = True
+    _STATE["env"] = env
 
 
 def setup_phoenix_otel(settings: Settings) -> None:
     """Register Phoenix as the OTel tracer provider + install GoogleADKInstrumentor.
 
     Per ADR-005 + coding-standards.md ADK-specific patterns: this MUST run BEFORE
-    any `google.adk.*` import executes. The instrumentor patches ADK methods at
-    import time; calling it after ADK imports leaves un-instrumented call paths.
+    any `google.adk.*` import path executes. The instrumentor patches ADK methods
+    at import time; calling it after ADK imports leaves un-instrumented call paths.
 
-    Failures bubble up — silent observability loss on a compliance product is
-    unacceptable (matches the `_lifespan` policy from S4.1).
+    Both imports are resolved BEFORE `register()` is called so an ImportError
+    fails fast WITHOUT mutating the global OTel tracer state — otherwise a
+    half-installed "Phoenix tracer registered, ADK NOT instrumented" state
+    leaves trace-as-assertion gates failing open silently.
     """
-    # Local import: phoenix.otel pulls in heavy dependencies; importing at module
-    # top would slow every test that doesn't need observability.
-    from phoenix.otel import register
+    try:
+        from phoenix.otel import register
+    except ImportError as e:
+        msg = (
+            "phoenix.otel not installed — observability is mandatory per ADR-005. "
+            "Install via `uv add arize-phoenix-otel` in apps/chaoslab-agent/."
+        )
+        raise ImportError(msg) from e
+    try:
+        from openinference.instrumentation.google_adk import GoogleADKInstrumentor
+    except ImportError as e:
+        msg = (
+            "openinference-instrumentation-google-adk not installed — ADK span "
+            "instrumentation is mandatory per ADR-005. Install via "
+            "`uv add openinference-instrumentation-google-adk`."
+        )
+        raise ImportError(msg) from e
 
     api_key = settings.phoenix_api_key.get_secret_value() if settings.phoenix_api_key else None
     register(
@@ -91,10 +147,6 @@ def setup_phoenix_otel(settings: Settings) -> None:
         endpoint=settings.phoenix_collector_endpoint,
         api_key=api_key,
     )
-    # The instrumentor monkey-patches ADK internals; importing here (vs. module
-    # top) lets observability.py be safely imported BEFORE the ADK quarantine.
-    from openinference.instrumentation.google_adk import GoogleADKInstrumentor
-
     GoogleADKInstrumentor().instrument()
 
 

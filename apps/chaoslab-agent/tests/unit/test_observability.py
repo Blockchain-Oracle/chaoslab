@@ -213,3 +213,111 @@ def test_setup_phoenix_otel_propagates_register_failures(
     monkeypatch.setattr("phoenix.otel.register", boom)
     with pytest.raises(RuntimeError, match=r"phoenix unreachable"):
         _obs.setup_phoenix_otel(get_settings())
+
+
+def test_setup_phoenix_otel_fails_fast_before_mutating_tracer_state(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """If openinference is missing, ImportError surfaces BEFORE Phoenix mutates global tracer state.
+
+    Round-2 silent-failure-hunter CRITICAL: a half-installed "Phoenix tracer
+    registered, ADK NOT instrumented" state silently fails open. Solution is
+    to resolve both imports BEFORE register() is called.
+    """
+    from chaoslab_agent import observability as _obs
+
+    register_called = {"yes": False}
+
+    def fake_register(**_kwargs):
+        register_called["yes"] = True
+
+    # phoenix.otel.register patched to a benign fake — but the instrumentor
+    # import is patched to raise. Should surface ImportError WITHOUT register()
+    # ever being called.
+    monkeypatch.setattr("phoenix.otel.register", fake_register)
+
+    import sys
+
+    monkeypatch.setitem(sys.modules, "openinference.instrumentation.google_adk", None)
+    with pytest.raises(ImportError, match=r"openinference-instrumentation-google-adk"):
+        _obs.setup_phoenix_otel(get_settings())
+    assert not register_called[
+        "yes"
+    ], "register() ran despite instrumentor import failing — tracer state half-installed"
+
+
+def test_setup_phoenix_otel_actionable_error_when_phoenix_otel_missing(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Missing `phoenix.otel` surfaces with install instructions, not a raw ModuleNotFoundError."""
+    import sys
+
+    from chaoslab_agent import observability as _obs
+
+    monkeypatch.setitem(sys.modules, "phoenix.otel", None)
+    with pytest.raises(ImportError, match=r"arize-phoenix-otel"):
+        _obs.setup_phoenix_otel(get_settings())
+
+
+def test_setup_logging_raises_on_env_change(capsys: pytest.CaptureFixture[str]) -> None:
+    """Second call with a DIFFERENT env value raises — silent reconfigure is a foot-gun."""
+    from chaoslab_agent.observability import setup_logging
+
+    setup_logging(env="production")
+    with pytest.raises(RuntimeError, match=r"already configured"):
+        setup_logging(env="dev")
+
+
+def test_kwargs_with_secret_named_key_are_masked(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Foot-gun defense: `log.info(..., api_key=get_secret_value())` must not leak the key."""
+    from chaoslab_agent.observability import get_logger, setup_logging
+
+    setup_logging(env="production")
+    get_logger().info(
+        "phoenix_call",
+        api_key="test-phoenix-key-DO-NOT-LEAK",
+        authorization="Bearer test-phoenix-key-DO-NOT-LEAK",
+        token="test-phoenix-key-DO-NOT-LEAK",
+    )
+    parsed = json.loads(capsys.readouterr().out.strip().splitlines()[-1])
+    assert parsed["api_key"] == "***", parsed
+    assert parsed["authorization"] == "***", parsed
+    assert parsed["token"] == "***", parsed
+    assert "test-phoenix-key-DO-NOT-LEAK" not in json.dumps(parsed)
+
+
+def test_kwargs_with_secretstr_value_are_masked(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """A SecretStr value bound to ANY kwarg name is replaced with '***'."""
+    from pydantic import SecretStr
+
+    from chaoslab_agent.observability import get_logger, setup_logging
+
+    setup_logging(env="production")
+    get_logger().info("phoenix_call", some_field=SecretStr("leaky"))
+    parsed = json.loads(capsys.readouterr().out.strip().splitlines()[-1])
+    assert parsed["some_field"] == "***"
+    assert "leaky" not in json.dumps(parsed)
+
+
+def test_phoenix_trace_id_processor_with_invalid_context(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """When a span exists but its context is INVALID (e.g., NonRecordingSpan), no trace_id."""
+    from opentelemetry.trace import NonRecordingSpan, SpanContext, TraceFlags, set_span_in_context
+
+    from chaoslab_agent.observability import _add_phoenix_trace_id
+
+    # Build a span context with is_remote=False but ALL-ZEROS trace_id => is_valid=False.
+    invalid_ctx = SpanContext(trace_id=0, span_id=0, is_remote=False, trace_flags=TraceFlags(0))
+    invalid_span = NonRecordingSpan(invalid_ctx)
+    token = _otel_trace.context_api.attach(set_span_in_context(invalid_span))
+    try:
+        ed = _add_phoenix_trace_id(None, "info", {"event": "test"})
+    finally:
+        _otel_trace.context_api.detach(token)
+    assert "trace_id" not in ed
+    assert "span_id" not in ed
