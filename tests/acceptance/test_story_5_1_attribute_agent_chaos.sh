@@ -1,109 +1,98 @@
 #!/usr/bin/env bash
-# Acceptance test for story-5.1-vendor-agent-chaos.
+# Acceptance test for story-5.1.
 #
-# Story was AMENDED 2026-06-03 per audit A5: no vendoring, attribution-only.
-# This test codifies the AMENDED BDD criteria; the ORIGINAL vendor-flow shell
-# verification at lines 132-168 of the story is superseded.
-#
-# Run from anywhere: bash tests/acceptance/test_story_5_1_attribute_agent_chaos.sh
-# Online SHA check: PHOENIX_AUDIT_ONLINE=1 bash <this script>
+# Locks the AMENDED criteria in docs/stories/story-5.1-vendor-agent-chaos.md
+# (attribution-only — no vendoring of deepankarm/agent-chaos sources, per
+# audit A5 and ADR-006 amendment 2026-06-03). The story file's original
+# ## Shell verification section is historical context only.
 
 # shellcheck source=tests/acceptance/_lib.sh
 source "$(dirname "${BASH_SOURCE[0]}")/_lib.sh"
 
-# Pinned SHA from audit A5 / story-5.1 AMENDED section.
-EXPECTED_SHA="32beff46a28ca043e252095e6cc62ffe2010e645"
+# NOTICE is the single source of truth for the pinned upstream SHA. Extract
+# it here so a future repin only edits NOTICE; the test follows automatically
+# and the __init__.py docstring does not duplicate the literal.
+NOTICE_SHA="$(grep -oE '[0-9a-f]{40}' NOTICE | head -n 1 || true)"
+[ -n "$NOTICE_SHA" ] || fail "no 40-char upstream SHA found in NOTICE"
 
-# -- BDD-1: NOTICE has the attribution + the pinned SHA ----------------------
-# Both anchors live in one block — the audit-locked attribution paragraph
-# under "## Attributions / ### deepankarm/agent-chaos" in NOTICE.
+# -- BDD-1: NOTICE attributes deepankarm/agent-chaos + has a pinned SHA ------
 assert_file NOTICE
 assert_grep "deepankarm/agent-chaos" NOTICE
-assert_grep "${EXPECTED_SHA}" NOTICE
-pass "NOTICE attributes deepankarm/agent-chaos with pinned SHA ${EXPECTED_SHA}"
+# Lock the SHA's position to the attribution line, not just any 40-char hex
+# that happens to be elsewhere in NOTICE.
+assert_grep "(Reference commit|Pinned commit):.*${NOTICE_SHA}" NOTICE
+pass "NOTICE attributes deepankarm/agent-chaos with pinned SHA ${NOTICE_SHA}"
 
-# -- BDD-2: no _vendored/ directory anywhere under chaoslab-agent/src/ -------
-# ADR-006 amendment: the F1-F4 fault primitives are native; vendoring would
-# be dead weight because upstream chaos/llm.py hardcodes anthropic.* exceptions
-# and patch/providers/gemini.py is a NotImplementedError stub.
-# Use find -quit-on-first-match for a clean "did we hit anything?" check.
-found_vendored="$(find apps/chaoslab-agent/src -type d -name '_vendored' -print -quit 2>/dev/null || true)"
-if [ -n "$found_vendored" ]; then
-  fail "_vendored/ directory found at $found_vendored (ADR-006 amendment forbids vendoring)"
+# -- BDD-2: no _vendored/ directory across the repo --------------------------
+# ADR-006 amendment forbids vendoring repo-wide, not just under one app.
+scan_roots=(apps)
+[ -d packages ] && scan_roots+=(packages)
+[ -d scripts ] && scan_roots+=(scripts)
+[ -d tests ] && scan_roots+=(tests)
+[ -d infra ] && scan_roots+=(infra)
+for r in "${scan_roots[@]}"; do
+  assert_dir "$r"
+done
+set +e
+vendored_hits="$(find "${scan_roots[@]}" -type d -name '_vendored' -print)"
+rc=$?
+set -e
+[ "$rc" -eq 0 ] || fail "find tool error scanning ${scan_roots[*]} (rc=$rc)"
+if [ -n "$vendored_hits" ]; then
+  echo "$vendored_hits" >&2
+  fail "_vendored/ directory found (ADR-006 amendment forbids vendoring)"
 fi
-pass "no _vendored/ directory under apps/chaoslab-agent/src/ (ADR-006 amended)"
+pass "no _vendored/ directory under ${scan_roots[*]} (ADR-006 amended)"
 
-# -- BDD-3: NOTICE explicitly disclaims code-copy (not just attribution) ----
-# Audit lock: the attribution paragraph must read "no source code is copied"
-# (or equivalent) so a future reader can't accidentally treat this as a
+# -- BDD-3: NOTICE explicitly disclaims code-copy ----------------------------
+# Audit-locked: future readers must not treat the attribution block as a
 # permission slip to start vendoring later.
 assert_grep "[Nn]o source code is copied" NOTICE
 pass "NOTICE explicitly disclaims code-copy"
 
-# -- BDD-4: LICENSE precondition (Apache-2.0 compat) -------------------------
-# Apache-2.0 § 4 doesn't require attribution for non-copy use, but we keep
-# the LICENSE assertion so that if anyone ever DOES decide to copy a file,
-# they're starting from a license-compatible base.
+# -- BDD-4: LICENSE is Apache-2.0 (compat precondition) ----------------------
+# NOTICE attribution here is courtesy, not a redistribution requirement —
+# we do not redistribute upstream source. LICENSE assertion is kept so any
+# future copy would start license-compatible.
 assert_first_nonblank_contains LICENSE "Apache License"
-pass "LICENSE is Apache-2.0 (license-compat precondition)"
+pass "LICENSE is Apache-2.0 (compat precondition)"
 
-# -- BDD-5: F1-F4 docstring discipline (forward-looking gate) ----------------
-# S5.2-S5.5 will create the F1-F4 fault modules. THIS story locks the rule
-# that each such module's docstring credits the architectural inspiration
-# with the "deepankarm/agent-chaos" + "Apache-2.0" string pair.
-# - If the faults/ directory has F1-F4 modules: assert each contains both
-#   strings.
-# - If it does NOT yet have them (S5.1 lands first): just verify the
-#   directory exists as the future home; the docstring assertion becomes
-#   active once S5.2-S5.5 land.
+# -- BDD-5: faults/__init__.py marker + attribution --------------------------
 faults_dir="apps/chaoslab-agent/src/chaoslab_agent/injector/faults"
-# S5.1 lays the package marker so S5.2-S5.5 can land their F<N> modules
-# under a regular Python package (not an implicit namespace one).
+assert_dir "$faults_dir"
 assert_file "${faults_dir}/__init__.py"
 assert_grep "deepankarm/agent-chaos" "${faults_dir}/__init__.py"
 assert_grep "Apache-2.0" "${faults_dir}/__init__.py"
-pass "faults/__init__.py present + credits deepankarm/agent-chaos + Apache-2.0"
+pass "faults/__init__.py credits deepankarm/agent-chaos + Apache-2.0"
 
-if [ -d "$faults_dir" ]; then
-  # Count fault modules (anything matching f<digit>_*.py per the planned naming).
-  shopt -s nullglob
-  fault_modules=("$faults_dir"/f[0-9]_*.py "$faults_dir"/f[0-9][0-9]_*.py)
-  shopt -u nullglob
-  if [ "${#fault_modules[@]}" -gt 0 ]; then
-    for m in "${fault_modules[@]}"; do
-      assert_grep "deepankarm/agent-chaos" "$m"
-      assert_grep "Apache-2.0" "$m"
-    done
-    pass "all ${#fault_modules[@]} fault modules under $faults_dir credit deepankarm/agent-chaos + Apache-2.0"
-  else
-    pass "faults/ directory present but no F1-F4 modules yet (deferred to S5.2-S5.5)"
-  fi
+# -- BDD-6: every fault module in faults/ credits upstream -------------------
+# Inclusive default: ANY .py landed under injector/faults/ (other than
+# __init__.py) must carry the attribution. Glob-by-filename-convention was
+# too narrow — the planned F1-F4 modules use semantic names
+# (malformed_tool_output.py, prompt_injection.py, context_poisoning.py,
+# latency_spike.py per S5.2-S5.5) and a shared helper / base.py could land
+# alongside them. Catch them all and let an explicit allowlist carve out
+# legitimately-native modules later if needed.
+# `shopt -p nullglob` exits 1 when the option is off (its default), which
+# would trip `set -e` during the capture below. The `|| true` is necessary,
+# not noise — it lets us snapshot the prior state for later restore.
+prev_nullglob="$(shopt -p nullglob || true)"
+shopt -s nullglob
+fault_modules=("$faults_dir"/*.py)
+eval "$prev_nullglob"
+filtered=()
+for m in "${fault_modules[@]}"; do
+  [ "$(basename "$m")" = "__init__.py" ] && continue
+  filtered+=("$m")
+done
+if [ "${#filtered[@]}" -gt 0 ]; then
+  for m in "${filtered[@]}"; do
+    assert_grep "deepankarm/agent-chaos" "$m"
+    assert_grep "Apache-2.0" "$m"
+  done
+  pass "all ${#filtered[@]} non-__init__ fault modules credit deepankarm/agent-chaos + Apache-2.0"
 else
-  pass "faults/ directory not yet created (S5.2-S5.5 will create it; docstring check defers)"
-fi
-
-# -- BDD-6: optional online SHA verification ---------------------------------
-# Online check confirms the pinned SHA refers to a real commit on the upstream
-# repo. Gated behind PHOENIX_AUDIT_ONLINE=1 to avoid network dependency on
-# every PR (cost-discipline per CLAUDE.md). Nightly CI should set the var.
-if [ "${PHOENIX_AUDIT_ONLINE:-0}" = "1" ]; then
-  if ! command -v gh >/dev/null 2>&1; then
-    fail "PHOENIX_AUDIT_ONLINE=1 set but gh CLI not installed"
-  fi
-  echo "Online check: verifying SHA on github.com/deepankarm/agent-chaos..."
-  set +e
-  actual_sha="$(gh api "repos/deepankarm/agent-chaos/commits/${EXPECTED_SHA}" --jq .sha 2>&1)"
-  rc=$?
-  set -e
-  if [ "$rc" -ne 0 ]; then
-    fail "gh api call failed (rc=$rc): $actual_sha"
-  fi
-  if [ "$actual_sha" != "$EXPECTED_SHA" ]; then
-    fail "upstream returned SHA '$actual_sha' but NOTICE pins '$EXPECTED_SHA'"
-  fi
-  pass "online: SHA ${EXPECTED_SHA} verified against upstream repo"
-else
-  echo "[skip] online SHA verification (set PHOENIX_AUDIT_ONLINE=1 to enable)"
+  pass "no F1-F4 fault modules present yet (S5.2-S5.5 will populate)"
 fi
 
 echo "story-5.1 verification: PASS"

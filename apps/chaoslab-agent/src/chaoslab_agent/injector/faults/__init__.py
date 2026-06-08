@@ -1,11 +1,12 @@
-"""Fault primitives for the Phoenix Audit Injector.
+"""Public surface for the Phoenix Audit Injector fault primitives.
 
-Architectural inspiration from deepankarm/agent-chaos (Apache-2.0, pinned
-commit ``32beff46a28ca043e252095e6cc62ffe2010e645``); no source code is
-copied (see NOTICE). The four MVP fault classes F1-F4 are implemented
-natively against the Google ADK callback system per docs/architecture.md
-ADR-006 (amended 2026-06-03) and architecture/04 §8.
+Architectural inspiration from ``deepankarm/agent-chaos`` (Apache-2.0); no
+source code is copied. The pinned upstream commit is recorded in repo-root
+NOTICE (single source of truth). The four MVP fault classes
+(``MalformedToolOutputFault``, ``PromptInjectionFault``,
+``ContextPoisoningFault``, ``LatencySpikeFault``) are implemented natively
+against the Google ADK callback system per docs/architecture.md ADR-006
+(amended 2026-06-03) and architecture/04 §8.
 
-This module is intentionally empty pending S5.2-S5.5; re-exports for
-``MalformedToolOutputFault`` etc. will land in those stories.
+Each fault class is re-exported from this package once its module lands.
 """
