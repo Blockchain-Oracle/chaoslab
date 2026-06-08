@@ -216,13 +216,13 @@ stories:
     merged_at: "2026-06-08T12:30:00Z"
   - id: story-4.6-chaoslab-agent-deploy
     epic: "Epic 4 — Orchestrator + Phoenix wrappers"
-    status: PENDING
+    status: COMPLETE
     estimate_hours: 1.5
     tags: [backend, p0, deploy]
     depends_on: [story-4.1-agent-entrypoint, story-1.6-staging-deploy-workflow]
     issue_url: ""
-    pr_url: ""
-    merged_at: ""
+    pr_url: "https://github.com/Blockchain-Oracle/chaoslab/pull/38"
+    merged_at: "2026-06-08T13:30:00Z"
 
   # ---------- Epic 5 — Fault injection (4 fault classes) ----------
   - id: story-5.1-vendor-agent-chaos
