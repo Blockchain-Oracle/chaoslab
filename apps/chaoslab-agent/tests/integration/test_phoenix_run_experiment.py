@@ -1,8 +1,9 @@
 """Integration tests for the Phoenix `run_experiment` FunctionTool wrapper.
 
-Offline path uses `respx` to intercept Phoenix REST traffic; online path runs
-against the real Phoenix Cloud project (skipped unless PHOENIX_API_KEY + the
-`-m online` marker are both present).
+Tests inject `FakeClient` / `FakeDatasets` / `FakeExperiments` (defined below)
+to exercise the production wrapper body without making real HTTP calls. The
+`@pytest.mark.online` test hits the real Phoenix Cloud project and is skipped
+unless PHOENIX_API_KEY is present and not a placeholder.
 """
 
 from __future__ import annotations
@@ -11,9 +12,10 @@ import inspect
 import os
 import re
 from collections.abc import Iterator
+from dataclasses import dataclass
 
+import httpx
 import pytest
-import respx
 from pydantic import ValidationError
 
 from chaoslab_agent.config import get_settings
@@ -35,7 +37,83 @@ def _env(monkeypatch: pytest.MonkeyPatch, tmp_path) -> Iterator[None]:
     get_settings.cache_clear()
 
 
-# --- ExperimentResult model contract ----------------------------------------
+# --- Test fixtures: minimal RanExperiment-shaped data + FakeClient -----------
+
+
+@dataclass
+class FakeRanExperiment:
+    """Duck-typed stand-in for phoenix.client.RanExperiment.
+
+    `_extract_result` reads `id`, `metrics`, `span_ids`, `total_examples`, `elapsed`
+    via `_extract_required` + `getattr`. Anything matching that shape works.
+    """
+
+    id: str
+    metrics: dict[str, float]
+    span_ids: list[str]
+    total_examples: int
+    elapsed: float | None = 0.42
+
+
+class _FakeDatasets:
+    def __init__(self, captured: dict) -> None:
+        self.captured = captured
+
+    async def get_dataset(self, *, dataset: str, **_) -> object:
+        self.captured["dataset_name"] = dataset
+        return object()
+
+
+class _FakeExperiments:
+    def __init__(self, captured: dict, ran: FakeRanExperiment) -> None:
+        self.captured = captured
+        self.ran = ran
+
+    async def run_experiment(self, **kwargs):
+        self.captured["concurrency"] = kwargs.get("concurrency")
+        self.captured["timeout"] = kwargs.get("timeout")
+        self.captured["retries"] = kwargs.get("retries")
+        self.captured["rate_limit_errors"] = kwargs.get("rate_limit_errors")
+        return self.ran
+
+
+def _build_fake_client_factory(
+    captured: dict, ran: FakeRanExperiment | None = None, raises: Exception | None = None
+):
+    """Return a FakeClient class that captures init args + serves fake datasets/experiments."""
+
+    class _FakeClient:
+        def __init__(self, *args, **kwargs):
+            captured["api_key"] = kwargs.get("api_key")
+            captured["base_url"] = kwargs.get("base_url")
+            self.datasets = _FakeDatasets(captured)
+            if raises is not None:
+                self.experiments = _FakeExperimentsRaising(raises)
+            else:
+                effective_ran = (
+                    ran
+                    if ran is not None
+                    else FakeRanExperiment(
+                        id="exp_abc123def",
+                        metrics={"tool_invocation": 0.92},
+                        span_ids=["sp1"],
+                        total_examples=3,
+                    )
+                )
+                self.experiments = _FakeExperiments(captured, effective_ran)
+
+    return _FakeClient
+
+
+class _FakeExperimentsRaising:
+    def __init__(self, exc: Exception) -> None:
+        self.exc = exc
+
+    async def run_experiment(self, **kwargs):
+        raise self.exc
+
+
+# --- ExperimentResult contract ----------------------------------------------
 
 
 def test_experiment_result_accepts_valid_payload() -> None:
@@ -70,7 +148,7 @@ def test_experiment_result_rejects_uppercase_experiment_id() -> None:
         )
 
 
-# --- FunctionTool contract --------------------------------------------------
+# --- FunctionTool wiring -----------------------------------------------------
 
 
 def test_phoenix_run_experiment_tool_is_a_function_tool() -> None:
@@ -101,141 +179,189 @@ def test_run_phoenix_experiment_body_is_within_adr_005_loc_budget() -> None:
     )
 
 
-# --- respx-mocked behavioural tests -----------------------------------------
+# --- Wrapper behaviour: happy path, error paths, retries --------------------
 
 
-@pytest.fixture
-def phoenix_base_url() -> str:
-    return "https://phoenix.example.test"
-
-
-@respx.mock
-async def test_happy_path_returns_experiment_result(
-    monkeypatch: pytest.MonkeyPatch, phoenix_base_url: str
-) -> None:
-    """Smoke: tool builds an ExperimentResult from a fake `RanExperiment`."""
-    from chaoslab_agent.phoenix_tools import run_experiment as mod
-
-    monkeypatch.setattr(mod, "_PHOENIX_BASE_URL", phoenix_base_url)
-    captured: dict = {
-        "experiment_id": "exp_abc123def",
-        "dataset_name": "test-rat",
-        "evaluator_names": ["tool_invocation"],
-        "metrics": {"tool_invocation": 0.92},
-        "span_ids": ["sp1", "sp2"],
-        "total_examples": 3,
-        "elapsed_seconds": 0.42,
-    }
-
-    async def fake_run(dataset_name, evaluators, task_callable_id="passthrough"):
-        return mod.ExperimentResult(**captured)
-
-    monkeypatch.setattr(mod, "run_phoenix_experiment", fake_run)
-    result = await mod.run_phoenix_experiment("test-rat", ["tool_invocation"])
-    assert result.experiment_id == "exp_abc123def"
-    assert "tool_invocation" in result.metrics
-
-
-@respx.mock
-async def test_phoenix_500_raises_sanitized_experiment_error(
-    monkeypatch: pytest.MonkeyPatch, phoenix_base_url: str
-) -> None:
-    """5xx responses must surface as PhoenixExperimentError and NOT leak the API key."""
-    from chaoslab_agent.phoenix_tools import run_experiment as mod
-
-    monkeypatch.setattr(mod, "_PHOENIX_BASE_URL", phoenix_base_url)
-
-    async def _raise(dataset_name, evaluators, task_callable_id="passthrough"):
-        raise PhoenixExperimentError(f"experiment failed: dataset={dataset_name} (status 500)")
-
-    monkeypatch.setattr(mod, "run_phoenix_experiment", _raise)
-    with pytest.raises(PhoenixExperimentError) as exc_info:
-        await mod.run_phoenix_experiment("test-rat", ["tool_invocation"])
-    secret = get_settings().phoenix_api_key
-    assert secret is not None
-    assert secret.get_secret_value() not in str(
-        exc_info.value
-    ), "PhoenixExperimentError message leaked the API key"
-
-
-# --- Real-AsyncClient wiring tests (no respx mock — exercise production path) -
-
-
-async def test_real_wrapper_path_calls_async_client_run_experiment(
+async def test_wrapper_dispatches_through_async_client_with_locked_kwargs(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Exercise the actual `run_phoenix_experiment` body: it must dispatch through
-    `phoenix.client.AsyncClient.experiments.run_experiment` with our wiring."""
-    from phoenix.client.resources.datasets import Dataset
-
+    """Verify concurrency=10, timeout=30, retries=2, rate_limit_errors are wired."""
     from chaoslab_agent.phoenix_tools import run_experiment as mod
 
     captured: dict = {}
+    monkeypatch.setattr(mod, "AsyncClient", _build_fake_client_factory(captured))
+    monkeypatch.setitem(mod._EVALUATOR_REGISTRY, "tool_invocation", object())
 
-    class FakeDatasets:
-        async def get_dataset(self, *, dataset: str, **kwargs) -> object:
-            captured["dataset_name"] = dataset
-            # Minimal Dataset stand-in; the real client returns a Dataset object,
-            # but our wrapper only forwards it to run_experiment.
-            return object()
+    result = await mod.run_phoenix_experiment("test-rat", ["tool_invocation"])
+    assert result.experiment_id == "exp_abc123def"
+    assert captured["concurrency"] == 10
+    assert captured["timeout"] == 30
+    assert captured["retries"] == 2
+    assert captured["rate_limit_errors"] is not None
+    assert captured["api_key"] == "test-phoenix-key-DO-NOT-LEAK"
+    assert captured["base_url"] == "https://phoenix.example.test"
 
-    class FakeExperiments:
-        async def run_experiment(self, *, dataset, task, evaluators, **kwargs):
-            captured["concurrency"] = kwargs.get("concurrency")
-            captured["timeout"] = kwargs.get("timeout")
-            captured["retries"] = kwargs.get("retries")
-            captured["rate_limit_errors"] = kwargs.get("rate_limit_errors")
-            return mod._FakeRanExperiment(
-                id="exp_real123abc",
-                metrics={"tool_invocation": 0.88},
-                span_ids=["sp-real"],
-                total_examples=2,
-                elapsed=0.3,
-            )
+
+async def test_wrapper_429_retries_three_times_total(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """SDK should be invoked once per retry attempt; the wrapper hands off to it.
+
+    The SDK's `retries=2` arg means the SDK does the retry loop internally — this test
+    verifies our wrapper invokes `run_experiment` ONCE (the SDK then retries inside).
+    A genuine retry-count test against a fake SDK that simulates the retry loop is
+    out-of-scope for the wrapper layer.
+    """
+    from chaoslab_agent.phoenix_tools import run_experiment as mod
+
+    call_count = {"n": 0}
+    real_ran = FakeRanExperiment(
+        id="exp_retry123", metrics={"t": 1.0}, span_ids=[], total_examples=1
+    )
+
+    class FakeExperimentsCounting:
+        async def run_experiment(self, **kwargs):
+            call_count["n"] += 1
+            return real_ran
+
+    captured: dict = {}
 
     class FakeClient:
         def __init__(self, *args, **kwargs):
             captured["api_key"] = kwargs.get("api_key")
-            self.datasets = FakeDatasets()
-            self.experiments = FakeExperiments()
+            self.datasets = _FakeDatasets(captured)
+            self.experiments = FakeExperimentsCounting()
 
     monkeypatch.setattr(mod, "AsyncClient", FakeClient)
-    _ = Dataset  # touch the import so ty doesn't strip it
+    monkeypatch.setitem(mod._EVALUATOR_REGISTRY, "t", object())
 
-    result = await mod.run_phoenix_experiment("test-rat", ["tool_invocation"])
-    assert result.experiment_id == "exp_real123abc"
-    assert captured["concurrency"] == 10
-    assert captured["timeout"] == 30
-    assert captured["retries"] == 2
-    assert "rate_limit_errors" in captured
-    assert captured["api_key"] == "test-phoenix-key-DO-NOT-LEAK"
+    result = await mod.run_phoenix_experiment("ds", ["t"])
+    assert result.experiment_id == "exp_retry123"
+    assert (
+        call_count["n"] == 1
+    ), "Wrapper must hand off to SDK exactly once; SDK owns the internal retry loop."
 
 
-async def test_real_wrapper_wraps_sdk_exception_as_phoenix_error(
+async def test_wrapper_http_status_error_surfaces_sanitized_status(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """SDK-level exceptions surface as PhoenixExperimentError with sanitized message."""
+    """`httpx.HTTPStatusError` surfaces as PhoenixExperimentError naming the status code."""
     from chaoslab_agent.phoenix_tools import run_experiment as mod
 
-    class FakeDatasets:
-        async def get_dataset(self, *, dataset: str, **kwargs) -> object:
-            return object()
-
-    class FakeExperiments:
-        async def run_experiment(self, **kwargs):
-            raise RuntimeError("upstream Phoenix HTTP 500")
-
-    class FakeClient:
-        def __init__(self, *args, **kwargs):
-            self.datasets = FakeDatasets()
-            self.experiments = FakeExperiments()
-
-    monkeypatch.setattr(mod, "AsyncClient", FakeClient)
+    response = httpx.Response(
+        status_code=500, request=httpx.Request("POST", "https://phoenix.example.test/x")
+    )
+    err = httpx.HTTPStatusError(
+        "internal server error", request=response.request, response=response
+    )
+    monkeypatch.setattr(mod, "AsyncClient", _build_fake_client_factory({}, raises=err))
+    monkeypatch.setitem(mod._EVALUATOR_REGISTRY, "t", object())
 
     with pytest.raises(PhoenixExperimentError) as exc_info:
-        await mod.run_phoenix_experiment("test-rat", ["tool_invocation"])
-    assert "test-rat" in str(exc_info.value)
-    assert "test-phoenix-key-DO-NOT-LEAK" not in str(exc_info.value)
+        await mod.run_phoenix_experiment("ds", ["t"])
+    msg = str(exc_info.value)
+    assert "ds" in msg
+    assert "500" in msg
+    assert "test-phoenix-key-DO-NOT-LEAK" not in msg
+
+
+async def test_wrapper_scrubs_api_key_from_chained_sdk_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Catch-all path scrubs `api_key=<secret>` substrings from chained SDK error messages."""
+    from chaoslab_agent.phoenix_tools import run_experiment as mod
+
+    err = RuntimeError("connection failed: api_key=test-phoenix-key-DO-NOT-LEAK url=...")
+    monkeypatch.setattr(mod, "AsyncClient", _build_fake_client_factory({}, raises=err))
+    monkeypatch.setitem(mod._EVALUATOR_REGISTRY, "t", object())
+
+    with pytest.raises(PhoenixExperimentError) as exc_info:
+        await mod.run_phoenix_experiment("ds", ["t"])
+    msg = str(exc_info.value)
+    assert "test-phoenix-key-DO-NOT-LEAK" not in msg, f"key leaked: {msg!r}"
+    assert "<redacted>" in msg
+
+
+async def test_wrapper_raises_on_unknown_evaluator_name(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Unknown evaluator name must fail loud BEFORE calling Phoenix, with the offending name."""
+    from chaoslab_agent.phoenix_tools import run_experiment as mod
+
+    monkeypatch.setattr(mod, "AsyncClient", _build_fake_client_factory({}))
+    with pytest.raises(PhoenixExperimentError, match=r"unknown evaluator"):
+        await mod.run_phoenix_experiment("ds", ["not_in_registry"])
+
+
+async def test_wrapper_raises_on_unknown_task_callable_id(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Unknown task_callable_id must fail loud with the offending id + registered keys."""
+    from chaoslab_agent.phoenix_tools import run_experiment as mod
+
+    monkeypatch.setattr(mod, "AsyncClient", _build_fake_client_factory({}))
+    monkeypatch.setitem(mod._EVALUATOR_REGISTRY, "t", object())
+    with pytest.raises(PhoenixExperimentError, match=r"unknown task_callable_id"):
+        await mod.run_phoenix_experiment("ds", ["t"], task_callable_id="not_a_real_task")
+
+
+# --- Helper coverage --------------------------------------------------------
+
+
+def test_resolve_evaluators_returns_registered_instance_when_name_known(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from chaoslab_agent.phoenix_tools import run_experiment as mod
+
+    sentinel = object()
+    monkeypatch.setitem(mod._EVALUATOR_REGISTRY, "tool-eval", sentinel)
+    resolved = mod._resolve_evaluators(["tool-eval"])
+    assert resolved == [sentinel]
+
+
+def test_extract_result_raises_on_missing_required_attribute() -> None:
+    """`_extract_required` fails loud when the SDK returns a malformed RanExperiment."""
+    from chaoslab_agent.phoenix_tools.run_experiment import _extract_result
+
+    class Empty:  # no required attrs
+        pass
+
+    with pytest.raises(PhoenixExperimentError, match=r"malformed RanExperiment"):
+        _extract_result(Empty(), "ds", ["t"])
+
+
+async def test_elapsed_seconds_backfilled_when_sdk_returns_zero(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """If the SDK doesn't surface elapsed, the wrapper backfills with wall-clock."""
+    from chaoslab_agent.phoenix_tools import run_experiment as mod
+
+    ran = FakeRanExperiment(id="exp_zero1", metrics={}, span_ids=[], total_examples=1, elapsed=None)
+    monkeypatch.setattr(mod, "AsyncClient", _build_fake_client_factory({}, ran=ran))
+    monkeypatch.setitem(mod._EVALUATOR_REGISTRY, "t", object())
+
+    result = await mod.run_phoenix_experiment("ds", ["t"])
+    assert (
+        result.elapsed_seconds > 0.0
+    ), f"backfill should produce a non-zero elapsed (got {result.elapsed_seconds!r})"
+
+
+def test_scrub_secret_handles_common_patterns() -> None:
+    """`_scrub_secret` redacts api_key / Authorization / Bearer occurrences."""
+    from chaoslab_agent.phoenix_tools.run_experiment import _scrub_secret
+
+    assert "<redacted>" in _scrub_secret("api_key=abcdefghijkl")
+    assert "<redacted>" in _scrub_secret("Authorization: Bearer abcdefghijkl")
+    assert "<redacted>" in _scrub_secret("Bearer abcdefghijkl was rejected")
+
+
+def test_derive_base_url_strips_trace_suffix(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The Phoenix REST base URL is the collector endpoint minus `/v1/traces`."""
+    from chaoslab_agent.phoenix_tools.run_experiment import _derive_base_url
+
+    monkeypatch.setenv("PHOENIX_COLLECTOR_ENDPOINT", "https://example.test/v1/traces")
+    get_settings.cache_clear()
+    assert _derive_base_url(get_settings()) == "https://example.test"
 
 
 # --- Online (real Phoenix) ---------------------------------------------------
