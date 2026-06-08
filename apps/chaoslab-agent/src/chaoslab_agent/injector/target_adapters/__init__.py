@@ -5,6 +5,7 @@ Concrete tier implementations land in sibling modules; see ADR-002 +
 ``docs/sprint-status.yaml`` for the current set.
 """
 
+from chaoslab_agent.injector.target_adapters.adk_adapter import ADKAdapter
 from chaoslab_agent.injector.target_adapters.base import (
     AdapterFingerprint,
     AdapterInvocation,
@@ -15,6 +16,7 @@ from chaoslab_agent.injector.target_adapters.base import (
 )
 
 __all__ = [
+    "ADKAdapter",
     "AdapterFingerprint",
     "AdapterInvocation",
     "AdapterResult",
