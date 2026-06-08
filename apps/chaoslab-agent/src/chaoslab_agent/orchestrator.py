@@ -17,11 +17,10 @@ out-of-scope until the upstream major version bump is planned.
 
 from __future__ import annotations
 
-# ADR-012: ADK pinned at >=2.1.0,<3.0.0 explicitly uses SequentialAgent / LoopAgent /
-# ParallelAgent — the v3 Workflow replacement migration is out of scope. The
-# `deprecated` diagnostics from ty are accepted noise, not actionable.
-from google.adk.agents.sequential_agent import SequentialAgent  # ty: ignore[deprecated]
-
+# All `google.adk.*` types flow through the quarantine module per ADR-001 +
+# best-practices/03 §3. ADR-012: SequentialAgent is the pinned-deprecated ADK 2.x
+# workflow primitive; the v3 Workflow replacement is out of scope.
+from chaoslab_agent.adk_types import SequentialAgent  # ty: ignore[deprecated]
 from chaoslab_agent.injector.agent import build_injector_agent
 from chaoslab_agent.judge.agent import build_judge_agent
 from chaoslab_agent.patcher.agent import build_patcher_agent

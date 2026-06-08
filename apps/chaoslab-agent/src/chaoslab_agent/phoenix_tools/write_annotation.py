@@ -18,11 +18,11 @@ import re
 from typing import Literal, cast
 
 import httpx
-from google.adk.tools import FunctionTool
 from phoenix.client import AsyncClient
 from phoenix.client.resources.spans import SpanAnnotationData
 from pydantic import BaseModel, Field, field_validator
 
+from chaoslab_agent.adk_types import FunctionTool
 from chaoslab_agent.config import Settings, get_settings
 from chaoslab_agent.errors import PhoenixAnnotationError
 from chaoslab_agent.phoenix_tools.run_experiment import _derive_base_url, _scrub_secret

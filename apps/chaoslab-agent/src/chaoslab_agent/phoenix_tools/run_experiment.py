@@ -18,10 +18,10 @@ from collections.abc import Awaitable, Callable
 from typing import Any
 
 import httpx
-from google.adk.tools import FunctionTool
 from phoenix.client import AsyncClient
 from pydantic import BaseModel, Field
 
+from chaoslab_agent.adk_types import FunctionTool
 from chaoslab_agent.config import Settings, get_settings
 from chaoslab_agent.errors import PhoenixExperimentError
 
