@@ -197,8 +197,8 @@ async def _invoke_sdk(dataset_name: str, evaluators: list[str], task_callable_id
     return await client.experiments.run_experiment(
         dataset=dataset,
         task=TASK_REGISTRY[task_callable_id],
-        # ty: ignore[invalid-argument-type] — list[object] subsumes Phoenix's
-        # Evaluator | Callable union; the registry lookup is the runtime contract.
+        # Suppression rationale: list[object] subsumes Phoenix's Evaluator |
+        # Callable union; the registry lookup is the runtime contract.
         evaluators=resolved_evaluators,  # ty: ignore[invalid-argument-type]
         concurrency=10,
         timeout=30,
