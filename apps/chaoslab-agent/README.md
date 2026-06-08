@@ -26,6 +26,33 @@ uv run --package chaoslab-agent uvicorn chaoslab_agent.main:app --host 0.0.0.0 -
 | GET    | `/stream?runId=` | SSE stream of `RunEvent` frames for the given run.                                |
 | GET    | `/agents/{id}`   | Look up a registered target agent (Epic 3 ships the real registry).               |
 
+## Container
+
+Multi-stage build → multi-stage cache → non-root runtime per ADR-003. The
+workspace lockfile lives at the repo root, so the Docker build context MUST
+be the workspace root (NOT `apps/chaoslab-agent/`):
+
+```bash
+# From the workspace root:
+docker build -t chaoslab-agent:dev -f apps/chaoslab-agent/Dockerfile .
+
+# Run locally — passes dummy creds so /health load + Settings construction work:
+docker run --rm -p 8080:8080 \
+  -e PHOENIX_API_KEY=dummy \
+  -e GEMINI_API_KEY=dummy \
+  -e JUDGE_LLM=gemini-3.5-flash \
+  chaoslab-agent:dev
+
+# In another shell:
+curl http://localhost:8080/health
+# -> {"status":"ok","version":"0.0.0","judge_llm":"gemini-3.5-flash","phoenix_provider":"phoenix-audit"}
+```
+
+The runtime image is <800MB on first build (matched by the size-gate test).
+Cloud Run rebinds `$PORT` at deploy time; `run_uvicorn` reads `$PORT`/`$HOST`
+env vars so the same image works locally on 8080 and Cloud Run on whatever
+port is injected. Deploy via `.github/workflows/staging-deploy.yaml`.
+
 ## Tests
 
 ```bash
