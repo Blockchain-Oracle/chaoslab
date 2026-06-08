@@ -56,3 +56,7 @@ packages = ["src/chaoslab_agent"]
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
+markers = [
+  "online: tests that hit real Phoenix / Gemini (cost-impacting; nightly only)",
+  "integration: tests that span multiple components",
+]
