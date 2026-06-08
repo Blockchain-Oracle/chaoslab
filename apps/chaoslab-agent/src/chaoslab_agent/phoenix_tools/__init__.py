@@ -11,9 +11,17 @@ from chaoslab_agent.phoenix_tools.run_experiment import (
     phoenix_run_experiment_tool,
     run_phoenix_experiment,
 )
+from chaoslab_agent.phoenix_tools.write_annotation import (
+    AnnotationResult,
+    phoenix_write_annotation_tool,
+    write_span_annotation,
+)
 
 __all__ = [
+    "AnnotationResult",
     "ExperimentResult",
     "phoenix_run_experiment_tool",
+    "phoenix_write_annotation_tool",
     "run_phoenix_experiment",
+    "write_span_annotation",
 ]
