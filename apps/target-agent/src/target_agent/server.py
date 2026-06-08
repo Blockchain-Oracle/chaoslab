@@ -124,7 +124,7 @@ def main() -> None:
         msg = f"target-agent: PORT env var must be an integer, got {port_raw!r}"
         raise SystemExit(msg) from e
     host = os.environ.get("HOST", "0.0.0.0")  # noqa: S104 — Cloud Run requires 0.0.0.0
-    uvicorn.run(a2a_app, host=host, port=port)
+    uvicorn.run(a2a_app, host=host, port=port)  # ty: ignore[invalid-argument-type]
 
 
 if __name__ == "__main__":

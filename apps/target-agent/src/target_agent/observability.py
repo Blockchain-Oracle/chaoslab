@@ -104,7 +104,7 @@ def _resolve_api_key() -> str:  # noqa: PLR0915 — narrow exception handling ne
     # PHOENIX_API_KEY from env first. (The package is a hard runtime dep
     # per pyproject.toml; this is purely a startup-latency optimization.)
     try:
-        from google.cloud import secretmanager  # noqa: PLC0415
+        from google.cloud import secretmanager
     except ImportError as e:
         msg = (
             "google-cloud-secret-manager is not installed; cannot resolve "
@@ -113,7 +113,7 @@ def _resolve_api_key() -> str:  # noqa: PLR0915 — narrow exception handling ne
         raise ConfigurationError(msg) from e
 
     try:
-        from google.api_core import exceptions as gcp_exc  # noqa: PLC0415
+        from google.api_core import exceptions as gcp_exc
     except ImportError as e:
         msg = "google-api-core not installed; cannot classify Secret Manager errors."
         raise ConfigurationError(msg) from e
@@ -123,7 +123,7 @@ def _resolve_api_key() -> str:  # noqa: PLR0915 — narrow exception handling ne
     # tuple. Same for grpc.RpcError which can leak past gapic-transport
     # error mapping during channel-shutdown races.
     try:
-        from google.auth import exceptions as gcp_auth_exc  # noqa: PLC0415
+        from google.auth import exceptions as gcp_auth_exc
     except ImportError as e:
         msg = "google-auth not installed; cannot classify Secret Manager errors."
         raise ConfigurationError(msg) from e
@@ -254,9 +254,9 @@ def setup_observability(
                 "To force this path on Cloud Run, set PHOENIX_OBSERVABILITY_OPTIONAL=1."
             ),
         )
-        from opentelemetry.sdk.trace import TracerProvider  # noqa: PLC0415
+        from opentelemetry.sdk.trace import TracerProvider
 
-        return DegradedTracerProvider(TracerProvider())  # type: ignore[return-value]
+        return DegradedTracerProvider(TracerProvider())  # type: ignore[return-value]  # ty: ignore[invalid-return-type]
 
     # Side-effect: writes PHOENIX_API_KEY + PHOENIX_COLLECTOR_ENDPOINT to
     # os.environ because the phoenix.otel.register() versions we support
@@ -272,7 +272,7 @@ def setup_observability(
     # try/except so ImportError surfaces as ConfigurationError with a
     # clear remedy (symmetric with the secretmanager handling above).
     try:
-        from phoenix.otel import register  # noqa: PLC0415
+        from phoenix.otel import register
     except ImportError as e:
         msg = (
             "arize-phoenix-otel is not installed; cannot wire Phoenix tracing. "
@@ -293,7 +293,7 @@ def setup_observability(
     # have silently no-op'd the global install (OTel emits a logger.warning
     # then keeps the existing global). Surface this for production
     # diagnostics — a no-op global means tools.py spans go nowhere.
-    from opentelemetry import trace as _otel_trace  # noqa: PLC0415
+    from opentelemetry import trace as _otel_trace
 
     current_global = _otel_trace.get_tracer_provider()
     if current_global is not tracer_provider:
@@ -335,7 +335,7 @@ def setup_observability(
     # ADK auto-instrumentor. Must run AFTER register() (needs the provider).
     # Wrapped the same way as register() so partial installs surface clearly.
     try:
-        from openinference.instrumentation.google_adk import (  # noqa: PLC0415
+        from openinference.instrumentation.google_adk import (
             GoogleADKInstrumentor,
         )
     except ImportError as e:
