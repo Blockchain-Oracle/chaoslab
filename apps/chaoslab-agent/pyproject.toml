@@ -1,5 +1,4 @@
-## chaoslab-agent — Phoenix Audit's orchestrator (ADK SequentialAgent: Injector → Judge → Patcher).
-## S4.1 lands the FastAPI entrypoint + pydantic-settings config.
+## chaoslab-agent — Phoenix Audit's orchestrator (ADK SequentialAgent: Injector -> Judge -> Patcher).
 ## Codename `chaoslab-agent` is intentional per CLAUDE.md (S1.6 rename to phoenix-audit-agent is pending).
 
 [project]
@@ -45,7 +44,7 @@ dev = [
 ]
 
 [project.scripts]
-chaoslab-agent = "chaoslab_agent.main:run"
+chaoslab-agent = "chaoslab_agent.main:run_uvicorn"
 
 [build-system]
 requires = ["hatchling"]

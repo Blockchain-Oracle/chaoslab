@@ -1,4 +1,4 @@
-"""Settings loader unit tests for S4.1 (amended for Patch #22 ADR-017 hybrid mode)."""
+"""Settings loader unit tests."""
 
 from __future__ import annotations
 
@@ -110,3 +110,20 @@ def test_invalid_phoenix_provider_rejected(monkeypatch: pytest.MonkeyPatch) -> N
     monkeypatch.setenv("PHOENIX_PROVIDER", "self-hosted")  # not in the Literal set
     with pytest.raises(ValidationError):
         Settings()  # ty: ignore[missing-argument]
+
+
+def test_default_mode_with_api_key_warns(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    """PHOENIX_API_KEY set under default mode is a misconfig — must warn loudly."""
+    import logging
+
+    monkeypatch.setenv("GEMINI_API_KEY", "test-gemini")
+    monkeypatch.setenv("PHOENIX_API_KEY", "accidental-byo-key")
+    # phoenix_provider left at default ("phoenix-audit")
+    with caplog.at_level(logging.WARNING, logger="chaoslab_agent.config"):
+        s = Settings()  # ty: ignore[missing-argument]
+    assert s.phoenix_provider == "phoenix-audit"
+    assert any(
+        "phoenix_api_key" in r.message and "ignored" in r.message.lower() for r in caplog.records
+    ), [r.message for r in caplog.records]

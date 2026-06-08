@@ -256,6 +256,9 @@ def setup_observability(
         )
         from opentelemetry.sdk.trace import TracerProvider
 
+        # Suppression rationale: DegradedTracerProvider is structurally compatible
+        # with TracerProvider (forwards required methods) but ty can't see the
+        # duck-typing through the runtime composition.
         return DegradedTracerProvider(TracerProvider())  # type: ignore[return-value]  # ty: ignore[invalid-return-type]
 
     # Side-effect: writes PHOENIX_API_KEY + PHOENIX_COLLECTOR_ENDPOINT to

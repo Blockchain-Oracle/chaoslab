@@ -1,25 +1,23 @@
 """Settings loader for chaoslab-agent (Phoenix Audit orchestrator).
 
-Amended for Patch #22 (ADR-017 hybrid Phoenix-hosting):
-- `phoenix_provider` defaults to "phoenix-audit" (we host); "customer" enables BYO.
-- `phoenix_api_key` is OPTIONAL by default; REQUIRED only when phoenix_provider == "customer".
-- `phoenix_collector_endpoint` defaults to the self-hosted Phoenix Docker URL
-  (`http://localhost:6006/v1/traces`); BYO mode overrides via env.
-
-Loaded via `functools.lru_cache`-wrapped `get_settings()`; identical instance across
-the FastAPI app + tests.
+Defaults to Phoenix Audit-hosted Phoenix (ADR-017). BYO mode (`phoenix_provider="customer"`)
+requires `phoenix_api_key`. Settings instances are cached via `lru_cache`-wrapped
+`get_settings()`; same instance across the FastAPI app + tests.
 """
 
 from __future__ import annotations
 
 import functools
+import logging
 from typing import Literal
 
 from pydantic import Field, SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-# Per ADR-007 (cost model, AMENDED Day-3 audit A10), Flash is the locked judge model.
-# Pro is 1.33x cost not 17x, but Flash is the default; Flash-Lite is the cost-overrun fallback.
+logger = logging.getLogger(__name__)
+
+# JUDGE_LLM is locked to Flash by ADR-007. Flash-Lite is the documented cost-overrun fallback;
+# both Pro and Flash-Lite must opt in via a future config option, not via this field.
 JUDGE_LLM_LOCKED: str = "gemini-3.5-flash"
 
 PhoenixProvider = Literal["phoenix-audit", "customer"]
@@ -29,7 +27,6 @@ Environment = Literal["dev", "staging", "prod"]
 class Settings(BaseSettings):
     """Phoenix Audit runtime settings. Loaded from env (with .env fallback for local dev)."""
 
-    # -- Phoenix hosting (ADR-017 hybrid mode) ---------------------------------
     phoenix_provider: PhoenixProvider = Field(
         default="phoenix-audit",
         description="ADR-017: 'phoenix-audit' (we host) or 'customer' (BYO key).",
@@ -42,19 +39,17 @@ class Settings(BaseSettings):
         default="http://localhost:6006/v1/traces",
         description=(
             "Phoenix OTLP HTTP collector endpoint. Defaults to the self-hosted "
-            "Phoenix Docker URL per ADR-004 (amended); BYO mode overrides to Customer's "
+            "Phoenix Docker URL per ADR-004; BYO mode overrides to Customer's "
             "Phoenix Cloud project URL."
         ),
     )
 
-    # -- Judge LLM (ADR-007 hard rule) -----------------------------------------
     gemini_api_key: SecretStr
     judge_llm: str = Field(
         default=JUDGE_LLM_LOCKED,
         description="Locked to 'gemini-3.5-flash' per ADR-007 + CLAUDE.md hard rule.",
     )
 
-    # -- Target + auxiliary services -------------------------------------------
     target_default_url: str = Field(
         default="http://localhost:8001",
         description="Demo target-agent URL for local dev; per-run override via /run payload.",
@@ -73,7 +68,7 @@ class Settings(BaseSettings):
     )
     gcs_bucket: str = Field(
         default="chaoslab-artifacts",
-        description="Cloud Storage bucket for signed-PDF archival. Renamed post-S1.6.",
+        description="Cloud Storage bucket for signed audit PDFs.",
     )
 
     model_config = SettingsConfigDict(
@@ -88,9 +83,6 @@ class Settings(BaseSettings):
     @field_validator("judge_llm")
     @classmethod
     def _judge_llm_locked(cls, v: str) -> str:
-        # ADR-007 + CLAUDE.md: ONLY gemini-3.5-flash. Pro is for spec-author use; Flash-Lite is
-        # the documented cost-overrun fallback — both must opt in explicitly via a future
-        # config option, not via this field.
         if v != JUDGE_LLM_LOCKED:
             msg = (
                 f"judge_llm must be {JUDGE_LLM_LOCKED!r} per ADR-007 / CLAUDE.md "
@@ -106,6 +98,18 @@ class Settings(BaseSettings):
         if self.phoenix_provider == "customer" and self.phoenix_api_key is None:
             raise ValueError(
                 "phoenix_api_key is REQUIRED when phoenix_provider == 'customer' (ADR-017 BYO mode)"
+            )
+        return self
+
+    @model_validator(mode="after")
+    def _warn_on_unused_api_key(self) -> Settings:
+        # Misconfig signal: a user set PHOENIX_API_KEY thinking BYO is active, but
+        # phoenix_provider is still the default. The key will be silently ignored
+        # by the Phoenix Audit-hosted path. Warn so operators see the mismatch.
+        if self.phoenix_provider == "phoenix-audit" and self.phoenix_api_key is not None:
+            logger.warning(
+                "phoenix_api_key set but phoenix_provider != 'customer'; key will be ignored. "
+                "Set PHOENIX_PROVIDER=customer to enable BYO mode."
             )
         return self
 
