@@ -222,6 +222,55 @@ paths = [
 
 **Implication for future stories:** ty's TOML schema is still pre-1.0 and evolving. Don't pile config into `[tool.ty]` until ty hits 1.0 — pass everything via CLI flags. Re-evaluate after S2.1 introduces actual Python source.
 
+### IF-10 — `RemoteA2aAgent` does NOT exist in ADK 2.x; use `a2a.client.A2AClient` instead (S3.2, 2026-06-08)
+
+**Discovered in:** S3.2 implementation. The story-3.2 spec at lines 24, 239, 248 specifies
+`from google.adk.agents import RemoteA2aAgent`, but our pinned `google-adk>=2.1.0,<3.0.0`
+does not ship that symbol — `ImportError: cannot import name 'RemoteA2aAgent' from
+'google.adk.agents'` (verified locally on the installed `.venv`).
+
+**The actual client class** is `a2a.client.ClientFactory` from `a2a-sdk 0.3.x`
+(transitively pulled in by `google-adk[a2a]>=2.1.0`; do NOT pin `a2a-sdk`
+explicitly per CLAUDE.md "load-bearing gotchas"). Note: the older
+`a2a.client.A2AClient` (under `a2a.client.legacy`) is **deprecated within the
+same installed version** in favor of `ClientFactory`; downstream stories should
+use `ClientFactory` directly, not `A2AClient`. API surface:
+
+- `A2ACardResolver(httpx_client, base_url, agent_card_path="/.well-known/agent-card.json")` → `await get_agent_card() -> AgentCard`
+- `ClientFactory(ClientConfig(httpx_client=..., streaming=bool, supported_transports=[TransportProtocol.jsonrpc]))`
+  - `.create(card)` → `Client` (transport-negotiated)
+  - Or `await ClientFactory.connect(agent=url, client_config=cfg, relative_card_path=...)` for one-shot discovery + client creation
+- `Client.send_message(message)` returns `AsyncIterator[ClientEvent | Message]` where `ClientEvent = (Task, Update | None)`. With `streaming=False`, the iterator yields aggregated terminal events; iterate to completion and concatenate.
+- Helper: `a2a.client.create_text_message_object(role="user", content=prompt) -> Message`
+- Errors: `A2AClientHTTPError` (has `.status_code`), `A2AClientJSONError` (malformed JSON), and the usual `httpx.ConnectError` family on transport failures.
+
+**Quarantine impact:** `a2a.*` is NOT covered by the `google.adk.*` quarantine
+rule (CLAUDE.md "Don't import `google.adk.*` outside `chaoslab_agent.adk_types`").
+S3.2 can import `a2a.client` directly from `adk_adapter.py` — no wrapper module
+needed for compliance purposes.
+
+**`RemoteA2aAgentWrapper` in adk_types.py — not required.** The original spec
+template described it as a quarantine wrapper for `google.adk.agents.RemoteA2aAgent`;
+since that class doesn't exist and the actual `a2a-sdk` client isn't quarantined,
+a wrapper would add a module for no compliance benefit. S3.2 implements `ADKAdapter`
+directly against `a2a.client.A2AClient`.
+
+**Span ID capture — partial vs spec.** Spec line 209/241 calls for
+`last_child_span_ids()` to harvest framework child-span IDs. This requires non-trivial
+OpenTelemetry tracer-provider plumbing (the active-processor approach the spec hints
+at is unreliable — OTEL processors don't expose finished spans). For S3.2 we capture
+only the adapter's outer wrapper span; child-span harvesting via Phoenix server-side
+trace correlation is deferred to Epic 6 (Judge needs the spans for scoring; we can
+fetch them from Phoenix by trace_id at scoring time).
+
+**Implication for future stories:**
+
+- S3.3-S3.6 (LangChain / CrewAI / OpenAI-SDK / HTTP black-box adapters) face the
+  same SDK-shape-vs-spec risk. Each should verify the actual import path with a
+  Python probe before writing the implementation.
+- S6.x Judge can correlate via Phoenix `trace_id` rather than relying on adapter-returned
+  child span IDs. The single outer span ID is enough to anchor the trace.
+
 ### IF-7 — 400-line rule scope ambiguity for `docs/` (S1.2, PR #2 code-reviewer)
 
 **Discovered in:** S1.2 PR #2 review. After the prettier reformat (`f87ff0f`), 2 docs crossed the 400-line threshold and 2 already-oversized docs got slightly worse via table-padding. CLAUDE.md L44 says "No file >400 lines (Python, TS, JSX, Markdown)" — Markdown explicitly in scope. But `docs/coding-standards.md` L12 narrows enforcement to `apps/`, `packages/`, `scripts/`.

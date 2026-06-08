@@ -24,3 +24,25 @@ class PhoenixExperimentError(ChaosLabError):
 
 class PhoenixAnnotationError(ChaosLabError):
     """Raised when `write_phoenix_annotation` fails."""
+
+
+class AdapterError(ChaosLabError):
+    """Base class for every target-adapter failure (Tier 1/2/3)."""
+
+
+class AdapterConnectionError(AdapterError):
+    """Raised when an adapter cannot establish a transport to the target.
+
+    Examples: TCP reset, DNS failure, TLS handshake error, connection timeout.
+    The wrapper's own message names the target URL but never the auth payload.
+    """
+
+
+class AdapterDiscoveryError(AdapterError):
+    """Raised when the target exists but does not expose the expected metadata.
+
+    Examples: 404 on `/.well-known/agent-card.json`, malformed AgentCard JSON,
+    missing required AgentCard fields. Distinct from `AdapterConnectionError`
+    so callers can degrade to Tier 3 (HTTP black-box) on discovery failure
+    while still failing fast on transport failure.
+    """
