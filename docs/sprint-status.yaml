@@ -111,8 +111,6 @@ stories:
     issue_url: "https://github.com/Blockchain-Oracle/chaoslab/issues/22"
     pr_url: "https://github.com/Blockchain-Oracle/chaoslab/pull/27"
     merged_at: "2026-06-05T10:00:54Z"
-    pr_url: ""
-    merged_at: ""
 
   # ---------- Epic 3 — Cross-framework target adapter layer ----------
   - id: story-3.1-adapter-interface
@@ -182,13 +180,13 @@ stories:
     merged_at: ""
   - id: story-4.2-sequential-orchestrator
     epic: "Epic 4 — Orchestrator + Phoenix wrappers"
-    status: PENDING
+    status: COMPLETE
     estimate_hours: 2.0
     tags: [backend, p0, orchestrator]
     depends_on: [story-4.1-agent-entrypoint]
     issue_url: ""
-    pr_url: ""
-    merged_at: ""
+    pr_url: "https://github.com/Blockchain-Oracle/chaoslab/pull/34"
+    merged_at: "2026-06-08T09:55:00Z"
   - id: story-4.3-phoenix-run-experiment-tool
     epic: "Epic 4 — Orchestrator + Phoenix wrappers"
     status: PENDING
