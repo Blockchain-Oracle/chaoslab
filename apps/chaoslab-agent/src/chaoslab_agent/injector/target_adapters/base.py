@@ -3,7 +3,9 @@
 This module is FROZEN per ADR-002. The five Pydantic schemas + the ABC define
 the call shape that Tier 1 (ADK), Tier 2 (LangChain / CrewAI / OpenAI Agents
 SDK), and Tier 3 (HTTP black-box) adapters all conform to. Changing this
-contract without an ADR amendment breaks five downstream stories (3.2-3.6).
+contract without an ADR amendment breaks every downstream adapter implementation
+plus the Injector sub-agent that consumes them (see ADR-002 + the current DAG
+in docs/sprint-status.yaml for the live dependency list).
 
 The module must NOT import google.adk.* — ADK lives in adk_adapter.py.
 Importing this base must work in a process with zero ADK installed.
@@ -15,7 +17,7 @@ from abc import ABC, abstractmethod
 from enum import StrEnum
 from typing import Any
 
-from pydantic import BaseModel, ConfigDict, Field, HttpUrl
+from pydantic import BaseModel, ConfigDict, Field, HttpUrl, SecretStr
 
 
 class AdapterTier(StrEnum):
@@ -24,6 +26,11 @@ class AdapterTier(StrEnum):
     Tier 1: native ADK (richest trace fidelity).
     Tier 2: framework-aware (LangChain / CrewAI / OpenAI Agents SDK).
     Tier 3: HTTP black-box (no framework — fingerprinted behaviorally).
+
+    DRIFT GUARD: this enum is the canonical implementation of ADR-002's tier
+    taxonomy. test_adapter_tier_matches_adr_002 in test_base.py asserts the
+    value set against a hardcoded literal; any new tier must update both files
+    in the same PR.
     """
 
     TIER1_ADK = "tier1_adk"
@@ -36,8 +43,19 @@ class AdapterTier(StrEnum):
 class TargetSpec(BaseModel):
     """Connection descriptor for a target agent.
 
-    ``auth`` is sensitive — observability code (story 4.5) excludes it from
-    structured-log payloads via the ``sensitive`` json_schema_extra marker.
+    ``auth`` carries credentials and is typed as ``dict[str, SecretStr]`` so the
+    structlog ``_mask_secrets`` processor (apps/chaoslab-agent/.../observability.py)
+    redacts each value via its ``SecretStr`` isinstance branch. ``str(secret)``,
+    ``repr(secret)``, and ``model_dump_json(spec)`` all render as ``'**********'``
+    by pydantic default; ``model_dump()`` returns ``SecretStr`` instances rather
+    than raw strings, so a caller that JSON-serializes the dict downstream
+    cannot accidentally surface the value either.
+
+    The ``json_schema_extra={"sensitive": ["auth"]}`` marker is a forward
+    reference for structural scrubbing once observability gains metadata-driven
+    redaction; it is not load-bearing today (observability keys off kwarg-name
+    substrings + the ``SecretStr`` isinstance check, neither of which reads this
+    marker).
     """
 
     model_config = ConfigDict(json_schema_extra={"sensitive": ["auth"]})
@@ -46,7 +64,7 @@ class TargetSpec(BaseModel):
     url: HttpUrl
     agent_card: dict[str, Any] | None = None
     framework: str | None = None
-    auth: dict[str, str] | None = None
+    auth: dict[str, SecretStr] | None = None
     timeout_s: float = Field(default=30.0, ge=0.1, le=300.0)
 
 
@@ -65,9 +83,17 @@ class AdapterInvocation(BaseModel):
 class AdapterResult(BaseModel):
     """Outcome of one ``invoke()`` call.
 
-    ``span_ids`` link back to the Phoenix trace tree the target's
-    instrumentation produced (empty for Tier 3 unless behavioral
-    fingerprinting can recover them).
+    Failure convention: adapters MUST raise on transport / protocol / framework
+    errors. The ``error`` field is reserved for soft-failure semantics in
+    Epic 5+ (e.g. a fault deliberately caused the target to misbehave but the
+    transport completed) and is ``None`` for every clean-success and every
+    raised-exception path. Concurrently populating ``response`` and ``error``
+    is permitted only in the soft-failure case.
+
+    ``span_ids`` link to spans recorded during this invoke. Tier 1/2 capture
+    the target's own framework spans. Tier 3 (HTTP black-box) captures the
+    adapter's outer wrapper span only — the opaque target produces no
+    auditor-observable spans (story 3.6 wires the wrapper-span ID injection).
     """
 
     response: str
@@ -82,7 +108,8 @@ class AdapterFingerprint(BaseModel):
 
     ``discovery_path`` records which probe from context/05 §13 succeeded
     (well-known agent card / OpenAPI / raw HTTP). ``behavioral_signals`` is
-    populated by Tier 3 fingerprinting in story 3.6.
+    populated by Tier 3 fingerprinting (system-prompt extraction, style
+    classifier, inter-token timing — wired by the HTTP black-box adapter).
     """
 
     tier: AdapterTier
@@ -97,7 +124,6 @@ class TargetAdapter(ABC):
 
     def __init__(self, spec: TargetSpec) -> None:
         self.spec = spec
-        self._connected = False
 
     @abstractmethod
     async def connect(self) -> None:
