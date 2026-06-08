@@ -56,3 +56,12 @@ packages = ["src/chaoslab_agent"]
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
+# Markers MUST be duplicated here: pytest's nearest-configfile rule picks this
+# file when running tests under apps/chaoslab-agent/, so the workspace-root
+# markers don't propagate. Keep this list in sync with the root pyproject's.
+markers = [
+  "online: tests that hit real Phoenix / Gemini (cost-impacting; nightly only)",
+  "integration: tests that span multiple components",
+  "slow: tests that take >5s",
+  "e2e: end-to-end against deployed Cloud Run",
+]
