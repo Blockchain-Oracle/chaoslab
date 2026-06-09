@@ -23,6 +23,12 @@ JUDGE_LLM_LOCKED: str = "gemini-3.5-flash"
 PhoenixProvider = Literal["phoenix-audit", "customer"]
 Environment = Literal["dev", "staging", "prod"]
 
+# Name of the GCS-probe escape-hatch env var. Exported as a module-level
+# constant so `main.py`'s startup CRITICAL log can reference it without
+# string-literal drift. The module-load drift check below ensures any
+# future field rename crashloops Cloud Run at startup (loud > silent).
+GCS_PROBE_ENV_NAME: str = "GCS_PROBE_AT_STARTUP"
+
 
 class Settings(BaseSettings):
     """Phoenix Audit runtime settings. Loaded from env (with .env fallback for local dev)."""
@@ -86,6 +92,16 @@ class Settings(BaseSettings):
         default=7,
         ge=1,
         description="Signed URL validity for recipe Markdown — covers a typical judging cadence.",
+    )
+    GCS_PROBE_AT_STARTUP: bool = Field(
+        default=True,
+        description=(
+            "Production-safe default: probe the recipe bucket at boot so a "
+            "misconfigured deploy fails loud instead of mid-/run. The Dockerfile "
+            "smoke test sets this to false because it has no real bucket; a "
+            "WARNING is emitted at startup whenever this is disabled, so an "
+            "accidental production set is grep-able in Cloud Logging."
+        ),
     )
 
     @property
@@ -162,6 +178,20 @@ class Settings(BaseSettings):
         return self
 
     @model_validator(mode="after")
+    def _gcs_probe_disabled_only_outside_prod(self) -> Settings:
+        # The escape hatch exists for the Dockerfile smoke test (no real GCS
+        # available). In production, the bucket probe is the round-3 fail-loud
+        # gate for the regulator-facing recipe pipeline — silently allowing it
+        # to be disabled would defeat the audit posture entirely. Raise loud.
+        if self.environment == "prod" and not self.GCS_PROBE_AT_STARTUP:
+            raise ValueError(
+                f"{GCS_PROBE_ENV_NAME}=false is FORBIDDEN when environment='prod'. "
+                "This escape hatch exists for the Dockerfile smoke test only; the "
+                "Markdown emitter bucket probe must run at boot in production."
+            )
+        return self
+
+    @model_validator(mode="after")
     def _warn_on_unused_api_key(self) -> Settings:
         # Misconfig signal: a user set PHOENIX_API_KEY thinking BYO is active, but
         # phoenix_provider is still the default. The key will be silently ignored
@@ -178,3 +208,14 @@ class Settings(BaseSettings):
 def get_settings() -> Settings:
     """Cached Settings accessor — same instance across the process."""
     return Settings()
+
+
+# Module-load drift guard: if the field name diverges from GCS_PROBE_ENV_NAME,
+# Cloud Run crashloops at import time. Loud > silent — the constant is what
+# main.py logs in its "should never be set in production" message; a silent
+# divergence would defeat the grep-for-accidental-prod-set safety net.
+if GCS_PROBE_ENV_NAME not in Settings.model_fields:
+    raise RuntimeError(
+        f"GCS_PROBE_ENV_NAME={GCS_PROBE_ENV_NAME!r} drifted from Settings field. "
+        "A field rename happened — update the constant to match."
+    )
