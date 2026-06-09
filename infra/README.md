@@ -8,15 +8,15 @@ The scripts are **idempotent** — re-running them is safe (existing resources s
 
 Set all of these before running the scripts:
 
-| Var                     | Example                      | Purpose                                                                                 |
-| ----------------------- | ---------------------------- | --------------------------------------------------------------------------------------- |
-| `PROJECT`               | `chaoslab-cicd`              | GCP project ID                                                                          |
-| `PROJECT_NUMBER`        | `123456789012`               | Numeric ID. Get via `gcloud projects describe $PROJECT --format='value(projectNumber)'` |
-| `GITHUB_OWNER`          | `Blockchain-Oracle`          | GitHub org / user that owns the repo (case-sensitive — see GOTCHA-1)                    |
-| `GITHUB_REPO`           | `chaoslab`                   | GitHub repo name                                                                        |
-| `PHOENIX_API_KEY_VALUE` | `(from Arize Phoenix Cloud)` | Phoenix runtime auth (Secret Manager)                                                   |
-| `GITLAB_TOKEN_VALUE`    | `(GitLab PAT, scope: api)`   | GitLab MR emission (Secret Manager)                                                     |
-| `GEMINI_API_KEY_VALUE`  | `(from Google AI Studio)`    | Gemini judge LLM credential (Secret Manager)                                            |
+| Var                     | Example                      | Purpose                                                                                             |
+| ----------------------- | ---------------------------- | --------------------------------------------------------------------------------------------------- |
+| `PROJECT`               | `chaoslab-cicd`              | GCP project ID                                                                                      |
+| `PROJECT_NUMBER`        | `123456789012`               | Numeric ID. Get via `gcloud projects describe $PROJECT --format='value(projectNumber)'`             |
+| `GITHUB_OWNER`          | `Blockchain-Oracle`          | GitHub org / user that owns the repo (case-sensitive — see GOTCHA-1)                                |
+| `GITHUB_REPO`           | `chaoslab`                   | GitHub repo name                                                                                    |
+| `PHOENIX_API_KEY_VALUE` | `(from Arize Phoenix Cloud)` | Phoenix runtime auth (Secret Manager)                                                               |
+| `GITLAB_TOKEN_VALUE`    | `(GitLab PAT, scope: api)`   | GitLab MR emission (Secret Manager)                                                                 |
+| `GEMINI_API_KEY_VALUE`  | `(optional — BYO only)`      | AI Studio key. Skip on the hosted Vertex path; the runtime SA gets `roles/aiplatform.user` instead. |
 
 ## Step-by-step
 
@@ -36,7 +36,9 @@ bash infra/workload-identity-federation.sh
 # 2. Seed runtime secrets
 export PHOENIX_API_KEY_VALUE="<paste from Arize Phoenix dashboard>"
 export GITLAB_TOKEN_VALUE="<paste from GitLab PAT>"
-export GEMINI_API_KEY_VALUE="<paste from Google AI Studio>"
+# Vertex AI path: runtime SA gets roles/aiplatform.user (step 1) — no
+# Gemini key required. BYO AI Studio? Also export:
+#   export GEMINI_API_KEY_VALUE="<paste from Google AI Studio>"
 bash infra/secret-manager-setup.sh
 
 # 3. Paste the recorded values into GitHub repo Variables

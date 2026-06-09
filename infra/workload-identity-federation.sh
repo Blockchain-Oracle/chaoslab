@@ -27,6 +27,7 @@ gcloud services enable \
   run.googleapis.com \
   artifactregistry.googleapis.com \
   secretmanager.googleapis.com \
+  aiplatform.googleapis.com \
   --project="${PROJECT}"
 
 # Artifact Registry repository — Cloud Run pulls images from here. The
@@ -126,6 +127,7 @@ for role in \
   "roles/secretmanager.secretAccessor" \
   "roles/logging.logWriter" \
   "roles/monitoring.metricWriter" \
+  "roles/aiplatform.user" \
   ; do
   echo "  -> ${role}"
   gcloud projects add-iam-policy-binding "${PROJECT}" \
