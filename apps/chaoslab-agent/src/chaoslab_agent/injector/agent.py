@@ -34,6 +34,7 @@ may not be, so we don't rely on per-call idempotency.
 from __future__ import annotations
 
 import asyncio
+from collections.abc import Awaitable, Callable
 from datetime import UTC, datetime
 from typing import Any, Literal, assert_never
 
@@ -259,6 +260,10 @@ class Injector(BaseModel):
     state: InjectorState
     prompt: str = Field(min_length=1)
     runs_per_fault: int = Field(default=_DEFAULT_RUNS_PER_FAULT, ge=1, le=20)
+    # Progress hooks — the live-audit SSE bridge. Awaited inline, so a slow
+    # hook slows the audit; emitters must be queue-puts, not network calls.
+    on_attack_start: Callable[[AttackRun], Awaitable[None]] | None = None
+    on_attack_end: Callable[[AttackResult], Awaitable[None]] | None = None
 
     async def run(self) -> InjectorState:
         await self._run_baseline()
@@ -266,7 +271,14 @@ class Injector(BaseModel):
             await self.target.connect()
             plan = self._build_plan()
             for attack in plan:
+                if self.on_attack_start is not None:
+                    await self.on_attack_start(attack)
+                recorded_before = self.state.total_attacks
                 await self._run_one_attack(attack)
+                # Fire the end hook only for the result THIS attack recorded —
+                # never re-announce a previous attack's tail.
+                if self.on_attack_end is not None and self.state.total_attacks > recorded_before:
+                    await self.on_attack_end(self.state.attack_results[-1])
             return self.state
         finally:
             try:

@@ -265,8 +265,14 @@ def test_cancel_task_is_idempotent_on_completed_task() -> None:
     asyncio.run(_drive())
 
 
-async def test_stream_emits_full_phase_change_sequence(client: httpx.AsyncClient) -> None:
-    """SequentialAgent walk surfaces as phase_change SSE frames: injector -> judge -> patcher."""
+async def test_stream_emits_full_phase_change_sequence(
+    client: httpx.AsyncClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Pipeline phase walk surfaces as phase_change SSE frames: injector -> judge -> patcher."""
+    from chaoslab_agent import main as _main
+
+    monkeypatch.setattr(_main, "drive_audit", _fake_phase_walk_drive)
     run_resp = await client.post("/run", json={"target_url": "http://localhost:8001"})
     run_id = run_resp.json()["run_id"]
     chunks: list[str] = []
@@ -295,14 +301,39 @@ async def test_get_agents_unknown_returns_404(client: httpx.AsyncClient) -> None
     assert r.status_code == 404
 
 
-# --- Real `_drive_orchestrator` coverage (Round-2 pr-test-analyzer HIGH gaps) ----
+# --- `_drive_orchestrator` frame-plumbing coverage --------------------------
+# These tests exercise the PRODUCTION wrapper (queue framing, error/cancel
+# branches, the sentinel) while faking the pipeline seam (`drive_audit`) —
+# the real pipeline hits live Gemini/Phoenix/target and is covered by
+# tests/unit/test_audit_runner.py with its own seams.
+
+
+async def _fake_phase_walk_drive(
+    *,
+    run_id: str,
+    target_url: str,
+    runs_per_fault: int,
+    emit,
+    set_phase,
+    **_kw,
+) -> None:
+    """Mirrors drive_audit's frame shape without the real pipeline."""
+    for phase in ("injector", "judge", "patcher"):
+        set_phase(phase)
+        await emit("phase_change", {"phase": phase, "run_id": run_id})
+    set_phase("succeeded")
+    await emit("complete", {"phase": "succeeded", "run_id": run_id})
 
 
 async def test_real_drive_emits_complete_frame_and_sets_succeeded_phase(
     client: httpx.AsyncClient,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Production `_drive_orchestrator` happy path: emit `complete` + transition to succeeded."""
+    from chaoslab_agent import main as _main
     from chaoslab_agent.main import _RUN_REGISTRY
+
+    monkeypatch.setattr(_main, "drive_audit", _fake_phase_walk_drive)
 
     run_resp = await client.post("/run", json={"target_url": "http://localhost:8001"})
     run_id = run_resp.json()["run_id"]
@@ -316,13 +347,19 @@ async def test_real_drive_emits_complete_frame_and_sets_succeeded_phase(
     assert _RUN_REGISTRY[run_id].phase == "succeeded"
 
 
-async def test_real_drive_walks_all_four_phase_states(client: httpx.AsyncClient) -> None:
+async def test_real_drive_walks_all_four_phase_states(
+    client: httpx.AsyncClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """Registry transitions queued -> injector -> judge -> patcher -> succeeded."""
+    from chaoslab_agent import main as _main
     from chaoslab_agent.main import _RUN_REGISTRY
+
+    monkeypatch.setattr(_main, "drive_audit", _fake_phase_walk_drive)
 
     run_resp = await client.post("/run", json={"target_url": "http://localhost:8001"})
     run_id = run_resp.json()["run_id"]
-    # Drain the stream to let the real drive complete.
+    # Drain the stream to let the drive complete.
     async with client.stream("GET", f"/stream?runId={run_id}") as resp:
         async for _ in resp.aiter_text():
             pass
@@ -339,7 +376,9 @@ async def test_real_drive_failure_emits_error_frame_and_logs(
 
     from chaoslab_agent import main as _main
 
-    # Force the production drive's loop to raise on the second phase by patching
+    monkeypatch.setattr(_main, "drive_audit", _fake_phase_walk_drive)
+
+    # Force the drive's frame loop to raise on the second frame by patching
     # asyncio.Queue.put on the real queue.
     original_put = asyncio.Queue.put
     call_n = {"i": 0}
@@ -375,6 +414,8 @@ async def test_real_drive_cancelled_emits_cancelled_frame_and_marks_failed(
     """Cancelling the real drive task surfaces the `cancelled` SSE frame + phase=failed."""
     from chaoslab_agent import main as _main
 
+    monkeypatch.setattr(_main, "drive_audit", _fake_phase_walk_drive)
+
     # Slow the first phase_change so cancel can land cleanly mid-drive.
     original_sleep = asyncio.sleep
     sleep_calls = {"n": 0}
@@ -407,8 +448,14 @@ async def test_real_drive_cancelled_emits_cancelled_frame_and_marks_failed(
     assert _main._RUN_REGISTRY[run_id].phase == "failed"
 
 
-async def test_concurrent_runs_generate_distinct_ids(client: httpx.AsyncClient) -> None:
+async def test_concurrent_runs_generate_distinct_ids(
+    client: httpx.AsyncClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """48-bit run_id collision is improbable but registry overwrite must not be silent."""
+    from chaoslab_agent import main as _main
+
+    monkeypatch.setattr(_main, "drive_audit", _fake_phase_walk_drive)
     payload = {"target_url": "http://localhost:8001"}
     responses = await asyncio.gather(*(client.post("/run", json=payload) for _ in range(50)))
     ids = [r.json()["run_id"] for r in responses]
