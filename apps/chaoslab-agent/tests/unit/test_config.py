@@ -32,7 +32,7 @@ def _isolated_env(monkeypatch: pytest.MonkeyPatch, tmp_path) -> Iterator[None]:
 def test_defaults_load_with_minimum_required_env(monkeypatch: pytest.MonkeyPatch) -> None:
     """ADR-017 default mode: only GEMINI_API_KEY is required; phoenix_api_key is optional."""
     monkeypatch.setenv("GEMINI_API_KEY", "test-gemini")
-    s = Settings()  # ty: ignore[missing-argument]
+    s = Settings()
     assert s.phoenix_provider == "phoenix-audit"
     assert s.phoenix_api_key is None
     assert s.phoenix_collector_endpoint == "http://localhost:6006/v1/traces"
@@ -44,7 +44,7 @@ def test_judge_llm_validator_rejects_non_flash(monkeypatch: pytest.MonkeyPatch) 
     monkeypatch.setenv("GEMINI_API_KEY", "test-gemini")
     monkeypatch.setenv("JUDGE_LLM", "gemini-3.1-pro-preview")
     with pytest.raises(ValidationError) as exc:
-        Settings()  # ty: ignore[missing-argument]
+        Settings()
     assert "judge_llm" in str(exc.value)
     assert JUDGE_LLM_LOCKED in str(exc.value)
 
@@ -53,7 +53,7 @@ def test_phoenix_api_key_is_secretstr_when_provided(monkeypatch: pytest.MonkeyPa
     """Per CLAUDE.md hard rule + Patch #20 schema rule 4a: api_key MUST be SecretStr-redacted."""
     monkeypatch.setenv("GEMINI_API_KEY", "test-gemini")
     monkeypatch.setenv("PHOENIX_API_KEY", "sk-real-secret-key-do-not-leak")
-    s = Settings()  # ty: ignore[missing-argument]
+    s = Settings()
     assert isinstance(s.phoenix_api_key, SecretStr)
     # repr() MUST redact the key.
     assert "sk-real-secret-key-do-not-leak" not in repr(s)
@@ -73,7 +73,7 @@ def test_env_override_works(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("GEMINI_API_KEY", "test-gemini")
     monkeypatch.setenv("TARGET_DEFAULT_URL", "http://target.example:9999")
     monkeypatch.setenv("ENVIRONMENT", "prod")
-    s = Settings()  # ty: ignore[missing-argument]
+    s = Settings()
     assert s.target_default_url == "http://target.example:9999"
     assert s.environment == "prod"
 
@@ -81,7 +81,7 @@ def test_env_override_works(monkeypatch: pytest.MonkeyPatch) -> None:
 def test_missing_gemini_key_raises(monkeypatch: pytest.MonkeyPatch) -> None:
     """No env -> ValidationError because gemini_api_key has no default."""
     with pytest.raises(ValidationError):
-        Settings()  # ty: ignore[missing-argument]
+        Settings()
 
 
 def test_byo_mode_requires_phoenix_api_key(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -90,7 +90,7 @@ def test_byo_mode_requires_phoenix_api_key(monkeypatch: pytest.MonkeyPatch) -> N
     monkeypatch.setenv("PHOENIX_PROVIDER", "customer")
     # Intentionally omit PHOENIX_API_KEY.
     with pytest.raises(ValidationError) as exc:
-        Settings()  # ty: ignore[missing-argument]
+        Settings()
     assert "phoenix_api_key" in str(exc.value)
     assert "customer" in str(exc.value).lower() or "BYO" in str(exc.value)
 
@@ -99,7 +99,7 @@ def test_byo_mode_with_key_loads_ok(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("GEMINI_API_KEY", "test-gemini")
     monkeypatch.setenv("PHOENIX_PROVIDER", "customer")
     monkeypatch.setenv("PHOENIX_API_KEY", "byo-key")
-    s = Settings()  # ty: ignore[missing-argument]
+    s = Settings()
     assert s.phoenix_provider == "customer"
     assert s.phoenix_api_key is not None
     assert s.phoenix_api_key.get_secret_value() == "byo-key"
@@ -109,7 +109,7 @@ def test_invalid_phoenix_provider_rejected(monkeypatch: pytest.MonkeyPatch) -> N
     monkeypatch.setenv("GEMINI_API_KEY", "test-gemini")
     monkeypatch.setenv("PHOENIX_PROVIDER", "self-hosted")  # not in the Literal set
     with pytest.raises(ValidationError):
-        Settings()  # ty: ignore[missing-argument]
+        Settings()
 
 
 def test_default_mode_with_api_key_warns(
@@ -122,7 +122,7 @@ def test_default_mode_with_api_key_warns(
     monkeypatch.setenv("PHOENIX_API_KEY", "accidental-byo-key")
     # phoenix_provider left at default ("phoenix-audit")
     with caplog.at_level(logging.WARNING, logger="chaoslab_agent.config"):
-        s = Settings()  # ty: ignore[missing-argument]
+        s = Settings()
     assert s.phoenix_provider == "phoenix-audit"
     assert any(
         "phoenix_api_key" in r.message and "ignored" in r.message.lower() for r in caplog.records
