@@ -135,21 +135,21 @@ def _render_regression_test_cases(recipe: HardeningRecipe) -> str:
 
 
 def _render_one_regression(idx: int, tc: RegressionTestCase) -> str:
-    # Pydantic extras carry Phoenix metadata into the rendered JSON.
-    # `default=str` survives non-JSON-native scalars (datetime, bytes,
-    # set) that a future dataset column could carry — better lossy than
-    # crashing the render and losing the whole recipe.
-    dumped = tc.model_dump()
-    payload = json.dumps(dumped, indent=2, default=_json_default_with_warning)
+    # Pydantic extras carry Phoenix metadata; `default=` coerces non-JSON
+    # scalars (datetime, bytes, set) lossy rather than crashing the render.
+    payload = json.dumps(tc.model_dump(), indent=2, default=_json_default_with_warning)
     return f"{idx}. ```json\n{payload}\n```\n\n"
 
 
 def _json_default_with_warning(obj: object) -> str:
-    logger.warning(
-        "regression_test_case carried non-JSON-native value type=%s; coerced via str()",
-        type(obj).__name__,
-    )
-    return str(obj)
+    type_name = type(obj).__name__
+    logger.warning("regression_test_case extra type=%s coerced via str()", type_name)
+    try:
+        return str(obj)
+    except Exception:
+        # A hostile __str__ would otherwise kill the whole recipe render.
+        logger.exception("regression_test_case __str__ raised on type=%s", type_name)
+        return f"<unrenderable {type_name}>"
 
 
 def _render_estimated_improvement(recipe: HardeningRecipe) -> str:
@@ -165,7 +165,26 @@ def _render_fallback_notice(recipe: HardeningRecipe) -> str:
     # Audit-fidelity: surface fallback-marked clusters to the reader so a
     # reviewer of the signed recipe can tell pseudoknowledge from real
     # LLM-generated patches.
-    cluster_ids = recipe.metadata.get("fallback_cluster_ids", []) or []
+    raw = recipe.metadata.get("fallback_cluster_ids", []) or []
+    # A non-list (e.g. the string "all") would otherwise iterate character
+    # by character into bullet points and silently corrupt the audit.
+    if not isinstance(raw, list):
+        logger.error(
+            "fallback_cluster_ids must be a list, got type=%s; ignoring",
+            type(raw).__name__,
+        )
+        # Render the corruption IN-BAND so the regulator reading the signed
+        # recipe sees the integrity warning — not just an Operator grepping
+        # Cloud Logging after the fact. Silent return ("") was pattern #4
+        # from CLAUDE.md: fallback indistinguishable from "no fallback at all."
+        return (
+            "## Fallback Clusters\n\n"
+            "_(audit-integrity warning: `metadata.fallback_cluster_ids` was "
+            f"`{type(raw).__name__}`, expected `list`; corruption logged at "
+            "ERROR. Treat this recipe as suspect until the upstream Patcher "
+            "issue is identified.)_\n"
+        )
+    cluster_ids = [str(cid) for cid in raw]
     valid_cluster_ids = {c.cluster_id for c in recipe.cluster_set.clusters}
     unknown = [cid for cid in cluster_ids if cid not in valid_cluster_ids]
     if unknown:

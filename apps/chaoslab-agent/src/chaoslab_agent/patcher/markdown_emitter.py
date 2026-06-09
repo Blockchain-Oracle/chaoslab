@@ -33,8 +33,23 @@ class RecipeAlreadyExistsError(MarkdownEmitterError):
     """A blob with this recipe_id is already in the bucket — refusing to clobber."""
 
 
-class BucketNotConfiguredError(MarkdownEmitterError):
-    """Configured GCS bucket missing or runtime SA lacks objectAdmin."""
+class BucketProbeError(MarkdownEmitterError):
+    """Bucket probe failed for any reason. Catch this when you want to
+    handle 'something is wrong with the bucket' generically; catch the
+    subclasses below when the operator response differs (config fix vs
+    transient retry)."""
+
+
+class BucketMissingError(BucketProbeError):
+    """Configured GCS bucket does not exist in the deployed project. The
+    operator response is a terraform / Secret Manager config change."""
+
+
+class BucketUnreachableError(BucketProbeError):
+    """Bucket exists but credentials, IAM, or network prevented the probe.
+    The operator response is checking IAM bindings or retry — often
+    transient, distinct from BucketMissingError to avoid masking flaky
+    IAM as a config bug."""
 
 
 # ---------------------------------------------------------------------------
@@ -151,17 +166,16 @@ class MarkdownEmitter:
     def _probe_bucket(self) -> None:
         try:
             bucket = self._client.bucket(self._bucket_name)
-            if not bucket.exists():
-                msg = f"GCS bucket {self._bucket_name!r} does not exist"
-                raise BucketNotConfiguredError(msg)
-        except BucketNotConfiguredError:
-            raise
+            exists = bucket.exists()
         except Exception as exc:
             msg = (
                 f"GCS bucket {self._bucket_name!r} unreachable "
                 f"({type(exc).__name__}: {exc}) — check IAM/network"
             )
-            raise BucketNotConfiguredError(msg) from exc
+            raise BucketUnreachableError(msg) from exc
+        if not exists:
+            msg = f"GCS bucket {self._bucket_name!r} does not exist"
+            raise BucketMissingError(msg)
 
     def _upload_and_sign(self, blob_name: str, content: bytes) -> str:
         bucket = self._client.bucket(self._bucket_name)
@@ -176,7 +190,7 @@ class MarkdownEmitter:
                 if_generation_match=0,
             )
         except Exception as exc:
-            if _is_precondition_failed(exc):
+            if _is_already_exists_error(exc):
                 msg = f"recipe_id={blob_name} already exists in bucket"
                 raise RecipeAlreadyExistsError(msg) from exc
             raise
@@ -187,16 +201,47 @@ class MarkdownEmitter:
         )
 
 
-_HTTP_PRECONDITION_FAILED = 412
+# google-api-core signals "this blob already exists" across versions / transports
+# in several incompatible shapes. We treat ALL of these as the same semantic:
+#   - HTTP REST: PreconditionFailed (412) on if_generation_match=0; Conflict (409)
+#     on older variants.
+#   - gRPC: FailedPrecondition (class name) with grpc.StatusCode.FAILED_PRECONDITION
+#     (status enum). Some SDK versions stringify status codes as "412 Precondition
+#     Failed" on `.code`.
+_ALREADY_EXISTS_CLASS_NAMES = frozenset({"PreconditionFailed", "Conflict", "FailedPrecondition"})
+_ALREADY_EXISTS_HTTP_CODES = frozenset({409, 412})
+_ALREADY_EXISTS_GRPC_NAMES = frozenset({"FAILED_PRECONDITION", "ALREADY_EXISTS"})
 
 
-def _is_precondition_failed(exc: BaseException) -> bool:
-    # google-api-core's typed PreconditionFailed / 412 surface depends on
-    # the SDK version. Detect by class name to stay robust without
-    # importing the exception type at module load.
-    return type(exc).__name__ in {"PreconditionFailed", "Conflict"} or (
-        hasattr(exc, "code") and getattr(exc, "code", None) == _HTTP_PRECONDITION_FAILED
-    )
+def _is_already_exists_error(exc: BaseException) -> bool:
+    """Match SDK variants of 'this blob already exists' precondition signaling.
+
+    The function answers 'should we raise RecipeAlreadyExistsError?' — NOT
+    'is this a 412'. Either an HTTP precondition failure OR a gRPC
+    FailedPrecondition OR a 409 Conflict means the recipe_id is already
+    taken under if_generation_match=0 semantics.
+    """
+    if type(exc).__name__ in _ALREADY_EXISTS_CLASS_NAMES:
+        return True
+    response = getattr(exc, "response", None)
+    for candidate in (
+        getattr(exc, "code", None),
+        getattr(exc, "status_code", None),
+        getattr(response, "status_code", None),
+        getattr(exc, "grpc_status_code", None),
+    ):
+        if isinstance(candidate, int) and candidate in _ALREADY_EXISTS_HTTP_CODES:
+            return True
+        if isinstance(candidate, str):
+            # Some SDKs format codes as "412 Precondition Failed" instead of bare int.
+            head = candidate.strip().split(maxsplit=1)[0] if candidate.strip() else ""
+            if head.isdigit() and int(head) in _ALREADY_EXISTS_HTTP_CODES:
+                return True
+        # grpc.StatusCode enum: has .name like "FAILED_PRECONDITION" / "ALREADY_EXISTS".
+        name = getattr(candidate, "name", None)
+        if isinstance(name, str) and name in _ALREADY_EXISTS_GRPC_NAMES:
+            return True
+    return False
 
 
 def _build_default_client() -> storage.Client:
@@ -208,7 +253,9 @@ def _build_default_client() -> storage.Client:
 
 
 __all__ = [
-    "BucketNotConfiguredError",
+    "BucketMissingError",
+    "BucketProbeError",
+    "BucketUnreachableError",
     "EmitResult",
     "MarkdownEmitter",
     "MarkdownEmitterError",
