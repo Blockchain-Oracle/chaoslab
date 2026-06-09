@@ -1,6 +1,11 @@
 """Patcher sub-agent — HardeningRecipe synthesis + GitLab MR emission (Epic 6)."""
 
-from chaoslab_agent.patcher.agent import PATCHER_NAME, build_patcher_agent
+from chaoslab_agent.patcher.agent import (
+    PATCHER_NAME,
+    Patcher,
+    build_patcher_agent,
+    estimate_resilience_improvement,
+)
 from chaoslab_agent.patcher.recipe import (
     FailureCluster,
     FailureClusterSet,
@@ -18,9 +23,11 @@ __all__ = [
     "FailureClusterSet",
     "FaultClass",
     "HardeningRecipe",
+    "Patcher",
     "PromptPatch",
     "RegressionTestCase",
     "ToolValidationDiff",
     "build_patcher_agent",
+    "estimate_resilience_improvement",
     "new_recipe_id",
 ]
