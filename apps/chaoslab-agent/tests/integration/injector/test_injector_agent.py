@@ -88,17 +88,29 @@ class _ScriptedAgent:
 class _ScriptedTarget(TargetAdapter):
     """In-process adapter that drives the agent's callbacks against a synthetic
     span on every invoke. ``agent`` is exposed so per-fault dispatch can attach
-    callbacks (matches the Tier 1 ADK pattern at story-5.7 lines 320-324)."""
+    callbacks.
+
+    ``baseline_fail_simulation=True`` makes the FIRST 3 of every 5 invokes
+    fail — produces a 40% baseline pass rate (below the 80% threshold) that
+    is genuinely deterministic. Previously this used % 2 which produced 60%,
+    misleadingly named.
+    """
 
     def __init__(
         self,
         spec: TargetSpec,
         *,
-        baseline_pass_rate: float = 1.0,
+        baseline_fail_simulation: bool = False,
+        drop_span_ids: bool = False,
+        error_on_invoke: str | None = None,
+        raise_on_invoke: type[BaseException] | None = None,
     ) -> None:
         super().__init__(spec)
         self.agent = _ScriptedAgent()
-        self._baseline_pass_rate = baseline_pass_rate
+        self._baseline_fail_simulation = baseline_fail_simulation
+        self._drop_span_ids = drop_span_ids
+        self._error_on_invoke = error_on_invoke
+        self._raise_on_invoke = raise_on_invoke
         self._invoke_count = 0
         self.disconnect_count = 0
 
@@ -112,20 +124,35 @@ class _ScriptedTarget(TargetAdapter):
         return AdapterFingerprint(tier=self.spec.tier)
 
     async def invoke(self, invocation: AdapterInvocation) -> AdapterResult:
-        """Drive the installed callbacks against a synthetic TOOL span.
-
-        For F1 (before_tool_callback): invoke the callback inside a TOOL span.
-        For F2/F3 (before_model_callback): invoke the callback inside an LLM span.
-        For F3 retriever_insert: invoke the retriever inside a RETRIEVER span.
-        """
         self._invoke_count += 1
-        # Baseline failure simulation: every other invoke fails until rate met.
-        if self._baseline_pass_rate < 1.0 and self._invoke_count % 2 == 0:
+        if self._baseline_fail_simulation and self._invoke_count % 5 in (1, 2, 3):
             return AdapterResult(
                 response="",
                 span_ids=[],
                 duration_ms=1.0,
                 error="baseline-fail-simulation",
+            )
+        # Error/raise/drop modes apply only AFTER baseline (n=5). Otherwise
+        # the test target would fail baseline and never reach the attack
+        # phase the tests are trying to exercise.
+        in_attack_phase = self._invoke_count > 5
+        if in_attack_phase and self._raise_on_invoke is not None:
+            raise self._raise_on_invoke("scripted invoke failure")
+        if in_attack_phase and self._error_on_invoke is not None:
+            return AdapterResult(
+                response="",
+                span_ids=["span-with-error"],
+                duration_ms=1.0,
+                error=self._error_on_invoke,
+                metadata={"trace_id": "trace-test"},
+            )
+        if in_attack_phase and self._drop_span_ids:
+            return AdapterResult(
+                response="ok",
+                span_ids=[],
+                duration_ms=1.0,
+                error=None,
+                metadata={"trace_id": "trace-test"},
             )
 
         span_kind, span_id = await self._drive_callbacks(invocation)
@@ -211,7 +238,7 @@ async def test_full_run_emits_24_annotated_spans_across_4_fault_classes() -> Non
     """BDD lines 52-58: the canonical 5x5-cell-style demo grid materializes."""
     target = _ScriptedTarget(_spec())
     state = InjectorState()
-    injector = Injector(target=target, state=state, runs_per_fault=6)
+    injector = Injector(target=target, state=state, prompt="test-prompt", runs_per_fault=6)
     await injector.run()
 
     fault_spans = _fault_tagged_spans(_TEST_EXPORTER)
@@ -237,9 +264,9 @@ async def test_full_run_emits_24_annotated_spans_across_4_fault_classes() -> Non
 
 async def test_broken_baseline_aborts_before_any_attack() -> None:
     """BDD lines 60-63: degraded target → BaselineAbortError, zero attack spans."""
-    target = _ScriptedTarget(_spec(), baseline_pass_rate=0.5)
+    target = _ScriptedTarget(_spec(), baseline_fail_simulation=True)
     state = InjectorState()
-    injector = Injector(target=target, state=state, runs_per_fault=6)
+    injector = Injector(target=target, state=state, prompt="test-prompt", runs_per_fault=6)
     with pytest.raises(BaselineAbortError):
         await injector.run()
     assert _fault_tagged_spans(_TEST_EXPORTER) == []
@@ -251,7 +278,7 @@ async def test_attack_results_carry_non_empty_span_id_and_fault_class() -> None:
     """BDD lines 65-67: every AttackResult is fully populated."""
     target = _ScriptedTarget(_spec())
     state = InjectorState()
-    await Injector(target=target, state=state, runs_per_fault=6).run()
+    await Injector(target=target, state=state, prompt="test-prompt", runs_per_fault=6).run()
 
     assert state.attack_results, "expected at least one AttackResult"
     for result in state.attack_results:
@@ -269,7 +296,7 @@ async def test_runs_per_fault_configures_attack_count_per_class() -> None:
     """runs_per_fault=3 → exactly 3 attacks per fault class = 12 total."""
     target = _ScriptedTarget(_spec())
     state = InjectorState()
-    await Injector(target=target, state=state, runs_per_fault=3).run()
+    await Injector(target=target, state=state, prompt="test-prompt", runs_per_fault=3).run()
 
     breakdown = state.fault_breakdown()
     for fc in (
@@ -288,7 +315,7 @@ async def test_per_attack_uninstall_isolates_consecutive_attacks() -> None:
     confusing (story-5.7 line 318 "_install / _uninstall symmetry")."""
     target = _ScriptedTarget(_spec())
     state = InjectorState()
-    await Injector(target=target, state=state, runs_per_fault=6).run()
+    await Injector(target=target, state=state, prompt="test-prompt", runs_per_fault=6).run()
 
     # After all attacks: callbacks should be uninstalled.
     assert (
@@ -303,15 +330,114 @@ async def test_disconnect_called_on_happy_path() -> None:
     """Resource lifecycle — apply S5.6 PR #44 BLOCKING-1 fix at the Injector level too."""
     target = _ScriptedTarget(_spec())
     state = InjectorState()
-    await Injector(target=target, state=state, runs_per_fault=2).run()
+    await Injector(target=target, state=state, prompt="test-prompt", runs_per_fault=2).run()
     assert target.disconnect_count >= 1
 
 
 async def test_disconnect_called_on_baseline_abort() -> None:
     """Even when baseline aborts, the adapter must be released."""
-    target = _ScriptedTarget(_spec(), baseline_pass_rate=0.5)
+    target = _ScriptedTarget(_spec(), baseline_fail_simulation=True)
     state = InjectorState()
-    injector = Injector(target=target, state=state, runs_per_fault=2)
+    injector = Injector(target=target, state=state, prompt="test-prompt", runs_per_fault=2)
     with pytest.raises(BaselineAbortError):
         await injector.run()
     assert target.disconnect_count >= 1
+
+
+# Round-2 regression tests for the 4-reviewer pass on PR #45.
+
+
+async def test_baseline_abort_preserves_measured_pass_rate_on_state() -> None:
+    """Regulator-facing data integrity: when baseline aborts, the state must
+    carry the actual measured pass_rate, not the default 0.0. Catches the
+    silent-failure-hunter HIGH-4 regression where _run_baseline would lose
+    the measurement on the abort path."""
+    target = _ScriptedTarget(_spec(), baseline_fail_simulation=True)
+    state = InjectorState()
+    injector = Injector(target=target, state=state, prompt="test-prompt", runs_per_fault=2)
+    with pytest.raises(BaselineAbortError):
+        await injector.run()
+    assert state.baseline_pass_rate > 0.0
+    assert state.baseline_pass_rate < 0.8
+    assert state.baseline_passed is False
+
+
+async def test_attack_continues_when_one_invoke_raises() -> None:
+    """One bad invoke must NOT kill the 24-attack audit (silent-failure-hunter
+    BLOCKING-2). The exception surfaces as an error-status AttackResult."""
+    target = _ScriptedTarget(_spec(), raise_on_invoke=RuntimeError)
+    state = InjectorState()
+    injector = Injector(target=target, state=state, prompt="test-prompt", runs_per_fault=2)
+    await injector.run()
+    # All 8 attacks (4 classes x 2 runs) attempted; each raised → error result
+    assert state.total_attacks == 8
+    for result in state.attack_results:
+        assert result.status == "error"
+        assert result.span_id.startswith("error:RuntimeError")
+
+
+async def test_attack_with_dropped_span_id_records_error_result_not_silent_drop() -> None:
+    """silent-failure-hunter BLOCKING-1: adapter that doesn't populate span_ids
+    must produce an error-status AttackResult, NOT a silent skip."""
+    target = _ScriptedTarget(_spec(), drop_span_ids=True)
+    state = InjectorState()
+    injector = Injector(target=target, state=state, prompt="test-prompt", runs_per_fault=2)
+    await injector.run()
+    # All 8 attempts recorded — not silently dropped
+    assert state.total_attacks == 8
+    for result in state.attack_results:
+        assert result.status == "error"
+        assert result.span_id == "missing:no-span-emitted"
+        assert result.span_attributes.get("chaoslab.attack.span_missing") is True
+
+
+async def test_attack_with_timeout_error_classifies_as_timeout_status() -> None:
+    """Status classification: response.error containing 'timeout' substring
+    classifies as 'timeout' rather than 'error'."""
+    target = _ScriptedTarget(_spec(), error_on_invoke="ReadTimeout: target slow")
+    state = InjectorState()
+    injector = Injector(target=target, state=state, prompt="test-prompt", runs_per_fault=2)
+    await injector.run()
+    for result in state.attack_results:
+        assert result.status == "timeout"
+
+
+async def test_attack_with_generic_error_classifies_as_error_status() -> None:
+    """Status classification: response.error without 'timeout' substring
+    classifies as 'error'."""
+    target = _ScriptedTarget(_spec(), error_on_invoke="tool produced invalid JSON")
+    state = InjectorState()
+    injector = Injector(target=target, state=state, prompt="test-prompt", runs_per_fault=2)
+    await injector.run()
+    for result in state.attack_results:
+        assert result.status == "error"
+
+
+async def test_disconnect_called_exactly_once_per_run() -> None:
+    """Injector connects once at attack-phase entry and disconnects once at
+    finally. BaselineCheck owns its own lifecycle separately."""
+    target = _ScriptedTarget(_spec())
+    state = InjectorState()
+    await Injector(target=target, state=state, prompt="test-prompt", runs_per_fault=2).run()
+    # Two disconnects total: one from BaselineCheck, one from Injector
+    assert target.disconnect_count == 2
+
+
+async def test_build_plan_emits_correct_ordering_and_indices() -> None:
+    """Direct test of _build_plan: 4 classes x runs_per_fault, ordered
+    F1→F2→F3→F4, run_idx strictly increments 0..N-1, variant_idx cycles."""
+    target = _ScriptedTarget(_spec())
+    state = InjectorState()
+    injector = Injector(target=target, state=state, prompt="test-prompt", runs_per_fault=3)
+    plan = injector._build_plan()
+    assert len(plan) == 12
+    expected_classes = (
+        ["malformed_tool_output"] * 3
+        + ["prompt_injection"] * 3
+        + ["context_poisoning"] * 3
+        + ["latency_spike"] * 3
+    )
+    for i, run in enumerate(plan):
+        assert run.run_idx == i
+        assert run.fault_class == expected_classes[i]
+        assert run.variant_idx == i % 3

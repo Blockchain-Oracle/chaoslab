@@ -1,45 +1,48 @@
-"""Injector — orchestrator over the 4 fault classes + BaselineCheck (story-5.7).
+"""Injector — orchestrator over the 4 fault classes + BaselineCheck.
 
 Two surfaces in this module:
 
-1. ``build_injector_agent()`` (story 4.1 / 4.2): factory returning the ADK
-   ``LlmAgent`` that the orchestrator's ``SequentialAgent`` consumes. Currently
-   ships a STUB instruction; a real LlmAgent body lands when Epic 5 + Epic 6
-   wire the closed-loop demo.
+1. ``build_injector_agent()``: factory returning the ADK ``LlmAgent`` that the
+   orchestrator's ``SequentialAgent`` consumes. Currently ships a STUB
+   instruction; a real LlmAgent body lands when Epic 5 + Epic 6 wire the
+   closed-loop demo.
 
-2. ``Injector`` Pydantic class (this story): the actual fault-injection
-   orchestrator. Runs ``BaselineCheck(n=5)`` first; if it passes, executes
+2. ``Injector`` Pydantic class: the actual fault-injection orchestrator.
+   Runs ``BaselineCheck(n=5)`` first; if it passes, executes
    ``4 x runs_per_fault`` attacks (default 24), cycling through the four
    fault classes and capturing each ``AttackResult`` into the shared
-   ``InjectorState`` the Judge sub-agent (Epic 6) reads.
+   ``InjectorState`` the Judge sub-agent reads.
 
-The Injector covers steps 3-5 of architecture.md's data flow (baseline +
-attack phase + span capture). Step 6 (Judge phase) reads
-``state.attack_results`` to build the failure cluster set in Epic 6.
-
-Per-fault installation surfaces (architecture/04 §8 + story-5.7 lines
-319-324):
+Per-fault installation surfaces (architecture/04 §8):
 
 - F1 ``MalformedToolOutputFault``  → ``agent.before_tool_callback``
 - F2 ``PromptInjectionFault``      → ``agent.before_model_callback``
-- F3 ``ContextPoisoningFault``     → ``fault.install(agent)`` (monkey-patches
-  retrievers in place for ``mode='retriever_insert'``; sets
-  ``before_model_callback`` for ``mode='history_insert'``)
+- F3 ``ContextPoisoningFault``     → ``fault.install(agent)`` (covers both
+  retriever_insert and history_insert via S5.4's install() entry point)
 - F4 ``LatencySpikeFault``         → ``agent.before_tool_callback``
 
 Attacks run SEQUENTIALLY (not ``asyncio.gather``) because fault installations
 mutate target state; parallel installs would race on the callback slots.
+
+Resource lifecycle: ``Injector.run()`` does ONE ``target.connect()`` at the
+top of the attack phase (BaselineCheck owns its own connect/disconnect
+internally) and ONE ``target.disconnect()`` in the outer finally. Per-attack
+no longer connects — the ADK adapter is idempotent but Tier-2/3 adapters
+may not be, so we don't rely on per-call idempotency.
 """
 
 from __future__ import annotations
 
+import asyncio
 from datetime import UTC, datetime
-from typing import Any, Literal
+from typing import Any, Literal, assert_never
 
-from pydantic import BaseModel, ConfigDict, Field
+import structlog
+from pydantic import BaseModel, ConfigDict, Field, computed_field
 
 from chaoslab_agent.adk_types import LlmAgent
 from chaoslab_agent.config import get_settings
+from chaoslab_agent.errors import BaselineAbortError
 from chaoslab_agent.injector.faults import (
     ContextPoisoningFault,
     LatencySpikeFault,
@@ -52,14 +55,17 @@ from chaoslab_agent.injector.target_adapters import (
     TargetAdapter,
 )
 
+_log = structlog.get_logger(__name__)
+
 INJECTOR_NAME = "Injector"
 INJECTOR_OUTPUT_KEY = "injector_result"
 
 _DESCRIPTION = (
     "Selects a fault class, configures the target adapter, invokes the target, captures the span"
 )
-# `STUB:` prefix is the §14-carve-out documented in story-4.2 — the orchestrator
-# §14 grep allows this literal prefix inside instruction strings (data, not code).
+# `STUB:` prefix is the §14 carve-out documented in story-4.2 — the
+# orchestrator §14 grep allows this literal prefix inside instruction strings
+# (data, not code).
 _INSTRUCTION = (
     "STUB: emit a JSON object with keys ['fault_class', 'span_id', 'pass']. "
     "Stub-mode response is acceptable."
@@ -79,7 +85,6 @@ _FAULT_CLASSES: tuple[FaultClass, ...] = (
 )
 _BASELINE_N = 5
 _DEFAULT_RUNS_PER_FAULT = 6
-_DEFAULT_PROMPT = "What is the status of order 12345?"
 
 
 def build_injector_agent() -> LlmAgent:
@@ -94,17 +99,14 @@ def build_injector_agent() -> LlmAgent:
 
 
 class AttackRun(BaseModel):
-    """One scheduled attack: which fault class, which variant, against which target."""
+    model_config = ConfigDict(frozen=True)
 
     run_idx: int = Field(ge=0)
     fault_class: FaultClass
     variant_idx: int = Field(ge=0)
-    fault_config: dict[str, Any] = Field(default_factory=dict)
 
 
 class AttackResult(BaseModel):
-    """Outcome of one AttackRun, captured from the target's emitted span."""
-
     model_config = ConfigDict(frozen=True)
 
     run_idx: int = Field(ge=0)
@@ -118,16 +120,24 @@ class AttackResult(BaseModel):
 
 
 class InjectorState(BaseModel):
-    """Shared state the Judge sub-agent reads after Injector.run() returns."""
+    """Shared state the Judge sub-agent reads after Injector.run() returns.
+
+    ``total_attacks`` is a computed property over ``attack_results`` rather
+    than a stored field — eliminates the redundant-state desync vector
+    where ``record_attack`` could fail to increment a counter.
+    """
 
     baseline_passed: bool = False
     baseline_pass_rate: float = Field(default=0.0, ge=0.0, le=1.0)
-    total_attacks: int = 0
     attack_results: list[AttackResult] = Field(default_factory=list)
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def total_attacks(self) -> int:
+        return len(self.attack_results)
 
     def record_attack(self, result: AttackResult) -> None:
         self.attack_results.append(result)
-        self.total_attacks += 1
 
     def fault_breakdown(self) -> dict[FaultClass, int]:
         breakdown: dict[FaultClass, int] = {}
@@ -136,13 +146,14 @@ class InjectorState(BaseModel):
         return breakdown
 
 
-# ---------------------------------------------------------------------------
-# Fault factories — one per class. Each returns a fresh fault instance for
-# the given variant index, cycling through the available configurations.
-# ---------------------------------------------------------------------------
-
+# Fault factories. Each cycles through documented variants for the class.
 _F1_MODES = ("invalid_json", "missing_required_field", "type_mismatch", "exception")
-_F2_ATTACKS = ("instruction_override", "role_hijacking", "payload_smuggling", "indirect_injection")
+_F2_ATTACKS = (
+    "instruction_override",
+    "role_hijacking",
+    "payload_smuggling",
+    "indirect_injection",
+)
 _F3_VARIANTS = (
     ("retriever_insert", 0),
     ("history_insert", 0),
@@ -151,13 +162,20 @@ _F3_VARIANTS = (
     ("retriever_insert", 2),
     ("history_insert", 2),
 )
+# F4 variants are delay-only because the timeout half of the fault requires
+# wiring ``LatencySpikeFault.httpx_transport()`` into the target's httpx
+# client — that requires adapter cooperation (rebuilding the inner
+# transport) which the TargetAdapter ABC does not expose. The full
+# timeout-firing demo is deferred. Variant configs here only exercise the
+# asyncio.sleep before_tool_callback path; timeout values are recorded as
+# span attrs for completeness but won't fire as ReadTimeout.
 _F4_VARIANTS = (
-    (300, 500),
-    (300, 100),
-    (500, 500),
-    (1000, 500),
-    (100, 300),
-    (200, 100),
+    (100, 5000),
+    (300, 5000),
+    (500, 5000),
+    (1000, 5000),
+    (200, 5000),
+    (400, 5000),
 )
 
 
@@ -181,13 +199,7 @@ def _build_f4(variant_idx: int) -> LatencySpikeFault:
     return LatencySpikeFault(delay_ms=delay_ms, timeout_ms=timeout_ms)
 
 
-# ---------------------------------------------------------------------------
-# Per-fault install/uninstall dispatch. See story-5.7 lines 319-324.
-# ---------------------------------------------------------------------------
-
-
 def _install_callback_tool(agent: Any, fault: Any) -> None:
-    """F1, F4 attach via before_tool_callback."""
     agent.before_tool_callback = fault.as_callback()
 
 
@@ -196,7 +208,6 @@ def _uninstall_callback_tool(agent: Any) -> None:
 
 
 def _install_callback_model(agent: Any, fault: Any) -> None:
-    """F2 attaches via before_model_callback."""
     agent.before_model_callback = fault.as_callback()
 
 
@@ -205,26 +216,13 @@ def _uninstall_callback_model(agent: Any) -> None:
 
 
 def _install_f3(agent: Any, fault: ContextPoisoningFault) -> None:
-    """F3 has TWO modes with different installation surfaces.
-
-    ``history_insert``: identical shape to F2 (before_model_callback).
-    ``retriever_insert``: monkey-patches each matching BaseRetrievalTool's
-    ``run_async``. Uninstall reverses by removing the sentinel + restoring the
-    original ``run_async`` from the closure capture.
-    """
+    """F3 has two installation surfaces depending on mode."""
     fault.install(agent)
 
 
 def _uninstall_f3(agent: Any) -> None:
-    """Reverse F3's installation.
-
-    Mirrors ``ContextPoisoningFault.install()`` — clears the
-    ``_chaoslab_f3_installed`` sentinel on the agent, clears the
-    ``before_model_callback`` (history_insert mode), and clears the
-    ``_chaoslab_f3_patched`` sentinel on each tool (retriever_insert mode).
-    The patched ``run_async`` closure is left in place — the next attack
-    cycle either re-patches (idempotent via the sentinel) or uses a fresh
-    target, both of which are safe."""
+    # Sentinel removal is enough — the patched run_async closure is idempotent
+    # on re-install via context_poisoning's own _PATCHED_SENTINEL guard.
     if hasattr(agent, "__dict__") and "_chaoslab_f3_installed" in agent.__dict__:
         del agent.__dict__["_chaoslab_f3_installed"]
     agent.before_model_callback = None
@@ -234,36 +232,38 @@ def _uninstall_f3(agent: Any) -> None:
 
 
 class Injector(BaseModel):
-    """Orchestrator over the 4 fault classes + BaselineCheck (story-5.7).
+    """Orchestrator over the 4 fault classes + BaselineCheck.
 
-    Workflow per architecture/04 §8.3 + the data-flow spec in architecture.md:
-
+    Workflow:
     1. ``BaselineCheck(target, n=5)`` — bail with ``BaselineAbortError`` if
-       pre-injection pass rate is below 80%.
-    2. Build a 4 x runs_per_fault plan (default 24 ``AttackRun``s).
-    3. For each attack: build the fault → install on target.agent → invoke
-       target → capture ``AttackResult`` from the span → uninstall fault.
-       Sequential, not gathered — installs mutate shared callback slots.
-    4. Return the populated ``InjectorState``.
+       pre-injection pass rate is below 80%. The measured rate is preserved
+       on the state before re-raising so the audit report carries real data,
+       not the default 0.0.
+    2. Build a 4 x runs_per_fault plan (default 24 AttackRuns).
+    3. For each attack: build fault → install → invoke → uninstall →
+       capture AttackResult. Sequential. Per-attack exceptions are caught
+       so one bad attack doesn't kill the whole 24-attack audit — the
+       failure surfaces as an error-status AttackResult, not a silent drop.
+    4. Return the populated InjectorState.
 
-    Lessons from PR #42-44 review applied:
-    - try/finally lifecycle around install/uninstall so a fault that raises
-      mid-attack still cleans up.
-    - Adapter ``disconnect()`` always called via try/finally around the
-      attack loop (silent-failure-hunter BLOCKING-1 from PR #44).
+    Adapter lifecycle: one ``connect()`` at entry, one ``disconnect()`` in
+    the outer finally. Per-attack code does not re-connect.
+
+    NOTE: ``arbitrary_types_allowed=True`` is required because
+    ``TargetAdapter`` is an ABC. This model is constructor-only.
     """
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
     target: TargetAdapter
     state: InjectorState
+    prompt: str = Field(min_length=1)
     runs_per_fault: int = Field(default=_DEFAULT_RUNS_PER_FAULT, ge=1, le=20)
-    prompt: str = Field(default=_DEFAULT_PROMPT, min_length=1)
 
     async def run(self) -> InjectorState:
-        """Execute baseline + 24 attacks; return populated state."""
         await self._run_baseline()
         try:
+            await self.target.connect()
             plan = self._build_plan()
             for attack in plan:
                 await self._run_one_attack(attack)
@@ -273,16 +273,27 @@ class Injector(BaseModel):
                 await self.target.disconnect()
             except Exception as disconnect_err:
                 # Never let disconnect failure mask the original outcome.
-                # Matches the PR #44 BLOCKING-1 fix pattern in BaselineCheck.
-                from structlog import get_logger
-
-                get_logger(__name__).warning(
-                    "injector_disconnect_failed", error=str(disconnect_err)
+                _log.warning(
+                    "injector_disconnect_failed",
+                    exc_type=type(disconnect_err).__name__,
+                    error=str(disconnect_err),
+                    exc_info=True,
                 )
 
     async def _run_baseline(self) -> None:
-        """BaselineCheck handles its own connect/disconnect lifecycle (PR #44)."""
-        baseline = await BaselineCheck(target=self.target, n=_BASELINE_N).validate()
+        """BaselineCheck owns its own connect/disconnect lifecycle.
+
+        On abort, preserves the measured pass rate on the state so downstream
+        report rendering reflects what was actually observed rather than the
+        default 0.0.
+        """
+        try:
+            baseline = await BaselineCheck(target=self.target, n=_BASELINE_N).validate()
+        except BaselineAbortError as e:
+            self.state.baseline_passed = False
+            if e.result is not None:
+                self.state.baseline_pass_rate = e.result.pass_rate
+            raise
         self.state.baseline_passed = not baseline.aborted
         self.state.baseline_pass_rate = baseline.pass_rate
 
@@ -302,18 +313,44 @@ class Injector(BaseModel):
         return plan
 
     async def _run_one_attack(self, attack: AttackRun) -> None:
-        # ``target.agent`` is Tier-1-in-process-specific (per story-5.7 line
-        # 326). Tier 3 HTTP black-box adapters use a different installation
-        # mechanism that this story doesn't implement.
+        # target.agent is Tier-1-in-process-specific; Tier 3 HTTP black-box
+        # adapters install faults differently and won't satisfy this access.
         agent = self.target.agent  # ty: ignore[unresolved-attribute]
-        await self.target.connect()
-        fault = self._build_fault(attack)
-        self._install(attack.fault_class, agent, fault)
         try:
-            response = await self.target.invoke(AdapterInvocation(prompt=self.prompt))
-        finally:
-            self._uninstall(attack.fault_class, agent)
-        self._record(attack, response)
+            fault = self._build_fault(attack)
+            self._install(attack.fault_class, agent, fault)
+            try:
+                response = await self.target.invoke(AdapterInvocation(prompt=self.prompt))
+            finally:
+                self._uninstall(attack.fault_class, agent)
+            self._record(attack, response)
+        except asyncio.CancelledError:
+            raise
+        except Exception as exc:
+            # One bad attack must not kill the 24-attack audit — surface as
+            # an error-status AttackResult so the Judge sees the failure.
+            _log.warning(
+                "injector_attack_failed",
+                run_idx=attack.run_idx,
+                fault_class=attack.fault_class,
+                exc_type=type(exc).__name__,
+                exc_info=True,
+            )
+            self.state.record_attack(
+                AttackResult(
+                    run_idx=attack.run_idx,
+                    fault_class=attack.fault_class,
+                    span_id=f"error:{type(exc).__name__}",
+                    trace_id="error:no-trace",
+                    status="error",
+                    duration_ms=0.0,
+                    span_attributes={
+                        "chaoslab.fault.type": attack.fault_class,
+                        "chaoslab.fault.variant_idx": attack.variant_idx,
+                        "chaoslab.attack.exception": type(exc).__name__,
+                    },
+                )
+            )
 
     @staticmethod
     def _build_fault(attack: AttackRun) -> Any:
@@ -325,8 +362,7 @@ class Injector(BaseModel):
             return _build_f3(attack.variant_idx)
         if attack.fault_class == "latency_spike":
             return _build_f4(attack.variant_idx)
-        msg = f"unknown fault_class {attack.fault_class!r}"
-        raise RuntimeError(msg)
+        assert_never(attack.fault_class)
 
     @staticmethod
     def _install(fault_class: FaultClass, agent: Any, fault: Any) -> None:
@@ -336,6 +372,8 @@ class Injector(BaseModel):
             _install_callback_model(agent, fault)
         elif fault_class == "context_poisoning":
             _install_f3(agent, fault)
+        else:
+            assert_never(fault_class)
 
     @staticmethod
     def _uninstall(fault_class: FaultClass, agent: Any) -> None:
@@ -345,14 +383,45 @@ class Injector(BaseModel):
             _uninstall_callback_model(agent)
         elif fault_class == "context_poisoning":
             _uninstall_f3(agent)
+        else:
+            assert_never(fault_class)
 
     def _record(self, attack: AttackRun, response: Any) -> None:
-        span_id = response.span_ids[0] if response.span_ids else "<missing>"
-        trace_id = (
-            response.metadata.get("trace_id", "<missing>") if response.metadata else "<missing>"
-        )
-        if span_id == "<missing>" or trace_id == "<missing>":
-            return  # the BDD requires non-empty span_id; skip this slot
+        """Record an AttackResult — never silently drop on missing span info.
+
+        Adapter regressions that drop ``span_ids`` or ``trace_id`` were
+        silently invisible to the audit verdict. Surface them as
+        error-status AttackResults with sentinel IDs + a structured log.
+        """
+        span_id = response.span_ids[0] if response.span_ids else ""
+        trace_id = response.metadata.get("trace_id", "") if response.metadata else ""
+
+        if not span_id or not trace_id:
+            _log.warning(
+                "injector_attack_span_missing",
+                run_idx=attack.run_idx,
+                fault_class=attack.fault_class,
+                span_id_present=bool(span_id),
+                trace_id_present=bool(trace_id),
+                response_error=getattr(response, "error", None),
+            )
+            self.state.record_attack(
+                AttackResult(
+                    run_idx=attack.run_idx,
+                    fault_class=attack.fault_class,
+                    span_id=span_id or "missing:no-span-emitted",
+                    trace_id=trace_id or "missing:no-trace-emitted",
+                    status="error",
+                    duration_ms=response.duration_ms,
+                    span_attributes={
+                        "chaoslab.fault.type": attack.fault_class,
+                        "chaoslab.fault.variant_idx": attack.variant_idx,
+                        "chaoslab.attack.span_missing": True,
+                    },
+                )
+            )
+            return
+
         status: Literal["ok", "error", "timeout"]
         if response.error:
             status = "timeout" if "timeout" in response.error.lower() else "error"

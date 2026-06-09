@@ -56,25 +56,21 @@ def test_fault_class_literal_enumerates_four_values() -> None:
 
 
 def test_attack_run_accepts_valid_construction() -> None:
-    run = AttackRun(
-        run_idx=0,
-        fault_class="prompt_injection",
-        variant_idx=2,
-        fault_config={"attack": "instruction_override"},
-    )
+    run = AttackRun(run_idx=0, fault_class="prompt_injection", variant_idx=2)
     assert run.run_idx == 0
     assert run.fault_class == "prompt_injection"
     assert run.variant_idx == 2
 
 
+def test_attack_run_is_frozen() -> None:
+    run = AttackRun(run_idx=0, fault_class="prompt_injection", variant_idx=0)
+    with pytest.raises(ValidationError):
+        run.run_idx = 99  # type: ignore[misc]
+
+
 def test_attack_run_rejects_negative_run_idx() -> None:
     with pytest.raises(ValidationError):
-        AttackRun(
-            run_idx=-1,
-            fault_class="prompt_injection",
-            variant_idx=0,
-            fault_config={},
-        )
+        AttackRun(run_idx=-1, fault_class="prompt_injection", variant_idx=0)
 
 
 def test_attack_run_rejects_unknown_fault_class() -> None:
@@ -83,7 +79,6 @@ def test_attack_run_rejects_unknown_fault_class() -> None:
             run_idx=0,
             fault_class="bogus_fault",  # ty: ignore[invalid-argument-type]
             variant_idx=0,
-            fault_config={},
         )
 
 
@@ -146,6 +141,13 @@ def test_attack_result_captured_at_defaults_to_utc_now() -> None:
     result = _attack_result()
     after = datetime.now(UTC)
     assert before <= result.captured_at <= after
+    assert result.captured_at.tzinfo == UTC
+
+
+def test_attack_result_is_frozen() -> None:
+    result = _attack_result()
+    with pytest.raises(ValidationError):
+        result.status = "error"  # type: ignore[misc]
 
 
 # ---------------------------------------------------------------------------
@@ -169,6 +171,14 @@ def test_record_attack_appends_and_increments_total_attacks() -> None:
     assert len(state.attack_results) == 2
     assert state.attack_results[0].run_idx == 0
     assert state.attack_results[1].run_idx == 1
+
+
+def test_total_attacks_derives_from_attack_results_length() -> None:
+    """``total_attacks`` is a computed_field — no desync vector possible."""
+    state = InjectorState()
+    assert state.total_attacks == 0
+    state.attack_results.append(_attack_result())
+    assert state.total_attacks == 1
 
 
 def test_fault_breakdown_counts_attacks_by_fault_class() -> None:
