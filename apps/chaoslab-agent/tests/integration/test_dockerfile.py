@@ -188,6 +188,11 @@ def test_container_health_endpoint_returns_ok(built_image: str) -> None:
             "JUDGE_LLM=gemini-3.5-flash",
             "-e",
             "SERVICE_VERSION=test",
+            # Dockerfile smoke test has no real GCS bucket; disable the boot-time
+            # probe (lifespan logs a WARNING naming this var). Production NEVER
+            # sets this — round-3 silent-failure-hunter requires fail-loud at boot.
+            "-e",
+            "GCS_PROBE_AT_STARTUP=false",
             built_image,
         ],
         capture_output=True,

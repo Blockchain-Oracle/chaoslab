@@ -341,3 +341,204 @@ def test_emit_result_rejects_invalid_gcs_uri_shape() -> None:
                 markdown_bytes=10,
                 ttl_seconds=604800,
             )
+
+
+# ---------------------------------------------------------------------------
+# Round-3 regression tests (PR #70 post-merge verification findings)
+# ---------------------------------------------------------------------------
+
+
+async def test_health_check_distinguishes_bucket_missing_from_unreachable() -> None:
+    """Operators must be able to grep Cloud Logging by error class."""
+    from chaoslab_agent.patcher.markdown_emitter import (
+        BucketMissingError,
+        BucketUnreachableError,
+    )
+
+    class _MissingBucket:
+        def blob(self, name: str) -> Any:  # pragma: no cover
+            raise AssertionError("should not be reached")
+
+        def exists(self) -> bool:
+            return False
+
+    class _MissingClient:
+        def bucket(self, name: str) -> Any:
+            return _MissingBucket()
+
+    class _UnreachableBucket:
+        def blob(self, name: str) -> Any:  # pragma: no cover
+            raise AssertionError("should not be reached")
+
+        def exists(self) -> bool:
+            raise RuntimeError("403 Forbidden")
+
+    class _UnreachableClient:
+        def bucket(self, name: str) -> Any:
+            return _UnreachableBucket()
+
+    with pytest.raises(BucketMissingError):
+        await MarkdownEmitter(storage_client=_MissingClient()).health_check()
+    with pytest.raises(BucketUnreachableError):
+        await MarkdownEmitter(storage_client=_UnreachableClient()).health_check()
+
+
+async def test_emit_translates_conflict_alias_to_recipe_already_exists() -> None:
+    """The `Conflict` SDK alias must also map to the typed error."""
+    from chaoslab_agent.patcher.markdown_emitter import RecipeAlreadyExistsError
+
+    class Conflict(Exception):  # noqa: N818 — name matches GCS SDK class
+        pass
+
+    class _ConflictBlob:
+        def upload_from_string(
+            self, data: bytes, content_type: str, if_generation_match: int = 0
+        ) -> None:
+            raise Conflict("conflict")
+
+        def generate_signed_url(self, **kwargs: Any) -> str:  # pragma: no cover
+            return "https://storage.googleapis.com/x.md?X-Goog-Signature=z"
+
+    class _Bucket2:
+        def blob(self, name: str) -> Any:
+            return _ConflictBlob()
+
+        def exists(self) -> bool:
+            return True
+
+    class _Client:
+        def bucket(self, name: str) -> Any:
+            return _Bucket2()
+
+    with pytest.raises(RecipeAlreadyExistsError):
+        await MarkdownEmitter(storage_client=_Client()).emit(_recipe())
+
+
+async def test_emit_detects_precondition_via_status_code_attribute() -> None:
+    """SDK variants put 412 on .status_code rather than .code."""
+    from chaoslab_agent.patcher.markdown_emitter import RecipeAlreadyExistsError
+
+    class _ResponseLike:
+        status_code = 412
+
+    class _StatusCodeError(Exception):
+        response = _ResponseLike()
+
+    class _Blob3:
+        def upload_from_string(
+            self, data: bytes, content_type: str, if_generation_match: int = 0
+        ) -> None:
+            raise _StatusCodeError("412 via response.status_code")
+
+        def generate_signed_url(self, **kwargs: Any) -> str:  # pragma: no cover
+            return "https://storage.googleapis.com/x.md?X-Goog-Signature=z"
+
+    class _Bucket3:
+        def blob(self, name: str) -> Any:
+            return _Blob3()
+
+        def exists(self) -> bool:
+            return True
+
+    class _Client3:
+        def bucket(self, name: str) -> Any:
+            return _Bucket3()
+
+    with pytest.raises(RecipeAlreadyExistsError):
+        await MarkdownEmitter(storage_client=_Client3()).emit(_recipe())
+
+
+async def test_emit_recipe_already_exists_is_not_wrapped_in_emitter_error() -> None:
+    """Bare re-raise of RecipeAlreadyExistsError must not turn into MarkdownEmitterError."""
+    from chaoslab_agent.patcher.markdown_emitter import (
+        MarkdownEmitterError,
+        RecipeAlreadyExistsError,
+    )
+
+    class PreconditionFailed(Exception):  # noqa: N818
+        pass
+
+    class _Blob4:
+        def upload_from_string(
+            self, data: bytes, content_type: str, if_generation_match: int = 0
+        ) -> None:
+            raise PreconditionFailed("412")
+
+        def generate_signed_url(self, **kwargs: Any) -> str:  # pragma: no cover
+            return "https://storage.googleapis.com/x.md?X-Goog-Signature=z"
+
+    class _Bucket4:
+        def blob(self, name: str) -> Any:
+            return _Blob4()
+
+        def exists(self) -> bool:
+            return True
+
+    class _Client4:
+        def bucket(self, name: str) -> Any:
+            return _Bucket4()
+
+    with pytest.raises(RecipeAlreadyExistsError) as exc_info:
+        await MarkdownEmitter(storage_client=_Client4()).emit(_recipe())
+    # The exception must be exactly RecipeAlreadyExistsError, not a parent
+    # class — otherwise a refactor dropping the bare re-raise would
+    # silently double-wrap it.
+    assert type(exc_info.value) is RecipeAlreadyExistsError
+    # MarkdownEmitterError is the parent — issubclass holds — but the
+    # `from exc` chain must surface the original PreconditionFailed.
+    assert isinstance(exc_info.value, MarkdownEmitterError)
+    assert isinstance(exc_info.value.__cause__, PreconditionFailed)
+
+
+async def test_emit_generic_failure_preserves_cause_chain() -> None:
+    from chaoslab_agent.patcher.markdown_emitter import MarkdownEmitterError
+
+    class _NetworkBoom(Exception):  # noqa: N818 - test stub, mimics 5xx-class names
+        pass
+
+    class _Blob5:
+        def upload_from_string(
+            self, data: bytes, content_type: str, if_generation_match: int = 0
+        ) -> None:
+            raise _NetworkBoom("DNS resolve failed")
+
+        def generate_signed_url(self, **kwargs: Any) -> str:  # pragma: no cover
+            return "https://storage.googleapis.com/x.md?X-Goog-Signature=z"
+
+    class _Bucket5:
+        def blob(self, name: str) -> Any:
+            return _Blob5()
+
+        def exists(self) -> bool:
+            return True
+
+    class _Client5:
+        def bucket(self, name: str) -> Any:
+            return _Bucket5()
+
+    with pytest.raises(MarkdownEmitterError) as exc_info:
+        await MarkdownEmitter(storage_client=_Client5()).emit(_recipe())
+    assert isinstance(exc_info.value.__cause__, _NetworkBoom)
+
+
+@pytest.mark.parametrize(
+    "bad_uri",
+    [
+        "s3://chaoslab-recipes/recipe.md",
+        "gs://Chaoslab-Recipes/recipe.md",
+        "gs://chaoslab-recipes/recipe.txt",
+        "gs://chaoslab-recipes/",
+    ],
+)
+def test_emit_result_rejects_invalid_gcs_uri_shape_parametrized(bad_uri: str) -> None:
+    """Round-2 used a for-loop; round-3 parametrizes so each bad URI reports independently."""
+    from pydantic import ValidationError
+
+    with pytest.raises(ValidationError):
+        EmitResult(
+            recipe_id="recipe_abc123def456",
+            gcs_uri=bad_uri,
+            signed_url=("https://storage.googleapis.com/x.md?X-Goog-Signature=z"),
+            markdown_bytes=10,
+            ttl_seconds=604800,
+        )

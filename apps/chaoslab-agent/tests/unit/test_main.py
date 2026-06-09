@@ -498,3 +498,97 @@ async def test_stream_stops_when_client_disconnects(
             chunks.append(chunk)
     joined = "".join(chunks)
     assert joined.count("event: heartbeat") < 3, f"disconnect did not short-circuit: {joined!r}"
+
+
+# ---------------------------------------------------------------------------
+# Round-3: verify lifespan wires MarkdownEmitter.health_check
+# ---------------------------------------------------------------------------
+
+
+async def test_lifespan_invokes_markdown_emitter_health_check(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Round-3 wired health_check into FastAPI's lifespan so a misconfigured
+    bucket fails at boot instead of mid-demo. Lock the wiring."""
+    from contextlib import asynccontextmanager
+
+    called: dict[str, int] = {"count": 0}
+
+    class _FakeEmitter:
+        def __init__(self, *_args: object, **_kwargs: object) -> None:
+            pass
+
+        async def health_check(self) -> None:
+            called["count"] += 1
+
+    import chaoslab_agent.observability as obs
+    import chaoslab_agent.patcher.markdown_emitter as me
+
+    # Stub the observability setup so we don't need real Phoenix creds
+    # while exercising the lifespan.
+    monkeypatch.setattr(obs, "setup_logging", lambda env: None)
+    monkeypatch.setattr(obs, "setup_phoenix_otel", lambda settings: None)
+    monkeypatch.setattr(me, "MarkdownEmitter", _FakeEmitter)
+
+    from chaoslab_agent.main import _lifespan
+    from chaoslab_agent.main import app as fastapi_app
+
+    @asynccontextmanager
+    async def _drive():
+        async with _lifespan(fastapi_app):
+            yield
+
+    async with _drive():
+        pass
+
+    assert called["count"] == 1
+
+
+async def test_lifespan_skips_health_check_when_probe_disabled(
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """`GCS_PROBE_AT_STARTUP=false` skips the bucket probe AND emits a loud WARNING
+    naming the env var so an accidental production disable is grep-able in
+    Cloud Logging. Test-only escape hatch for the Dockerfile smoke test, which
+    has no real GCS bucket to probe against."""
+    import logging as _logging
+    from contextlib import asynccontextmanager
+
+    monkeypatch.setenv("GCS_PROBE_AT_STARTUP", "false")
+    get_settings.cache_clear()
+
+    class _PoisonEmitter:
+        def __init__(self, *_args: object, **_kwargs: object) -> None:
+            # Poison construction — proves the lifespan didn't even instantiate
+            # the emitter, which would have triggered a real storage.Client()
+            # ADC probe at boot. Pure skip, not skip-after-construct.
+            raise AssertionError("MarkdownEmitter must not be constructed when probe is disabled")
+
+        async def health_check(self) -> None:
+            raise AssertionError("health_check must not be invoked when probe is disabled")
+
+    import chaoslab_agent.observability as obs
+    import chaoslab_agent.patcher.markdown_emitter as me
+
+    monkeypatch.setattr(obs, "setup_logging", lambda env: None)
+    monkeypatch.setattr(obs, "setup_phoenix_otel", lambda settings: None)
+    monkeypatch.setattr(me, "MarkdownEmitter", _PoisonEmitter)
+
+    from chaoslab_agent.main import _lifespan
+    from chaoslab_agent.main import app as fastapi_app
+
+    @asynccontextmanager
+    async def _drive():
+        async with _lifespan(fastapi_app):
+            yield
+
+    with caplog.at_level(_logging.WARNING, logger="chaoslab_agent.main"):
+        async with _drive():
+            pass
+
+    # The WARNING must name the env var literally so a Cloud-Logging grep for
+    # "GCS_PROBE_AT_STARTUP" surfaces any prod deploy that accidentally set it.
+    assert any("GCS_PROBE_AT_STARTUP" in r.message for r in caplog.records), [
+        r.message for r in caplog.records
+    ]

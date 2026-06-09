@@ -87,6 +87,16 @@ class Settings(BaseSettings):
         ge=1,
         description="Signed URL validity for recipe Markdown — covers a typical judging cadence.",
     )
+    GCS_PROBE_AT_STARTUP: bool = Field(
+        default=True,
+        description=(
+            "Production-safe default: probe the recipe bucket at boot so a "
+            "misconfigured deploy fails loud instead of mid-/run. The Dockerfile "
+            "smoke test sets this to false because it has no real bucket; a "
+            "WARNING is emitted at startup whenever this is disabled, so an "
+            "accidental production set is grep-able in Cloud Logging."
+        ),
+    )
 
     @property
     def JUDGE_LLM(self) -> str:  # noqa: N802 — uppercase per story-6.1 spec convention

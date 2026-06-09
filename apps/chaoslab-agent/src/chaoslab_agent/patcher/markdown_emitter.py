@@ -34,7 +34,15 @@ class RecipeAlreadyExistsError(MarkdownEmitterError):
 
 
 class BucketNotConfiguredError(MarkdownEmitterError):
-    """Configured GCS bucket missing or runtime SA lacks objectAdmin."""
+    """Base — operator-facing error about the recipe artifact bucket."""
+
+
+class BucketMissingError(BucketNotConfiguredError):
+    """Configured GCS bucket does not exist in the deployed project."""
+
+
+class BucketUnreachableError(BucketNotConfiguredError):
+    """Bucket exists but credentials, IAM, or network prevented the probe."""
 
 
 # ---------------------------------------------------------------------------
@@ -151,17 +159,16 @@ class MarkdownEmitter:
     def _probe_bucket(self) -> None:
         try:
             bucket = self._client.bucket(self._bucket_name)
-            if not bucket.exists():
-                msg = f"GCS bucket {self._bucket_name!r} does not exist"
-                raise BucketNotConfiguredError(msg)
-        except BucketNotConfiguredError:
-            raise
+            exists = bucket.exists()
         except Exception as exc:
             msg = (
                 f"GCS bucket {self._bucket_name!r} unreachable "
                 f"({type(exc).__name__}: {exc}) — check IAM/network"
             )
-            raise BucketNotConfiguredError(msg) from exc
+            raise BucketUnreachableError(msg) from exc
+        if not exists:
+            msg = f"GCS bucket {self._bucket_name!r} does not exist"
+            raise BucketMissingError(msg)
 
     def _upload_and_sign(self, blob_name: str, content: bytes) -> str:
         bucket = self._client.bucket(self._bucket_name)
@@ -192,11 +199,19 @@ _HTTP_PRECONDITION_FAILED = 412
 
 def _is_precondition_failed(exc: BaseException) -> bool:
     # google-api-core's typed PreconditionFailed / 412 surface depends on
-    # the SDK version. Detect by class name to stay robust without
-    # importing the exception type at module load.
-    return type(exc).__name__ in {"PreconditionFailed", "Conflict"} or (
-        hasattr(exc, "code") and getattr(exc, "code", None) == _HTTP_PRECONDITION_FAILED
+    # the SDK version. Class-name match covers `PreconditionFailed`
+    # (google.cloud.exceptions / google.api_core.exceptions) and `Conflict`
+    # (an older alias); the numeric checks cover SDK variants that put 412
+    # on `.code`, `.status_code`, or `.response.status_code`.
+    if type(exc).__name__ in {"PreconditionFailed", "Conflict"}:
+        return True
+    response = getattr(exc, "response", None)
+    candidates = (
+        getattr(exc, "code", None),
+        getattr(exc, "status_code", None),
+        getattr(response, "status_code", None),
     )
+    return _HTTP_PRECONDITION_FAILED in candidates
 
 
 def _build_default_client() -> storage.Client:
@@ -208,7 +223,9 @@ def _build_default_client() -> storage.Client:
 
 
 __all__ = [
+    "BucketMissingError",
     "BucketNotConfiguredError",
+    "BucketUnreachableError",
     "EmitResult",
     "MarkdownEmitter",
     "MarkdownEmitterError",

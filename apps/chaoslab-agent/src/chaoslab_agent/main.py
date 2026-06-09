@@ -196,10 +196,25 @@ async def _lifespan(app: FastAPI) -> AsyncIterator[None]:
     # ANY error inside setup propagates by design — silent observability loss on
     # a compliance product is unacceptable.
     from chaoslab_agent.observability import setup_logging, setup_phoenix_otel
+    from chaoslab_agent.patcher.markdown_emitter import MarkdownEmitter
 
     settings = get_settings()
     setup_logging(env=settings.environment)
     setup_phoenix_otel(settings)
+    # Probe the recipe-artifact bucket so a missing bucket / IAM gap fails
+    # at boot instead of mid-demo. Same fail-loud posture as observability:
+    # a Markdown URL the Receipt card cannot produce is a broken demo.
+    # GCS_PROBE_AT_STARTUP=false is the documented test-only escape hatch
+    # (Dockerfile smoke test); the WARNING below names the env var so any
+    # accidental prod set is grep-able in Cloud Logging.
+    if settings.GCS_PROBE_AT_STARTUP:
+        await MarkdownEmitter().health_check()
+    else:
+        logger.warning(
+            "GCS_PROBE_AT_STARTUP=false — Markdown emitter bucket probe skipped at boot. "
+            "THIS SHOULD NEVER BE SET IN PRODUCTION; recipe artifacts may fail at /run "
+            "time instead of fail-loud at startup."
+        )
     yield
 
 

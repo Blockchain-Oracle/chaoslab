@@ -337,4 +337,44 @@ def test_regression_case_with_non_json_native_value_renders_via_str(
         md = render_recipe(recipe)
     section = md.split("## Regression Test Cases")[1].split("## ")[0]
     assert "2026-06-09" in section
-    assert any("non-JSON-native" in r.message for r in caplog.records)
+    assert any("coerced via str" in r.message for r in caplog.records)
+
+
+# ---------------------------------------------------------------------------
+# Round-3 regression tests (PR #70 post-merge verification findings)
+# ---------------------------------------------------------------------------
+
+
+def test_fallback_cluster_ids_string_does_not_corrupt_output(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """If a future caller passes the string `"all"`, the renderer must not
+    iterate characters and silently corrupt the audit Markdown."""
+    recipe = _recipe(metadata={"fallback_cluster_ids": "all"})
+    with caplog.at_level("ERROR"):
+        md = render_recipe(recipe)
+    assert "## Fallback Clusters" not in md
+    assert "- a" not in md
+    assert any("must be a list" in r.message for r in caplog.records)
+
+
+def test_regression_case_with_hostile_str_falls_back_to_placeholder(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """A hostile __str__ inside an extras column must not crash the whole render."""
+
+    class HostileRepr:
+        def __str__(self) -> str:
+            raise RuntimeError("hostile __str__")
+
+    tc = RegressionTestCase(
+        input="x",
+        expected="y",
+        hostile_field=HostileRepr(),  # ty: ignore[unknown-argument]
+    )
+    recipe = _recipe(regression_test_cases=[tc])
+    with caplog.at_level("WARNING"):
+        md = render_recipe(recipe)
+    section = md.split("## Regression Test Cases")[1].split("## ")[0]
+    assert "<unrenderable HostileRepr>" in section
+    assert any("hostile" in r.message.lower() or "__str__" in r.message for r in caplog.records)
