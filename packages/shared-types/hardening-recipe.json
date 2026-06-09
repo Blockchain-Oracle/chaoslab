@@ -1,0 +1,201 @@
+{
+  "$defs": {
+    "FailureCluster": {
+      "properties": {
+        "cluster_id": {
+          "pattern": "^cluster_[a-z0-9]{8}$",
+          "title": "Cluster Id",
+          "type": "string"
+        },
+        "failure_count": {
+          "minimum": 1,
+          "title": "Failure Count",
+          "type": "integer"
+        },
+        "fault_classes": {
+          "items": {
+            "enum": [
+              "malformed_tool_output",
+              "prompt_injection",
+              "context_poisoning",
+              "latency_spike"
+            ],
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Fault Classes",
+          "type": "array"
+        },
+        "root_cause": {
+          "minLength": 1,
+          "title": "Root Cause",
+          "type": "string"
+        },
+        "span_ids": {
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Span Ids",
+          "type": "array"
+        }
+      },
+      "required": [
+        "cluster_id",
+        "root_cause",
+        "failure_count",
+        "span_ids",
+        "fault_classes"
+      ],
+      "title": "FailureCluster",
+      "type": "object"
+    },
+    "PromptPatch": {
+      "description": "Edit to a target agent's prompt \u2014 system / tool / few-shot.",
+      "properties": {
+        "after": {
+          "minLength": 1,
+          "title": "After",
+          "type": "string"
+        },
+        "before": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Before"
+        },
+        "operation": {
+          "enum": [
+            "insert",
+            "replace",
+            "append"
+          ],
+          "title": "Operation",
+          "type": "string"
+        },
+        "section": {
+          "enum": [
+            "system_prompt",
+            "tool_description",
+            "few_shot_example"
+          ],
+          "title": "Section",
+          "type": "string"
+        }
+      },
+      "required": [
+        "section",
+        "operation",
+        "after"
+      ],
+      "title": "PromptPatch",
+      "type": "object"
+    },
+    "ToolValidationDiff": {
+      "description": "Unified-diff patch hardening a target tool.",
+      "properties": {
+        "code_patch": {
+          "minLength": 1,
+          "title": "Code Patch",
+          "type": "string"
+        },
+        "operation": {
+          "enum": [
+            "add_input_validator",
+            "add_output_validator",
+            "add_retry_policy",
+            "add_timeout"
+          ],
+          "title": "Operation",
+          "type": "string"
+        },
+        "tool_name": {
+          "minLength": 1,
+          "title": "Tool Name",
+          "type": "string"
+        }
+      },
+      "required": [
+        "tool_name",
+        "operation",
+        "code_patch"
+      ],
+      "title": "ToolValidationDiff",
+      "type": "object"
+    }
+  },
+  "description": "Signed, regulator-facing recipe the Patcher emits per audit cycle.",
+  "properties": {
+    "cluster_set": {
+      "items": {
+        "$ref": "#/$defs/FailureCluster"
+      },
+      "minItems": 1,
+      "title": "Cluster Set",
+      "type": "array"
+    },
+    "estimated_resilience_improvement": {
+      "maximum": 1.0,
+      "minimum": 0.0,
+      "title": "Estimated Resilience Improvement",
+      "type": "number"
+    },
+    "generated_at": {
+      "minLength": 1,
+      "title": "Generated At",
+      "type": "string"
+    },
+    "metadata": {
+      "additionalProperties": true,
+      "title": "Metadata",
+      "type": "object"
+    },
+    "prompt_patches": {
+      "items": {
+        "$ref": "#/$defs/PromptPatch"
+      },
+      "title": "Prompt Patches",
+      "type": "array"
+    },
+    "recipe_id": {
+      "pattern": "^recipe_[a-z0-9]{12}$",
+      "title": "Recipe Id",
+      "type": "string"
+    },
+    "regression_test_cases": {
+      "items": {
+        "additionalProperties": true,
+        "type": "object"
+      },
+      "title": "Regression Test Cases",
+      "type": "array"
+    },
+    "target_agent_id": {
+      "minLength": 1,
+      "title": "Target Agent Id",
+      "type": "string"
+    },
+    "tool_validation_diffs": {
+      "items": {
+        "$ref": "#/$defs/ToolValidationDiff"
+      },
+      "title": "Tool Validation Diffs",
+      "type": "array"
+    }
+  },
+  "required": [
+    "recipe_id",
+    "target_agent_id",
+    "generated_at",
+    "cluster_set",
+    "estimated_resilience_improvement"
+  ],
+  "title": "HardeningRecipe",
+  "type": "object"
+}
