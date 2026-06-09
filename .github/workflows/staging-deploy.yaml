@@ -64,14 +64,19 @@ jobs:
             path: apps/chaoslab-agent
             changed_key: agent
             dockerfile: apps/chaoslab-agent/Dockerfile
+            smoke_path: /health
           - service: target-agent
             path: apps/target-agent
             changed_key: target_agent
             dockerfile: apps/target-agent/Dockerfile
+            # A2A agent — no FastAPI /health; the agent-card endpoint is the
+            # standard "is the container alive" probe.
+            smoke_path: /.well-known/agent.json
           - service: chaoslab-web
             path: apps/chaoslab-web
             changed_key: web
             dockerfile: apps/chaoslab-web/Dockerfile
+            smoke_path: /
     steps:
       - name: Determine if this service changed
         id: changed
@@ -199,11 +204,13 @@ jobs:
           # Service runs with --no-allow-unauthenticated; smoke must present
           # an OIDC identity token. The deploy SA already has run.invoker
           # via roles/run.admin granted in workload-identity-federation.sh.
-          ID_TOKEN=$(gcloud auth print-identity-token)
+          # WIF-issued tokens need an explicit audience for Cloud Run; without
+          # it the runtime rejects the token as having the wrong `aud` claim.
+          ID_TOKEN=$(gcloud auth print-identity-token --audiences="${CANDIDATE_URL}")
           for i in 1 2 3 4 5; do
             HTTP_STATUS=$(curl -s -o /tmp/smoke-body \
               -H "Authorization: Bearer ${ID_TOKEN}" \
-              -w "%{http_code}" "${CANDIDATE_URL}/health" || echo "000")
+              -w "%{http_code}" "${CANDIDATE_URL}${{ matrix.smoke_path }}" || echo "000")
             echo "smoke attempt ${i}: HTTP ${HTTP_STATUS}"
             if [ "${HTTP_STATUS}" = "200" ]; then
               echo "smoke OK"
@@ -211,7 +218,7 @@ jobs:
             fi
             sleep 6
           done
-          echo "::error::smoke failed after 5 retries against ${CANDIDATE_URL}/health"
+          echo "::error::smoke failed after 5 retries against ${CANDIDATE_URL}${{ matrix.smoke_path }}"
           cat /tmp/smoke-body | head -20
           exit 1
 
