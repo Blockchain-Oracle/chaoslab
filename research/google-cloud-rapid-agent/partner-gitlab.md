@@ -195,14 +195,14 @@ GitLab is **medium difficulty** for a blockchain-native solo dev. You already un
 
 The Devpost GitLab resources tab lists 6 official links. Coverage check + fill-in:
 
-| Devpost-listed resource                                                                       | Status                                                  |
-| --------------------------------------------------------------------------------------------- | ------------------------------------------------------- |
-| `docs.gitlab.com/user/get_started/get_started_agent_platform/`                                | ❌ missing — add below                                  |
-| `docs.gitlab.com/user/duo_agent_platform/agents/custom/`                                      | ❌ missing — add below                                  |
-| `docs.gitlab.com/user/duo_agent_platform/flows/custom/`                                       | ❌ missing — add below                                  |
-| `docs.gitlab.com/user/duo_agent_platform/ai_catalog/`                                         | ❌ missing — add below                                  |
-| `docs.gitlab.com/user/gitlab_duo/model_context_protocol/mcp_server/`                          | ✅ covered (in body)                                    |
-| `about.gitlab.com/free-trial/` + 30-day Ultimate trial + 24 Duo credits + namespace warning   | ⚠ partial (trial mentioned in body, not the specifics) |
+| Devpost-listed resource                                                                     | Status                                                 |
+| ------------------------------------------------------------------------------------------- | ------------------------------------------------------ |
+| `docs.gitlab.com/user/get_started/get_started_agent_platform/`                              | ❌ missing — add below                                 |
+| `docs.gitlab.com/user/duo_agent_platform/agents/custom/`                                    | ❌ missing — add below                                 |
+| `docs.gitlab.com/user/duo_agent_platform/flows/custom/`                                     | ❌ missing — add below                                 |
+| `docs.gitlab.com/user/duo_agent_platform/ai_catalog/`                                       | ❌ missing — add below                                 |
+| `docs.gitlab.com/user/gitlab_duo/model_context_protocol/mcp_server/`                        | ✅ covered (in body)                                   |
+| `about.gitlab.com/free-trial/` + 30-day Ultimate trial + 24 Duo credits + namespace warning | ⚠ partial (trial mentioned in body, not the specifics) |
 
 ### Amendments
 

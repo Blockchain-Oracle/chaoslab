@@ -33,7 +33,7 @@
 - **Adversarial-test battery?:** NO — Phoenix evals are scoring primitives (LLM-as-a-judge, code-based), not red-team probes.
 - **Maturity:** 10K stars, v17.2.0 (June 3, 2026), 712 releases ([repo](https://github.com/Arize-ai/phoenix)). Battle-tested. Active.
 - **Critical primitives we can borrow:** (a) `arize-phoenix-otel.register(auto_instrument=True)` for one-line ADK instrumentation; (b) the trace dataset abstraction — we can pull recent spans into a dataset and run evals on them as a "scheduled audit"; (c) the OpenInference attribute conventions are our trace-as-assertion contract.
-- **Licensing constraint:** Elastic License 2.0 on the Phoenix server. We're already using it as our substrate, so this is fine — but ELv2 prohibits SaaS-reselling Phoenix itself. We're not reselling Phoenix; we're shipping a separate auditor agent that *uses* Phoenix. No constraint hit.
+- **Licensing constraint:** Elastic License 2.0 on the Phoenix server. We're already using it as our substrate, so this is fine — but ELv2 prohibits SaaS-reselling Phoenix itself. We're not reselling Phoenix; we're shipping a separate auditor agent that _uses_ Phoenix. No constraint hit.
 - **URL:** https://github.com/Arize-ai/phoenix
 
 ### 2. OpenLLMetry / Traceloop (Apache 2.0)
@@ -327,7 +327,7 @@ This is good for us — it means our F-class taxonomy should pin to **OWASP Agen
 
 ### Adversarial battery: Garak is the OSS gold standard; PINT is the cleanest dataset
 
-- **Garak's probe/detector architecture** is the most-studied adversarial harness in OSS (8K stars, used by industry). Reading garak/probes/*.py is the highest-ROI study for our F1-F4 implementations.
+- **Garak's probe/detector architecture** is the most-studied adversarial harness in OSS (8K stars, used by industry). Reading garak/probes/\*.py is the highest-ROI study for our F1-F4 implementations.
 - **Lakera PINT dataset** (4,314 inputs, MIT, 30+ languages) is the cleanest standalone adversarial dataset for prompt injection. Direct dependency candidate — we can sample from it.
 - **Inspect Evals safety subset** gives us AISI-traceable provenance — citing them in our docs ladders our credibility cheaply.
 
@@ -354,6 +354,7 @@ Restating the options Abu defined:
 **Architecture C — pull from Phoenix's trace store on a schedule.**
 
 Reasons:
+
 1. **It costs us the least new work.** Phoenix already collects the spans (S1 already wires this). All we add is a scheduled job that re-runs our judge over the most recent N spans every M minutes. That's a single new file + a Cloud Scheduler trigger, not a new service.
 2. **It composes with our existing demo.** Same judge, same signed PDF, same scoring rubric — just running on a different input slice. The story is "the engine works the same whether you point it at synthetic attacks or at live spans." That's a powerful demo line.
 3. **Architecture A (gateway) requires us to ship a Go reverse proxy or borrow AIR Blackbox.** If we ship our own gateway in 6 days, we'll fail. If we depend on AIR Blackbox, we're betting on a 17-star alpha v0.1 alpha external project for our v2 critical path, which violates "no mocking the hot path" — we'd be relying on someone else's hot path.
@@ -371,23 +372,23 @@ Reasons:
 
 ## What we can borrow / reimplement / depend on directly
 
-| Project | Mode | What | Why |
-|---|---|---|---|
-| Phoenix + OpenInference ADK instrumentor | **DEPEND** | `pip install arize-phoenix-otel openinference-instrumentation-google-adk` | Already our substrate per S1 |
-| Lakera PINT dataset | **DEPEND** | `git submodule` or copy the JSON, MIT-licensed | F1 (prompt injection) ground-truth inputs |
-| Inspect Evals safety subset | **BORROW** | Copy 2-3 eval definitions with attribution | AISI-traceable provenance citation |
-| Garak probe taxonomy | **STUDY** | Read `garak/probes/*.py` | Blueprint for F1-F4 implementations |
-| AIR Blackbox `verify.py` pattern | **STUDY** | Read their evidence-bundle code | How offline auditor verification works |
-| Asqav hash-chain serialization | **STUDY** | Read their SDK source | How to structure tamper-evident receipts |
-| Microsoft AGT OWASP mapping doc | **STUDY** | Read `docs/compliance/owasp-agentic-top10.md` | Buyer-facing taxonomy alignment |
-| Vijil agent-audit-samples | **DEPEND** | Use ADK target agents from this repo as our demo targets | Saves us from building target agents from scratch |
-| Langfuse external-eval cookbook | **STUDY** | Read the cookbook | Cron-driven eval pattern |
-| AgentOps span hierarchy | **STUDY** | Read their tracer.py | Session/operation/task/workflow taxonomy |
-| TruLens Selector API | **STUDY** | Read their selectors module | Declarative span-attribute targeting |
-| PydanticAI Evals span-based eval | **STUDY** | Read their span evaluator | Prior art for trace-as-assertion |
-| Promptfoo YAML spec | **STUDY** | Read their config schema | Future "customer writes own adversarial test" path |
-| DSPy Assertions | **STUDY** | Read the assertions module | Judge pass/fail predicate pattern |
-| OWASP LLM Top 10 taxonomy | **DEPEND** (citation) | Map F-classes to OWASP codes | Buyer-side legibility |
+| Project                                  | Mode                  | What                                                                      | Why                                                |
+| ---------------------------------------- | --------------------- | ------------------------------------------------------------------------- | -------------------------------------------------- |
+| Phoenix + OpenInference ADK instrumentor | **DEPEND**            | `pip install arize-phoenix-otel openinference-instrumentation-google-adk` | Already our substrate per S1                       |
+| Lakera PINT dataset                      | **DEPEND**            | `git submodule` or copy the JSON, MIT-licensed                            | F1 (prompt injection) ground-truth inputs          |
+| Inspect Evals safety subset              | **BORROW**            | Copy 2-3 eval definitions with attribution                                | AISI-traceable provenance citation                 |
+| Garak probe taxonomy                     | **STUDY**             | Read `garak/probes/*.py`                                                  | Blueprint for F1-F4 implementations                |
+| AIR Blackbox `verify.py` pattern         | **STUDY**             | Read their evidence-bundle code                                           | How offline auditor verification works             |
+| Asqav hash-chain serialization           | **STUDY**             | Read their SDK source                                                     | How to structure tamper-evident receipts           |
+| Microsoft AGT OWASP mapping doc          | **STUDY**             | Read `docs/compliance/owasp-agentic-top10.md`                             | Buyer-facing taxonomy alignment                    |
+| Vijil agent-audit-samples                | **DEPEND**            | Use ADK target agents from this repo as our demo targets                  | Saves us from building target agents from scratch  |
+| Langfuse external-eval cookbook          | **STUDY**             | Read the cookbook                                                         | Cron-driven eval pattern                           |
+| AgentOps span hierarchy                  | **STUDY**             | Read their tracer.py                                                      | Session/operation/task/workflow taxonomy           |
+| TruLens Selector API                     | **STUDY**             | Read their selectors module                                               | Declarative span-attribute targeting               |
+| PydanticAI Evals span-based eval         | **STUDY**             | Read their span evaluator                                                 | Prior art for trace-as-assertion                   |
+| Promptfoo YAML spec                      | **STUDY**             | Read their config schema                                                  | Future "customer writes own adversarial test" path |
+| DSPy Assertions                          | **STUDY**             | Read the assertions module                                                | Judge pass/fail predicate pattern                  |
+| OWASP LLM Top 10 taxonomy                | **DEPEND** (citation) | Map F-classes to OWASP codes                                              | Buyer-side legibility                              |
 
 The high-leverage moves are: (1) Vijil agent-audit-samples for demo targets, (2) Lakera PINT for F1 dataset, (3) Inspect Evals for AISI credibility citation, (4) study garak / AIR Blackbox / Asqav for the patterns we'll reimplement natively.
 
@@ -414,6 +415,7 @@ This reframing is honest and defensible. We're not the only signed-audit-trail p
 **Yes, but only via architecture C (pull from Phoenix trace store on a schedule).**
 
 What that looks like, concretely:
+
 1. The S1-S5 work already in plan ships Shape A (on-demand audit) end-to-end.
 2. A new story — call it S5.5 or S6 — adds: (a) a scheduled job runner (Cloud Scheduler + a tiny Cloud Run endpoint that triggers the audit agent), (b) a "live mode" flag in our orchestrator that pulls the last N hours of spans from Phoenix's `client.spans` API instead of running synthetic attacks, (c) the same judge + same PDF generator run over that input slice.
 3. The PDF stamps "Live mode: spans from <start> to <end>" instead of "Synthetic battery: F1-F6" and the signing chain extends naturally.
@@ -463,6 +465,7 @@ This is the same recommendation `25-persistent-monitor-vs-on-demand.md` arrived 
 ## Sources (consolidated)
 
 Core projects on the list:
+
 - https://github.com/Arize-ai/phoenix
 - https://arize.com/docs/phoenix/evaluation/concepts-evals/evals-online-vs-offline
 - https://arize.com/docs/phoenix/evaluation/llm-evals
@@ -497,6 +500,7 @@ Core projects on the list:
 - https://github.com/PaulDuvall/owasp_llm_top10
 
 Additional projects discovered:
+
 - https://airblackbox.ai/
 - https://github.com/airblackbox/air-platform
 - https://github.com/nostalgicskinco/air-blackbox-gateway

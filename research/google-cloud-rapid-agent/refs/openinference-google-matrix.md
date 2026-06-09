@@ -12,15 +12,16 @@
 
 ## 1. The three packages at a glance
 
-| # | Package (PyPI) | Latest ver | Patches | Span kinds assigned |
-|---|---|---|---|---|
-| 1 | `openinference-instrumentation-google-adk` | **0.1.15** (2026-05-22) | `google.adk.Runner`, `google.adk.agents.BaseAgent`, `google.adk.models.BaseLlm`, `google.adk.tools.BaseTool` | `CHAIN` (Runner), `AGENT` (BaseAgent), `LLM`, `TOOL` |
-| 2 | `openinference-instrumentation-vertexai` | **0.1.16** (2026-05-18) | `google.cloud.aiplatform_v1.PredictionService` + `_v1beta1` (`GenerateContentRequest` / `GenerateContentResponse`) | `LLM` only |
-| 3 | `openinference-instrumentation-google-genai` | **1.0.2** (2026-05-18) | `google.genai.models.generate_content`, `generate_content_stream`, `embed_content`, `caches.create`, `live.connect` (interactions) | `LLM` (generate*), `EMBEDDING` (embed_content), `CHAIN` (interactions) |
+| #   | Package (PyPI)                               | Latest ver              | Patches                                                                                                                            | Span kinds assigned                                                     |
+| --- | -------------------------------------------- | ----------------------- | ---------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------- |
+| 1   | `openinference-instrumentation-google-adk`   | **0.1.15** (2026-05-22) | `google.adk.Runner`, `google.adk.agents.BaseAgent`, `google.adk.models.BaseLlm`, `google.adk.tools.BaseTool`                       | `CHAIN` (Runner), `AGENT` (BaseAgent), `LLM`, `TOOL`                    |
+| 2   | `openinference-instrumentation-vertexai`     | **0.1.16** (2026-05-18) | `google.cloud.aiplatform_v1.PredictionService` + `_v1beta1` (`GenerateContentRequest` / `GenerateContentResponse`)                 | `LLM` only                                                              |
+| 3   | `openinference-instrumentation-google-genai` | **1.0.2** (2026-05-18)  | `google.genai.models.generate_content`, `generate_content_stream`, `embed_content`, `caches.create`, `live.connect` (interactions) | `LLM` (generate\*), `EMBEDDING` (embed_content), `CHAIN` (interactions) |
 
 **Python support:** all three require Python ≥3.10. ADK is the only one tested on 3.14; GenAI lists 3.10–3.14; VertexAI lists 3.10–3.13.
 
 **Minimum host SDK versions (from each package's `pyproject.toml`):**
+
 - `openinference-instrumentation-google-adk` → `google-adk >= 1.2.1`
 - `openinference-instrumentation-vertexai` → `google-cloud-aiplatform >= 1.71.0`
 - `openinference-instrumentation-google-genai` → `google-genai >= 0.7.0`
@@ -95,11 +96,13 @@ with tracer.start_as_current_span("vertex.raw") as span:
 ### 3.1 `openinference-instrumentation-google-adk`
 
 **Install:**
+
 ```bash
 pip install "openinference-instrumentation-google-adk>=0.1.15" "google-adk>=2.1.0,<3.0.0"
 ```
 
 **Bare setup (OTel only):**
+
 ```python
 from openinference.instrumentation.google_adk import GoogleADKInstrumentor
 from opentelemetry.sdk.trace import TracerProvider
@@ -115,12 +118,12 @@ GoogleADKInstrumentor().instrument(tracer_provider=tracer_provider)
 
 **Spans produced (verified against `…/google_adk/_wrappers.py`):**
 
-| Wrapper class | Wraps | Span name | `openinference.span.kind` |
-|---|---|---|---|
-| `_RunnerRunAsync` | `google.adk.Runner.run_async` | `invocation [app_name]` | `CHAIN` |
-| `_BaseAgentRunAsync` | `google.adk.agents.BaseAgent.run_async_impl` | `agent_run [name]` | `AGENT` |
-| `_TraceCallLlm` | `BaseLlm.generate_content_async` (via callback) | `call_llm [model]` | `LLM` |
-| `_TraceToolCall` | `BaseTool.run_async` | tool name | `TOOL` |
+| Wrapper class        | Wraps                                           | Span name               | `openinference.span.kind` |
+| -------------------- | ----------------------------------------------- | ----------------------- | ------------------------- |
+| `_RunnerRunAsync`    | `google.adk.Runner.run_async`                   | `invocation [app_name]` | `CHAIN`                   |
+| `_BaseAgentRunAsync` | `google.adk.agents.BaseAgent.run_async_impl`    | `agent_run [name]`      | `AGENT`                   |
+| `_TraceCallLlm`      | `BaseLlm.generate_content_async` (via callback) | `call_llm [model]`      | `LLM`                     |
+| `_TraceToolCall`     | `BaseTool.run_async`                            | tool name               | `TOOL`                    |
 
 **Attributes captured on LLM spans:** `llm.system="google"`, `llm.model_name`, `llm.input_messages.*`, `llm.output_messages.*`, `llm.token_count.prompt`, `…completion`, `…total`, `llm.tools` (list of tool JSON schemas), `input.value`, `output.value`.
 
@@ -129,17 +132,20 @@ GoogleADKInstrumentor().instrument(tracer_provider=tracer_provider)
 > **Audit A7 reminder:** the canonical attribute is `tool_call.function.name`, NOT `tool_call.name`. The Python constant is `SpanAttributes.TOOL_CALL_FUNCTION_NAME`. Same for `tool_call.function.arguments` (constant: `TOOL_CALL_FUNCTION_ARGUMENTS_JSON`).
 
 **Known gaps:**
+
 - ADK ≥1.2.1 required (we're on 2.1.0+ so fine).
 - `gemini-2.0-flash-exp` and `gemini-2.0-flash` are deprecated host models — don't use either even though sample code shows them. ChaosLab uses `gemini-3.5-flash` (JUDGE_LLM) and optionally `gemini-3.1-pro-preview`.
 
 ### 3.2 `openinference-instrumentation-vertexai`
 
 **Install:**
+
 ```bash
 pip install "openinference-instrumentation-vertexai>=0.1.16" "google-cloud-aiplatform>=1.71.0"
 ```
 
 **Bare setup:**
+
 ```python
 from openinference.instrumentation.vertexai import VertexAIInstrumentor
 from opentelemetry.sdk.trace import TracerProvider
@@ -157,17 +163,20 @@ Patches every class in `google.cloud.aiplatform_v1` and `_v1beta1` that ends wit
 **Attributes:** `llm.system="vertexai"`, `llm.model_name`, `llm.input_messages.*`, `llm.output_messages.*`, `llm.token_count.*`, `input.value`, `output.value`, `llm.invocation_parameters` (JSON of temperature/top_p/etc).
 
 **Known gaps:**
+
 - Agent Engine SDK (`agent_engines.create()`, `.query()`) — NOT covered. Use the GenAI instrumentor when running on Agent Engine if the agent internally uses `google.genai`, otherwise add manual spans.
 - No `AGENT`/`TOOL` spans — only LLM. If the target uses `vertexai.generative_models.GenerativeModel` with function calling, you'll see the function calls in the LLM span's `llm.tools` and `message.tool_calls.*` attributes but no separate TOOL span.
 
 ### 3.3 `openinference-instrumentation-google-genai`
 
 **Install:**
+
 ```bash
 pip install "openinference-instrumentation-google-genai>=1.0.2" "google-genai>=0.7.0"
 ```
 
 **Bare setup:**
+
 ```python
 from openinference.instrumentation.google_genai import GoogleGenAIInstrumentor
 from opentelemetry.sdk.trace import TracerProvider
@@ -181,18 +190,19 @@ GoogleGenAIInstrumentor().instrument(tracer_provider=tracer_provider)
 
 **Spans produced (verified against `…/google_genai/_wrappers.py`):**
 
-| Wrapper | Method | `openinference.span.kind` |
-|---|---|---|
-| `_Sync/_AsyncGenerateContentWrapper` | `Client.models.generate_content` | `LLM` |
-| `_Sync/_AsyncGenerateContentStream` | `Client.models.generate_content_stream` | `LLM` |
-| `_Sync/_AsyncEmbedContentWrapper` | `Client.models.embed_content` | `EMBEDDING` |
-| `_Sync/_AsyncCreateInteractionWrapper` | live interactions create | `CHAIN` |
-| `_Sync/_AsyncGetInteractionWrapper` | live interactions get | `CHAIN` |
-| `_Sync/_AsyncCreateCachesWrapper` | `Client.caches.create` | `LLM` (request-shaped) |
+| Wrapper                                | Method                                  | `openinference.span.kind` |
+| -------------------------------------- | --------------------------------------- | ------------------------- |
+| `_Sync/_AsyncGenerateContentWrapper`   | `Client.models.generate_content`        | `LLM`                     |
+| `_Sync/_AsyncGenerateContentStream`    | `Client.models.generate_content_stream` | `LLM`                     |
+| `_Sync/_AsyncEmbedContentWrapper`      | `Client.models.embed_content`           | `EMBEDDING`               |
+| `_Sync/_AsyncCreateInteractionWrapper` | live interactions create                | `CHAIN`                   |
+| `_Sync/_AsyncGetInteractionWrapper`    | live interactions get                   | `CHAIN`                   |
+| `_Sync/_AsyncCreateCachesWrapper`      | `Client.caches.create`                  | `LLM` (request-shaped)    |
 
 **Attributes:** standard LLM set (`llm.system="google_genai"`, `llm.model_name`, messages, tokens, tools) on LLM spans. `embedding.embeddings.*` on EMBEDDING spans.
 
 **Known gaps:**
+
 - Tool-definition capture inside `generate_content_stream` is incomplete as of 1.0.2 — verify per-span before asserting on it in tests.
 - No first-class chat session span — multi-turn `chats.send_message` lands as a series of `generate_content` LLM spans, not parented under a CHAIN span. If you need that grouping, wrap manually with `using_session(session_id=…)`.
 
@@ -201,6 +211,7 @@ GoogleGenAIInstrumentor().instrument(tracer_provider=tracer_provider)
 ## 4. Compatibility — can you stack multiple instrumentors?
 
 **Yes, with one caveat.** OpenInference instrumentors are independent BaseInstrumentor subclasses with non-overlapping monkey-patch surfaces in practice:
+
 - ADK patches `google.adk.*` only
 - VertexAI patches `google.cloud.aiplatform_v1*` request classes
 - GenAI patches `google.genai.*`
@@ -208,6 +219,7 @@ GoogleGenAIInstrumentor().instrument(tracer_provider=tracer_provider)
 You can call all three `.instrument(tracer_provider=...)` in any order. The only real overlap risk: an ADK agent that uses `google.genai` under the hood will produce **both** an ADK `call_llm` span (with `openinference.span.kind=LLM`) AND a GenAI `generate_content` child span (also `LLM`). This is the documented dual-span pattern and is what you want for full provenance — the GenAI span becomes a child of the ADK LLM span. ADR-005 (Phoenix tools) accepts this dual-span shape.
 
 **Recommended registration order** (most-specific to least-specific so child spans inherit the right parent context):
+
 ```python
 GoogleADKInstrumentor().instrument(tracer_provider=tp)        # outermost
 GoogleGenAIInstrumentor().instrument(tracer_provider=tp)      # middle
@@ -223,6 +235,7 @@ To `uninstrument()` selectively (useful for test isolation): each instrumentor e
 The recommended Phoenix pattern uses `phoenix.otel.register()`, which sets up the tracer provider, applies env vars, and (with `auto_instrument=True`) auto-discovers installed OpenInference packages.
 
 **Common env vars** (set in shell, `.env`, or Cloud Run service env):
+
 ```bash
 PHOENIX_COLLECTOR_ENDPOINT=https://app.phoenix.arize.com
 PHOENIX_API_KEY=<your-key>
@@ -232,6 +245,7 @@ PHOENIX_PROJECT_NAME=chaoslab
 ```
 
 **Universal Phoenix register pattern (works for all three Google instrumentors):**
+
 ```python
 from phoenix.otel import register
 
@@ -242,6 +256,7 @@ tracer_provider = register(
 ```
 
 `auto_instrument=True` will, behind the scenes, import and call `.instrument(tracer_provider=tracer_provider)` on every `openinference-instrumentation-*` package it finds in the active venv. If you want explicit control (e.g. instrumenting only the target-agent for chaos isolation):
+
 ```python
 from phoenix.otel import register
 from openinference.instrumentation.google_adk import GoogleADKInstrumentor
@@ -258,31 +273,32 @@ GoogleADKInstrumentor().instrument(tracer_provider=tracer_provider)
 
 These are the attribute names actually emitted (verified against the live semconv module). Use these constants in test assertions per `best-practices/06 §5.1` (trace-as-assertion).
 
-| Attribute name | Python constant | Where it shows up |
-|---|---|---|
-| `openinference.span.kind` | `SpanAttributes.OPENINFERENCE_SPAN_KIND` | **Required on every span.** Values: `LLM`, `CHAIN`, `AGENT`, `TOOL`, `RETRIEVER`, `RERANKER`, `EMBEDDING`, `GUARDRAIL`, `EVALUATOR`, `PROMPT` |
-| `llm.system` | `LLM_SYSTEM` | LLM spans — `"google"` (ADK), `"vertexai"`, `"google_genai"` |
-| `llm.model_name` | `LLM_MODEL_NAME` | LLM spans — e.g. `"gemini-3.5-flash"` |
-| `llm.invocation_parameters` | `LLM_INVOCATION_PARAMETERS` | JSON of model params |
-| `llm.input_messages` | `LLM_INPUT_MESSAGES` | Flattened messages list |
-| `llm.output_messages` | `LLM_OUTPUT_MESSAGES` | Flattened response messages |
-| `llm.token_count.prompt` | `LLM_TOKEN_COUNT_PROMPT` | Token usage |
-| `llm.token_count.completion` | `LLM_TOKEN_COUNT_COMPLETION` | Token usage |
-| `llm.token_count.total` | `LLM_TOKEN_COUNT_TOTAL` | Token usage |
-| `llm.tools` | `LLM_TOOLS` | List of tool JSON schemas advertised to the LLM |
-| `tool.name` | `TOOL_NAME` | TOOL spans |
-| `tool.description` | `TOOL_DESCRIPTION` | TOOL spans |
-| `tool.parameters` | `TOOL_PARAMETERS` | TOOL spans — JSON schema |
-| `tool_call.function.name` | `TOOL_CALL_FUNCTION_NAME` | LLM spans (inside `message.tool_calls.*`) — **NOT** `tool_call.name` |
-| `tool_call.function.arguments` | `TOOL_CALL_FUNCTION_ARGUMENTS_JSON` | LLM spans (inside `message.tool_calls.*`) |
-| `input.value` / `input.mime_type` | `INPUT_VALUE` / `INPUT_MIME_TYPE` | All spans |
-| `output.value` / `output.mime_type` | `OUTPUT_VALUE` / `OUTPUT_MIME_TYPE` | All spans |
-| `session.id` | `SESSION_ID` | Context attribute |
-| `user.id` | `USER_ID` | Context attribute |
-| `agent.name` | `AGENT_NAME` | AGENT spans |
-| `metadata` | `METADATA` | JSON metadata blob, all spans |
+| Attribute name                      | Python constant                          | Where it shows up                                                                                                                             |
+| ----------------------------------- | ---------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| `openinference.span.kind`           | `SpanAttributes.OPENINFERENCE_SPAN_KIND` | **Required on every span.** Values: `LLM`, `CHAIN`, `AGENT`, `TOOL`, `RETRIEVER`, `RERANKER`, `EMBEDDING`, `GUARDRAIL`, `EVALUATOR`, `PROMPT` |
+| `llm.system`                        | `LLM_SYSTEM`                             | LLM spans — `"google"` (ADK), `"vertexai"`, `"google_genai"`                                                                                  |
+| `llm.model_name`                    | `LLM_MODEL_NAME`                         | LLM spans — e.g. `"gemini-3.5-flash"`                                                                                                         |
+| `llm.invocation_parameters`         | `LLM_INVOCATION_PARAMETERS`              | JSON of model params                                                                                                                          |
+| `llm.input_messages`                | `LLM_INPUT_MESSAGES`                     | Flattened messages list                                                                                                                       |
+| `llm.output_messages`               | `LLM_OUTPUT_MESSAGES`                    | Flattened response messages                                                                                                                   |
+| `llm.token_count.prompt`            | `LLM_TOKEN_COUNT_PROMPT`                 | Token usage                                                                                                                                   |
+| `llm.token_count.completion`        | `LLM_TOKEN_COUNT_COMPLETION`             | Token usage                                                                                                                                   |
+| `llm.token_count.total`             | `LLM_TOKEN_COUNT_TOTAL`                  | Token usage                                                                                                                                   |
+| `llm.tools`                         | `LLM_TOOLS`                              | List of tool JSON schemas advertised to the LLM                                                                                               |
+| `tool.name`                         | `TOOL_NAME`                              | TOOL spans                                                                                                                                    |
+| `tool.description`                  | `TOOL_DESCRIPTION`                       | TOOL spans                                                                                                                                    |
+| `tool.parameters`                   | `TOOL_PARAMETERS`                        | TOOL spans — JSON schema                                                                                                                      |
+| `tool_call.function.name`           | `TOOL_CALL_FUNCTION_NAME`                | LLM spans (inside `message.tool_calls.*`) — **NOT** `tool_call.name`                                                                          |
+| `tool_call.function.arguments`      | `TOOL_CALL_FUNCTION_ARGUMENTS_JSON`      | LLM spans (inside `message.tool_calls.*`)                                                                                                     |
+| `input.value` / `input.mime_type`   | `INPUT_VALUE` / `INPUT_MIME_TYPE`        | All spans                                                                                                                                     |
+| `output.value` / `output.mime_type` | `OUTPUT_VALUE` / `OUTPUT_MIME_TYPE`      | All spans                                                                                                                                     |
+| `session.id`                        | `SESSION_ID`                             | Context attribute                                                                                                                             |
+| `user.id`                           | `USER_ID`                                | Context attribute                                                                                                                             |
+| `agent.name`                        | `AGENT_NAME`                             | AGENT spans                                                                                                                                   |
+| `metadata`                          | `METADATA`                               | JSON metadata blob, all spans                                                                                                                 |
 
 **Forbidden / fabricated attributes (DO NOT assert on these — audit findings A6/A7):**
+
 - ❌ `openinference.instrumentation.library` — does not exist. Use `instrumentation_scope.name` (set automatically by OTel) or `openinference.span.kind`.
 - ❌ `tool_call.name` — wrong. Use `tool_call.function.name`.
 - ❌ `instrumentation.library` — pre-OTel-1.0 legacy. Use `instrumentation_scope.name`.
@@ -296,20 +312,21 @@ These are the attribute names actually emitted (verified against the live semcon
 
 ChaosLab is cross-framework. Target agents may be:
 
-| Framework | Instrumentor | PyPI |
-|---|---|---|
-| LangChain / LangGraph | `openinference-instrumentation-langchain` | https://pypi.org/project/openinference-instrumentation-langchain/ |
-| CrewAI | `openinference-instrumentation-crewai` | https://pypi.org/project/openinference-instrumentation-crewai/ |
-| OpenAI Agents SDK | `openinference-instrumentation-openai-agents` | https://pypi.org/project/openinference-instrumentation-openai-agents/ |
-| Anthropic (raw) | `openinference-instrumentation-anthropic` | https://pypi.org/project/openinference-instrumentation-anthropic/ |
-| LlamaIndex | `openinference-instrumentation-llama-index` | https://pypi.org/project/openinference-instrumentation-llama-index/ |
-| AutoGen | `openinference-instrumentation-autogen` | https://pypi.org/project/openinference-instrumentation-autogen/ |
-| Haystack | `openinference-instrumentation-haystack` | https://pypi.org/project/openinference-instrumentation-haystack/ |
-| DSPy | `openinference-instrumentation-dspy` | https://pypi.org/project/openinference-instrumentation-dspy/ |
+| Framework             | Instrumentor                                  | PyPI                                                                  |
+| --------------------- | --------------------------------------------- | --------------------------------------------------------------------- |
+| LangChain / LangGraph | `openinference-instrumentation-langchain`     | https://pypi.org/project/openinference-instrumentation-langchain/     |
+| CrewAI                | `openinference-instrumentation-crewai`        | https://pypi.org/project/openinference-instrumentation-crewai/        |
+| OpenAI Agents SDK     | `openinference-instrumentation-openai-agents` | https://pypi.org/project/openinference-instrumentation-openai-agents/ |
+| Anthropic (raw)       | `openinference-instrumentation-anthropic`     | https://pypi.org/project/openinference-instrumentation-anthropic/     |
+| LlamaIndex            | `openinference-instrumentation-llama-index`   | https://pypi.org/project/openinference-instrumentation-llama-index/   |
+| AutoGen               | `openinference-instrumentation-autogen`       | https://pypi.org/project/openinference-instrumentation-autogen/       |
+| Haystack              | `openinference-instrumentation-haystack`      | https://pypi.org/project/openinference-instrumentation-haystack/      |
+| DSPy                  | `openinference-instrumentation-dspy`          | https://pypi.org/project/openinference-instrumentation-dspy/          |
 
 All compose with the Google instrumentors per §4: a LangChain target using Gemini gets `LangChainInstrumentor()` + `VertexAIInstrumentor()` (or GenAI). Phoenix `register(auto_instrument=True)` picks all of them up automatically.
 
 **ChaosLab Tier 1/2 split (from `research/.../best-practices`):**
+
 - **Tier 1 (must ship, primary track):** google-adk, langchain, crewai, openai-agents.
 - **Tier 2 (nice-to-have):** anthropic, llama-index, autogen, haystack, dspy.
 
@@ -322,6 +339,7 @@ ChaosLab has three Cloud Run services (locked in ADR-007):
 ### 8.1 `chaoslab-agent` (the orchestrator)
 
 Runs Google ADK. Installs:
+
 ```bash
 openinference-instrumentation-google-adk        # primary
 arize-phoenix-otel                              # register()
@@ -333,6 +351,7 @@ Sends traces to a **Phoenix project named `chaoslab-orchestrator`** so we can di
 ### 8.2 `target-agent` (the victim agent we attack)
 
 Runs whatever the demo target is (default: a small ADK agent for the canned scenarios). Installs **only the matching instrumentor for the target's framework**. For the default demo:
+
 ```bash
 openinference-instrumentation-google-adk
 arize-phoenix-otel
@@ -341,6 +360,7 @@ arize-phoenix-otel
 Sends traces to a **Phoenix project named `chaoslab-target`**.
 
 For the cross-framework demo (LangChain target):
+
 ```bash
 openinference-instrumentation-langchain
 openinference-instrumentation-google-genai      # if the LangChain agent uses Gemini via google-genai
@@ -354,6 +374,7 @@ No Python OI instrumentation. It reads spans from Phoenix via `arize-phoenix-cli
 ### 8.4 Why two projects?
 
 Chaos experiments inject faults into the target. We need to assert that:
+
 - the target's trace shows the fault (in `chaoslab-target`)
 - the orchestrator's trace shows the planning / replay / fix (in `chaoslab-orchestrator`)
 

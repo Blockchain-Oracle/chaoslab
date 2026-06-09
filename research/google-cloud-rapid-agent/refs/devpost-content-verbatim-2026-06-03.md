@@ -220,32 +220,32 @@ Instrument your agent with OpenTelemetry and ship traces, metrics, and logs to D
 
 Full text in `refs/official-rules-verbatim.md` (research subagent populating). High-level enumeration here for indexing:
 
-| §   | Title                              | Why it matters for ChaosLab                                                       |
-| --- | ---------------------------------- | --------------------------------------------------------------------------------- |
-| 1   | Binding Agreement                  | Entry = acceptance                                                                |
-| 2   | Sponsor                            | Google LLC (Mountain View)                                                        |
-| 3   | Partner Entities                   | Arize / Elastic / Fivetran / GitLab / MongoDB / Dynatrace                         |
-| 4   | Eligibility                        | Excluded jurisdictions list — Abu's country (Nigeria) is NOT on the list ✓        |
-| 5   | Contest Period                     | 2026-05-05 12:00 PT → 2026-06-11 14:00 PT                                         |
-| 6   | How to Enter                       | **$100 GCP credit form deadline: 2026-06-04** (Abu has handled per 2026-06-03)    |
-| 7   | Submission Requirements            | Track lock-in, team max 4, new code only, AI usage limitation                     |
-| 8   | Judging                            | 4 equal-weighted criteria; Jun 22 → Jul 6 judging window                          |
-| 9   | Prizes                             | $5K/$3K/$2K per track; identical across 6 buckets                                 |
-| 10  | Fees & Taxes                       | W-8BEN for non-US (Abu); 60-day disbursement                                      |
-| 11  | General Conditions                 |                                                                                   |
-| 12  | Intellectual Property Rights       | **OSI-approved license required, must be detectable** — ✓ Apache-2.0 per S1.1     |
-| 13  | Privacy                            | Google privacy policy                                                             |
-| 14  | Publicity                          | Sponsor may use name/likeness                                                     |
-| 15  | Warranty / Indemnity / Release     | Original work, no third-party infringement                                        |
-| 16  | Elimination                        | False info = immediate elimination                                                |
-| 17  | Internet                           | Sponsor not liable for tech failures                                              |
-| 18  | Right to Cancel / Modify           |                                                                                   |
-| 19  | Not Employment                     |                                                                                   |
-| 20  | Forum                              | California state law                                                              |
-| 21  | Arbitration                        | JAMS, San Jose, CA                                                                |
-| 22  | Winner's List                      | Request between Jul 13 – Sep 13, 2026                                             |
-| 23  | Devpost Additional Terms           | ToS incorporated by reference                                                     |
-| 24  | Entrant's Personal Information     | Devpost privacy policy                                                            |
+| §   | Title                          | Why it matters for ChaosLab                                                    |
+| --- | ------------------------------ | ------------------------------------------------------------------------------ |
+| 1   | Binding Agreement              | Entry = acceptance                                                             |
+| 2   | Sponsor                        | Google LLC (Mountain View)                                                     |
+| 3   | Partner Entities               | Arize / Elastic / Fivetran / GitLab / MongoDB / Dynatrace                      |
+| 4   | Eligibility                    | Excluded jurisdictions list — Abu's country (Nigeria) is NOT on the list ✓     |
+| 5   | Contest Period                 | 2026-05-05 12:00 PT → 2026-06-11 14:00 PT                                      |
+| 6   | How to Enter                   | **$100 GCP credit form deadline: 2026-06-04** (Abu has handled per 2026-06-03) |
+| 7   | Submission Requirements        | Track lock-in, team max 4, new code only, AI usage limitation                  |
+| 8   | Judging                        | 4 equal-weighted criteria; Jun 22 → Jul 6 judging window                       |
+| 9   | Prizes                         | $5K/$3K/$2K per track; identical across 6 buckets                              |
+| 10  | Fees & Taxes                   | W-8BEN for non-US (Abu); 60-day disbursement                                   |
+| 11  | General Conditions             |                                                                                |
+| 12  | Intellectual Property Rights   | **OSI-approved license required, must be detectable** — ✓ Apache-2.0 per S1.1  |
+| 13  | Privacy                        | Google privacy policy                                                          |
+| 14  | Publicity                      | Sponsor may use name/likeness                                                  |
+| 15  | Warranty / Indemnity / Release | Original work, no third-party infringement                                     |
+| 16  | Elimination                    | False info = immediate elimination                                             |
+| 17  | Internet                       | Sponsor not liable for tech failures                                           |
+| 18  | Right to Cancel / Modify       |                                                                                |
+| 19  | Not Employment                 |                                                                                |
+| 20  | Forum                          | California state law                                                           |
+| 21  | Arbitration                    | JAMS, San Jose, CA                                                             |
+| 22  | Winner's List                  | Request between Jul 13 – Sep 13, 2026                                          |
+| 23  | Devpost Additional Terms       | ToS incorporated by reference                                                  |
+| 24  | Entrant's Personal Information | Devpost privacy policy                                                         |
 
 ### Contest restrictions ChaosLab must respect
 
