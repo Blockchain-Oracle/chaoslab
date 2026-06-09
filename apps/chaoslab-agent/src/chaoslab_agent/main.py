@@ -24,7 +24,7 @@ from fastapi import FastAPI, HTTPException, Request
 from pydantic import BaseModel, ConfigDict, Field
 from sse_starlette.sse import EventSourceResponse
 
-from chaoslab_agent.config import get_settings
+from chaoslab_agent.config import GCS_PROBE_ENV_NAME, get_settings
 
 logger = logging.getLogger(__name__)
 
@@ -210,10 +210,16 @@ async def _lifespan(app: FastAPI) -> AsyncIterator[None]:
     if settings.GCS_PROBE_AT_STARTUP:
         await MarkdownEmitter().health_check()
     else:
-        logger.warning(
-            "GCS_PROBE_AT_STARTUP=false — Markdown emitter bucket probe skipped at boot. "
+        # CRITICAL (not WARNING): a Cloud Logging sink that filters WARNING
+        # would silently swallow this, defeating the audit trail. CRITICAL is
+        # surfaced by every default sink even on aggressive filter policies.
+        # The env var name is interpolated from the shared constant — a rename
+        # in config.py crashloops at module load via the drift check there.
+        logger.critical(
+            "%s=false — Markdown emitter bucket probe skipped at boot. "
             "THIS SHOULD NEVER BE SET IN PRODUCTION; recipe artifacts may fail at /run "
-            "time instead of fail-loud at startup."
+            "time instead of fail-loud at startup.",
+            GCS_PROBE_ENV_NAME,
         )
     yield
 

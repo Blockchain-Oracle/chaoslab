@@ -173,7 +173,17 @@ def _render_fallback_notice(recipe: HardeningRecipe) -> str:
             "fallback_cluster_ids must be a list, got type=%s; ignoring",
             type(raw).__name__,
         )
-        return ""
+        # Render the corruption IN-BAND so the regulator reading the signed
+        # recipe sees the integrity warning — not just an Operator grepping
+        # Cloud Logging after the fact. Silent return ("") was pattern #4
+        # from CLAUDE.md: fallback indistinguishable from "no fallback at all."
+        return (
+            "## Fallback Clusters\n\n"
+            "_(audit-integrity warning: `metadata.fallback_cluster_ids` was "
+            f"`{type(raw).__name__}`, expected `list`; corruption logged at "
+            "ERROR. Treat this recipe as suspect until the upstream Patcher "
+            "issue is identified.)_\n"
+        )
     cluster_ids = [str(cid) for cid in raw]
     valid_cluster_ids = {c.cluster_id for c in recipe.cluster_set.clusters}
     unknown = [cid for cid in cluster_ids if cid not in valid_cluster_ids]

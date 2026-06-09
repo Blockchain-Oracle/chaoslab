@@ -345,17 +345,40 @@ def test_regression_case_with_non_json_native_value_renders_via_str(
 # ---------------------------------------------------------------------------
 
 
-def test_fallback_cluster_ids_string_does_not_corrupt_output(
+def test_fallback_cluster_ids_string_renders_in_band_corruption_signal(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
     """If a future caller passes the string `"all"`, the renderer must not
-    iterate characters and silently corrupt the audit Markdown."""
+    iterate characters AND must NOT silently skip — silent-failure-hunter S-1
+    flagged pattern #4 (fallback indistinguishable from no-fallback). Render
+    an in-band 'audit-integrity warning' so the regulator reading the signed
+    recipe sees the corruption, not just Cloud Logging after the fact."""
     recipe = _recipe(metadata={"fallback_cluster_ids": "all"})
     with caplog.at_level("ERROR"):
         md = render_recipe(recipe)
-    assert "## Fallback Clusters" not in md
+    # Char-iteration corruption is still blocked.
     assert "- a" not in md
+    assert "- l" not in md
+    # In-band corruption signal IS present.
+    assert "## Fallback Clusters" in md
+    assert "audit-integrity warning" in md
+    assert "expected `list`" in md
+    # Type name surfaces so the regulator can correlate with the log.
+    assert "`str`" in md
+    # Cloud Logging error remains for the operator.
     assert any("must be a list" in r.message for r in caplog.records)
+
+
+def test_fallback_cluster_ids_dict_also_renders_corruption_signal(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Same in-band signal for a dict-typed corruption, parametrize-light."""
+    recipe = _recipe(metadata={"fallback_cluster_ids": {"bogus": 1}})
+    with caplog.at_level("ERROR"):
+        md = render_recipe(recipe)
+    assert "## Fallback Clusters" in md
+    assert "audit-integrity warning" in md
+    assert "`dict`" in md
 
 
 def test_regression_case_with_hostile_str_falls_back_to_placeholder(

@@ -239,6 +239,93 @@ def test_container_health_endpoint_returns_ok(built_image: str) -> None:
 
 @pytest.mark.slow
 @pytest.mark.integration
+def test_container_exits_nonzero_without_probe_escape_hatch(built_image: str) -> None:
+    """Round-3 fail-loud-at-boot lock: WITHOUT GCS_PROBE_AT_STARTUP=false and
+    no real GCS bucket reachable, the lifespan probe MUST crash uvicorn so a
+    misconfigured deploy never silently swallows the demo. Sibling to the
+    /health smoke test (which sets the escape hatch); together they pin both
+    branches of the lifespan probe gate.
+
+    If this test ever passes by `status=='running'` it means the probe was
+    silently disabled — exactly the regression test-quality-reviewer #4 asked
+    for: the /health test alone no longer exercises this code path after the
+    escape hatch landed.
+    """
+    subprocess.run(["docker", "rm", "-f", SMOKE_CONTAINER], capture_output=True, check=False)
+    run_result = subprocess.run(
+        [
+            "docker",
+            "run",
+            "-d",
+            "--name",
+            SMOKE_CONTAINER,
+            "-p",
+            f"{_SMOKE_HOST_PORT + 2}:8080",
+            "-e",
+            "PHOENIX_API_KEY=dummy",
+            "-e",
+            "GEMINI_API_KEY=dummy",
+            "-e",
+            "JUDGE_LLM=gemini-3.5-flash",
+            "-e",
+            "GCS_RECIPES_BUCKET=this-bucket-must-not-exist-rapid-agents-test",
+            # Intentionally NO GCS_PROBE_AT_STARTUP — defaults to True →
+            # probe runs → BucketUnreachableError → lifespan crashes.
+            built_image,
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if run_result.returncode != 0:
+        pytest.fail(f"docker run failed: {run_result.stderr}")
+    try:
+        # Poll inspect until container exits or 30s elapses. Probe failure is
+        # near-instantaneous; the wide window absorbs cold-start cost on a
+        # heavily loaded host.
+        deadline = time.monotonic() + 30
+        final_state: tuple[str, str] = ("(no inspect yet)", "?")
+        while time.monotonic() < deadline:
+            inspect = subprocess.run(
+                [
+                    "docker",
+                    "inspect",
+                    "--format",
+                    "{{.State.Status}}|{{.State.ExitCode}}",
+                    SMOKE_CONTAINER,
+                ],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            if inspect.returncode == 0 and "|" in inspect.stdout:
+                status, exit_code_str = inspect.stdout.strip().split("|", 1)
+                final_state = (status, exit_code_str)
+                if status == "exited":
+                    assert int(exit_code_str) != 0, (
+                        "container exited with 0 — bucket probe did NOT crash the "
+                        "lifespan. This means GCS_PROBE_AT_STARTUP is being silently "
+                        "set to False, OR the probe path was bypassed."
+                    )
+                    return
+            time.sleep(0.5)
+        logs = subprocess.run(
+            ["docker", "logs", SMOKE_CONTAINER],
+            capture_output=True,
+            text=True,
+            check=False,
+        ).stdout
+        pytest.fail(
+            f"container never exited within 30s (status={final_state[0]}, "
+            f"exit_code={final_state[1]}) — bucket probe should fail-loud at boot.\n"
+            f"--- container logs ---\n{logs[-2000:]}"
+        )
+    finally:
+        subprocess.run(["docker", "rm", "-f", SMOKE_CONTAINER], capture_output=True, check=False)
+
+
+@pytest.mark.slow
+@pytest.mark.integration
 def test_running_container_uid_is_10001(built_image: str) -> None:
     """`docker exec id -u` returns 10001 (the non-root chaoslab uid)."""
     subprocess.run(["docker", "rm", "-f", SMOKE_CONTAINER], capture_output=True, check=False)

@@ -236,7 +236,9 @@ async def test_emit_translates_generic_upload_failure_to_emitter_error() -> None
 
 
 async def test_health_check_fails_when_bucket_does_not_exist() -> None:
-    from chaoslab_agent.patcher.markdown_emitter import BucketNotConfiguredError
+    """Bucket-truly-absent case → BucketMissingError (NOT the generic probe base).
+    Operator response is 'fix terraform / Secret Manager', distinct from IAM blip."""
+    from chaoslab_agent.patcher.markdown_emitter import BucketMissingError
 
     class _MissingBucket:
         def blob(self, name: str) -> Any:  # pragma: no cover
@@ -249,12 +251,15 @@ async def test_health_check_fails_when_bucket_does_not_exist() -> None:
         def bucket(self, name: str) -> Any:
             return _MissingBucket()
 
-    with pytest.raises(BucketNotConfiguredError, match="does not exist"):
+    with pytest.raises(BucketMissingError, match="does not exist"):
         await MarkdownEmitter(storage_client=_Client()).health_check()
 
 
 async def test_health_check_translates_iam_error_to_typed_error() -> None:
-    from chaoslab_agent.patcher.markdown_emitter import BucketNotConfiguredError
+    """IAM/network failure case → BucketUnreachableError (sibling, NOT subclass of
+    BucketMissingError). Operator response is IAM-check / retry, distinct from
+    config bug — code-reviewer #3 flagged the prior collapse."""
+    from chaoslab_agent.patcher.markdown_emitter import BucketUnreachableError
 
     class _ForbiddenBucket:
         def blob(self, name: str) -> Any:  # pragma: no cover
@@ -267,8 +272,26 @@ async def test_health_check_translates_iam_error_to_typed_error() -> None:
         def bucket(self, name: str) -> Any:
             return _ForbiddenBucket()
 
-    with pytest.raises(BucketNotConfiguredError, match="403"):
+    with pytest.raises(BucketUnreachableError, match="403"):
         await MarkdownEmitter(storage_client=_Client()).health_check()
+
+
+async def test_bucket_error_subclasses_share_neutral_probe_base() -> None:
+    """Taxonomy lock: BucketMissingError + BucketUnreachableError are SIBLINGS
+    under BucketProbeError — NOT one descending from the other. Catching the
+    neutral base catches both; catching a subclass catches only that operator
+    response. Prevents the prior 'flaky IAM masked as config bug' collapse."""
+    from chaoslab_agent.patcher.markdown_emitter import (
+        BucketMissingError,
+        BucketProbeError,
+        BucketUnreachableError,
+    )
+
+    assert issubclass(BucketMissingError, BucketProbeError)
+    assert issubclass(BucketUnreachableError, BucketProbeError)
+    # Neither subclass is a parent of the other — they're siblings.
+    assert not issubclass(BucketMissingError, BucketUnreachableError)
+    assert not issubclass(BucketUnreachableError, BucketMissingError)
 
 
 async def test_health_check_passes_on_existing_bucket() -> None:
@@ -542,3 +565,159 @@ def test_emit_result_rejects_invalid_gcs_uri_shape_parametrized(bad_uri: str) ->
             markdown_bytes=10,
             ttl_seconds=604800,
         )
+
+
+# ---------------------------------------------------------------------------
+# Round-3 (silent-failure-hunter I-1): _is_already_exists_error must catch
+# gRPC FailedPrecondition + string-shaped HTTP codes + grpc.StatusCode enum.
+# Each shape gets its own test so a future SDK-version drift fails one not all.
+# ---------------------------------------------------------------------------
+
+
+def _make_emit_client_raising(exc: BaseException) -> Any:
+    """Build a minimal storage-client stub that raises `exc` on upload_from_string.
+    Used to exercise the upload-path error translation in _is_already_exists_error."""
+
+    class _Blob:
+        def upload_from_string(
+            self, data: bytes, content_type: str, if_generation_match: int = 0
+        ) -> None:
+            raise exc
+
+        def generate_signed_url(self, **kwargs: Any) -> str:  # pragma: no cover
+            return "https://storage.googleapis.com/x.md?X-Goog-Signature=z"
+
+    class _Bucket:
+        def blob(self, name: str) -> Any:
+            return _Blob()
+
+        def exists(self) -> bool:
+            return True
+
+    class _Client:
+        def bucket(self, name: str) -> Any:
+            return _Bucket()
+
+    return _Client()
+
+
+async def test_emit_translates_grpc_failed_precondition_class_name() -> None:
+    """gRPC SDK variant uses `FailedPrecondition` class name (not HTTP)."""
+    from chaoslab_agent.patcher.markdown_emitter import RecipeAlreadyExistsError
+
+    class FailedPrecondition(Exception):  # noqa: N818 — name matches gRPC SDK class
+        pass
+
+    client = _make_emit_client_raising(FailedPrecondition("blob exists"))
+    with pytest.raises(RecipeAlreadyExistsError):
+        await MarkdownEmitter(storage_client=client).emit(_recipe())
+
+
+async def test_emit_translates_string_shaped_412_code() -> None:
+    """Some SDK versions stringify codes as '412 Precondition Failed' on `.code`."""
+    from chaoslab_agent.patcher.markdown_emitter import RecipeAlreadyExistsError
+
+    class _StringCodedErr(Exception):  # noqa: N818
+        def __init__(self) -> None:
+            super().__init__("blob exists")
+            self.code = "412 Precondition Failed"
+
+    client = _make_emit_client_raising(_StringCodedErr())
+    with pytest.raises(RecipeAlreadyExistsError):
+        await MarkdownEmitter(storage_client=client).emit(_recipe())
+
+
+async def test_emit_translates_string_shaped_409_conflict_code() -> None:
+    """Some SDK versions emit '409 Conflict' on `.code` for if_generation_match."""
+    from chaoslab_agent.patcher.markdown_emitter import RecipeAlreadyExistsError
+
+    class _StringCoded409(Exception):  # noqa: N818
+        def __init__(self) -> None:
+            super().__init__("blob exists")
+            self.code = "409 Conflict"
+
+    client = _make_emit_client_raising(_StringCoded409())
+    with pytest.raises(RecipeAlreadyExistsError):
+        await MarkdownEmitter(storage_client=client).emit(_recipe())
+
+
+async def test_emit_translates_grpc_status_enum_via_name_attribute() -> None:
+    """gRPC StatusCode enum on `.code` exposes `.name == 'FAILED_PRECONDITION'`.
+    Locks the `getattr(candidate, 'name', None)` branch in _is_already_exists_error."""
+    from chaoslab_agent.patcher.markdown_emitter import RecipeAlreadyExistsError
+
+    class _GrpcStatusEnum:
+        name = "FAILED_PRECONDITION"
+
+    class _GrpcErr(Exception):  # noqa: N818
+        def __init__(self) -> None:
+            super().__init__("blob exists")
+            self.code = _GrpcStatusEnum()
+
+    client = _make_emit_client_raising(_GrpcErr())
+    with pytest.raises(RecipeAlreadyExistsError):
+        await MarkdownEmitter(storage_client=client).emit(_recipe())
+
+
+async def test_emit_translates_grpc_already_exists_status_name() -> None:
+    """ALREADY_EXISTS is the gRPC-native semantic match (Code 6)."""
+    from chaoslab_agent.patcher.markdown_emitter import RecipeAlreadyExistsError
+
+    class _GrpcAlreadyExists:
+        name = "ALREADY_EXISTS"
+
+    class _Err(Exception):  # noqa: N818
+        def __init__(self) -> None:
+            super().__init__("blob exists")
+            self.grpc_status_code = _GrpcAlreadyExists()
+
+    client = _make_emit_client_raising(_Err())
+    with pytest.raises(RecipeAlreadyExistsError):
+        await MarkdownEmitter(storage_client=client).emit(_recipe())
+
+
+async def test_emit_leaves_unrelated_400_as_emitter_error() -> None:
+    """A garden-variety 400 must NOT be translated to RecipeAlreadyExistsError —
+    locks the False branch of _is_already_exists_error so a generic upload error
+    doesn't masquerade as a clobber-refused signal."""
+    from chaoslab_agent.patcher.markdown_emitter import (
+        MarkdownEmitterError,
+        RecipeAlreadyExistsError,
+    )
+
+    class _BadRequest(Exception):  # noqa: N818
+        def __init__(self) -> None:
+            super().__init__("bad request")
+            self.code = 400
+
+    client = _make_emit_client_raising(_BadRequest())
+    with pytest.raises(MarkdownEmitterError) as exc_info:
+        await MarkdownEmitter(storage_client=client).emit(_recipe())
+    # Specifically NOT the precondition subclass.
+    assert not isinstance(exc_info.value, RecipeAlreadyExistsError)
+
+
+# Skipif-guarded test that exercises the REAL google-api-core PreconditionFailed
+# class — if the SDK is installed in this venv, raise an actual instance to
+# prove `isinstance`-vs-name match parity. Otherwise the test is skipped, and
+# the stand-in tests above provide name-match coverage only.
+try:
+    from google.api_core.exceptions import (
+        PreconditionFailed as _RealPreconditionFailed,
+    )
+
+    _has_google_api_core = True
+except ImportError:  # pragma: no cover — depends on venv install state
+    _has_google_api_core = False
+
+
+@pytest.mark.skipif(not _has_google_api_core, reason="google-api-core not installed")
+async def test_emit_translates_real_google_api_core_precondition_failed() -> None:
+    """Locks the prod path: a REAL `google.api_core.exceptions.PreconditionFailed`
+    instance maps to RecipeAlreadyExistsError. Test-quality-reviewer #3 — proves
+    the class-name match isn't just hitting our local stand-ins."""
+    from chaoslab_agent.patcher.markdown_emitter import RecipeAlreadyExistsError
+
+    client = _make_emit_client_raising(_RealPreconditionFailed("blob exists"))
+    with pytest.raises(RecipeAlreadyExistsError):
+        await MarkdownEmitter(storage_client=client).emit(_recipe())

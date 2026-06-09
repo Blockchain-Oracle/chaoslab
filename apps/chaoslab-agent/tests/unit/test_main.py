@@ -14,32 +14,47 @@ import pytest
 from chaoslab_agent.config import JUDGE_LLM_LOCKED, get_settings
 
 
+def _reset_run_registries() -> None:
+    """Cancel in-flight tasks + clear module-level run state.
+
+    Extracted so the autouse fixture below + the `app` fixture below don't
+    drift apart. test-quality-reviewer #5 flagged that lifespan-only tests
+    skipping the `app` fixture would leave background tasks dangling across
+    test boundaries under --randomly-seed; this fixes that at module scope."""
+    from chaoslab_agent.main import _RUN_QUEUES, _RUN_REGISTRY, _RUN_TASKS
+
+    for task in _RUN_TASKS.values():
+        if not task.done():
+            task.cancel()
+    _RUN_REGISTRY.clear()
+    _RUN_QUEUES.clear()
+    _RUN_TASKS.clear()
+
+
 @pytest.fixture(autouse=True)
 def _env(monkeypatch: pytest.MonkeyPatch, tmp_path) -> Iterator[None]:
-    """Strip inherited PHOENIX_*/GEMINI_*/etc. env so Settings() defaults are deterministic."""
+    """Strip inherited PHOENIX_*/GEMINI_*/etc. env so Settings() defaults are deterministic.
+
+    Also resets the module-level run registries — every test in this module
+    starts from a clean slate, regardless of which fixtures it requests."""
     for key in list(os.environ):
         if key.startswith(("PHOENIX_", "GEMINI_", "JUDGE_", "TARGET_", "GITLAB_", "GCS_")):
             monkeypatch.delenv(key, raising=False)
     monkeypatch.setenv("GEMINI_API_KEY", "test-gemini")
     monkeypatch.chdir(tmp_path)
     get_settings.cache_clear()
+    _reset_run_registries()
     yield
+    _reset_run_registries()
     get_settings.cache_clear()
 
 
 @pytest.fixture
 def app():
-    from chaoslab_agent.main import _RUN_QUEUES, _RUN_REGISTRY, _RUN_TASKS
+    """FastAPI app instance. Registry cleanup is handled by the autouse `_env`
+    fixture; this fixture only resolves the app object so tests don't import."""
     from chaoslab_agent.main import app as fastapi_app
 
-    _RUN_REGISTRY.clear()
-    # Cancel any in-flight background tasks from a prior test so they don't
-    # leak into the next one's event-loop fixture.
-    for task in _RUN_TASKS.values():
-        if not task.done():
-            task.cancel()
-    _RUN_QUEUES.clear()
-    _RUN_TASKS.clear()
     return fastapi_app
 
 
@@ -505,6 +520,25 @@ async def test_stream_stops_when_client_disconnects(
 # ---------------------------------------------------------------------------
 
 
+def _patch_lifespan_deps(monkeypatch: pytest.MonkeyPatch, emitter_cls: type) -> None:
+    """Stub observability + patch MarkdownEmitter at BOTH sites (belt-and-suspenders).
+
+    `_lifespan` currently does `from … import MarkdownEmitter` inside the function
+    body, so `me.MarkdownEmitter` is the live binding. But a future refactor that
+    hoists the import to module top would silently neuter a single-site patch —
+    so we also patch `chaoslab_agent.main.MarkdownEmitter` (raising=False because
+    that name doesn't exist at module top today; the patch survives a hoist).
+    """
+    import chaoslab_agent.main as main_mod
+    import chaoslab_agent.observability as obs
+    import chaoslab_agent.patcher.markdown_emitter as me
+
+    monkeypatch.setattr(obs, "setup_logging", lambda env: None)
+    monkeypatch.setattr(obs, "setup_phoenix_otel", lambda settings: None)
+    monkeypatch.setattr(me, "MarkdownEmitter", emitter_cls)
+    monkeypatch.setattr(main_mod, "MarkdownEmitter", emitter_cls, raising=False)
+
+
 async def test_lifespan_invokes_markdown_emitter_health_check(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -513,6 +547,7 @@ async def test_lifespan_invokes_markdown_emitter_health_check(
     from contextlib import asynccontextmanager
 
     called: dict[str, int] = {"count": 0}
+    yielded: dict[str, bool] = {"ok": False}
 
     class _FakeEmitter:
         def __init__(self, *_args: object, **_kwargs: object) -> None:
@@ -521,14 +556,7 @@ async def test_lifespan_invokes_markdown_emitter_health_check(
         async def health_check(self) -> None:
             called["count"] += 1
 
-    import chaoslab_agent.observability as obs
-    import chaoslab_agent.patcher.markdown_emitter as me
-
-    # Stub the observability setup so we don't need real Phoenix creds
-    # while exercising the lifespan.
-    monkeypatch.setattr(obs, "setup_logging", lambda env: None)
-    monkeypatch.setattr(obs, "setup_phoenix_otel", lambda settings: None)
-    monkeypatch.setattr(me, "MarkdownEmitter", _FakeEmitter)
+    _patch_lifespan_deps(monkeypatch, _FakeEmitter)
 
     from chaoslab_agent.main import _lifespan
     from chaoslab_agent.main import app as fastapi_app
@@ -539,24 +567,29 @@ async def test_lifespan_invokes_markdown_emitter_health_check(
             yield
 
     async with _drive():
-        pass
+        yielded["ok"] = True
 
+    # Both must hold: health_check was called AND the lifespan yielded (i.e.
+    # nothing crashed AFTER the probe and before /run is ready to serve).
     assert called["count"] == 1
+    assert yielded["ok"], "lifespan did not yield — call path crashed after the probe"
 
 
 async def test_lifespan_skips_health_check_when_probe_disabled(
     monkeypatch: pytest.MonkeyPatch,
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    """`GCS_PROBE_AT_STARTUP=false` skips the bucket probe AND emits a loud WARNING
-    naming the env var so an accidental production disable is grep-able in
-    Cloud Logging. Test-only escape hatch for the Dockerfile smoke test, which
-    has no real GCS bucket to probe against."""
+    """`GCS_PROBE_AT_STARTUP=false` skips the bucket probe AND emits a CRITICAL log
+    naming the env var (CRITICAL surfaces in Cloud Logging even when WARNING is
+    filtered, defending the accidental-prod-set audit trail). Test-only escape
+    hatch for the Dockerfile smoke test, which has no real GCS bucket to probe."""
     import logging as _logging
     from contextlib import asynccontextmanager
 
     monkeypatch.setenv("GCS_PROBE_AT_STARTUP", "false")
     get_settings.cache_clear()
+
+    yielded: dict[str, bool] = {"ok": False}
 
     class _PoisonEmitter:
         def __init__(self, *_args: object, **_kwargs: object) -> None:
@@ -568,12 +601,7 @@ async def test_lifespan_skips_health_check_when_probe_disabled(
         async def health_check(self) -> None:
             raise AssertionError("health_check must not be invoked when probe is disabled")
 
-    import chaoslab_agent.observability as obs
-    import chaoslab_agent.patcher.markdown_emitter as me
-
-    monkeypatch.setattr(obs, "setup_logging", lambda env: None)
-    monkeypatch.setattr(obs, "setup_phoenix_otel", lambda settings: None)
-    monkeypatch.setattr(me, "MarkdownEmitter", _PoisonEmitter)
+    _patch_lifespan_deps(monkeypatch, _PoisonEmitter)
 
     from chaoslab_agent.main import _lifespan
     from chaoslab_agent.main import app as fastapi_app
@@ -583,12 +611,55 @@ async def test_lifespan_skips_health_check_when_probe_disabled(
         async with _lifespan(fastapi_app):
             yield
 
-    with caplog.at_level(_logging.WARNING, logger="chaoslab_agent.main"):
+    with caplog.at_level(_logging.CRITICAL, logger="chaoslab_agent.main"):
         async with _drive():
-            pass
+            yielded["ok"] = True
 
-    # The WARNING must name the env var literally so a Cloud-Logging grep for
-    # "GCS_PROBE_AT_STARTUP" surfaces any prod deploy that accidentally set it.
-    assert any("GCS_PROBE_AT_STARTUP" in r.message for r in caplog.records), [
-        r.message for r in caplog.records
-    ]
+    # Three locks: (1) lifespan yielded — `else` branch didn't crash;
+    # (2) env var name surfaces literally for Cloud Logging grep;
+    # (3) the "should never be set in production" copy stays intact — a future
+    # edit that softens the warning copy is the silent-failure shape we guard.
+    assert yielded["ok"], "lifespan did not yield — skip branch crashed"
+    crit_messages = [r.getMessage() for r in caplog.records if r.levelno >= _logging.CRITICAL]
+    assert any("GCS_PROBE_AT_STARTUP" in m for m in crit_messages), crit_messages
+    assert any("THIS SHOULD NEVER BE SET IN PRODUCTION" in m for m in crit_messages), crit_messages
+
+
+def test_settings_env_prod_forbids_disabled_probe(monkeypatch: pytest.MonkeyPatch) -> None:
+    """ADR audit posture: a prod deploy MUST NOT silently boot with the probe
+    disabled. Settings construction itself raises so Cloud Run crashloops loud.
+    The Field description warns; this validator enforces."""
+    from pydantic import ValidationError
+
+    from chaoslab_agent.config import Settings
+
+    monkeypatch.setenv("ENVIRONMENT", "prod")
+    monkeypatch.setenv("GCS_PROBE_AT_STARTUP", "false")
+
+    with pytest.raises(ValidationError, match="FORBIDDEN when environment='prod'"):
+        Settings()
+
+
+@pytest.mark.parametrize("env", ["dev", "staging"])
+def test_settings_non_prod_allows_disabled_probe(monkeypatch: pytest.MonkeyPatch, env: str) -> None:
+    """The escape hatch IS allowed outside prod — local dev + staging smoke tests."""
+    from chaoslab_agent.config import Settings
+
+    monkeypatch.setenv("ENVIRONMENT", env)
+    monkeypatch.setenv("GCS_PROBE_AT_STARTUP", "false")
+
+    s = Settings()
+    assert s.environment == env
+    assert s.GCS_PROBE_AT_STARTUP is False
+
+
+def test_gcs_probe_env_name_constant_matches_settings_field() -> None:
+    """Drift guard — main.py's CRITICAL log interpolates GCS_PROBE_ENV_NAME so a
+    silent rename of the Settings field would defeat the Cloud-Logging grep
+    safety net. The module-load check in config.py raises if these diverge;
+    this test belt-and-suspenders it from the test side too."""
+    from chaoslab_agent.config import GCS_PROBE_ENV_NAME, Settings
+
+    assert GCS_PROBE_ENV_NAME in Settings.model_fields, (
+        f"GCS_PROBE_ENV_NAME={GCS_PROBE_ENV_NAME!r} does not name a Settings field"
+    )
