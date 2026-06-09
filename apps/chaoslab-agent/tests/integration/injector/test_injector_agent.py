@@ -254,9 +254,9 @@ async def test_full_run_emits_24_annotated_spans_across_4_fault_classes() -> Non
 
     breakdown = state.fault_breakdown()
     for fc in fault_types:
-        assert (
-            breakdown.get(fc, 0) >= 4
-        ), f"expected ≥4 attacks for {fc}, got {breakdown.get(fc, 0)}"
+        assert breakdown.get(fc, 0) >= 4, (
+            f"expected ≥4 attacks for {fc}, got {breakdown.get(fc, 0)}"
+        )
 
     assert state.baseline_passed is True
     assert state.total_attacks >= 24
@@ -318,12 +318,12 @@ async def test_per_attack_uninstall_isolates_consecutive_attacks() -> None:
     await Injector(target=target, state=state, prompt="test-prompt", runs_per_fault=6).run()
 
     # After all attacks: callbacks should be uninstalled.
-    assert (
-        target.agent.before_tool_callback is None
-    ), "F1/F4 left a before_tool_callback installed — uninstall is broken"
-    assert (
-        target.agent.before_model_callback is None
-    ), "F2/F3 left a before_model_callback installed — uninstall is broken"
+    assert target.agent.before_tool_callback is None, (
+        "F1/F4 left a before_tool_callback installed — uninstall is broken"
+    )
+    assert target.agent.before_model_callback is None, (
+        "F2/F3 left a before_model_callback installed — uninstall is broken"
+    )
 
 
 async def test_disconnect_called_on_happy_path() -> None:

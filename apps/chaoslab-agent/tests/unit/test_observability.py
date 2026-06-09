@@ -241,9 +241,9 @@ def test_setup_phoenix_otel_fails_fast_before_mutating_tracer_state(
     monkeypatch.setitem(sys.modules, "openinference.instrumentation.google_adk", None)
     with pytest.raises(ImportError, match=r"openinference-instrumentation-google-adk"):
         _obs.setup_phoenix_otel(get_settings())
-    assert not register_called[
-        "yes"
-    ], "register() ran despite instrumentor import failing — tracer state half-installed"
+    assert not register_called["yes"], (
+        "register() ran despite instrumentor import failing — tracer state half-installed"
+    )
 
 
 def test_setup_phoenix_otel_actionable_error_when_phoenix_otel_missing(

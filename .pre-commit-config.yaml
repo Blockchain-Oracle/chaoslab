@@ -3,7 +3,7 @@ default_language_version:
 
 repos:
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.8.0  # pin to latest verified
+    rev: v0.15.16 # MUST match `uv run ruff --version` (project lockfile)
     hooks:
       - id: ruff
         args: [--fix]

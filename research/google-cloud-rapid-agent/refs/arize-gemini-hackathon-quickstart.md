@@ -2,7 +2,7 @@
 
 **Upstream:** https://github.com/Arize-ai/gemini-hackathon (`main`, fetched 2026-06-03)
 **License:** Apache-2.0
-**Stated purpose (README §1):** *"End-to-end template for the Arize @ Google Cloud Partnerships Hackathon track."*
+**Stated purpose (README §1):** _"End-to-end template for the Arize @ Google Cloud Partnerships Hackathon track."_
 **Why this matters for ChaosLab:** this is THE canonical end-to-end example for our chosen track. Every architectural decision in `docs/architecture.md` should be cross-checked against this repo. If the quickstart does X and our spec does Y, we need a deliberate reason for the delta documented in `docs/audit-notes.md`.
 
 ---
@@ -43,10 +43,10 @@ gemini-hackathon/
 - **No tests.** No `tests/`, no `pytest.ini`, no CI workflow. Quickstart is "run once, look at Phoenix UI, done."
 - **No Dockerfile, no Cloud Run yaml, no GitHub Actions.** The quickstart runs locally only. Production deployment shape is left as exercise.
 - **No `a2a-sdk`, no `google-adk[a2a]`.** Single-agent, no multi-agent orchestration. Our spec uses `SequentialAgent` for the orchestrator + a sub-agent (ADR-012); the quickstart sidesteps this entirely.
-- **No datasets, no prompt-versioning via Phoenix.** README mentions you *could* do it via MCP at runtime, but the repo itself ships no dataset YAML / JSONL.
+- **No datasets, no prompt-versioning via Phoenix.** README mentions you _could_ do it via MCP at runtime, but the repo itself ships no dataset YAML / JSONL.
 - **`.gemini/settings.json` has `--apiKey` as an empty string.** You're expected to either edit the file or `export PHOENIX_API_KEY=...` in the shell. Quickstart does NOT show env-var injection into the MCP `npx` command.
 
-**Subjective read:** the quickstart is laser-focused on one thing — *"prove the trace pipeline works end-to-end."* It deliberately omits eval/experiment/deployment surface so the developer hits the Phoenix UI fast and feels the magic. Everything beyond traces is left to the contestant. **ChaosLab's job is to fill the eval/experiment/deployment gap with chaos engineering as the differentiator.**
+**Subjective read:** the quickstart is laser-focused on one thing — _"prove the trace pipeline works end-to-end."_ It deliberately omits eval/experiment/deployment surface so the developer hits the Phoenix UI fast and feels the magic. Everything beyond traces is left to the contestant. **ChaosLab's job is to fill the eval/experiment/deployment gap with chaos engineering as the differentiator.**
 
 ---
 
@@ -57,6 +57,7 @@ What the quickstart actually builds, traced line by line:
 ### Step 1 — User runs `make run MESSAGE='Find a floral dress in size M'`
 
 Makefile target:
+
 ```
 run:
     cd agent && uv run python main.py "$(if $(MESSAGE),$(MESSAGE),Help me find a floral summer dress and buy size M.)"
@@ -83,6 +84,7 @@ async def run_turn(user_text: str) -> None:
 ```
 
 Notes:
+
 - `InMemoryRunner` (not `Runner` with a `RuntimeConfig`) — quickstart uses the simplest possible session/runner pair.
 - `session_id` is a `secrets.token_hex(8)` per run — each invocation is a fresh session.
 - The `async for _ in runner.run_async(...)` loop **discards every event**. The quickstart cares only about side effects (LLM calls, tool calls, spans) — not the agent's text output. This is deliberate: Phoenix captures everything in spans, so stdout is irrelevant.
@@ -110,7 +112,8 @@ def setup_tracing() -> Optional[Any]:
 ```
 
 Three details that matter:
-1. **`auto_instrument=True`** auto-discovers installed OpenInference instrumentors. Because `openinference-instrumentation-google-adk` is in `pyproject.toml`, ADK gets instrumented automatically — *no manual `GoogleADKInstrumentor().instrument()` call needed.*
+
+1. **`auto_instrument=True`** auto-discovers installed OpenInference instrumentors. Because `openinference-instrumentation-google-adk` is in `pyproject.toml`, ADK gets instrumented automatically — _no manual `GoogleADKInstrumentor().instrument()` call needed._
 2. **`batch=False`** — synchronous export. For a one-shot CLI run this is correct (script exits before a batched flush could fire). For Cloud Run we'll want batching.
 3. **No `set_global_tracer_provider` flag.** Quickstart runs locally (Cloud Run-equivalent shape), so default global provider works. The Vertex Agent Engine gotcha (ADR-005 in our docs) doesn't apply here.
 
@@ -141,6 +144,7 @@ root_agent = Agent(
 ### Step 6 — Spans flow to Phoenix Cloud
 
 Because `auto_instrument=True` enabled `GoogleADKInstrumentor`, every:
+
 - LLM call → `LLM`-kind span with input/output/token counts/model name
 - Tool call → `TOOL`-kind span with `tool_call.function.name` + arguments + return value
 - Agent loop iteration → parent `AGENT` span
@@ -149,13 +153,13 @@ Because `auto_instrument=True` enabled `GoogleADKInstrumentor`, every:
 
 ### Step 7 — User opens Phoenix UI → sees trace tree
 
-Project = `gemini-hackathon` (default). Each `make run` produces one trace. README §3: *"Confirm LLM and tool spans appear."* That's the whole acceptance test.
+Project = `gemini-hackathon` (default). Each `make run` produces one trace. README §3: _"Confirm LLM and tool spans appear."_ That's the whole acceptance test.
 
 ### Step 8 — (Optional) Phoenix MCP from Gemini CLI
 
-This is the *separate, second* surface. README §"Phoenix MCP (Gemini CLI)" is explicit:
+This is the _separate, second_ surface. README §"Phoenix MCP (Gemini CLI)" is explicit:
 
-> *"Phoenix MCP runs **inside Gemini CLI**, not inside the Python ADK process."*
+> _"Phoenix MCP runs **inside Gemini CLI**, not inside the Python ADK process."_
 
 The Python agent emits traces. The Gemini CLI (running on the developer's laptop, configured via `.gemini/settings.json`) then queries those traces back via the MCP server. The agent itself never invokes the MCP server in this quickstart.
 
@@ -196,18 +200,19 @@ Three things to note:
 
 ### What tools the agent gets through Phoenix MCP
 
-Per README §4 ("Agent queries Phoenix via MCP (runtime superpower)") + the Phoenix MCP docs (https://arize.com/docs/phoenix/integrations/phoenix-mcp-server), tool *categories* are:
+Per README §4 ("Agent queries Phoenix via MCP (runtime superpower)") + the Phoenix MCP docs (https://arize.com/docs/phoenix/integrations/phoenix-mcp-server), tool _categories_ are:
 
-| Category | What the agent can do |
-|---|---|
+| Category                      | What the agent can do                                                                      |
+| ----------------------------- | ------------------------------------------------------------------------------------------ |
 | **Projects / Traces / Spans** | List recent traces, fetch a specific span, inspect attributes/annotations, query by filter |
-| **Sessions** | Review multi-turn conversation flows, fetch session-level annotations |
-| **Annotation configs** | Inspect available labeling/scoring configs |
-| **Prompts** | Create, list, update, fetch by ID/tag/"latest"; manage tags |
-| **Datasets** | List datasets, retrieve examples, synthesize new examples |
-| **Experiments** | List results, retrieve metadata, outputs, annotations |
+| **Sessions**                  | Review multi-turn conversation flows, fetch session-level annotations                      |
+| **Annotation configs**        | Inspect available labeling/scoring configs                                                 |
+| **Prompts**                   | Create, list, update, fetch by ID/tag/"latest"; manage tags                                |
+| **Datasets**                  | List datasets, retrieve examples, synthesize new examples                                  |
+| **Experiments**               | List results, retrieve metadata, outputs, annotations                                      |
 
 **CRITICAL gap (confirmed by our RAT-results.md and ADR-005):** The Phoenix MCP server does **NOT** expose:
+
 - `experiments.run_experiment` — you must use `phoenix.client.AsyncClient().experiments.run_experiment(...)` via the Python SDK
 - `spans.log_span_annotations` (write path) — must go via Python SDK
 
@@ -215,12 +220,13 @@ This means: **if ChaosLab's chaos run needs to programmatically kick off an expe
 
 ### How the quickstart uses MCP (it doesn't, really)
 
-The README's example prompts for Gemini CLI are *human-driven*:
-> *"In Phoenix, show me the last 3 traces in my gemini-hackathon project."*
-> *"In Phoenix, summarize my latest experiment results."*
-> *"In Phoenix, create a prompt that classifies user intent."*
+The README's example prompts for Gemini CLI are _human-driven_:
 
-The quickstart does NOT wire the Phoenix MCP server into the Python ADK agent's `tools=[...]` list. The Python agent has only `search` and `click`. The MCP surface is *post-hoc analysis* done by a human in Gemini CLI.
+> _"In Phoenix, show me the last 3 traces in my gemini-hackathon project."_
+> _"In Phoenix, summarize my latest experiment results."_
+> _"In Phoenix, create a prompt that classifies user intent."_
+
+The quickstart does NOT wire the Phoenix MCP server into the Python ADK agent's `tools=[...]` list. The Python agent has only `search` and `click`. The MCP surface is _post-hoc analysis_ done by a human in Gemini CLI.
 
 **ChaosLab differentiation:** we want the ADK agent itself to consume Phoenix MCP at runtime, autonomously. That's the "self-improvement loop" the track bonuses.
 
@@ -231,13 +237,14 @@ The quickstart does NOT wire the Phoenix MCP server into the Python ADK agent's 
 ### What the quickstart ships: nothing.
 
 There is no eval code in this repo. Verified:
+
 - `grep -r "phoenix.evals" .` → 0 results in main branch (would have shown in tree if present)
 - `grep -r "llm_as_judge" .` → 0 results
 - `pyproject.toml` does NOT include `arize-phoenix-evals`. Only `arize-phoenix>=7.0` (the meta package; pulls evals transitively per uv.lock 3.0.0, but no import statement uses it)
 
-### What the README *says* about evals: also nothing.
+### What the README _says_ about evals: also nothing.
 
-Search for "eval" / "judge" / "rubric" in README.md → zero matches. The README mentions evals only obliquely via Phoenix MCP example prompts ("summarize my latest experiment results"), but never shows how to *produce* an experiment result.
+Search for "eval" / "judge" / "rubric" in README.md → zero matches. The README mentions evals only obliquely via Phoenix MCP example prompts ("summarize my latest experiment results"), but never shows how to _produce_ an experiment result.
 
 ### The official docs path (what ChaosLab must build from scratch)
 
@@ -266,7 +273,8 @@ await px.spans.log_span_annotations(annotations=...)
 
 ### What ChaosLab adds beyond this
 
-The standard pattern grades *what the agent did*. ChaosLab grades *whether the agent survived a fault*. We need:
+The standard pattern grades _what the agent did_. ChaosLab grades _whether the agent survived a fault_. We need:
+
 1. **Per-fault-class rubrics** (F1 prompt-injection: did the agent refuse? F2 rate-limit: did it back off? F3 tool-error: did it retry/degrade? F4 schema-drift: did it adapt?).
 2. **Trace-as-assertion** assertions on span tree structure (per CLAUDE.md hard rule), not just output text.
 
@@ -277,6 +285,7 @@ The standard pattern grades *what the agent did*. ChaosLab grades *whether the a
 ### Which instrumentor: `openinference-instrumentation-google-adk`
 
 From `pyproject.toml`:
+
 ```toml
 dependencies = [
     "openinference-instrumentation-google-adk>=0.1.11",
@@ -288,6 +297,7 @@ dependencies = [
 ```
 
 Pinned in `uv.lock`:
+
 - `openinference-instrumentation-google-adk` = **0.1.11**
 - `google-adk` = **1.32.0**
 - `google-genai` = **1.9.0**
@@ -295,6 +305,7 @@ Pinned in `uv.lock`:
 ### Why google-adk (not vertexai, not google-genai)
 
 The quickstart instruments at the **ADK framework** layer, not the underlying Gemini SDK. This means:
+
 - One instrumentor covers all ADK-managed spans: agent loops, tool dispatch, LLM calls
 - `auto_instrument=True` finds it automatically via entry points (per the OpenInference convention)
 - You get the proper `openinference.span.kind` attribute set to `AGENT` / `TOOL` / `LLM` (per ADR-007 in our architecture.md — those are the correct attribute names)
@@ -316,7 +327,7 @@ The quickstart's `instrumentation.py` is a defensive wrapper around this — add
 
 ### Vertex AI Agent Engine caveat (verified via Phoenix docs)
 
-> *"Vertex AI framework aggressively manages the OpenTelemetry global state. To prevent trace loss, the agent module must use `set_global_tracer_provider=False` when registering Phoenix, along with `batch=False` for synchronous exports."*
+> _"Vertex AI framework aggressively manages the OpenTelemetry global state. To prevent trace loss, the agent module must use `set_global_tracer_provider=False` when registering Phoenix, along with `batch=False` for synchronous exports."_
 
 ChaosLab deploys to **Cloud Run, not Agent Engine** (per our architecture.md). So the global-state gotcha is FYI only. But the singleton guard pattern in `instrumentation.py` is worth copying verbatim — prevents accidental re-registration in any environment.
 
@@ -360,6 +371,7 @@ def setup_tracing() -> Optional[Any]:
 **Story:** S0.5 (Phoenix MCP wiring) or whichever story sets up dev-loop tooling
 
 Copy verbatim, but:
+
 - Replace `--baseUrl` with our actual Phoenix space hostname (env-substituted, not committed)
 - Add a third MCP server entry for `gitlab` (per ADR-011, MR-emission path) pointing to `https://gitlab.com/api/v4/mcp`
 - DO NOT commit a real `--apiKey`. Use `${PHOENIX_API_KEY}` or document the `export` step in our README
@@ -410,6 +422,7 @@ Both the CLI entrypoint AND the agent module itself load `.env` defensively. Thi
 ### COPY-8 — `pyproject.toml` dep set as our floor
 
 The quickstart's deps map cleanly onto ours, plus extras:
+
 - `openinference-instrumentation-google-adk>=0.1.11` ✓ (CLAUDE.md aligned)
 - `google-adk>=1.32.0` — note: quickstart pins 1.32, our spec pins `google-adk>=2.1.0,<3.0.0` per CLAUDE.md/ADR-012. **There's a 1.x → 2.x divergence. See §7.**
 - `google-genai>=1.9.0` ✓
@@ -440,7 +453,7 @@ These are quickstart choices that conflict with our spec or are deliberate short
 **Source:** `pyproject.toml` line 9
 **Conflict:** Our spec pins `google-adk>=2.1.0,<3.0.0` (CLAUDE.md, ADR-012). The quickstart is on the 1.x line and predates the 2.x release that includes our required `[a2a]` extra and the deprecated-but-needed `SequentialAgent` shape.
 **Action:** Use `google-adk[a2a]>=2.1.0,<3.0.0`. Do NOT explicitly pin `a2a-sdk` (per CLAUDE.md gotcha — explicit pin breaks `uv sync`; transitive resolution to `a2a-sdk<0.4` is correct).
-**Caveat:** the `auto_instrument=True` pattern in the quickstart works on 1.32 and *should* work on 2.x — but `openinference-instrumentation-google-adk` version compatibility needs verification. CLAUDE.md says `>=0.1.11`; check during S1 / S1.5 whether a newer version (e.g. `>=0.2.x`) is needed for ADK 2.x.
+**Caveat:** the `auto_instrument=True` pattern in the quickstart works on 1.32 and _should_ work on 2.x — but `openinference-instrumentation-google-adk` version compatibility needs verification. CLAUDE.md says `>=0.1.11`; check during S1 / S1.5 whether a newer version (e.g. `>=0.2.x`) is needed for ADK 2.x.
 
 ### NOT-4 — `InMemoryRunner` for the production hot path
 
@@ -451,8 +464,8 @@ These are quickstart choices that conflict with our spec or are deliberate short
 ### NOT-5 — `mini_webshop.py` in-memory catalog as the target agent
 
 **Source:** all of `agent/shopping_demo/mini_webshop.py`
-**Conflict:** CLAUDE.md hard rule §14 — *"No mocks in submitted hot path. Real Phoenix, real Gemini, real target."* The mini webshop is explicitly a mock (README §1: *"This repo uses a tiny in-memory catalog so you can run locally in minutes"*).
-**Action:** ChaosLab's `target-agent` Cloud Run service must be a real agent doing a real task (per spec, it's the ADK agent under test — likely the personalized-shopping ADK sample at full fidelity, OR a domain-relevant ADK agent we author). The quickstart's mini_webshop pattern (`get_webshop_env()` singleton with `step()` interface) is fine *as a test fixture for chaos injection unit tests*, but never as the demo'd target.
+**Conflict:** CLAUDE.md hard rule §14 — _"No mocks in submitted hot path. Real Phoenix, real Gemini, real target."_ The mini webshop is explicitly a mock (README §1: _"This repo uses a tiny in-memory catalog so you can run locally in minutes"_).
+**Action:** ChaosLab's `target-agent` Cloud Run service must be a real agent doing a real task (per spec, it's the ADK agent under test — likely the personalized-shopping ADK sample at full fidelity, OR a domain-relevant ADK agent we author). The quickstart's mini*webshop pattern (`get_webshop_env()` singleton with `step()` interface) is fine \_as a test fixture for chaos injection unit tests*, but never as the demo'd target.
 
 ### NOT-6 — README upstream credit suggestion ("replace mini_webshop with the full WebShop stack")
 
@@ -475,7 +488,7 @@ The quickstart commits `"--apiKey", ""` and expects users to edit. Worse than en
 ### NOT-10 — Discarding all events from `runner.run_async`
 
 **Source:** `agent/main.py` lines 38–43 — `async for _ in runner.run_async(...): pass`
-**Why this is wrong for us:** Quickstart only cares about side effects (spans). ChaosLab's orchestrator needs to *inspect* events in-flight to detect when a fault should fire (e.g. inject rate-limit before the 3rd tool call). Hold onto events: `async for event in runner.run_async(...): chaos_state.observe(event)`.
+**Why this is wrong for us:** Quickstart only cares about side effects (spans). ChaosLab's orchestrator needs to _inspect_ events in-flight to detect when a fault should fire (e.g. inject rate-limit before the 3rd tool call). Hold onto events: `async for event in runner.run_async(...): chaos_state.observe(event)`.
 
 ---
 
@@ -486,6 +499,7 @@ This is our differentiation. None of this is in the quickstart.
 ### ADDS-1 — Chaos engineering / fault injection (F1–F4)
 
 The whole core. Quickstart has zero fault injection. ChaosLab introduces:
+
 - **F1 Prompt injection** — adversarial inputs in tool returns
 - **F2 Rate-limit / latency spikes** — simulated 429s and 5s+ tool delays
 - **F3 Tool errors** — schema mismatches, 500s, partial failures
@@ -507,6 +521,7 @@ assert spans.shape[0] >= 5  # agent did not silently give up after the fault
 ### ADDS-3 — Closed self-improvement loop
 
 The bonus criterion. Quickstart leaves it as human-in-the-loop via Gemini CLI. ChaosLab's orchestrator:
+
 1. Runs target agent under fault
 2. Phoenix captures the failure traces
 3. Judge LLM evaluates the trace via `arize-phoenix-evals` → score

@@ -1,0 +1,91 @@
+version: 2
+
+# Dependabot watches dependency revs across all our package managers and
+# opens PRs when newer versions are available. Catches the kind of drift
+# that bit us on PR #47: pre-commit ruff was pinned at v0.8.0 while the
+# project lockfile was on v0.15.16 — Dependabot's pre-commit ecosystem
+# would have surfaced this as an upgrade PR weeks ago.
+
+updates:
+  # GitHub Actions used in .github/workflows/*.yaml
+  # (astral-sh/setup-uv, pnpm/action-setup, actions/checkout, etc.)
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: chore(ci)
+    labels:
+      - dependencies
+      - github-actions
+
+  # Pre-commit hook revs in .pre-commit-config.yaml
+  # (the exact thing that bit us — ruff hook out-of-sync with project ruff)
+  - package-ecosystem: pre-commit
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: chore(precommit)
+    labels:
+      - dependencies
+      - pre-commit
+
+  # uv-managed Python dependencies (pyproject.toml + uv.lock at repo root)
+  - package-ecosystem: uv
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: chore(deps)
+    labels:
+      - dependencies
+      - python
+    # Pinned by ADR-007: model IDs are project policy, not Dependabot's call.
+    # Same for google-adk (ADR-012 pins the major to <3.0.0).
+    ignore:
+      - dependency-name: "google-adk"
+        update-types: ["version-update:semver-major"]
+
+  # pnpm workspace at repo root (chaoslab-web)
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: chore(deps-web)
+    labels:
+      - dependencies
+      - typescript
+
+  # Dockerfile-based dependencies (target-agent + chaoslab-agent images)
+  - package-ecosystem: docker
+    directory: /apps/target-agent
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 3
+    commit-message:
+      prefix: chore(docker-target)
+    labels:
+      - dependencies
+      - docker
+  - package-ecosystem: docker
+    directory: /apps/chaoslab-agent
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 3
+    commit-message:
+      prefix: chore(docker-agent)
+    labels:
+      - dependencies
+      - docker

@@ -163,7 +163,7 @@ def main() -> int:  # noqa: PLR0912, PLR0915 — research smoke script; refactor
         tp.force_flush(timeout_millis=10_000)
 
         # Verify Phoenix-side
-        import requests  # noqa: PLC0415 — local import keeps cold-start optional dep
+        import requests
 
         headers = {"Authorization": f"Bearer {API_KEY}"}
         base = ENDPOINT.rstrip("/")

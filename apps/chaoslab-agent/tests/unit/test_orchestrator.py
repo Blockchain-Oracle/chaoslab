@@ -79,9 +79,9 @@ def test_all_sub_agents_use_locked_judge_llm() -> None:
     from chaoslab_agent.orchestrator import build_orchestrator
 
     for a in _llm_sub_agents(build_orchestrator()):
-        assert (
-            a.model == JUDGE_LLM_LOCKED
-        ), f"{a.name} model = {a.model!r}, expected {JUDGE_LLM_LOCKED!r}"
+        assert a.model == JUDGE_LLM_LOCKED, (
+            f"{a.name} model = {a.model!r}, expected {JUDGE_LLM_LOCKED!r}"
+        )
 
 
 def test_sub_agent_output_keys_match_contract() -> None:
@@ -133,9 +133,9 @@ def test_sub_agent_instructions_are_stub_marked() -> None:
 
     for a in _llm_sub_agents(build_orchestrator()):
         instruction = _instruction_str(a)
-        assert instruction.startswith(
-            "STUB:"
-        ), f"{a.name} instruction missing STUB: prefix: {instruction[:60]!r}"
+        assert instruction.startswith("STUB:"), (
+            f"{a.name} instruction missing STUB: prefix: {instruction[:60]!r}"
+        )
 
 
 # --- Trace-as-assertion (story-4.2 BDD criterion 5, PRIMARY correctness signal) --
@@ -226,9 +226,9 @@ async def test_orchestrator_emits_three_ordered_agent_spans(  # noqa: PLR0915 â€
             by_agent.setdefault(agent_name, []).append(s)
 
     # 1. Exactly one orchestrator-named span (the parent of the chain).
-    assert (
-        ORCHESTRATOR_NAME in by_agent
-    ), f"no span carried agent.name={ORCHESTRATOR_NAME!r}; saw: {sorted(by_agent)}"
+    assert ORCHESTRATOR_NAME in by_agent, (
+        f"no span carried agent.name={ORCHESTRATOR_NAME!r}; saw: {sorted(by_agent)}"
+    )
     orch_spans = by_agent[ORCHESTRATOR_NAME]
     assert len(orch_spans) == 1, f"expected 1 orchestrator span, got {len(orch_spans)}"
     parent = orch_spans[0]
@@ -249,9 +249,9 @@ async def test_orchestrator_emits_three_ordered_agent_spans(  # noqa: PLR0915 â€
     for child in children:
         attrs = dict(child.attributes or {})
         kind = attrs.get("openinference.span.kind")
-        assert (
-            kind == "AGENT"
-        ), f"{attrs.get('agent.name')!r} span.kind = {kind!r}, expected 'AGENT'"
+        assert kind == "AGENT", (
+            f"{attrs.get('agent.name')!r} span.kind = {kind!r}, expected 'AGENT'"
+        )
 
     # 4. Sequential execution proven: each child starts AFTER its predecessor ends.
     # Pairwise across all adjacent children â€” a parallel runtime could otherwise

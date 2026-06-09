@@ -237,9 +237,9 @@ async def test_wrapper_429_retries_three_times_total(
 
     result = await mod.run_phoenix_experiment("ds", ["t"])
     assert result.experiment_id == "exp_retry123"
-    assert (
-        call_count["n"] == 1
-    ), "Wrapper must hand off to SDK exactly once; SDK owns the internal retry loop."
+    assert call_count["n"] == 1, (
+        "Wrapper must hand off to SDK exactly once; SDK owns the internal retry loop."
+    )
 
 
 @pytest.mark.parametrize("status_code", [429, 500, 503])
@@ -361,9 +361,9 @@ async def test_elapsed_seconds_backfilled_when_sdk_returns_zero(
     monkeypatch.setitem(mod._EVALUATOR_REGISTRY, "t", object())
 
     result = await mod.run_phoenix_experiment("ds", ["t"])
-    assert (
-        result.elapsed_seconds > 0.0
-    ), f"backfill should produce a non-zero elapsed (got {result.elapsed_seconds!r})"
+    assert result.elapsed_seconds > 0.0, (
+        f"backfill should produce a non-zero elapsed (got {result.elapsed_seconds!r})"
+    )
 
 
 def test_scrub_secret_redacts_keyword_adjacent_tokens(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -380,9 +380,9 @@ def test_scrub_secret_redacts_keyword_adjacent_tokens(monkeypatch: pytest.Monkey
         scrubbed = _scrub_secret(original, settings=None)
         assert "<redacted>" in scrubbed, original
         # Regression guard: the actual secret token must be absent post-scrub.
-        assert (
-            "abcdefghijkl" not in scrubbed
-        ), f"keyword-adjacent token leaked through scrub: {scrubbed!r}"
+        assert "abcdefghijkl" not in scrubbed, (
+            f"keyword-adjacent token leaked through scrub: {scrubbed!r}"
+        )
 
 
 def test_scrub_secret_reverse_scrubs_literal_configured_key(
@@ -397,9 +397,9 @@ def test_scrub_secret_reverse_scrubs_literal_configured_key(
 
     leaked = "connection refused; debug context test-phoenix-key-DO-NOT-LEAK in payload"
     scrubbed = _scrub_secret(leaked)  # uses get_settings() under the hood
-    assert (
-        "test-phoenix-key-DO-NOT-LEAK" not in scrubbed
-    ), f"literal key leaked through reverse-scrub: {scrubbed!r}"
+    assert "test-phoenix-key-DO-NOT-LEAK" not in scrubbed, (
+        f"literal key leaked through reverse-scrub: {scrubbed!r}"
+    )
     assert "<redacted>" in scrubbed
 
 
