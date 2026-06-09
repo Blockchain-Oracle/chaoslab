@@ -21,8 +21,17 @@ def main() -> int:
     out_path = REPO_ROOT / "packages/shared-types/hardening-recipe.json"
     out_path.parent.mkdir(parents=True, exist_ok=True)
     # sort_keys gives deterministic diffs; trailing newline keeps editors quiet.
-    out_path.write_text(json.dumps(schema, indent=2, sort_keys=True) + "\n", encoding="utf-8")
-    sys.stdout.write(f"wrote {out_path}\n")
+    expected = json.dumps(schema, indent=2, sort_keys=True) + "\n"
+    out_path.write_text(expected, encoding="utf-8")
+    # Round-trip read to surface CRLF / encoding / umask corruption before
+    # the script reports success.
+    actual = out_path.read_text(encoding="utf-8")
+    if actual != expected:
+        sys.stderr.write(f"::error::export wrote corrupted bytes (umask/CRLF?) at {out_path}\n")
+        return 1
+    # Use stderr for the success line so the script stays quiet on stdout
+    # when wired into pre-commit hooks.
+    sys.stderr.write(f"wrote {out_path}\n")
     return 0
 
 

@@ -7,8 +7,10 @@ from pydantic import ValidationError
 
 from chaoslab_agent.patcher.recipe import (
     FailureCluster,
+    FailureClusterSet,
     HardeningRecipe,
     PromptPatch,
+    RegressionTestCase,
     ToolValidationDiff,
     new_recipe_id,
 )
@@ -24,12 +26,16 @@ def _cluster() -> FailureCluster:
     )
 
 
+def _cluster_set() -> FailureClusterSet:
+    return FailureClusterSet(clusters=[_cluster()], total_failures=1)
+
+
 def _recipe(**overrides: object) -> HardeningRecipe:
     base: dict[str, object] = {
         "recipe_id": "recipe_abc123def456",
         "target_agent_id": "target_customer_support",
         "generated_at": "2026-06-02T14:30:00Z",
-        "cluster_set": [_cluster()],
+        "cluster_set": _cluster_set(),
         "estimated_resilience_improvement": 0.46,
     }
     base.update(overrides)
@@ -86,6 +92,82 @@ def test_recipe_is_frozen() -> None:
 def test_recipe_requires_at_least_one_cluster() -> None:
     with pytest.raises(ValidationError):
         _recipe(cluster_set=[])
+
+
+def test_recipe_rejects_thirteen_char_recipe_id() -> None:
+    # Regex `^recipe_[a-z0-9]{12}$` must reject above-boundary too, not just
+    # below — the `$` anchor is the load-bearing piece.
+    with pytest.raises(ValidationError):
+        _recipe(recipe_id="recipe_abc123def4567")
+
+
+def test_recipe_rejects_empty_target_agent_id() -> None:
+    with pytest.raises(ValidationError):
+        _recipe(target_agent_id="")
+
+
+def test_recipe_defaults_when_optional_lists_omitted() -> None:
+    r = _recipe()
+    assert r.prompt_patches == []
+    assert r.tool_validation_diffs == []
+    assert r.regression_test_cases == []
+    assert r.metadata == {}
+
+
+def test_recipe_rejects_non_iso_8601_generated_at() -> None:
+    with pytest.raises(ValidationError, match="ISO 8601"):
+        _recipe(generated_at="NOT_A_DATE")
+
+
+def test_recipe_rejects_garbage_short_generated_at() -> None:
+    with pytest.raises(ValidationError, match="ISO 8601"):
+        _recipe(generated_at="x")
+
+
+def test_recipe_rejects_impossible_day_number_in_generated_at() -> None:
+    with pytest.raises(ValidationError, match="ISO 8601"):
+        _recipe(generated_at="2026-06-32T14:30:00Z")
+
+
+def test_recipe_accepts_offset_form_generated_at() -> None:
+    r = _recipe(generated_at="2026-06-02T14:30:00+02:00")
+    assert r.generated_at == "2026-06-02T14:30:00+02:00"
+
+
+def test_recipe_rejects_metadata_shadowing_top_level_field() -> None:
+    with pytest.raises(ValidationError, match="shadow top-level"):
+        _recipe(metadata={"recipe_id": "tampered"})
+
+
+def test_recipe_metadata_with_safe_keys_passes() -> None:
+    r = _recipe(metadata={"cycle_id": "x", "audit_round": 3})
+    assert r.metadata == {"cycle_id": "x", "audit_round": 3}
+
+
+def test_recipe_rejects_partition_violating_cluster_set() -> None:
+    # The clusterer's FailureClusterSet enforces span_id mutual exclusion
+    # — re-using it on the recipe means a partition violation here is
+    # caught before the recipe is signed.
+    with pytest.raises(ValidationError, match="multiple clusters"):
+        FailureClusterSet(
+            clusters=[
+                FailureCluster(
+                    cluster_id="cluster_aaaaaaaa",
+                    root_cause="r1",
+                    failure_count=1,
+                    span_ids=["dupe"],
+                    fault_classes=["malformed_tool_output"],
+                ),
+                FailureCluster(
+                    cluster_id="cluster_bbbbbbbb",
+                    root_cause="r2",
+                    failure_count=1,
+                    span_ids=["dupe"],
+                    fault_classes=["prompt_injection"],
+                ),
+            ],
+            total_failures=2,
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -210,3 +292,69 @@ def test_failure_cluster_accepts_all_four_fault_classes() -> None:
         ],
     )
     assert len(c.fault_classes) == 4
+
+
+def test_failure_cluster_rejects_unknown_fault_class_value() -> None:
+    # Symmetry with PromptPatch.section / ToolValidationDiff.operation
+    # negative tests — a future FaultClass drift would surface here.
+    with pytest.raises(ValidationError):
+        FailureCluster(
+            cluster_id="cluster_a3f7b2c1",
+            root_cause="multi-cause",
+            failure_count=1,
+            span_ids=["s1"],
+            fault_classes=["sql_injection"],  # ty: ignore[invalid-argument-type]
+        )
+
+
+# ---------------------------------------------------------------------------
+# RegressionTestCase
+# ---------------------------------------------------------------------------
+
+
+def test_regression_test_case_accepts_required_keys() -> None:
+    r = RegressionTestCase(input="lookup X", expected="graceful fallback")
+    assert r.input == "lookup X"
+    assert r.expected == "graceful fallback"
+
+
+def test_regression_test_case_rejects_empty_input() -> None:
+    with pytest.raises(ValidationError):
+        RegressionTestCase(input="", expected="ok")
+
+
+def test_regression_test_case_rejects_empty_expected() -> None:
+    with pytest.raises(ValidationError):
+        RegressionTestCase(input="lookup X", expected="")
+
+
+def test_regression_test_case_allows_phoenix_extra_metadata() -> None:
+    # `extra="allow"` keeps Phoenix dataset metadata round-tripping without
+    # forcing the schema to know every downstream column.
+    r = RegressionTestCase(
+        input="x",
+        expected="y",
+        tags=["smoke"],  # ty: ignore[unknown-argument]
+    )
+    assert r.input == "x"
+
+
+# ---------------------------------------------------------------------------
+# Frozen sub-types — protect signed-artifact invariants
+# ---------------------------------------------------------------------------
+
+
+def test_prompt_patch_is_frozen() -> None:
+    p = PromptPatch(section="system_prompt", operation="insert", after="x")
+    with pytest.raises(ValidationError):
+        p.after = "tampered"  # type: ignore[misc]
+
+
+def test_tool_validation_diff_is_frozen() -> None:
+    t = ToolValidationDiff(
+        tool_name="lookup_order",
+        operation="add_input_validator",
+        code_patch="--- a\n+++ b\n@@ ...",
+    )
+    with pytest.raises(ValidationError):
+        t.tool_name = "tampered"  # type: ignore[misc]

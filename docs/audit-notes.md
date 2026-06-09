@@ -292,6 +292,16 @@ Phoenix by trace_id at scoring time).
   relying on adapter-returned child span IDs. The single outer span ID is enough
   to anchor the trace.
 
+### IF-11 — `HardeningRecipe` re-uses `FailureClusterSet` instead of re-defining `FailureCluster` inline (S6.3, PR #68)
+
+**Discovered in:** S6.3 PR #68 review. The story spec (lines 208-220) defines `FailureCluster` inline in `patcher/recipe.py`. The implementation instead re-exports `FailureCluster` + `FailureClusterSet` from `chaoslab_agent.judge.clustering` and types `HardeningRecipe.cluster_set: FailureClusterSet` (not `list[FailureCluster]`).
+
+**Why the deviation:** typing `cluster_set` as a bare list silently bypasses the clusterer's `_mutually_exclusive_partition` invariant (span_id uniqueness + sum==total + ≤5 clusters + unique cluster_ids). The recipe artifact is regulator-facing and signed — accepting a list-shaped partition that the clusterer would have rejected is the exact "lying via valid data" failure mode flagged in PRs #42, #44, #45, #67. Re-using `FailureClusterSet` keeps the partition guarantee inside the recipe schema.
+
+**Implication for S6.4 (Patcher sub-agent):** consume the existing types — do NOT re-define `FailureCluster`/`FailureClusterSet` inline. The Patcher receives a `FailureClusterSet` from S6.2's `run_clustering` and stores it on the recipe unchanged. If a future need surfaces for "subset of patched failures" (vs the full clusterer output), add a sibling `patched_span_ids: list[str]` field; do NOT mutate the cluster set.
+
+**Implication for S6.5 / S6.6 (emitters):** the exported JSON Schema (`packages/shared-types/hardening-recipe.json`) carries `FailureClusterSet` as a `$defs` entry. Frontend types generated from the JSON Schema will mirror the partition invariant — the TypeScript side gets the same guarantees.
+
 ### IF-7 — 400-line rule scope ambiguity for `docs/` (S1.2, PR #2 code-reviewer)
 
 **Discovered in:** S1.2 PR #2 review. After the prettier reformat (`f87ff0f`), 2 docs crossed the 400-line threshold and 2 already-oversized docs got slightly worse via table-padding. CLAUDE.md L44 says "No file >400 lines (Python, TS, JSX, Markdown)" — Markdown explicitly in scope. But `docs/coding-standards.md` L12 narrows enforcement to `apps/`, `packages/`, `scripts/`.

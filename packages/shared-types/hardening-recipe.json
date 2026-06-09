@@ -50,8 +50,37 @@
       "title": "FailureCluster",
       "type": "object"
     },
+    "FailureClusterSet": {
+      "properties": {
+        "clusterer_model": {
+          "const": "gemini-3.5-flash",
+          "default": "gemini-3.5-flash",
+          "title": "Clusterer Model",
+          "type": "string"
+        },
+        "clusters": {
+          "items": {
+            "$ref": "#/$defs/FailureCluster"
+          },
+          "maxItems": 5,
+          "minItems": 1,
+          "title": "Clusters",
+          "type": "array"
+        },
+        "total_failures": {
+          "minimum": 1,
+          "title": "Total Failures",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "clusters",
+        "total_failures"
+      ],
+      "title": "FailureClusterSet",
+      "type": "object"
+    },
     "PromptPatch": {
-      "description": "Edit to a target agent's prompt \u2014 system / tool / few-shot.",
       "properties": {
         "after": {
           "minLength": 1,
@@ -97,8 +126,29 @@
       "title": "PromptPatch",
       "type": "object"
     },
+    "RegressionTestCase": {
+      "additionalProperties": true,
+      "description": "One Phoenix-dataset regression row.\n\nThe Phoenix dataset shape (architecture/04 \u00a76.3) requires `input` +\n`expected`; the typed model keeps a typo from silently landing in\nthe signed report. Additional Phoenix metadata stays in `extra`.",
+      "properties": {
+        "expected": {
+          "minLength": 1,
+          "title": "Expected",
+          "type": "string"
+        },
+        "input": {
+          "minLength": 1,
+          "title": "Input",
+          "type": "string"
+        }
+      },
+      "required": [
+        "input",
+        "expected"
+      ],
+      "title": "RegressionTestCase",
+      "type": "object"
+    },
     "ToolValidationDiff": {
-      "description": "Unified-diff patch hardening a target tool.",
       "properties": {
         "code_patch": {
           "minLength": 1,
@@ -130,15 +180,9 @@
       "type": "object"
     }
   },
-  "description": "Signed, regulator-facing recipe the Patcher emits per audit cycle.",
   "properties": {
     "cluster_set": {
-      "items": {
-        "$ref": "#/$defs/FailureCluster"
-      },
-      "minItems": 1,
-      "title": "Cluster Set",
-      "type": "array"
+      "$ref": "#/$defs/FailureClusterSet"
     },
     "estimated_resilience_improvement": {
       "maximum": 1.0,
@@ -170,8 +214,7 @@
     },
     "regression_test_cases": {
       "items": {
-        "additionalProperties": true,
-        "type": "object"
+        "$ref": "#/$defs/RegressionTestCase"
       },
       "title": "Regression Test Cases",
       "type": "array"
