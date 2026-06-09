@@ -49,6 +49,17 @@ class Settings(BaseSettings):
         default=JUDGE_LLM_LOCKED,
         description="Locked to 'gemini-3.5-flash' per ADR-007 + CLAUDE.md hard rule.",
     )
+    LATENCY_SLA_MS: float = Field(
+        default=5000.0,
+        gt=0.0,
+        description="Per-tool latency SLA in ms. F4 rubric scores against this threshold.",
+    )
+
+    @property
+    def JUDGE_LLM(self) -> str:  # noqa: N802 — uppercase per story-6.1 spec convention
+        """Spec alias for ``judge_llm`` — exposes the locked judge model under the
+        uppercase name story-6.1's BDD checks via ``get_settings().JUDGE_LLM``."""
+        return self.judge_llm
 
     target_default_url: str = Field(
         default="http://localhost:8001",
