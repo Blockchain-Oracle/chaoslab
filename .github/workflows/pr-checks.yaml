@@ -1,0 +1,155 @@
+name: pr-checks
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+# Cancel superseded runs on force-push to a PR — saves cost.
+concurrency:
+  group: pr-checks-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  detect-changes:
+    runs-on: ubuntu-latest
+    outputs:
+      python: ${{ steps.filter.outputs.python }}
+      ts: ${{ steps.filter.outputs.ts }}
+      infra: ${{ steps.filter.outputs.infra }}
+      shared: ${{ steps.filter.outputs.shared }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: filter
+        uses: dorny/paths-filter@v3
+        with:
+          filters: |
+            python:
+              - 'apps/chaoslab-agent/**'
+              - 'apps/target-agent/**'
+              - 'pyproject.toml'
+              - 'uv.lock'
+            ts:
+              - 'apps/chaoslab-web/**'
+              - 'package.json'
+              - 'pnpm-lock.yaml'
+            infra:
+              - '.github/**'
+              - 'scripts/**'
+            shared:
+              - 'docs/**'
+              - 'CLAUDE.md'
+
+  python-quality:
+    needs: detect-changes
+    if: needs.detect-changes.outputs.python == 'true' || needs.detect-changes.outputs.shared == 'true' || needs.detect-changes.outputs.infra == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+          cache-dependency-glob: '**/uv.lock'
+      - name: Install Python via uv
+        run: uv python install 3.12
+      - name: uv sync
+        run: uv sync --frozen --all-extras
+      - name: ruff check
+        run: uv run ruff check .
+      - name: ruff format --check
+        run: uv run ruff format --check .
+      - name: ty check
+        run: uv run ty check apps/chaoslab-agent apps/target-agent
+
+  ts-quality:
+    needs: detect-changes
+    if: needs.detect-changes.outputs.ts == 'true' || needs.detect-changes.outputs.shared == 'true' || needs.detect-changes.outputs.infra == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'pnpm'
+          cache-dependency-path: pnpm-lock.yaml
+      - name: pnpm install
+        run: pnpm install --frozen-lockfile
+      - name: lint
+        run: pnpm lint
+      - name: format check
+        run: pnpm format:check
+      - name: typecheck
+        run: pnpm typecheck
+
+  max-lines-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: 400-line guard
+        run: python3 scripts/check_max_lines.py --strict
+
+  python-tests:
+    needs: python-quality
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+          cache-dependency-glob: '**/uv.lock'
+      - name: Install Python via uv
+        run: uv python install 3.12
+      - name: uv sync
+        run: uv sync --frozen --all-extras
+      - name: pytest (chaoslab-agent)
+        working-directory: apps/chaoslab-agent
+        run: uv run pytest tests/unit -v -m "not online"
+      - name: pytest (target-agent)
+        working-directory: apps/target-agent
+        run: uv run pytest tests/unit -v -m "not online"
+
+  ts-tests:
+    needs: ts-quality
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'pnpm'
+          cache-dependency-path: pnpm-lock.yaml
+      - name: pnpm install
+        run: pnpm install --frozen-lockfile
+      - name: test
+        run: pnpm test
+
+  gitleaks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  conventional-commits:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: webiny/action-conventional-commits@v1.3.0
