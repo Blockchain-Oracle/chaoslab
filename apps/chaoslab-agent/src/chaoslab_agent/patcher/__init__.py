@@ -3,6 +3,7 @@
 from chaoslab_agent.patcher.agent import (
     PATCHER_NAME,
     Patcher,
+    PatcherEmptyResponseError,
     build_patcher_agent,
     estimate_resilience_improvement,
 )
@@ -24,6 +25,7 @@ __all__ = [
     "FaultClass",
     "HardeningRecipe",
     "Patcher",
+    "PatcherEmptyResponseError",
     "PromptPatch",
     "RegressionTestCase",
     "ToolValidationDiff",

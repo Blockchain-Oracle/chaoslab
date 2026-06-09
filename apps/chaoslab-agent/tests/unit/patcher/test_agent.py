@@ -281,15 +281,15 @@ async def test_patcher_dispatches_in_parallel(
     per_cluster_response = _patch_for(["malformed_tool_output"])
     stub = _Scripted(
         {c.cluster_id: per_cluster_response for c in cs.clusters},
-        delay_s=0.1,
+        delay_s=0.2,
     )
     monkeypatch.setattr(patcher_module, "_call_patcher_llm", stub)
     start = asyncio.get_running_loop().time()
     recipe = await Patcher().run(cs, target_agent_id="target")
     elapsed = asyncio.get_running_loop().time() - start
-    # Sequential would be 5 * 0.1 = 0.5s; parallel ~0.1s. Allow up to 0.4s
-    # to keep the test stable on CI.
-    assert elapsed < 0.4, f"parallel dispatch too slow ({elapsed:.2f}s)"
+    # Sequential would be 5 x 0.2 = 1.0s; parallel ~0.2s. 0.7s budget gives
+    # > 200 ms of jitter headroom against a 500 ms parallel/serial gap.
+    assert elapsed < 0.7, f"parallel dispatch too slow ({elapsed:.2f}s)"
     assert len(recipe.cluster_set.clusters) == 5
 
 
@@ -417,3 +417,315 @@ def test_build_patcher_agent_still_exports() -> None:
     agent = build_patcher_agent()
     assert agent is not None
     assert PATCHER_NAME == "Patcher"
+
+
+# ---------------------------------------------------------------------------
+# Round-2 regression tests (PR #69 review findings)
+# ---------------------------------------------------------------------------
+
+
+async def test_null_payload_field_does_not_torpedo_recipe(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Gemini emits `{"prompt_patches": null, "tool_validation_diffs": []}`.
+    # Before the round-2 fix this raised TypeError from
+    # `[PromptPatch.model_validate(p) for p in body.get("prompt_patches", [])]`
+    # which escaped asyncio.gather and killed the whole run.
+    cs = FailureClusterSet(
+        clusters=[
+            _cluster(
+                "cluster_aaaaaaaa",
+                ["0000000000000001"],
+                ["malformed_tool_output"],
+            )
+        ],
+        total_failures=1,
+    )
+    stub = _Scripted(
+        {"cluster_aaaaaaaa": json.dumps({"prompt_patches": None, "tool_validation_diffs": []})}
+    )
+    monkeypatch.setattr(patcher_module, "_call_patcher_llm", stub)
+    recipe = await Patcher().run(cs, target_agent_id="target")
+    assert isinstance(recipe, HardeningRecipe)
+
+
+async def test_schema_invalid_response_triggers_retry(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # First response: well-formed JSON but pydantic-invalid (replace op
+    # without `before`). Second: valid. Asserts retry-on-ValidationError.
+    cs = FailureClusterSet(
+        clusters=[
+            _cluster(
+                "cluster_aaaaaaaa",
+                ["0000000000000001"],
+                ["malformed_tool_output"],
+            )
+        ],
+        total_failures=1,
+    )
+    bad = json.dumps(
+        {
+            "prompt_patches": [
+                {
+                    "section": "system_prompt",
+                    "operation": "replace",
+                    "before": None,
+                    "after": "x",
+                }
+            ],
+            "tool_validation_diffs": [],
+        }
+    )
+    good = _patch_for(["malformed_tool_output"])
+    call_count: dict[str, int] = {}
+
+    async def stub(prompt: str) -> str:
+        m = re.search(r"cluster_id:\s*(\S+)", prompt)
+        assert m
+        cid = m.group(1)
+        call_count[cid] = call_count.get(cid, 0) + 1
+        return bad if call_count[cid] == 1 else good
+
+    monkeypatch.setattr(patcher_module, "_call_patcher_llm", stub)
+    recipe = await Patcher().run(cs, target_agent_id="target")
+    assert call_count["cluster_aaaaaaaa"] == 2
+    assert not any(
+        cluster_id in (recipe.metadata.get("fallback_cluster_ids") or [])
+        for cluster_id in ["cluster_aaaaaaaa"]
+    )
+
+
+async def test_metadata_marks_fallback_cluster_ids(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Mixed run: cluster A real patch, cluster B falls back. The signed
+    # recipe must let regulators distinguish pseudoknowledge from real
+    # LLM output.
+    cs = FailureClusterSet(
+        clusters=[
+            _cluster("cluster_aaaaaaaa", ["0000000000000001"], ["malformed_tool_output"]),
+            _cluster("cluster_bbbbbbbb", ["0000000000000002"], ["prompt_injection"]),
+        ],
+        total_failures=2,
+    )
+    stub = _Scripted(
+        {
+            "cluster_aaaaaaaa": _patch_for(["malformed_tool_output"]),
+            "cluster_bbbbbbbb": "not json at all",
+        }
+    )
+    monkeypatch.setattr(patcher_module, "_call_patcher_llm", stub)
+    recipe = await Patcher().run(cs, target_agent_id="target")
+    assert recipe.metadata.get("fallback_cluster_ids") == ["cluster_bbbbbbbb"]
+
+
+async def test_happy_path_metadata_omits_fallback_field(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    cs = _cluster_set_3_clusters()
+    stub = _Scripted({c.cluster_id: _patch_for(c.fault_classes) for c in cs.clusters})
+    monkeypatch.setattr(patcher_module, "_call_patcher_llm", stub)
+    recipe = await Patcher().run(cs, target_agent_id="target")
+    assert "fallback_cluster_ids" not in recipe.metadata
+
+
+async def test_empty_gemini_response_short_circuits_to_fallback(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Safety-block / quota exhaustion returns empty. Patcher must NOT
+    # burn the retry budget — go straight to fallback.
+    cs = FailureClusterSet(
+        clusters=[_cluster("cluster_aaaaaaaa", ["0000000000000001"], ["malformed_tool_output"])],
+        total_failures=1,
+    )
+    call_count = {"n": 0}
+
+    async def stub(prompt: str) -> str:
+        call_count["n"] += 1
+        # Surface the typed exception the boundary raises on empty body.
+        from chaoslab_agent.patcher.agent import PatcherEmptyResponseError
+
+        raise PatcherEmptyResponseError("Gemini returned empty")
+
+    monkeypatch.setattr(patcher_module, "_call_patcher_llm", stub)
+    recipe = await Patcher().run(cs, target_agent_id="target")
+    assert call_count["n"] == 1  # NOT retried
+    assert recipe.metadata.get("fallback_cluster_ids") == ["cluster_aaaaaaaa"]
+
+
+async def test_transient_exception_consumes_retry_budget(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Network / 5xx — should retry, not short-circuit on first failure.
+    cs = FailureClusterSet(
+        clusters=[_cluster("cluster_aaaaaaaa", ["0000000000000001"], ["malformed_tool_output"])],
+        total_failures=1,
+    )
+    call_count = {"n": 0}
+    good = _patch_for(["malformed_tool_output"])
+
+    async def stub(prompt: str) -> str:
+        call_count["n"] += 1
+        if call_count["n"] == 1:
+            raise RuntimeError("transient 503")
+        return good
+
+    monkeypatch.setattr(patcher_module, "_call_patcher_llm", stub)
+    recipe = await Patcher().run(cs, target_agent_id="target")
+    assert call_count["n"] == 2
+    assert recipe.metadata.get("fallback_cluster_ids") is None
+
+
+async def test_fallback_section_is_fault_class_aware(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Latency fallback should NOT use system_prompt — that's semantically
+    # meaningless for a timeout/retry fix.
+    cs = FailureClusterSet(
+        clusters=[_cluster("cluster_aaaaaaaa", ["0000000000000001"], ["latency_spike"])],
+        total_failures=1,
+    )
+    stub = _Scripted({"cluster_aaaaaaaa": "not json"})
+    monkeypatch.setattr(patcher_module, "_call_patcher_llm", stub)
+    recipe = await Patcher().run(cs, target_agent_id="target")
+    fallback = recipe.prompt_patches[0]
+    assert fallback.section == "tool_description"
+    assert "timeout" in fallback.after.lower() or "retry" in fallback.after.lower()
+
+
+async def test_fallback_text_carries_cluster_id_signature(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Disambiguates fallback from a real Gemini response that happens to
+    # mention "root cause" in its prose.
+    cs = FailureClusterSet(
+        clusters=[_cluster("cluster_aaaaaaaa", ["0000000000000001"], ["prompt_injection"])],
+        total_failures=1,
+    )
+    stub = _Scripted({"cluster_aaaaaaaa": "not json"})
+    monkeypatch.setattr(patcher_module, "_call_patcher_llm", stub)
+    recipe = await Patcher().run(cs, target_agent_id="target")
+    assert "cluster_aaaaaaaa" in recipe.prompt_patches[0].after
+
+
+async def test_resilience_heuristic_pins_exact_value() -> None:
+    # Lock the weighting constants so a future refactor can't silently
+    # change 0.7·coverage + 0.3·density to something else.
+    from chaoslab_agent.judge.clustering import FailureClusterSet
+    from chaoslab_agent.patcher.agent import estimate_resilience_improvement
+    from chaoslab_agent.patcher.recipe import PromptPatch, ToolValidationDiff
+
+    cs = FailureClusterSet(
+        clusters=[
+            _cluster("cluster_aaaaaaaa", ["0000000000000001"], ["malformed_tool_output"]),
+            _cluster("cluster_bbbbbbbb", ["0000000000000002"], ["prompt_injection"]),
+        ],
+        total_failures=2,
+    )
+    patches = [
+        PromptPatch(section="system_prompt", operation="insert", after="x"),
+    ]
+    diffs = [
+        ToolValidationDiff(
+            tool_name="t",
+            operation="add_input_validator",
+            code_patch="--- a\n+++ b\n@@",
+        )
+    ]
+    # coverage = (1 unique section + 1 for diffs) / 2 = 1.0
+    # density  = (1 + 1) / (2 * 2) = 0.5
+    # score    = 0.7 + 0.15 = 0.85
+    assert estimate_resilience_improvement(cs, patches, diffs) == 0.85
+
+
+async def test_build_patcher_agent_exports_full_contract() -> None:
+    from chaoslab_agent.patcher import (
+        PATCHER_NAME,
+        build_patcher_agent,
+    )
+    from chaoslab_agent.patcher.agent import PATCHER_OUTPUT_KEY
+
+    agent = build_patcher_agent()
+    assert agent.name == PATCHER_NAME
+    assert agent.output_key == PATCHER_OUTPUT_KEY
+    settings = get_settings()
+    assert agent.model == settings.judge_llm
+
+
+# ---------------------------------------------------------------------------
+# Extra coverage (PR #69 suggestions)
+# ---------------------------------------------------------------------------
+
+
+async def test_single_cluster_carrying_all_four_fault_classes(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    cs = FailureClusterSet(
+        clusters=[
+            _cluster(
+                "cluster_aaaaaaaa",
+                ["0000000000000001"],
+                [
+                    "malformed_tool_output",
+                    "prompt_injection",
+                    "context_poisoning",
+                    "latency_spike",
+                ],
+            )
+        ],
+        total_failures=1,
+    )
+    # Construct a response that satisfies the multi-class cluster.
+    response = json.dumps(
+        {
+            "prompt_patches": [
+                {
+                    "section": "system_prompt",
+                    "operation": "insert",
+                    "before": None,
+                    "after": "Multi-class refusal + validation rules",
+                }
+            ],
+            "tool_validation_diffs": [
+                {
+                    "tool_name": "lookup_order",
+                    "operation": "add_retry_policy",
+                    "code_patch": "--- a\n+++ b\n@@ ...",
+                }
+            ],
+        }
+    )
+    stub = _Scripted({"cluster_aaaaaaaa": response})
+    monkeypatch.setattr(patcher_module, "_call_patcher_llm", stub)
+    recipe = await Patcher().run(cs, target_agent_id="target")
+    assert len(recipe.prompt_patches) == 1
+    assert len(recipe.tool_validation_diffs) == 1
+
+
+async def test_malformed_tool_output_fallback_uses_tool_description(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    cs = FailureClusterSet(
+        clusters=[_cluster("cluster_aaaaaaaa", ["0000000000000001"], ["malformed_tool_output"])],
+        total_failures=1,
+    )
+    stub = _Scripted({"cluster_aaaaaaaa": "not json"})
+    monkeypatch.setattr(patcher_module, "_call_patcher_llm", stub)
+    recipe = await Patcher().run(cs, target_agent_id="target")
+    fallback = recipe.prompt_patches[0]
+    assert fallback.section == "tool_description"
+
+
+async def test_prompt_injection_fallback_uses_system_prompt(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    cs = FailureClusterSet(
+        clusters=[_cluster("cluster_aaaaaaaa", ["0000000000000001"], ["prompt_injection"])],
+        total_failures=1,
+    )
+    stub = _Scripted({"cluster_aaaaaaaa": "not json"})
+    monkeypatch.setattr(patcher_module, "_call_patcher_llm", stub)
+    recipe = await Patcher().run(cs, target_agent_id="target")
+    fallback = recipe.prompt_patches[0]
+    assert fallback.section == "system_prompt"

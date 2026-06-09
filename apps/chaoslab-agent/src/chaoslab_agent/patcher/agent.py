@@ -12,6 +12,7 @@ from chaoslab_agent.adk_types import LlmAgent
 from chaoslab_agent.config import get_settings
 from chaoslab_agent.judge.clustering import FailureClusterSet
 from chaoslab_agent.judge.rubrics._llm import get_judge_llm
+from chaoslab_agent.patcher._fallback import PatcherEmptyResponseError, emit_fallback
 from chaoslab_agent.patcher._prompts import PER_CLUSTER_PATCHER_PROMPT, RETRY_PROMPT
 from chaoslab_agent.patcher.recipe import (
     FailureCluster,
@@ -27,17 +28,18 @@ logger = logging.getLogger(__name__)
 # JUDGE_LLM (ADR-007) is the locked model family.
 _JUDGE_MODEL_PREFIX = "gemini-3.5-flash"
 
-# Max retries before falling back to a generic prompt patch so the demo
-# completes even when Gemini emits unparseable JSON.
-_MAX_RETRIES = 2
+# Bounded attempts before falling back to a generic patch; keeps a recipe
+# shippable when Gemini emits unparseable JSON.
+_MAX_ATTEMPTS = 3  # 1 initial + 2 retries
 
-# Truncate raw LLM payloads in logs so debug output stays manageable.
+# Truncate raw LLM payloads in logs so observability stays manageable.
 _RAW_LOG_LIMIT = 500
 
 
 # ---------------------------------------------------------------------------
-# Existing orchestrator pipeline factory (S4.x) — preserved for the
-# SequentialAgent contract; S6.4 adds the standalone Patcher class below.
+# Orchestrator pipeline factory — used by the SequentialAgent contract; the
+# standalone Patcher class below is called directly by orchestrator-bypassed
+# audit runs.
 # ---------------------------------------------------------------------------
 
 PATCHER_NAME = "Patcher"
@@ -73,12 +75,17 @@ def build_patcher_agent() -> LlmAgent:
 async def _call_patcher_llm(prompt: str) -> str:
     llm = get_judge_llm()
     response = await llm.async_generate_text(prompt=prompt, temperature=0.2)
+    # Safety-block / quota exhaustion returns empty body; raising a typed
+    # exception stops retries burning Gemini quota
+    # (consistent with judge.clustering._call_clusterer).
+    if not response or not str(response).strip():
+        msg = "Gemini returned an empty response (likely safety-block or quota)"
+        raise PatcherEmptyResponseError(msg)
     return str(response)
 
 
 # ---------------------------------------------------------------------------
-# Resilience heuristic — public so tests can exercise it without
-# constructing a full Patcher.
+# Resilience heuristic — public so callers can score recipes before signing.
 # ---------------------------------------------------------------------------
 
 
@@ -87,12 +94,7 @@ def estimate_resilience_improvement(
     patches: list[PromptPatch],
     diffs: list[ToolValidationDiff],
 ) -> float:
-    """Heuristic in [0.0, 1.0]: cluster coverage x patch density.
-
-    coverage = unique patch sections + (1 if any diffs) capped at n_clusters.
-    density  = (len(patches) + len(diffs)) / (2 x n_clusters), capped at 1.
-    score    = 0.7 x coverage + 0.3 x density, rounded to 3 dp.
-    """
+    """Heuristic in [0.0, 1.0]: 0.7·coverage + 0.3·density, rounded to 3 dp."""
     n_clusters = len(cluster_set.clusters)
     if n_clusters == 0:
         return 0.0
@@ -109,13 +111,7 @@ def estimate_resilience_improvement(
 
 
 class Patcher:
-    """Generates a HardeningRecipe from a FailureClusterSet.
-
-    Per cluster: one Gemini 3.5 Flash call (ADR-007) producing structured
-    JSON with a prompt_patch + optional tool_validation_diff. Per-cluster
-    calls run in parallel via asyncio.gather. Aggregation builds the
-    canonical recipe.
-    """
+    """Builds a HardeningRecipe from a FailureClusterSet via parallel per-cluster calls."""
 
     async def run(
         self,
@@ -130,21 +126,46 @@ class Patcher:
             )
             raise RuntimeError(msg)
 
-        # asyncio.gather propagates the first exception — catching here
-        # lets one cluster's Gemini failure not torpedo the whole recipe.
-        per_cluster = await asyncio.gather(
+        # Per-cluster try/except in _patch_one_cluster ensures one cluster's
+        # Gemini failure does not torpedo the whole recipe; gather here uses
+        # return_exceptions=True so even an unexpected helper exception
+        # (e.g. future prompt-template KeyError) is contained per cluster.
+        outcomes = await asyncio.gather(
             *(_patch_one_cluster(c) for c in cluster_set.clusters),
-            return_exceptions=False,
+            return_exceptions=True,
         )
 
         all_patches: list[PromptPatch] = []
         all_diffs: list[ToolValidationDiff] = []
-        for patches, diffs in per_cluster:
+        fallback_cluster_ids: list[str] = []
+        for cluster, outcome in zip(cluster_set.clusters, outcomes, strict=True):
+            if isinstance(outcome, BaseException):
+                logger.exception(
+                    "patcher cluster_id=%s helper raised; emitting fallback",
+                    cluster.cluster_id,
+                    exc_info=outcome,
+                )
+                patches, diffs, was_fallback = emit_fallback(cluster), [], True
+            else:
+                patches, diffs, was_fallback = outcome
             all_patches.extend(patches)
             all_diffs.extend(diffs)
+            if was_fallback:
+                fallback_cluster_ids.append(cluster.cluster_id)
 
         score = estimate_resilience_improvement(cluster_set, all_patches, all_diffs)
         regression_tests = _build_regression_cases(cluster_set)
+
+        metadata: dict[str, Any] = {
+            "clusterer_model": cluster_set.clusterer_model,
+            "patcher_model": _JUDGE_MODEL_PREFIX,
+            "total_failures": cluster_set.total_failures,
+        }
+        # Audit-fidelity: regulators need to tell pseudoknowledge patches
+        # from real LLM-generated ones. Only include when non-empty so the
+        # happy-path metadata stays terse.
+        if fallback_cluster_ids:
+            metadata["fallback_cluster_ids"] = fallback_cluster_ids
 
         return HardeningRecipe(
             recipe_id=new_recipe_id(),
@@ -155,11 +176,7 @@ class Patcher:
             tool_validation_diffs=all_diffs,
             regression_test_cases=regression_tests,
             estimated_resilience_improvement=score,
-            metadata={
-                "clusterer_model": cluster_set.clusterer_model,
-                "patcher_model": _JUDGE_MODEL_PREFIX,
-                "total_failures": cluster_set.total_failures,
-            },
+            metadata=metadata,
         )
 
 
@@ -170,77 +187,97 @@ class Patcher:
 
 async def _patch_one_cluster(
     cluster: FailureCluster,
-) -> tuple[list[PromptPatch], list[ToolValidationDiff]]:
-    prompt = PER_CLUSTER_PATCHER_PROMPT.format(
+) -> tuple[list[PromptPatch], list[ToolValidationDiff], bool]:
+    """Returns (patches, diffs, was_fallback) for a single cluster."""
+    initial_prompt = PER_CLUSTER_PATCHER_PROMPT.format(
         cluster_id=cluster.cluster_id,
         root_cause=cluster.root_cause,
         failure_count=cluster.failure_count,
         fault_classes=", ".join(cluster.fault_classes),
     )
+    prompt = initial_prompt
     last_raw = ""
-    for attempt in range(_MAX_RETRIES + 1):
+    last_error: str = ""
+    for attempt in range(_MAX_ATTEMPTS):
         try:
             raw = await _call_patcher_llm(prompt)
+        except PatcherEmptyResponseError as exc:
+            # Empty / safety-blocked. Re-prompting with the same temperature
+            # is unlikely to recover — fall back immediately.
+            logger.warning(
+                "patcher cluster_id=%s empty Gemini response; emitting fallback: %s",
+                cluster.cluster_id,
+                exc,
+            )
+            return emit_fallback(cluster), [], True
         except Exception as exc:
+            # Transient (network, 5xx). Consume the retry budget rather
+            # than short-circuit on the first hiccup.
+            last_error = f"{type(exc).__name__}: {exc}"
             logger.warning(
                 "patcher cluster_id=%s LLM call failed (attempt %d/%d): %s",
                 cluster.cluster_id,
                 attempt + 1,
-                _MAX_RETRIES + 1,
-                exc,
+                _MAX_ATTEMPTS,
+                last_error,
             )
-            return [_fallback_patch(cluster)], []
+            if attempt == _MAX_ATTEMPTS - 1:
+                break
+            continue
         last_raw = raw
-        patches, diffs = _try_parse(raw, cluster=cluster)
-        if patches is not None and diffs is not None:
-            return patches, diffs
-        if attempt == _MAX_RETRIES:
+        parsed = _try_parse(raw, cluster=cluster)
+        if parsed is not None:
+            patches, diffs = parsed
+            return patches, diffs, False
+        if attempt == _MAX_ATTEMPTS - 1:
             break
-        prompt = f"{RETRY_PROMPT}\n\n{prompt}"
+        prompt = f"{RETRY_PROMPT}\n\n{initial_prompt}"
     logger.warning(
-        "patcher cluster_id=%s exhausted %d retries; emitting fallback. raw=%s",
+        "patcher cluster_id=%s exhausted %d attempts; emitting fallback. last_error=%s raw=%s",
         cluster.cluster_id,
-        _MAX_RETRIES,
+        _MAX_ATTEMPTS,
+        last_error,
         last_raw[:_RAW_LOG_LIMIT],
     )
-    return [_fallback_patch(cluster)], []
+    return emit_fallback(cluster), [], True
 
 
 def _try_parse(
     raw: str,
     *,
     cluster: FailureCluster,
-) -> tuple[list[PromptPatch] | None, list[ToolValidationDiff] | None]:
+) -> tuple[list[PromptPatch], list[ToolValidationDiff]] | None:
+    """Return (patches, diffs) on success, None on parse failure.
+
+    Catches `TypeError` so a `null`-valued field in an otherwise-valid JSON
+    body cannot escape and torpedo the whole recipe via asyncio.gather.
+    """
     try:
         body: Any = json.loads(raw)
         if not isinstance(body, dict):
-            raise ValueError("expected object")
-        patches = [PromptPatch.model_validate(p) for p in body.get("prompt_patches", [])]
-        diffs = [
-            ToolValidationDiff.model_validate(d) for d in body.get("tool_validation_diffs", [])
-        ]
-    except (json.JSONDecodeError, ValueError) as exc:
+            msg = f"expected JSON object, got {type(body).__name__}"
+            raise ValueError(msg)
+        # `or []` normalises explicit nulls — `dict.get(k, [])` returns the
+        # literal None when the key is present with a null value.
+        raw_patches = body.get("prompt_patches") or []
+        raw_diffs = body.get("tool_validation_diffs") or []
+        patches = [PromptPatch.model_validate(p) for p in raw_patches]
+        diffs = [ToolValidationDiff.model_validate(d) for d in raw_diffs]
+    except (json.JSONDecodeError, ValueError, TypeError) as exc:
         logger.warning(
-            "patcher cluster_id=%s parse failed: %s",
+            "patcher cluster_id=%s parse failed: %s | raw=%s",
             cluster.cluster_id,
             exc,
+            raw[:_RAW_LOG_LIMIT],
         )
-        return None, None
+        return None
     return patches, diffs
 
 
-def _fallback_patch(cluster: FailureCluster) -> PromptPatch:
-    return PromptPatch(
-        section="system_prompt",
-        operation="insert",
-        before=None,
-        after=(
-            f"Fallback patch (cluster {cluster.cluster_id}): "
-            f"address root cause '{cluster.root_cause}'. "
-            "Add explicit validation and refusal rules for "
-            f"{', '.join(cluster.fault_classes)} failure modes."
-        ),
-    )
+# ---------------------------------------------------------------------------
+# Fallback patches — fault-class-aware so the audit shows a semantically
+# sensible patch even when Gemini couldn't deliver.
+# ---------------------------------------------------------------------------
 
 
 def _build_regression_cases(cluster_set: FailureClusterSet) -> list[RegressionTestCase]:
@@ -257,6 +294,7 @@ __all__ = [
     "PATCHER_NAME",
     "PATCHER_OUTPUT_KEY",
     "Patcher",
+    "PatcherEmptyResponseError",
     "build_patcher_agent",
     "estimate_resilience_improvement",
 ]
