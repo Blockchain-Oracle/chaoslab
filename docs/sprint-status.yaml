@@ -241,26 +241,26 @@ stories:
     tags: [backend, p0, injector, fault]
     depends_on: [story-5.1-vendor-agent-chaos, story-3.2-adk-adapter]
     issue_url: ""
-    pr_url: ""
-    merged_at: "2026-06-08T14:15:00Z"
+    pr_url: "https://github.com/Blockchain-Oracle/chaoslab/pull/42"
+    merged_at: "2026-06-09T07:35:00Z"
   - id: story-5.3-fault-prompt-injection
     epic: "Epic 5 — Fault injection"
-    status: PENDING
+    status: COMPLETE
     estimate_hours: 1.5
     tags: [backend, p0, injector, fault]
     depends_on: [story-5.1-vendor-agent-chaos, story-3.2-adk-adapter]
     issue_url: ""
-    pr_url: ""
-    merged_at: ""
+    pr_url: "https://github.com/Blockchain-Oracle/chaoslab/pull/42"
+    merged_at: "2026-06-09T07:35:00Z"
   - id: story-5.4-fault-context-poisoning
     epic: "Epic 5 — Fault injection"
-    status: PENDING
+    status: COMPLETE
     estimate_hours: 1.5
     tags: [backend, p0, injector, fault]
     depends_on: [story-5.1-vendor-agent-chaos, story-3.2-adk-adapter]
     issue_url: ""
-    pr_url: ""
-    merged_at: ""
+    pr_url: "https://github.com/Blockchain-Oracle/chaoslab/pull/42"
+    merged_at: "2026-06-09T07:35:00Z"
   - id: story-5.5-fault-latency-spike
     epic: "Epic 5 — Fault injection"
     status: PENDING
