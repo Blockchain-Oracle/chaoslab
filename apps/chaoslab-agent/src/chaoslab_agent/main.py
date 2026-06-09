@@ -2,10 +2,12 @@
 
 Endpoints: `/health`, `/run`, `/stream` (SSE), `/agents/{id}`.
 
-`POST /run` spawns a background `asyncio.Task` that drives the SequentialAgent
-pipeline (Injector -> Judge -> Patcher) and pushes `phase_change` events into a
-per-run `asyncio.Queue`. `GET /stream` drains the queue as SSE frames; closing
-the client cancels the background task.
+`POST /run` spawns a background `asyncio.Task` that drives the REAL audit
+pipeline (`chaoslab_agent.audit_runner.drive_audit`: Injector -> Judge ->
+Patcher against the live target) and pushes its event frames — phase_change,
+test_started/test_completed, test_verdict, cluster_set, recipe, complete —
+into a per-run `asyncio.Queue`. `GET /stream` drains the queue as SSE frames;
+closing the client cancels the background task.
 """
 
 from __future__ import annotations
@@ -18,12 +20,13 @@ import secrets
 import time
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
-from typing import Any, Literal
+from typing import Any, Literal, cast
 
 from fastapi import FastAPI, HTTPException, Request
 from pydantic import BaseModel, ConfigDict, Field
 from sse_starlette.sse import EventSourceResponse
 
+from chaoslab_agent.audit_runner import drive_audit
 from chaoslab_agent.config import GCS_PROBE_ENV_NAME, get_settings
 
 logger = logging.getLogger(__name__)
@@ -50,6 +53,12 @@ class RunRequest(BaseModel):
     )
     repetitions: int = Field(
         default=25, ge=1, le=100, description="Baseline repetitions before fault injection."
+    )
+    runs_per_fault: int = Field(
+        default=2,
+        ge=1,
+        le=20,
+        description="Attacks per fault class (4 classes -> total = 4x this).",
     )
 
 
@@ -116,41 +125,39 @@ def _new_run_id() -> str:
     return "run_" + secrets.token_hex(6)
 
 
-_ORCHESTRATOR_PHASES: tuple[RunPhase, ...] = ("injector", "judge", "patcher")
-
-
 async def _drive_orchestrator(run_id: str) -> None:
-    """Background coroutine that walks the SequentialAgent phases for a run.
+    """Frame plumbing around the REAL audit pipeline (audit_runner.drive_audit).
 
-    Currently a deterministic phase walker (Injector -> Judge -> Patcher) emitting
-    `phase_change` SSE frames; the real `InMemoryRunner(build_orchestrator())` wiring
-    is the next swap-in. Tests monkeypatch this function directly to simulate phase
-    transitions without spinning up the real Gemini-backed orchestrator.
+    Owns: per-run queue framing (event name + JSON data), phase bookkeeping on
+    the registry, cancellation + failure frames, and the queue sentinel. The
+    pipeline itself — Injector -> Judge -> Patcher against the live target —
+    lives in `chaoslab_agent.audit_runner`. Tests monkeypatch either this
+    function (route-level fixtures) or `drive_audit` (frame-plumbing coverage).
     """
     # Registry lookups outside the try block — a missing run_id is a programmer
     # error (task scheduled before registration), not an orchestrator failure;
     # let it crash the task rather than surface as a user-facing SSE error frame.
     state = _RUN_REGISTRY[run_id]
     queue = _RUN_QUEUES[run_id]
+
+    async def emit(event: str, payload: dict[str, Any]) -> None:
+        await queue.put({"event": event, "data": json.dumps(payload)})
+        # Cooperative yield so /stream gets scheduled at least once between
+        # frames — NOT a backpressure guarantee (the queue is unbounded).
+        await asyncio.sleep(0)
+
+    def set_phase(phase: str) -> None:
+        # _RunState has validate_assignment=True; a value outside the RunPhase
+        # Literal raises here instead of corrupting the frontend discriminator.
+        state.phase = cast(RunPhase, phase)
+
     try:
-        for phase in _ORCHESTRATOR_PHASES:
-            state.phase = phase
-            await queue.put(
-                {
-                    "event": "phase_change",
-                    "data": json.dumps({"phase": phase, "run_id": run_id}),
-                }
-            )
-            # Cooperative yield so /stream gets scheduled at least once between
-            # phases under InMemoryRunner — NOT a backpressure guarantee (the queue
-            # is unbounded).
-            await asyncio.sleep(0)
-        state.phase = "succeeded"
-        await queue.put(
-            {
-                "event": "complete",
-                "data": json.dumps({"phase": "succeeded", "run_id": run_id}),
-            }
+        await drive_audit(
+            run_id=run_id,
+            target_url=state.request.target_url,
+            runs_per_fault=state.request.runs_per_fault,
+            emit=emit,
+            set_phase=set_phase,
         )
     except asyncio.CancelledError:
         state.phase = "failed"
