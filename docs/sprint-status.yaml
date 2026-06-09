@@ -351,13 +351,13 @@ stories:
     merged_at: "2026-06-09T15:55:00Z"
   - id: story-6.6-gitlab-mr-emitter
     epic: "Epic 6 — Judge + Patcher"
-    status: PENDING
+    status: COMPLETE
     estimate_hours: 2.0
     tags: [backend, p0, patcher, emitter, gitlab]
     depends_on: [story-6.4-patcher-sub-agent]
     issue_url: ""
-    pr_url: ""
-    merged_at: ""
+    pr_url: "https://github.com/Blockchain-Oracle/chaoslab/pull/74"
+    merged_at: "2026-06-09T19:00:00Z"
 
   # ---------- Epic 7 — chaoslab-web frontend ----------
   - id: story-7.1-nextjs-scaffold
