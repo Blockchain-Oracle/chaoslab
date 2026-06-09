@@ -1,0 +1,244 @@
+{
+  "$defs": {
+    "FailureCluster": {
+      "properties": {
+        "cluster_id": {
+          "pattern": "^cluster_[a-z0-9]{8}$",
+          "title": "Cluster Id",
+          "type": "string"
+        },
+        "failure_count": {
+          "minimum": 1,
+          "title": "Failure Count",
+          "type": "integer"
+        },
+        "fault_classes": {
+          "items": {
+            "enum": [
+              "malformed_tool_output",
+              "prompt_injection",
+              "context_poisoning",
+              "latency_spike"
+            ],
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Fault Classes",
+          "type": "array"
+        },
+        "root_cause": {
+          "minLength": 1,
+          "title": "Root Cause",
+          "type": "string"
+        },
+        "span_ids": {
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Span Ids",
+          "type": "array"
+        }
+      },
+      "required": [
+        "cluster_id",
+        "root_cause",
+        "failure_count",
+        "span_ids",
+        "fault_classes"
+      ],
+      "title": "FailureCluster",
+      "type": "object"
+    },
+    "FailureClusterSet": {
+      "properties": {
+        "clusterer_model": {
+          "const": "gemini-3.5-flash",
+          "default": "gemini-3.5-flash",
+          "title": "Clusterer Model",
+          "type": "string"
+        },
+        "clusters": {
+          "items": {
+            "$ref": "#/$defs/FailureCluster"
+          },
+          "maxItems": 5,
+          "minItems": 1,
+          "title": "Clusters",
+          "type": "array"
+        },
+        "total_failures": {
+          "minimum": 1,
+          "title": "Total Failures",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "clusters",
+        "total_failures"
+      ],
+      "title": "FailureClusterSet",
+      "type": "object"
+    },
+    "PromptPatch": {
+      "properties": {
+        "after": {
+          "minLength": 1,
+          "title": "After",
+          "type": "string"
+        },
+        "before": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Before"
+        },
+        "operation": {
+          "enum": [
+            "insert",
+            "replace",
+            "append"
+          ],
+          "title": "Operation",
+          "type": "string"
+        },
+        "section": {
+          "enum": [
+            "system_prompt",
+            "tool_description",
+            "few_shot_example"
+          ],
+          "title": "Section",
+          "type": "string"
+        }
+      },
+      "required": [
+        "section",
+        "operation",
+        "after"
+      ],
+      "title": "PromptPatch",
+      "type": "object"
+    },
+    "RegressionTestCase": {
+      "additionalProperties": true,
+      "description": "One Phoenix-dataset regression row.\n\nThe Phoenix dataset shape (architecture/04 \u00a76.3) requires `input` +\n`expected`; the typed model keeps a typo from silently landing in\nthe signed report. Additional Phoenix metadata stays in `extra`.",
+      "properties": {
+        "expected": {
+          "minLength": 1,
+          "title": "Expected",
+          "type": "string"
+        },
+        "input": {
+          "minLength": 1,
+          "title": "Input",
+          "type": "string"
+        }
+      },
+      "required": [
+        "input",
+        "expected"
+      ],
+      "title": "RegressionTestCase",
+      "type": "object"
+    },
+    "ToolValidationDiff": {
+      "properties": {
+        "code_patch": {
+          "minLength": 1,
+          "title": "Code Patch",
+          "type": "string"
+        },
+        "operation": {
+          "enum": [
+            "add_input_validator",
+            "add_output_validator",
+            "add_retry_policy",
+            "add_timeout"
+          ],
+          "title": "Operation",
+          "type": "string"
+        },
+        "tool_name": {
+          "minLength": 1,
+          "title": "Tool Name",
+          "type": "string"
+        }
+      },
+      "required": [
+        "tool_name",
+        "operation",
+        "code_patch"
+      ],
+      "title": "ToolValidationDiff",
+      "type": "object"
+    }
+  },
+  "properties": {
+    "cluster_set": {
+      "$ref": "#/$defs/FailureClusterSet"
+    },
+    "estimated_resilience_improvement": {
+      "maximum": 1.0,
+      "minimum": 0.0,
+      "title": "Estimated Resilience Improvement",
+      "type": "number"
+    },
+    "generated_at": {
+      "minLength": 1,
+      "title": "Generated At",
+      "type": "string"
+    },
+    "metadata": {
+      "additionalProperties": true,
+      "title": "Metadata",
+      "type": "object"
+    },
+    "prompt_patches": {
+      "items": {
+        "$ref": "#/$defs/PromptPatch"
+      },
+      "title": "Prompt Patches",
+      "type": "array"
+    },
+    "recipe_id": {
+      "pattern": "^recipe_[a-z0-9]{12}$",
+      "title": "Recipe Id",
+      "type": "string"
+    },
+    "regression_test_cases": {
+      "items": {
+        "$ref": "#/$defs/RegressionTestCase"
+      },
+      "title": "Regression Test Cases",
+      "type": "array"
+    },
+    "target_agent_id": {
+      "minLength": 1,
+      "title": "Target Agent Id",
+      "type": "string"
+    },
+    "tool_validation_diffs": {
+      "items": {
+        "$ref": "#/$defs/ToolValidationDiff"
+      },
+      "title": "Tool Validation Diffs",
+      "type": "array"
+    }
+  },
+  "required": [
+    "recipe_id",
+    "target_agent_id",
+    "generated_at",
+    "cluster_set",
+    "estimated_resilience_improvement"
+  ],
+  "title": "HardeningRecipe",
+  "type": "object"
+}
