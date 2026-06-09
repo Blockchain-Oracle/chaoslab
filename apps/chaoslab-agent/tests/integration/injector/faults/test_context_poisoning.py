@@ -27,8 +27,14 @@ _TEST_PROVIDER.add_span_processor(SimpleSpanProcessor(_TEST_EXPORTER))
 _TEST_TRACER = _TEST_PROVIDER.get_tracer("chaoslab.test.injector.faults")
 
 
-@pytest.fixture
+@pytest.fixture(autouse=True)
 def exporter() -> InMemorySpanExporter:
+    """Autouse so every test in the file starts with a clean exporter.
+
+    Without autouse, tests that don't list `exporter` in their signature
+    would observe stale spans from prior tests in the module — see
+    test-analyzer B2.
+    """
     _TEST_EXPORTER.clear()
     return _TEST_EXPORTER
 
@@ -211,7 +217,7 @@ async def test_history_callback_accepts_adk_kwarg_invocation_contract() -> None:
     fault = ContextPoisoningFault(mode="history_insert")
     callback = fault.as_callback()
     req = LlmRequest(
-        model="gemini-2.5-flash",
+        model="gemini-3.5-flash",
         contents=[Content(role="user", parts=[Part(text="hello")])],
     )
     await callback(callback_context=cast(CallbackContext, None), llm_request=req)
@@ -219,3 +225,98 @@ async def test_history_callback_accepts_adk_kwarg_invocation_contract() -> None:
     assert len(req.contents) == 2
     assert req.contents[0].parts is not None
     assert POISON_MARKER in (req.contents[0].parts[0].text or "")
+
+
+# ---------------------------------------------------------------------------
+# Regression tests for post-review hardening (silent-failure-hunter + type-design)
+# ---------------------------------------------------------------------------
+
+
+async def test_retriever_insert_raises_when_no_retriever_on_target() -> None:
+    """No silent no-op when the target has no BaseRetrievalTool (silent-failure-hunter H1)."""
+
+    class EmptyAgent:
+        def __init__(self) -> None:
+            self.tools: list[Any] = []
+            self.before_model_callback = None
+
+    fault = ContextPoisoningFault(mode="retriever_insert")
+    with pytest.raises(RuntimeError, match=r"no BaseRetrievalTool matched"):
+        fault.install(EmptyAgent())
+
+
+async def test_retriever_insert_raises_when_filter_excludes_all_retrievers() -> None:
+    """Same when target_retriever_name filter matches nothing."""
+    fault = ContextPoisoningFault(mode="retriever_insert", target_retriever_name="does_not_exist")
+    with pytest.raises(RuntimeError, match=r"no BaseRetrievalTool matched"):
+        fault.install(FakeAgent())
+
+
+async def test_retriever_patch_raises_on_unsupported_result_type() -> None:
+    """No silent no-op when retriever returns neither list nor str (silent-failure-hunter H2)."""
+
+    class DictRetrievalTool(BaseRetrievalTool):
+        def __init__(self) -> None:
+            super().__init__(name="dict_retriever", description="Returns dict")
+
+        async def run_async(self, *, args: dict[str, Any], tool_context: ToolContext) -> Any:
+            return {"unsupported": "shape"}
+
+    fault = ContextPoisoningFault(mode="retriever_insert")
+    agent = FakeAgent()
+    agent.tools = [DictRetrievalTool()]
+    fault.install(agent)
+
+    with _TEST_TRACER.start_as_current_span("test.retrieval") as span:
+        span.set_attribute("openinference.span.kind", "RETRIEVER")
+        with pytest.raises(RuntimeError, match=r"unsupported type 'dict'"):
+            await agent.tools[0].run_async(
+                args={"query": "test"}, tool_context=cast(ToolContext, None)
+            )
+
+    s = _last_span_by_kind(_TEST_EXPORTER, "RETRIEVER")
+    assert s.attributes is not None
+    assert s.attributes.get("chaoslab.fault.injected") is False
+
+
+async def test_install_is_not_idempotent_raises_on_double_install() -> None:
+    """Calling install() twice on the same agent raises rather than silently re-wrapping
+    (silent-failure-hunter H3 + code-reviewer N2)."""
+    fault = ContextPoisoningFault(mode="history_insert")
+    agent = FakeAgent()
+    fault.install(agent)
+    with pytest.raises(RuntimeError, match=r"called twice on the same agent"):
+        fault.install(agent)
+
+
+async def test_history_insert_preserves_existing_before_model_callback() -> None:
+    """If the target already has a before_model_callback, F3 appends rather than overwrites
+    (code-reviewer N2)."""
+
+    async def existing_cb(callback_context: CallbackContext, llm_request: LlmRequest) -> None:
+        pass
+
+    agent = FakeAgent()
+    agent.before_model_callback = existing_cb  # type: ignore[assignment]
+    fault = ContextPoisoningFault(mode="history_insert")
+    fault.install(agent)
+
+    assert isinstance(agent.before_model_callback, list)
+    assert agent.before_model_callback[0] is existing_cb
+    assert agent.before_model_callback[1] is not existing_cb
+
+
+async def test_retriever_patch_records_injected_true_attribute() -> None:
+    """The injected boolean attr is the canonical "fault landed" signal — verify the
+    happy path sets it to True."""
+    fault = ContextPoisoningFault(mode="retriever_insert")
+    agent = FakeAgent()
+    fault.install(agent)
+
+    with _TEST_TRACER.start_as_current_span("test.retrieval") as span:
+        span.set_attribute("openinference.span.kind", "RETRIEVER")
+        await agent.tools[0].run_async(args={"query": "test"}, tool_context=cast(ToolContext, None))
+
+    s = _last_span_by_kind(_TEST_EXPORTER, "RETRIEVER")
+    assert s.attributes is not None
+    assert s.attributes.get("chaoslab.fault.injected") is True

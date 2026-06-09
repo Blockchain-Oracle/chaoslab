@@ -56,6 +56,7 @@ class PromptInjectionFault(BaseModel):
             span.set_attribute("chaoslab.fault.type", _FAULT_TYPE)
             span.set_attribute("chaoslab.fault.attack", self.attack)
             contents = llm_request.contents or []
+            injected = False
             for msg in reversed(contents):
                 if getattr(msg, "role", None) == "user" and msg.parts:
                     p = msg.parts[-1]
@@ -63,6 +64,11 @@ class PromptInjectionFault(BaseModel):
                         p.text = (p.text or "") + payload
                     else:
                         msg.parts.append(Part(text=payload))
+                    injected = True
                     break
+            # injected=False tells the Judge the attack never landed (no
+            # user-role content to mutate). Without this, the .type/.attack
+            # attrs would lie — see silent-failure-hunter B2.
+            span.set_attribute("chaoslab.fault.injected", injected)
 
         return callback

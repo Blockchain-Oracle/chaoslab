@@ -4,8 +4,11 @@ Architectural inspiration from deepankarm/agent-chaos (Apache-2.0, pinned in
 NOTICE); no source code is copied. Implemented natively against ADK 2.1.0's
 callback system per docs/architecture.md ADR-006 (amended 2026-06-03) +
 architecture/04 §8.2. ADK before_tool_callback short-circuits the real tool
-when it returns non-None; for ``mode=exception`` the callback raises and ADK
-records the TOOL span with status=ERROR + an exception event.
+when it returns non-None; for ``mode=exception`` the callback sets the
+current TOOL span's status to ERROR + records the exception event before
+raising, so the trace-as-assertion contract holds regardless of whether ADK
+auto-records exceptions raised from before_tool_callback (per audit A13,
+that auto-recording is documented as undefined behavior).
 """
 
 from __future__ import annotations
@@ -21,7 +24,6 @@ from chaoslab_agent.adk_types import BaseTool, ToolContext
 
 MalformationMode = Literal["invalid_json", "missing_required_field", "type_mismatch", "exception"]
 _FAULT_TYPE = "malformed_tool_output"
-_TRACER = trace.get_tracer("chaoslab.injector.faults")
 
 
 def _make_callback(
@@ -53,8 +55,17 @@ def _make_callback(
             return {"status": "shipped", "items": [{"name": "widget", "qty": 2}]}
         if fault.mode == "type_mismatch":
             return {"status": 200, "items": "three widgets", "total": "ten"}
-        # mode == "exception"
-        raise RuntimeError("F1: injected malformed tool output (mode=exception)")
+        # mode == "exception" — record status + event on the current span
+        # before raising. Story-5.2 Notes say ADK's auto-recording of
+        # exceptions raised from before_tool_callback "works empirically but
+        # is documented as undefined behavior"; the audit (A13) recommends
+        # on_tool_error_callback as future-proof. Defensively recording here
+        # makes the trace contract hold even when ADK's auto-recording
+        # doesn't fire — keeps the Judge's signal correct on every release.
+        exc = RuntimeError("F1: injected malformed tool output (mode=exception)")
+        span.set_status(trace.Status(trace.StatusCode.ERROR, "F1 fault injected"))
+        span.record_exception(exc)
+        raise exc
 
     return callback
 

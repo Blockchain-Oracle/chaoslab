@@ -53,8 +53,10 @@ _TEST_PROVIDER.add_span_processor(SimpleSpanProcessor(_TEST_EXPORTER))
 _TEST_TRACER = _TEST_PROVIDER.get_tracer("chaoslab.test.injector.faults")
 
 
-@pytest.fixture
+@pytest.fixture(autouse=True)
 def exporter() -> InMemorySpanExporter:
+    """Autouse so tests that don't request the fixture also start clean
+    (test-analyzer B2 — without this, regression tests inherit stale spans)."""
     _TEST_EXPORTER.clear()
     return _TEST_EXPORTER
 
@@ -192,3 +194,23 @@ async def test_rate_zero_short_circuits_every_call(exporter: InMemorySpanExporte
     span = _last_tool_span(exporter)
     assert span.attributes is not None
     assert span.attributes.get("chaoslab.fault.type") is None
+
+
+async def test_callback_accepts_adk_kwarg_invocation_contract() -> None:
+    """ADK invokes before_tool_callback with kwargs: tool=, args=, tool_context=.
+
+    See google/adk/flows/llm_flows/functions.py:565,808. Param names must match
+    or production would crash with TypeError. Regression guard mirrors F2/F3.
+    `callback: Any` because Callable's positional-param structural type
+    loses kwarg-by-name invocation info; the param names ARE the runtime
+    contract this test exists to lock in.
+    """
+    fault = MalformedToolOutputFault(mode="invalid_json", target_tool_name="_lookup_order")
+    callback: Any = fault.as_callback()
+    result = await callback(
+        tool=_LOOKUP_ORDER_TOOL,
+        args={"order_id": "12345"},
+        tool_context=cast(ToolContext, None),
+    )
+    assert result is not None
+    assert "_chaoslab_malformed_payload" in result

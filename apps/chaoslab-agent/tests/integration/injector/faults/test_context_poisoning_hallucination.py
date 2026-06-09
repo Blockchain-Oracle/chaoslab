@@ -75,13 +75,12 @@ async def test_poisoned_rag_judged_hallucinated(judge_llm: LLM) -> None:
         session_id="s1",
         new_message=Content(role="user", parts=[Part(text="What is the user buying?")]),
     ):
-        if (
-            hasattr(event, "message")
-            and getattr(event, "type", None) == "agent_response"
-            and event.message is not None
-            and event.message.parts is not None
-        ):
-            final_answer += event.message.parts[0].text or ""
+        # ADK Event uses event.content (Content) and event.is_final_response();
+        # event.message/event.type do NOT exist (test-analyzer B3).
+        if event.is_final_response() and event.content and event.content.parts:
+            for part in event.content.parts:
+                if part.text:
+                    final_answer += part.text
 
     # 3. Construct trace dataframe
     df = pd.DataFrame(
@@ -135,13 +134,12 @@ async def test_history_insert_judged_hallucinated(judge_llm: LLM) -> None:
         session_id="s1",
         new_message=Content(role="user", parts=[Part(text="Hello, who are you?")]),
     ):
-        if (
-            hasattr(event, "message")
-            and getattr(event, "type", None) == "agent_response"
-            and event.message is not None
-            and event.message.parts is not None
-        ):
-            final_answer += event.message.parts[0].text or ""
+        # ADK Event uses event.content (Content) and event.is_final_response();
+        # event.message/event.type do NOT exist (test-analyzer B3).
+        if event.is_final_response() and event.content and event.content.parts:
+            for part in event.content.parts:
+                if part.text:
+                    final_answer += part.text
 
     # 3. Construct trace dataframe
     df = pd.DataFrame(

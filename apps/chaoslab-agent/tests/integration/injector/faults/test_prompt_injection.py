@@ -32,8 +32,11 @@ _TEST_PROVIDER.add_span_processor(SimpleSpanProcessor(_TEST_EXPORTER))
 _TEST_TRACER = _TEST_PROVIDER.get_tracer("chaoslab.test.injector.faults")
 
 
-@pytest.fixture
+@pytest.fixture(autouse=True)
 def exporter() -> InMemorySpanExporter:
+    """Autouse so tests that don't request the fixture also start clean
+    (test-analyzer B2 — without this, the kwarg-regression test inherits
+    stale spans)."""
     _TEST_EXPORTER.clear()
     return _TEST_EXPORTER
 
@@ -199,7 +202,7 @@ async def test_user_role_not_found_leaves_contents_intact(
 ) -> None:
     fault = PromptInjectionFault(attack="instruction_override")
     req = LlmRequest(
-        model="gemini-2.5-flash",
+        model="gemini-3.5-flash",
         contents=[Content(role="model", parts=[Part(text="response text")])],
     )
     await _invoke_callback(fault, req)
@@ -213,6 +216,23 @@ async def test_user_role_not_found_leaves_contents_intact(
     span = _last_llm_span(exporter)
     assert span.attributes is not None
     assert span.attributes.get("chaoslab.fault.type") == "prompt_injection"
+    # injected=False signals to the Judge that the attack never landed —
+    # without this, the .type/.attack attrs would lie (silent-failure-hunter B2).
+    assert span.attributes.get("chaoslab.fault.injected") is False
+
+
+async def test_injected_attr_is_true_when_user_message_present(
+    exporter: InMemorySpanExporter,
+) -> None:
+    fault = PromptInjectionFault(attack="instruction_override")
+    req = LlmRequest(
+        model="gemini-3.5-flash",
+        contents=[Content(role="user", parts=[Part(text="normal query")])],
+    )
+    await _invoke_callback(fault, req)
+    span = _last_llm_span(exporter)
+    assert span.attributes is not None
+    assert span.attributes.get("chaoslab.fault.injected") is True
 
 
 async def test_callback_accepts_adk_kwarg_invocation_contract() -> None:
