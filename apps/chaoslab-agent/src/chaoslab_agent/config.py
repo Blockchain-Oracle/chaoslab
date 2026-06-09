@@ -77,6 +77,16 @@ class Settings(BaseSettings):
         ge=1,
         description="Upper bound on the clusterer output.",
     )
+    GCS_RECIPES_BUCKET: str = Field(
+        default="chaoslab-recipes",
+        min_length=1,
+        description="GCS bucket the Markdown emitter writes recipe artifacts to.",
+    )
+    GCS_SIGNED_URL_TTL_DAYS: int = Field(
+        default=7,
+        ge=1,
+        description="Signed URL validity for recipe Markdown — covers a typical judging cadence.",
+    )
 
     @property
     def JUDGE_LLM(self) -> str:  # noqa: N802 — uppercase per story-6.1 spec convention
