@@ -13,16 +13,15 @@
 #
 # Architecture: deps -> build -> runtime (slim, non-root, signal-safe).
 
-# `ARG` declared at the TOP scope; each stage must re-declare it before
-# referencing in a `COPY --from=...:${UV_VERSION}` line (Docker's intentional
-# isolation). Bumping uv = bump ONE place here + re-declare line in each stage.
-ARG UV_VERSION=0.11.18
+# Pin uv as a named stage so downstream COPY --from=uv-source references work
+# under all BuildKit parsers (the inline `COPY --from=img:${ARG}` form was
+# silently broken by a buildx parse regression).
+FROM ghcr.io/astral-sh/uv:0.11.18 AS uv-source
 
 # -----------------------------------------------------------------------------
 # Stage 1: deps — install workspace dependencies into a virtualenv
 # -----------------------------------------------------------------------------
 FROM python:3.12-slim AS deps
-ARG UV_VERSION
 
 ENV UV_LINK_MODE=copy \
     UV_COMPILE_BYTECODE=1 \
@@ -36,7 +35,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         ca-certificates curl \
     && rm -rf /var/lib/apt/lists/*
 
-COPY --from=ghcr.io/astral-sh/uv:${UV_VERSION} /uv /uvx /usr/local/bin/
+COPY --from=uv-source /uv /uvx /usr/local/bin/
 
 WORKDIR /workspace
 
@@ -57,13 +56,12 @@ RUN uv sync --frozen --no-install-project --no-dev --package chaoslab-agent
 # Stage 2: build — copy project source + install the project itself
 # -----------------------------------------------------------------------------
 FROM python:3.12-slim AS build
-ARG UV_VERSION
 
 ENV UV_LINK_MODE=copy \
     UV_COMPILE_BYTECODE=1 \
     UV_PYTHON_DOWNLOADS=never
 
-COPY --from=ghcr.io/astral-sh/uv:${UV_VERSION} /uv /uvx /usr/local/bin/
+COPY --from=uv-source /uv /uvx /usr/local/bin/
 
 WORKDIR /workspace
 
@@ -83,7 +81,6 @@ RUN uv sync --frozen --no-dev --package chaoslab-agent --no-editable
 # Stage 3: runtime — slim, non-root, signal-safe
 # -----------------------------------------------------------------------------
 FROM python:3.12-slim AS runtime
-ARG UV_VERSION
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
@@ -104,7 +101,7 @@ RUN echo 'appuser:x:10001:10001::/app:/bin/sh' >> /etc/passwd \
 RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
-COPY --from=ghcr.io/astral-sh/uv:${UV_VERSION} /uv /uvx /usr/local/bin/
+COPY --from=uv-source /uv /uvx /usr/local/bin/
 
 COPY --from=build --chown=appuser:appuser /workspace/.venv /opt/venv
 COPY --from=build --chown=appuser:appuser /workspace/apps/chaoslab-agent/src /app/src
