@@ -186,16 +186,14 @@ jobs:
         if: (steps.changed.outputs.value == 'true' || github.event_name == 'workflow_dispatch') && steps.bluegreen.outputs.value == 'true'
         id: smoke
         run: |
-          # Read the candidate URL from status.traffic[].url where tag=candidate.
-          # `services describe --filter` is invalid for this resource — use
-          # --format with a flatten projection instead.
+          # Extract the candidate URL via jq on the JSON form — gcloud's
+          # `value(...)` projection mangles repeated fields with `;` joiners
+          # which produced malformed URLs (e.g. `;https://...`).
           CANDIDATE_URL=$(gcloud run services describe ${{ matrix.service }} \
-            --region="${REGION}" \
-            --format='value(status.traffic[].url,status.traffic[].tag)' \
-            | awk '/candidate/ {print $1; exit}')
+            --region="${REGION}" --format=json \
+            | jq -r '.status.traffic[] | select(.tag == "candidate") | .url' \
+            | head -1)
           if [ -z "${CANDIDATE_URL}" ]; then
-            # Cloud Run candidate URL pattern: insert `candidate---` between
-            # https:// and the service hostname.
             CANDIDATE_URL=$(gcloud run services describe ${{ matrix.service }} \
               --region="${REGION}" \
               --format='value(status.url)' | sed 's|https://|https://candidate---|')
