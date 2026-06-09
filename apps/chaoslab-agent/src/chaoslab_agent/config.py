@@ -72,6 +72,11 @@ class Settings(BaseSettings):
         gt=0.0,
         description="Per-tool latency SLA in ms. F4 rubric scores against this threshold.",
     )
+    MAX_CLUSTERS: int = Field(
+        default=5,
+        ge=1,
+        description="Upper bound on the clusterer output.",
+    )
 
     @property
     def JUDGE_LLM(self) -> str:  # noqa: N802 — uppercase per story-6.1 spec convention
