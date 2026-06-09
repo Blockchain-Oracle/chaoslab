@@ -118,6 +118,20 @@ class Settings(BaseSettings):
         default=None,
         description="Optional — only needed when emitting hardening recipes to GitLab.",
     )
+    GITLAB_MCP_ENDPOINT: str = Field(
+        default="https://gitlab.com/api/v4/mcp",
+        description=(
+            "OFFICIAL GitLab MCP endpoint (ADR-011 + partner-gitlab.md). NEVER "
+            "override to a community MCP server (zereight/mcpland/wadew) — "
+            "judging penalty. _gitlab_mcp_client.GitLabMcpClient enforces the "
+            "constraint at construction time."
+        ),
+    )
+    GITLAB_DEFAULT_BRANCH: str = Field(
+        default="main",
+        min_length=1,
+        description="Target branch for hardening-recipe MRs (typical: 'main').",
+    )
     environment: Environment = Field(
         default="dev",
         description="dev | staging | prod — gates fail-loud vs degraded paths.",

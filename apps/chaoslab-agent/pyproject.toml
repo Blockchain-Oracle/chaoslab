@@ -34,6 +34,11 @@ dependencies = [
   # Google Secret Manager — PHOENIX_API_KEY fallback for Cloud Run BYO mode.
   "google-cloud-secret-manager>=2.28.0,<3.0.0",
   "google-cloud-storage>=3.11.0",
+  # python-gitlab — REST client for S6.6 hybrid mode. Branch + multi-file commits
+  # go via this SDK because the official MCP's 16-tool inventory does NOT include
+  # `create_branch` / `create_or_update_file` (ADR-011). The MCP path is used only
+  # for `create_merge_request` — see patcher/_gitlab_mcp_client.py.
+  "python-gitlab>=4.0,<6.0",
 ]
 
 [dependency-groups]
