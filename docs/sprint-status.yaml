@@ -298,6 +298,16 @@ stories:
     pr_url: "https://github.com/Blockchain-Oracle/chaoslab/pull/45"
     merged_at: "2026-06-09T09:26:00Z"
 
+  - id: story-5.8-run-real-pipeline
+    epic: "Epic 5 — Fault injection"
+    status: COMPLETE
+    estimate_hours: 0.0
+    tags: [backend, p0, orchestrator, sse]
+    depends_on: [story-5.7-injector-sub-agent, story-6.6-gitlab-mr-emitter]
+    issue_url: ""
+    pr_url: "https://github.com/Blockchain-Oracle/chaoslab/pull/81"
+    merged_at: "2026-06-10T00:58:00Z"
+
   # ---------- Epic 6 — Judge + clustering + hardening recipe ----------
   - id: story-6.1-judge-rubrics
     epic: "Epic 6 — Judge + Patcher"
