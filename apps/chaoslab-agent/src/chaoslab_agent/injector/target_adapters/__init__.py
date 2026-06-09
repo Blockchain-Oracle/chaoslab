@@ -14,6 +14,7 @@ from chaoslab_agent.injector.target_adapters.base import (
     TargetAdapter,
     TargetSpec,
 )
+from chaoslab_agent.injector.target_adapters.crewai_adapter import CrewAIAdapter
 from chaoslab_agent.injector.target_adapters.langchain_adapter import LangChainAdapter
 
 __all__ = [
@@ -22,6 +23,7 @@ __all__ = [
     "AdapterInvocation",
     "AdapterResult",
     "AdapterTier",
+    "CrewAIAdapter",
     "LangChainAdapter",
     "TargetAdapter",
     "TargetSpec",
