@@ -58,10 +58,17 @@ _TRACER = trace.get_tracer(__name__)
 
 
 def _bearer_headers(spec: TargetSpec) -> dict[str, str] | None:
-    """Build an Authorization header dict from spec.auth, or None if absent."""
-    if spec.auth is None or "bearer" not in spec.auth:
-        return None
-    return {"Authorization": f"Bearer {spec.auth['bearer'].get_secret_value()}"}
+    """Build an Authorization header dict from spec.auth, or None if absent.
+
+    Delegates to the shared helper in `_common.py` so ADK + Tier-2 adapters
+    have one consistent auth shape (and one consistent raise on a wrong-
+    key auth dict — round-2 review SFH-B2). Returns None on empty so the
+    existing ADK call sites keep their `or {}` fallback.
+    """
+    from chaoslab_agent.injector.target_adapters._common import bearer_headers
+
+    headers = bearer_headers(spec)
+    return headers or None
 
 
 def _extract_text_from_message(message: Message) -> str:
@@ -179,12 +186,18 @@ class ADKAdapter(TargetAdapter):
                 async for event in self._client.send_message(message):
                     response_text = _text_from_event(event)
             except A2AClientError as e:
-                span.record_exception(e)
+                # round-2: record_and_raise sets StatusCode.ERROR on the span
+                # so Phoenix doesn't show "OK" with a recorded exception inside.
+                from chaoslab_agent.injector.target_adapters._common import record_and_raise
+
+                record_and_raise(span, e)
                 raise AdapterConnectionError(
                     f"A2A protocol error from {self.spec.url}: {type(e).__name__}"
                 ) from e
             except httpx.HTTPError as e:
-                span.record_exception(e)
+                from chaoslab_agent.injector.target_adapters._common import record_and_raise
+
+                record_and_raise(span, e)
                 raise AdapterConnectionError(
                     f"transport error to {self.spec.url}: {type(e).__name__}"
                 ) from e
