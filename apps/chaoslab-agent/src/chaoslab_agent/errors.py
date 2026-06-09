@@ -46,3 +46,13 @@ class AdapterDiscoveryError(AdapterError):
     so callers can degrade to Tier 3 (HTTP black-box) on discovery failure
     while still failing fast on transport failure.
     """
+
+
+class BaselineAbortError(ChaosLabError):
+    """Raised by `BaselineCheck.validate()` when the target's pre-flight pass
+    rate is below the configured threshold.
+
+    The Chaos Toolkit steady-state-hypothesis gate (architecture/01 §7 Move 5):
+    if the target is already broken pre-injection, the resilience signal from
+    a fault-injection run is meaningless — abort the entire chaos run loud.
+    """
