@@ -75,6 +75,32 @@ One PR per story. No parallel implementation. Eggs in one basket — your focus 
 
 ---
 
+## Silent-failure patterns (recurring review findings — watch for these)
+
+These shapes look correct in review but silently corrupt the regulator-facing audit. Surfaced across PRs #42, #44, #45, #66, #67, #68, #69. If you write code that looks like any of these, the silent-failure-hunter reviewer WILL find it — fix at write-time instead.
+
+1. **Empty-string fallback masks missing data.** `span.attributes.get("input.value", "")` forwards an empty payload to the LLM, which returns `passed=True` because there's nothing to disagree with. Use a `require_attr()` helper that raises on missing/empty — never default to `""` for audit-input fields.
+
+2. **`dict.get(key, default)` returns `None` (not the default) when the key is _present with null_.** `body.get("prompt_patches", [])` on `{"prompt_patches": null}` is `None`, not `[]`. The next `for p in None` raises `TypeError`, which escapes `asyncio.gather` and torpedoes the whole audit run. Use `body.get(key) or []`.
+
+3. **Schema drift not enforced by CI.** A committed generated artifact (JSON Schema, OpenAPI, etc.) drifts from its source-of-truth pydantic model the moment someone edits the model and forgets to re-run the export. Add a `git diff --exit-code` CI step after regenerating — see `.github/workflows/pr-checks.yaml`'s `recipe-schema-drift` job.
+
+4. **Audit metadata doesn't distinguish real LLM output from fallback.** A fallback patch (Gemini died → emit a generic patch) flows into the signed `HardeningRecipe.prompt_patches` indistinguishable from a real one. A regulator reading the MR can't tell pseudoknowledge from real fixes. Always add a `metadata.fallback_*` marker when a path uses a fallback.
+
+5. **`Settings.X == "literal"` lets variants slip past the runtime guard.** `settings.JUDGE_LLM == "gemini-3.5-flash"` rejects `"gemini-3.5-flash-002"` but the `Literal["gemini-3.5-flash"]` on a Pydantic field would also reject it, producing a confusing late-stage `ValidationError`. Use `settings.JUDGE_LLM.startswith("gemini-3.5-flash")` for the runtime guard; keep the `Literal` tight.
+
+6. **List `min_length=1` is checked on the wrapper, not the bare list.** `HardeningRecipe.cluster_set: list[FailureCluster]` silently accepts an empty/duplicated/over-max partition because the partition invariants live on `FailureClusterSet._mutually_exclusive_partition`, not on the list type. Type with `FailureClusterSet` (the wrapper) not `list[FailureCluster]`.
+
+7. **Phoenix `async_evaluate()` returns `List[Score]`, not a single `Score`.** Calling `.label` on the result throws `AttributeError: 'list' object has no attribute 'label'`. Unwrap with `(await async_evaluate(...))[0]` AND check for empty list (rate-limit/safety-block) before indexing.
+
+8. **`asyncio.gather(..., return_exceptions=False)` propagates the first exception** — even ones from helpers, not just the awaited tasks. A future `prompt.format` `KeyError` would kill the whole batch. Use `return_exceptions=True` + per-cluster outcome-loop fallback handling.
+
+9. **`# type: ignore[...]` is mypy syntax; this project uses `ty`.** Use `# ty: ignore[<rule>]` (with the specific rule, never blanket). `# type: ignore` is silently inert — the error stays masked from mypy but visible to ty, which then fails CI.
+
+10. **The "fixture regenerates before asserting" anti-pattern.** A test fixture that does `subprocess.run("export.py")` BEFORE calling assertions on the file always passes, even when the committed copy is stale. The actual drift check belongs in a CI step (#3) and/or a separate test that reads bytes-from-disk BEFORE regenerating.
+
+---
+
 ## Local gate commands
 
 ```bash
