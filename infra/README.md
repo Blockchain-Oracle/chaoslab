@@ -16,6 +16,7 @@ Set all of these before running the scripts:
 | `GITHUB_REPO`           | `chaoslab`                   | GitHub repo name                                                                        |
 | `PHOENIX_API_KEY_VALUE` | `(from Arize Phoenix Cloud)` | Phoenix runtime auth (Secret Manager)                                                   |
 | `GITLAB_TOKEN_VALUE`    | `(GitLab PAT, scope: api)`   | GitLab MR emission (Secret Manager)                                                     |
+| `GEMINI_API_KEY_VALUE`  | `(from Google AI Studio)`    | Gemini judge LLM credential (Secret Manager)                                            |
 
 ## Step-by-step
 
@@ -35,6 +36,7 @@ bash infra/workload-identity-federation.sh
 # 2. Seed runtime secrets
 export PHOENIX_API_KEY_VALUE="<paste from Arize Phoenix dashboard>"
 export GITLAB_TOKEN_VALUE="<paste from GitLab PAT>"
+export GEMINI_API_KEY_VALUE="<paste from Google AI Studio>"
 bash infra/secret-manager-setup.sh
 
 # 3. Paste the recorded values into GitHub repo Variables
