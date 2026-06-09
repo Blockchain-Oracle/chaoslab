@@ -103,6 +103,8 @@ pre-commit run --all-files
 
 **PR checks** (S1.5) run via `.github/workflows/pr-checks.yaml`. 8 jobs must be green before merge: `detect-changes`, `python-quality` (ruff + ty), `ts-quality` (eslint + tsc), `max-lines-check`, `python-tests` (pytest + cov), `ts-tests` (vitest), `gitleaks`, `conventional-commits`. Identical gates to pre-commit — a green local pre-commit + green CI is the merge contract.
 
+**GCP IAM bootstrap** (S1.4) is a MANUAL ONE-TIME step. Run via `bash infra/workload-identity-federation.sh && bash infra/secret-manager-setup.sh` after setting the env vars listed in `infra/README.md`. CI workflows in `.github/workflows/*.yaml` assume this has happened (WIF pool + service accounts + Secret Manager secrets are all live).
+
 ---
 
 ## When to research mid-implementation
