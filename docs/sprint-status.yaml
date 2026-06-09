@@ -57,13 +57,13 @@ stories:
     merged_at: "2026-06-09T09:49:00Z"
   - id: story-1.6-staging-deploy-workflow
     epic: "Epic 1 — Repo + CI/CD foundation"
-    status: PENDING
+    status: COMPLETE
     estimate_hours: 2.0
     tags: [infra, p0, ci, deploy]
     depends_on: [story-1.4-gcp-iam-bootstrap, story-1.5-pr-checks-workflow]
     issue_url: ""
-    pr_url: ""
-    merged_at: ""
+    pr_url: "https://github.com/Blockchain-Oracle/chaoslab/pull/64"
+    merged_at: "2026-06-09T10:18:00Z"
   - id: story-1.7-prod-promote-and-visual-tests
     epic: "Epic 1 — Repo + CI/CD foundation"
     status: PENDING
