@@ -315,13 +315,13 @@ stories:
     merged_at: "2026-06-09T12:19:00Z"
   - id: story-6.2-failure-clustering
     epic: "Epic 6 — Judge + Patcher"
-    status: PENDING
+    status: COMPLETE
     estimate_hours: 2.0
     tags: [backend, p0, judge]
     depends_on: [story-6.1-judge-rubrics]
     issue_url: ""
-    pr_url: ""
-    merged_at: ""
+    pr_url: "https://github.com/Blockchain-Oracle/chaoslab/pull/67"
+    merged_at: "2026-06-09T13:35:00Z"
   - id: story-6.3-recipe-schema
     epic: "Epic 6 — Judge + Patcher"
     status: PENDING
