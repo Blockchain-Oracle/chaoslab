@@ -18,14 +18,19 @@ from typing import Any, Literal
 
 # ADR-012: SequentialAgent / LoopAgent / ParallelAgent are the deprecated-but-pinned
 # ADK 2.x workflow primitives. Workflow (the v3 replacement) is out-of-scope.
+from google.adk.agents.callback_context import CallbackContext
 from google.adk.agents.llm_agent import LlmAgent
 from google.adk.agents.loop_agent import LoopAgent  # ty: ignore[deprecated]
 from google.adk.agents.parallel_agent import ParallelAgent  # ty: ignore[deprecated]
 from google.adk.agents.sequential_agent import SequentialAgent  # ty: ignore[deprecated]
 from google.adk.events import Event as AdkEvent
+from google.adk.models.llm_request import LlmRequest
+from google.adk.models.llm_response import LlmResponse
 from google.adk.runners import InMemoryRunner, Runner
 from google.adk.tools import FunctionTool
 from google.adk.tools.base_tool import BaseTool
+from google.adk.tools.retrieval.base_retrieval_tool import BaseRetrievalTool
+from google.adk.tools.tool_context import ToolContext
 from pydantic import BaseModel, Field, field_validator
 
 # Pinned per ADR-007 + CLAUDE.md hard rule.
@@ -110,10 +115,14 @@ __all__ = [
     "JUDGE_LLM_PINNED",
     "AdkEvent",
     "AgentSpec",
+    "BaseRetrievalTool",
     "BaseTool",
+    "CallbackContext",
     "FunctionTool",
     "InMemoryRunner",
     "LlmAgent",
+    "LlmRequest",
+    "LlmResponse",
     "LoopAgent",
     "ParallelAgent",
     "RunEvent",
@@ -122,4 +131,5 @@ __all__ = [
     "RunState",
     "Runner",
     "SequentialAgent",
+    "ToolContext",
 ]
