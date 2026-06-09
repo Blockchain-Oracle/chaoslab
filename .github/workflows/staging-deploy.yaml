@@ -234,7 +234,7 @@ jobs:
         if: (steps.changed.outputs.value == 'true' || github.event_name == 'workflow_dispatch') && steps.bluegreen.outputs.value == 'true'
         run: |
           gcloud run services update-traffic ${{ matrix.service }} \
-            --to-latest=100 \
+            --to-latest \
             --region="${REGION}"
 
       - name: Cleanup candidate revision on failure
