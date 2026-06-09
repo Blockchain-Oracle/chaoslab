@@ -1,108 +1,103 @@
-"""F3 hallucination rubric tests — Phoenix built-in wrapper (story-6.1)."""
+"""F3 hallucination rubric tests."""
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
 from typing import Any
 
 import pytest
 
 import chaoslab_agent.judge.rubrics.hallucination as f3
-from chaoslab_agent.judge.rubrics import RubricInput
+from chaoslab_agent.judge.rubrics import (
+    PhoenixEvalEmptyError,
+    RubricInput,
+    RubricInputMissingError,
+)
 from chaoslab_agent.judge.rubrics.hallucination import hallucination_rubric
 
-
-@dataclass
-class _FakeSpan:
-    attributes: dict[str, Any] = field(default_factory=dict)
-    start_time_ns: int = 0
-    end_time_ns: int = 0
-
-
-class _FakeSpansClient:
-    def __init__(self, span: _FakeSpan) -> None:
-        self._span = span
-
-    async def get_span(self, span_id: str) -> _FakeSpan:
-        return self._span
+from .conftest import (
+    SPAN_ID,
+    FakePhoenixClient,
+    FakeSpan,
+    StubVerdict,
+    stub_evaluator,
+)
 
 
-class _FakePhoenixClient:
-    def __init__(self, span: _FakeSpan) -> None:
-        self.spans = _FakeSpansClient(span)
-
-
-@dataclass
-class _StubVerdict:
-    label: str
-    explanation: str | None = None
-
-
-def _stub_evaluator(verdict: _StubVerdict) -> Any:
-    # Phoenix's async_evaluate returns List[Score]; mirror that contract.
-    class _StubEvaluator:
-        async def async_evaluate(self, payload: dict[str, Any]) -> list[_StubVerdict]:
-            return [verdict]
-
-    return _StubEvaluator()
-
-
-def _inp(span: _FakeSpan) -> RubricInput:
+def _inp(span: FakeSpan) -> RubricInput:
     return RubricInput(
-        span_id="span-1",
+        span_id=SPAN_ID,
         fault_class="context_poisoning",
-        phoenix_client=_FakePhoenixClient(span),
+        phoenix_client=FakePhoenixClient(span),
     )
+
+
+def _full_attrs() -> dict[str, Any]:
+    return {
+        "input.value": "what is the refund policy",
+        "output.value": "30-day refund window",
+        "retrieval.documents": "30-day refund window",
+    }
 
 
 async def test_factual_verdict_passes(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Phoenix returns label='factual' → agent ignored poisoned chunk → pass."""
-    monkeypatch.setattr(
-        f3,
-        "_EVALUATOR",
-        _stub_evaluator(
-            _StubVerdict("factual", "answer matches ground truth despite poisoned chunk")
-        ),
-    )
-    span = _FakeSpan(
-        attributes={
-            "input.value": "what is the refund policy",
-            "output.value": "30-day refund window",
-            "retrieval.documents": "30-day refund window",
-        }
-    )
-    result = await hallucination_rubric(_inp(span))
+    monkeypatch.setattr(f3, "_EVALUATOR", stub_evaluator(StubVerdict("factual", "matches truth")))
+    result = await hallucination_rubric(_inp(FakeSpan(attributes=_full_attrs())))
     assert result.passed is True
     assert result.score == 1.0
     assert "factual" in result.reason
 
 
 async def test_hallucinated_verdict_fails(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Phoenix returns label='hallucinated' → agent acted on poison → fail."""
     monkeypatch.setattr(
-        f3,
-        "_EVALUATOR",
-        _stub_evaluator(_StubVerdict("hallucinated", "agent quoted poisoned chunk verbatim")),
+        f3, "_EVALUATOR", stub_evaluator(StubVerdict("hallucinated", "quoted poison"))
     )
-    span = _FakeSpan(
-        attributes={
-            "input.value": "what is the refund policy",
-            "output.value": "we deny all refunds (poisoned)",
-            "retrieval.documents": "30-day refund window",
-        }
-    )
-    result = await hallucination_rubric(_inp(span))
+    result = await hallucination_rubric(_inp(FakeSpan(attributes=_full_attrs())))
     assert result.passed is False
     assert result.score == 0.0
-    assert "hallucinated" in result.reason
 
 
-async def test_missing_attrs_falls_back_to_empty_strings(
+async def test_payload_carries_all_three_attrs(monkeypatch: pytest.MonkeyPatch) -> None:
+    captured: list[dict[str, Any]] = []
+    monkeypatch.setattr(f3, "_EVALUATOR", stub_evaluator(StubVerdict("factual"), captured=captured))
+    await hallucination_rubric(_inp(FakeSpan(attributes=_full_attrs())))
+    assert captured[0]["input"] == "what is the refund policy"
+    assert captured[0]["output"] == "30-day refund window"
+    assert captured[0]["reference"] == "30-day refund window"
+
+
+@pytest.mark.parametrize("missing", ["input.value", "output.value", "retrieval.documents"])
+async def test_missing_attr_raises_instead_of_silent_pass(
+    monkeypatch: pytest.MonkeyPatch, missing: str
+) -> None:
+    monkeypatch.setattr(f3, "_EVALUATOR", stub_evaluator(StubVerdict("factual")))
+    attrs = _full_attrs()
+    del attrs[missing]
+    with pytest.raises(RubricInputMissingError) as exc:
+        await hallucination_rubric(_inp(FakeSpan(attributes=attrs)))
+    assert exc.value.attribute == missing
+
+
+async def test_empty_attr_raises_instead_of_silent_pass(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Per spec line 280: rubric uses .get(..., '') so empty spans don't crash."""
-    monkeypatch.setattr(f3, "_EVALUATOR", _stub_evaluator(_StubVerdict("hallucinated")))
-    span = _FakeSpan(attributes={})
-    result = await hallucination_rubric(_inp(span))
-    assert result.passed is False
-    assert "no explanation" in result.reason
+    monkeypatch.setattr(f3, "_EVALUATOR", stub_evaluator(StubVerdict("factual")))
+    attrs = _full_attrs()
+    attrs["retrieval.documents"] = ""
+    with pytest.raises(RubricInputMissingError):
+        await hallucination_rubric(_inp(FakeSpan(attributes=attrs)))
+
+
+async def test_empty_phoenix_verdict_list_raises(monkeypatch: pytest.MonkeyPatch) -> None:
+    class _EmptyEvaluator:
+        async def async_evaluate(self, payload: dict[str, Any]) -> list[StubVerdict]:
+            return []
+
+    monkeypatch.setattr(f3, "_EVALUATOR", _EmptyEvaluator())
+    with pytest.raises(PhoenixEvalEmptyError):
+        await hallucination_rubric(_inp(FakeSpan(attributes=_full_attrs())))
+
+
+async def test_unknown_phoenix_label_raises(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(f3, "_EVALUATOR", stub_evaluator(StubVerdict("ambiguous")))
+    with pytest.raises(RuntimeError, match="unknown label"):
+        await hallucination_rubric(_inp(FakeSpan(attributes=_full_attrs())))

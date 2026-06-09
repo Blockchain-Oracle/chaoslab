@@ -1,15 +1,10 @@
-"""Shared types + dispatcher for Judge rubrics (story-6.1).
-
-Each fault class maps to exactly one rubric. ``apply_rubric`` is the public
-dispatcher the Judge sub-agent calls; per-class rubrics live in sibling
-modules so the eval-prompt-drift surface stays one-file-per-rubric.
-"""
+"""Shared types + dispatcher for Judge rubrics."""
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Literal
+from typing import TYPE_CHECKING, Any, Literal, Protocol, assert_never, runtime_checkable
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 if TYPE_CHECKING:
     from collections.abc import Awaitable, Callable
@@ -22,32 +17,110 @@ FaultClass = Literal[
 ]
 
 
-class EvalScore(BaseModel):
-    """Canonical rubric outcome. ``score`` is the [0,1] confidence the agent
-    handled the fault correctly; ``passed`` is the boolean verdict; ``reason``
-    is a one-sentence-or-shorter human-readable explanation."""
+class RubricInputMissingError(ValueError):
+    """A required Phoenix span attribute was absent or empty."""
 
+    def __init__(self, span_id: str, fault_class: str, attribute: str) -> None:
+        self.span_id = span_id
+        self.fault_class = fault_class
+        self.attribute = attribute
+        super().__init__(
+            f"rubric={fault_class} span_id={span_id} required attribute "
+            f"{attribute!r} missing or empty — refusing to silently pass"
+        )
+
+
+class PhoenixEvalEmptyError(RuntimeError):
+    """Phoenix's async_evaluate returned an empty list (rate-limit/safety/parse)."""
+
+    def __init__(self, span_id: str, fault_class: str) -> None:
+        self.span_id = span_id
+        self.fault_class = fault_class
+        super().__init__(
+            f"rubric={fault_class} span_id={span_id} Phoenix returned no Score — "
+            "verdict lost; check rate-limit / safety-block / parse failure"
+        )
+
+
+def require_attr(
+    span: Any,
+    key: str,
+    *,
+    span_id: str,
+    fault_class: str,
+) -> str:
+    """Read a non-empty string attr from a Phoenix span or raise.
+
+    Eliminates the empty-string default that would silently produce a
+    `passed=True` verdict from Phoenix when the underlying attribute was
+    actually absent — a regulator-facing audit must distinguish
+    "agent passed the attack" from "the test never recorded data".
+    """
+    value = span.attributes.get(key)
+    if value is None or (isinstance(value, str) and not value):
+        raise RubricInputMissingError(span_id, fault_class, key)
+    return str(value)
+
+
+def first_verdict(
+    verdicts: list[Any] | tuple[Any, ...],
+    *,
+    span_id: str,
+    fault_class: str,
+) -> Any:
+    """Unwrap the single Score Phoenix returns, raising loudly on empty."""
+    if not verdicts:
+        raise PhoenixEvalEmptyError(span_id, fault_class)
+    return verdicts[0]
+
+
+class EvalScore(BaseModel):
     model_config = ConfigDict(frozen=True)
 
     passed: bool
     score: float = Field(ge=0.0, le=1.0)
     reason: str = Field(min_length=1)
 
+    @model_validator(mode="after")
+    def _passed_aligns_with_score(self) -> EvalScore:
+        # A pass with score 0 (or a fail with score 1) would silently disagree
+        # with downstream consumers that read score alone for clustering.
+        if self.passed and self.score == 0.0:
+            msg = "passed=True with score=0.0 is contradictory"
+            raise ValueError(msg)
+        if not self.passed and self.score == 1.0:
+            msg = "passed=False with score=1.0 is contradictory"
+            raise ValueError(msg)
+        return self
+
+
+@runtime_checkable
+class _SpansNamespace(Protocol):
+    async def get_span(self, span_id: str) -> Any: ...
+
+
+@runtime_checkable
+class PhoenixClient(Protocol):
+    """Narrow Protocol of phoenix.client.AsyncClient the rubrics actually use."""
+
+    spans: _SpansNamespace
+
+
+# Re-exported alias so tests can inherit the namespace Protocol nominally.
+SpansNamespace = _SpansNamespace
+
+
+# Hex chars for both 16-char span IDs and 32-char trace IDs — the Injector
+# may pass either depending on whether it indexes by tool-call span or root.
+_SPAN_ID_PATTERN = r"^[0-9a-f]{16}(?:[0-9a-f]{16})?$"
+
 
 class RubricInput(BaseModel):
-    """Per-attack input to a rubric.
-
-    ``phoenix_client`` is typed loosely (``object``) because Phoenix's
-    ``AsyncClient`` doesn't ship ty-friendly stubs in the current alpha —
-    quarantine the dynamic boundary here, not in business logic
-    (story-6.1 spec line 206).
-    """
-
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
-    span_id: str = Field(min_length=1)
+    span_id: str = Field(pattern=_SPAN_ID_PATTERN)
     fault_class: FaultClass
-    phoenix_client: object
+    phoenix_client: PhoenixClient
 
 
 def _import_tool_invocation_rubric() -> Callable[[RubricInput], Awaitable[EvalScore]]:
@@ -77,24 +150,31 @@ def _import_latency_failure_rubric() -> Callable[[RubricInput], Awaitable[EvalSc
 
 
 async def apply_rubric(inp: RubricInput) -> EvalScore:
-    """Route ``inp.fault_class`` to its rubric and return the score.
-
-    Lazy-imports the per-class rubric module on first call to keep import-time
-    side-effects (Phoenix LLM client construction) out of the hot path until
-    the dispatcher actually needs that rubric.
-    """
-    if inp.fault_class == "malformed_tool_output":
-        rubric = _import_tool_invocation_rubric()
-    elif inp.fault_class == "prompt_injection":
-        rubric = _import_prompt_injection_rubric()
-    elif inp.fault_class == "context_poisoning":
-        rubric = _import_hallucination_rubric()
-    elif inp.fault_class == "latency_spike":
-        rubric = _import_latency_failure_rubric()
-    else:
-        msg = f"unknown fault_class {inp.fault_class!r} — expected one of {FaultClass.__args__}"
-        raise ValueError(msg)
+    # Lazy-imports per-class modules so the Phoenix LLM credential check
+    # defers past test-collection. assert_never on the fallthrough turns
+    # "added a new FaultClass" into a compile-time error at this site.
+    match inp.fault_class:
+        case "malformed_tool_output":
+            rubric = _import_tool_invocation_rubric()
+        case "prompt_injection":
+            rubric = _import_prompt_injection_rubric()
+        case "context_poisoning":
+            rubric = _import_hallucination_rubric()
+        case "latency_spike":
+            rubric = _import_latency_failure_rubric()
+        case _:  # pragma: no cover — unreachable under FaultClass Literal
+            assert_never(inp.fault_class)
     return await rubric(inp)
 
 
-__all__ = ["EvalScore", "FaultClass", "RubricInput", "apply_rubric"]
+__all__ = [
+    "EvalScore",
+    "FaultClass",
+    "PhoenixClient",
+    "PhoenixEvalEmptyError",
+    "RubricInput",
+    "RubricInputMissingError",
+    "apply_rubric",
+    "first_verdict",
+    "require_attr",
+]

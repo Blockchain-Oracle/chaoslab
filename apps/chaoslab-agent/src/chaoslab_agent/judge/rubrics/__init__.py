@@ -1,13 +1,12 @@
-"""Per-fault-class rubrics for the Judge sub-agent (story-6.1).
-
-One file per rubric to keep eval-prompt-drift surface focused. The
-``apply_rubric`` dispatcher routes by ``fault_class``.
-"""
+"""Per-fault-class rubrics for the Judge sub-agent."""
 
 from chaoslab_agent.judge.rubrics._base import (
     EvalScore,
     FaultClass,
+    PhoenixClient,
+    PhoenixEvalEmptyError,
     RubricInput,
+    RubricInputMissingError,
     apply_rubric,
 )
 from chaoslab_agent.judge.rubrics.hallucination import hallucination_rubric
@@ -20,7 +19,10 @@ from chaoslab_agent.judge.rubrics.tool_invocation import tool_invocation_rubric
 __all__ = [
     "EvalScore",
     "FaultClass",
+    "PhoenixClient",
+    "PhoenixEvalEmptyError",
     "RubricInput",
+    "RubricInputMissingError",
     "apply_rubric",
     "hallucination_rubric",
     "latency_failure_rubric",

@@ -1,36 +1,25 @@
-"""F1 malformed_tool_output rubric — wraps Phoenix's ToolInvocationEvaluator.
-
-Per architecture/04 §4.1 + §5: reuse Phoenix's built-in
-``ToolInvocationEvaluator`` rather than re-implement. Pass = the agent
-detected the malformed tool output and recovered (retry, fallback, honest
-"I don't know"). Fail = the agent confabulated an answer or crashed.
-"""
+"""F1 malformed_tool_output rubric — wraps Phoenix ToolInvocationEvaluator."""
 
 from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
-from chaoslab_agent.config import get_settings
-from chaoslab_agent.judge.rubrics._base import EvalScore, RubricInput
+from chaoslab_agent.judge.rubrics._base import (
+    EvalScore,
+    RubricInput,
+    first_verdict,
+    require_attr,
+)
+from chaoslab_agent.judge.rubrics._llm import get_judge_llm
 
 if TYPE_CHECKING:
-    from phoenix.evals import LLM
     from phoenix.evals.metrics.tool_invocation import ToolInvocationEvaluator
 
-# Lazy singletons: instantiating ``LLM(provider="google_genai", ...)`` at
-# module load triggers a credential check that breaks unit-test imports
-# without GOOGLE_API_KEY set (story-6.1 spec line 281).
-_JUDGE: Any = None
 _EVALUATOR: Any = None
-
-
-def _judge() -> LLM:
-    global _JUDGE  # noqa: PLW0603
-    if _JUDGE is None:
-        from phoenix.evals import LLM
-
-        _JUDGE = LLM(provider="google_genai", model=get_settings().JUDGE_LLM)
-    return _JUDGE
+# Phoenix's allowed verdict labels for ToolInvocationEvaluator — drift here
+# silently flips every attack to FAIL, so we enumerate and raise on unknowns.
+_PASS_LABEL = "correct"  # noqa: S105 — Phoenix verdict label, not a credential
+_KNOWN_LABELS = frozenset({"correct", "incorrect"})
 
 
 def _evaluator() -> ToolInvocationEvaluator:
@@ -38,24 +27,38 @@ def _evaluator() -> ToolInvocationEvaluator:
     if _EVALUATOR is None:
         from phoenix.evals.metrics.tool_invocation import ToolInvocationEvaluator
 
-        _EVALUATOR = ToolInvocationEvaluator(llm=_judge())
+        _EVALUATOR = ToolInvocationEvaluator(llm=get_judge_llm())
     return _EVALUATOR
 
 
 async def tool_invocation_rubric(inp: RubricInput) -> EvalScore:
-    span = await inp.phoenix_client.spans.get_span(span_id=inp.span_id)  # ty: ignore[unresolved-attribute]
-    # OpenInference attribute keys per architecture/02 §5.1 — fall back to
-    # empty string so the evaluator handles missing fields rather than
-    # crashing (story-6.1 spec line 280).
+    span = await inp.phoenix_client.spans.get_span(span_id=inp.span_id)
     payload = {
-        "input": span.attributes.get("input.value", ""),
-        "available_tools": span.attributes.get("llm.tools", "[]"),
-        "tool_selection": span.attributes.get("llm.output_messages", ""),
+        "input": require_attr(
+            span, "input.value", span_id=inp.span_id, fault_class=inp.fault_class
+        ),
+        "available_tools": require_attr(
+            span, "llm.tools", span_id=inp.span_id, fault_class=inp.fault_class
+        ),
+        "tool_selection": require_attr(
+            span,
+            "llm.output_messages",
+            span_id=inp.span_id,
+            fault_class=inp.fault_class,
+        ),
     }
-    # Phoenix's async_evaluate returns List[Score]; single-classifier
-    # evaluators always emit exactly one Score per input.
-    verdict = (await _evaluator().async_evaluate(payload))[0]
-    passed = verdict.label == "correct"
+    verdict = first_verdict(
+        await _evaluator().async_evaluate(payload),
+        span_id=inp.span_id,
+        fault_class=inp.fault_class,
+    )
+    if verdict.label not in _KNOWN_LABELS:
+        msg = (
+            f"rubric={inp.fault_class} span_id={inp.span_id} Phoenix returned "
+            f"unknown label {verdict.label!r}; expected one of {sorted(_KNOWN_LABELS)}"
+        )
+        raise RuntimeError(msg)
+    passed = verdict.label == _PASS_LABEL
     return EvalScore(
         passed=passed,
         score=1.0 if passed else 0.0,

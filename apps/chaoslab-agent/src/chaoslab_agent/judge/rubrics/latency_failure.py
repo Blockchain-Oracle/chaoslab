@@ -1,43 +1,51 @@
-"""F4 latency_spike rubric — deterministic, no LLM calls.
-
-Reads the span's duration from Phoenix and compares against
-``Settings.LATENCY_SLA_MS``. Score scales with how far under SLA the
-duration is; passes iff ``duration_ms < sla_ms`` (strict less-than per BDD
-line 87 — exactly-at-SLA fails).
-"""
+"""F4 latency_spike rubric — deterministic, no LLM calls."""
 
 from __future__ import annotations
 
 from typing import Any
 
 from chaoslab_agent.config import get_settings
-from chaoslab_agent.judge.rubrics._base import EvalScore, RubricInput
+from chaoslab_agent.judge.rubrics._base import (
+    EvalScore,
+    RubricInput,
+    RubricInputMissingError,
+)
 
 _NS_PER_MS = 1_000_000.0
 
 
-def _duration_ms(span: Any) -> float:
-    """Extract per-attack duration from the Phoenix span.
-
-    Prefers the explicit ``chaoslab.duration_ms`` attribute the Injector
-    writes; falls back to ``end_time_ns - start_time_ns`` when the attribute
-    is absent (older spans).
-    """
+def _duration_ms(span: Any, *, span_id: str, fault_class: str) -> float:
+    # The Injector writes chaoslab.duration_ms; fall back to end-start only
+    # when both timestamps are valid (non-zero and start <= end). A span with
+    # neither path producing a positive duration is malformed — failing loud
+    # here prevents the report from silently scoring it as well-under-SLA.
     explicit = span.attributes.get("chaoslab.duration_ms")
     if explicit is not None:
-        return float(explicit)
-    return (span.end_time_ns - span.start_time_ns) / _NS_PER_MS
+        try:
+            value = float(explicit)
+        except (TypeError, ValueError) as exc:
+            raise RubricInputMissingError(span_id, fault_class, "chaoslab.duration_ms") from exc
+        if value <= 0:
+            raise RubricInputMissingError(span_id, fault_class, "chaoslab.duration_ms")
+        return value
+    start = getattr(span, "start_time_ns", 0)
+    end = getattr(span, "end_time_ns", 0)
+    if not start or not end or end <= start:
+        raise RubricInputMissingError(
+            span_id, fault_class, "chaoslab.duration_ms|start_time_ns,end_time_ns"
+        )
+    return (end - start) / _NS_PER_MS
 
 
 async def latency_failure_rubric(inp: RubricInput) -> EvalScore:
-    span = await inp.phoenix_client.spans.get_span(span_id=inp.span_id)  # ty: ignore[unresolved-attribute]
-    duration_ms = _duration_ms(span)
+    span = await inp.phoenix_client.spans.get_span(span_id=inp.span_id)
+    duration_ms = _duration_ms(span, span_id=inp.span_id, fault_class=inp.fault_class)
     sla_ms = get_settings().LATENCY_SLA_MS
     passed = duration_ms < sla_ms
-    # Score scales with how comfortably we beat the SLA. Fast tools score
-    # near 1.0; tools exactly at SLA score 1.0 but fail the boolean gate;
-    # tools 2x over SLA score 0.5; tools 10x over SLA score 0.1.
-    score = min(1.0, sla_ms / max(duration_ms, 1.0))
+    # Clamp the failure score below 1.0 so downstream consumers reading score
+    # alone (e.g. S6.2 clustering) cannot mistake an at-SLA fail for a pass.
+    raw_score = min(1.0, sla_ms / duration_ms)
+    score = raw_score if passed else min(raw_score, 0.99)
     return EvalScore(
         passed=passed,
         score=score,
