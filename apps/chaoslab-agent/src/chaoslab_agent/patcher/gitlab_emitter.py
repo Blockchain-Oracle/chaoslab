@@ -31,6 +31,7 @@ from chaoslab_agent.patcher._gitlab_mcp_client import (
 from chaoslab_agent.patcher._gitlab_rest_client import (
     GitLabRestClient,
     GitLabRestClientError,
+    build_default_client,
 )
 from chaoslab_agent.patcher._markdown_renderer import render_recipe
 from chaoslab_agent.patcher.recipe import HardeningRecipe
@@ -41,7 +42,17 @@ _MR_URL_PATTERN = re.compile(r"^https://gitlab\.com/.+/-/merge_requests/\d+$")
 
 
 class GitLabEmitterError(RuntimeError):
-    """Raised when MR emission fails — wraps REST + MCP errors with context."""
+    """Raised when MR emission fails — wraps REST + MCP errors with context.
+
+    Round-3: `rollback_failed=True` signals that the orphan-branch rollback
+    itself failed AFTER the original MR-creation failure. The receipt-card
+    surface uses this to render "manual cleanup needed at .../-/branches/<x>"
+    instead of "MR creation failed" alone.
+    """
+
+    def __init__(self, *args: object, rollback_failed: bool = False) -> None:
+        super().__init__(*args)
+        self.rollback_failed = rollback_failed
 
 
 class GitLabEmitResult(BaseModel):
@@ -136,15 +147,14 @@ class GitLabMREmitter:
             # so the operator sees what actually broke. The branch_name is
             # included in the user-facing message so manual cleanup is
             # possible at gitlab.com/.../-/branches/<branch_name>.
-            self._rollback_branch_best_effort(rest, branch_name)
-            # Translate auth failures with a marker the receipt-card surface
-            # can grep ("authentication") — the bare MCP error message stays in
-            # __cause__ for the on-call engineer.
-            if "401" in str(exc) or "authentication" in str(exc).lower():
+            rollback_failed = self._rollback_branch_best_effort(rest, branch_name)
+            # Round-3: `exc.auth_failed` flag replaces fragile substring match
+            # ("401" in body would have false-positive'd on unrelated errors).
+            if exc.auth_failed:
                 msg = f"GitLab MR authentication failed (branch={branch_name}): {exc}"
-                raise GitLabEmitterError(msg) from exc
+                raise GitLabEmitterError(msg, rollback_failed=rollback_failed) from exc
             msg = f"GitLab MR creation failed (branch={branch_name}): {exc}"
-            raise GitLabEmitterError(msg) from exc
+            raise GitLabEmitterError(msg, rollback_failed=rollback_failed) from exc
 
         mr_url = self._extract_mr_field(mr, "web_url")
         mr_iid_raw = self._extract_mr_field(mr, "iid")
@@ -276,19 +286,22 @@ class GitLabMREmitter:
         raise GitLabEmitterError(msg)
 
     @staticmethod
-    def _rollback_branch_best_effort(rest: GitLabRestClient, branch_name: str) -> None:
-        """Delete a branch after MR creation failed. Logs on error but never raises.
+    def _rollback_branch_best_effort(rest: GitLabRestClient, branch_name: str) -> bool:
+        """Delete a branch after MR creation failed. Returns True iff rollback failed.
 
         Best-effort: if rollback itself fails (network, IAM gap, etc.), we still
-        want to propagate the ORIGINAL MR-creation error. The branch_name is
-        included in the user-facing GitLabEmitterError so manual cleanup is
-        possible via gitlab.com/.../-/branches/<branch_name>.
+        want to propagate the ORIGINAL MR-creation error. The return value
+        signals rollback state to the caller so it can attach `rollback_failed`
+        to the raised GitLabEmitterError — receipt-card surface uses this to
+        render "manual cleanup needed" instead of "MR creation failed" alone.
         """
         try:
             rest.delete_branch(branch_name)
             logger.info("orphan_branch_rolled_back branch=%s", branch_name)
         except Exception:
             logger.exception("orphan_branch_rollback_failed branch=%s", branch_name)
+            return True
+        return False
 
     def _get_rest_client(self, project_id: str) -> GitLabRestClient:
         if self._rest_client is not None:
@@ -297,8 +310,8 @@ class GitLabMREmitter:
         if settings.gitlab_token is None:
             msg = "GITLAB_TOKEN must be set in Settings for REST branch + commit operations"
             raise GitLabEmitterError(msg)
-        from chaoslab_agent.patcher._gitlab_rest_client import build_default_client
-
+        # build_default_client is hoisted to module-top — round-3 reviewer
+        # flagged the lazy import on the hot path (every audit run).
         return build_default_client(
             project_id=project_id, token=settings.gitlab_token.get_secret_value()
         )
