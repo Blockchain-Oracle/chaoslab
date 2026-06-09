@@ -147,3 +147,96 @@ async def test_annotation_writeback_skipped_on_clusterer_failure(
     # Half-written annotations would corrupt the audit report; the
     # writeback must NOT fire when clustering fails.
     assert cast(_RecordingSpans, client.spans).batches == []
+
+
+# ---------------------------------------------------------------------------
+# Annotation entry detail asserts (round-2)
+# ---------------------------------------------------------------------------
+
+
+async def test_annotation_writeback_score_passes_through_eval_score(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Build heterogeneous severities so collapsing them all to 0.0 would
+    # be detectable.
+    failures = [
+        FailedSpan(
+            span_id=f"{i:016x}",
+            fault_class="malformed_tool_output",
+            eval_score=EvalScore(passed=False, score=0.42 + 0.1 * i, reason=f"f{i}"),
+            trace_excerpt=f"trace {i}",
+        )
+        for i in range(3)
+    ]
+    stub = _StubClusterer(_scripted_partition(failures, cluster_count=1))
+    import chaoslab_agent.judge.clustering as c
+
+    monkeypatch.setattr(c, "_call_clusterer", stub)
+    client = _RecordingClient()
+    await run_clustering(failures, phoenix_client=client)
+    scores = {
+        entry.span_id: entry.result.score
+        for entry in cast(_RecordingSpans, client.spans).batches[0]
+    }
+    assert scores == {f.span_id: f.eval_score.score for f in failures}
+
+
+async def test_annotation_explanation_carries_cluster_root_cause(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    failures = _failures(3)
+    stub = _StubClusterer(_scripted_partition(failures, cluster_count=1))
+    import chaoslab_agent.judge.clustering as c
+
+    monkeypatch.setattr(c, "_call_clusterer", stub)
+    client = _RecordingClient()
+    result = await run_clustering(failures, phoenix_client=client)
+    explanations = {
+        entry.result.explanation for entry in cast(_RecordingSpans, client.spans).batches[0]
+    }
+    assert explanations == {c.root_cause for c in result.clusters}
+
+
+async def test_annotation_metadata_carries_fault_classes(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    failures = _failures(3)
+    stub = _StubClusterer(_scripted_partition(failures, cluster_count=1))
+    import chaoslab_agent.judge.clustering as c
+
+    monkeypatch.setattr(c, "_call_clusterer", stub)
+    client = _RecordingClient()
+    await run_clustering(failures, phoenix_client=client)
+    for entry in cast(_RecordingSpans, client.spans).batches[0]:
+        assert "fault_classes" in entry.metadata
+        assert isinstance(entry.metadata["fault_classes"], list)
+
+
+async def test_annotation_writeback_failure_raises_typed_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from chaoslab_agent.judge.clustering import AnnotationWritebackError
+
+    failures = _failures(3)
+    stub = _StubClusterer(_scripted_partition(failures, cluster_count=1))
+    import chaoslab_agent.judge.clustering as c
+
+    monkeypatch.setattr(c, "_call_clusterer", stub)
+
+    class _RejectingSpans(_SpansNamespace):
+        async def get_span(self, span_id: str) -> Any:
+            raise NotImplementedError
+
+        async def log_span_annotations(self, *, span_annotations: list[Any]) -> None:
+            raise RuntimeError("Phoenix 503")
+
+    class _RejectingClient(PhoenixClient):
+        spans: _SpansNamespace
+
+        def __init__(self) -> None:
+            self.spans = _RejectingSpans()
+
+    with pytest.raises(AnnotationWritebackError) as exc:
+        await run_clustering(failures, phoenix_client=_RejectingClient())
+    assert exc.value.attempted_count == len(failures)
+    assert exc.value.cluster_set.total_failures == len(failures)

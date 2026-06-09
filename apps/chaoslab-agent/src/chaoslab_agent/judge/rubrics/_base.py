@@ -112,7 +112,8 @@ SpansNamespace = _SpansNamespace
 
 # Hex chars for both 16-char span IDs and 32-char trace IDs — the Injector
 # may pass either depending on whether it indexes by tool-call span or root.
-_SPAN_ID_PATTERN = r"^[0-9a-f]{16}(?:[0-9a-f]{16})?$"
+SPAN_ID_PATTERN = r"^[0-9a-f]{16}(?:[0-9a-f]{16})?$"
+_SPAN_ID_PATTERN = SPAN_ID_PATTERN  # backward-compat alias
 
 
 class RubricInput(BaseModel):

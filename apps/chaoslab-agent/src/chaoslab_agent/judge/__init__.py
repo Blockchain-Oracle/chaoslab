@@ -8,9 +8,11 @@ from chaoslab_agent.judge.clustering import (
     FailureClusterSet,
     run_clustering,
 )
+from chaoslab_agent.judge.clustering_writeback import AnnotationWritebackError
 
 __all__ = [
     "JUDGE_NAME",
+    "AnnotationWritebackError",
     "ClusteringError",
     "FailedSpan",
     "FailureCluster",

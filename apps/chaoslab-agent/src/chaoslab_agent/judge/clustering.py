@@ -1,24 +1,35 @@
-"""LLM-as-clusterer over failed spans + Phoenix annotation writeback.
-
-JUDGE_LLM is locked to ``gemini-3.5-flash`` (ADR-007). The clusterer
-groups 1-72 failed `FailedSpan` records into 1-5 root-cause `FailureCluster`s
-and writes one ``chaoslab_failure_cluster`` annotation back per span via
-Phoenix's `log_span_annotations` API.
-"""
+"""LLM-as-clusterer over failed spans with Phoenix annotation writeback."""
 
 from __future__ import annotations
 
 import json
+import logging
 import secrets
-from typing import Any, Literal, cast
+from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from chaoslab_agent.config import get_settings
 from chaoslab_agent.judge._models import FailedSpan
 from chaoslab_agent.judge.clustering_prompt import CLUSTER_PROMPT, RETRY_PROMPT
+from chaoslab_agent.judge.clustering_writeback import (
+    AnnotationWritebackError,
+    write_annotations,
+)
 from chaoslab_agent.judge.rubrics._base import FaultClass, PhoenixClient
 from chaoslab_agent.judge.rubrics._llm import get_judge_llm
+
+logger = logging.getLogger(__name__)
+
+# Truncate raw clusterer payloads in logs so a 5MB Gemini response can't
+# blow up the log shipper but a debugger still has the head of the body.
+_RAW_LOG_LIMIT = 500
+
+# String prefix the runtime guard accepts. The Literal on
+# FailureClusterSet.clusterer_model is tighter (exact match); the prefix
+# check exists only to surface a useful error before pydantic does.
+_JUDGE_MODEL_PREFIX = "gemini-3.5-flash"
+
 
 # ---------------------------------------------------------------------------
 # Schemas
@@ -26,8 +37,6 @@ from chaoslab_agent.judge.rubrics._llm import get_judge_llm
 
 
 class FailureCluster(BaseModel):
-    """One root-cause cluster the LLM groups failures into."""
-
     model_config = ConfigDict(frozen=True)
 
     cluster_id: str = Field(pattern=r"^cluster_[a-z0-9]{8}$")
@@ -45,22 +54,29 @@ class FailureCluster(BaseModel):
 
 
 class FailureClusterSet(BaseModel):
-    """Validated partition of failed spans into 1-5 clusters."""
+    # Frozen so a caller can't bypass the partition invariant by mutating
+    # `.clusters` post-construction (the list itself is still mutable in
+    # Python; the frozen flag blocks Pydantic-managed reassignment).
+    model_config = ConfigDict(frozen=True)
 
     clusters: list[FailureCluster] = Field(min_length=1, max_length=5)
     total_failures: int = Field(ge=1)
-    # ADR-007: JUDGE_LLM clusterer is locked to gemini-3.5-flash.
     clusterer_model: Literal["gemini-3.5-flash"] = "gemini-3.5-flash"
 
     @model_validator(mode="after")
     def _mutually_exclusive_partition(self) -> FailureClusterSet:
-        seen: set[str] = set()
+        seen_spans: set[str] = set()
+        seen_cluster_ids: set[str] = set()
         for c in self.clusters:
+            if c.cluster_id in seen_cluster_ids:
+                msg = f"cluster_id {c.cluster_id} appears more than once"
+                raise ValueError(msg)
+            seen_cluster_ids.add(c.cluster_id)
             for sid in c.span_ids:
-                if sid in seen:
+                if sid in seen_spans:
                     msg = f"span_id {sid} assigned to multiple clusters"
                     raise ValueError(msg)
-                seen.add(sid)
+                seen_spans.add(sid)
         if sum(c.failure_count for c in self.clusters) != self.total_failures:
             msg = "cluster failure_counts do not sum to total_failures"
             raise ValueError(msg)
@@ -82,7 +98,6 @@ class ClusteringError(RuntimeError):
 
 
 def new_cluster_id() -> str:
-    """Mint an 8-hex-char cluster id (matches the FailureCluster regex)."""
     return f"cluster_{secrets.token_hex(4)}"
 
 
@@ -102,71 +117,28 @@ def _failures_payload(failures: list[FailedSpan]) -> str:
 
 
 async def _call_clusterer(prompt: str) -> str:
-    """Send the prompt to the JUDGE_LLM (gemini-3.5-flash) and return the
-    raw string response.
-
-    Kept as a module-level function so tests can monkeypatch the Gemini
-    HTTP boundary without touching `LLM` construction (story-6.1 lazy
-    singleton applies here too).
-    """
+    # Module-level so tests can monkeypatch the Gemini boundary without
+    # touching the lazy LLM singleton. Vertex AI raises typed Google API
+    # exceptions on quota/safety/auth; bubble them as ClusteringError so
+    # the retry loop doesn't waste tokens re-prompting an exhausted quota.
     llm = get_judge_llm()
-    # phoenix.evals.LLM.generate_text is the single-prompt convenience that
-    # returns the model's raw response body — exactly what the clusterer
-    # needs to parse as JSON.
-    response = await llm.agenerate_text(prompt=prompt, temperature=0.1)  # ty: ignore[unresolved-attribute]
+    try:
+        response = await llm.async_generate_text(prompt=prompt, temperature=0.1)
+    except Exception as exc:
+        if _is_retriable_decode_failure(exc):
+            raise
+        msg = f"Gemini call failed (non-retriable): {type(exc).__name__}: {exc}"
+        raise ClusteringError(msg) from exc
+    if not response or not str(response).strip():
+        msg = "Gemini returned an empty response (likely safety-block or quota)"
+        raise ClusteringError(msg)
     return str(response)
 
 
-# ---------------------------------------------------------------------------
-# Annotation writeback
-# ---------------------------------------------------------------------------
-
-
-class _AnnotationResult(BaseModel):
-    label: str
-    score: float
-    explanation: str
-
-
-class _SpanAnnotation(BaseModel):
-    """Mirror of phoenix.client.resources.spans.SpanAnnotationData.
-
-    The Phoenix SDK's BaseModel is constructed positionally; for testability
-    + duck-typing we mint a local equivalent and rely on `log_span_annotations`
-    accepting any object exposing the same attribute surface.
-    """
-
-    name: str
-    span_id: str
-    annotator_kind: str
-    result: _AnnotationResult
-    metadata: dict[str, Any] = Field(default_factory=dict)
-
-
-def _build_annotations(cluster_set: FailureClusterSet) -> list[_SpanAnnotation]:
-    return [
-        _SpanAnnotation(
-            name="chaoslab_failure_cluster",
-            span_id=span_id,
-            annotator_kind="LLM",
-            result=_AnnotationResult(
-                label=cluster.cluster_id,
-                score=0.0,
-                explanation=cluster.root_cause,
-            ),
-            metadata={"fault_classes": list(cluster.fault_classes)},
-        )
-        for cluster in cluster_set.clusters
-        for span_id in cluster.span_ids
-    ]
-
-
-async def _write_annotations(client: PhoenixClient, cluster_set: FailureClusterSet) -> None:
-    annotations = _build_annotations(cluster_set)
-    # PhoenixClient's spans Protocol is intentionally narrow; the real
-    # AsyncClient.spans namespace also exposes `log_span_annotations`
-    # (architecture/02 §4.4). Cast to Any to delegate at the boundary.
-    await cast(Any, client.spans).log_span_annotations(span_annotations=annotations)
+def _is_retriable_decode_failure(exc: BaseException) -> bool:
+    # Only JSON-decode failures of the LLM body should drive a re-prompt;
+    # everything that escapes the SDK (auth, quota, network) is terminal.
+    return isinstance(exc, json.JSONDecodeError)
 
 
 # ---------------------------------------------------------------------------
@@ -183,20 +155,29 @@ async def run_clustering(
     """Group failures into 1-5 root-cause clusters and write annotations.
 
     Raises:
-        ClusteringError: if the clusterer's response cannot be parsed and
-            validated after ``max_retries`` corrective re-prompts, or the
-            cluster count exceeds Settings.MAX_CLUSTERS.
+        ClusteringError: malformed JSON after retries, partition invariant
+            violation, ADR-007 model mismatch, or a non-retriable Gemini
+            exception (quota / safety / auth).
+        AnnotationWritebackError: clustering succeeded but Phoenix rejected
+            the annotation batch — `attempted_count` and `cluster_set` are
+            preserved on the exception so the caller can decide whether to
+            retry the writeback alone.
     """
     if not failures:
         msg = "run_clustering called with empty failure set"
         raise ClusteringError(msg)
 
     settings = get_settings()
-    if settings.JUDGE_LLM != "gemini-3.5-flash":
+    if not settings.JUDGE_LLM.startswith(_JUDGE_MODEL_PREFIX):
         msg = (
             f"ADR-007 invariant violated: JUDGE_LLM={settings.JUDGE_LLM!r} but "
-            "clusterer is locked to 'gemini-3.5-flash'"
+            f"clusterer requires the {_JUDGE_MODEL_PREFIX!r} family"
         )
+        raise ClusteringError(msg)
+
+    failures_by_span_id = {f.span_id: f for f in failures}
+    if len(failures_by_span_id) != len(failures):
+        msg = "duplicate span_id in failures input"
         raise ClusteringError(msg)
 
     failures_json = _failures_payload(failures)
@@ -209,7 +190,7 @@ async def run_clustering(
         max_clusters=settings.MAX_CLUSTERS,
     )
 
-    await _write_annotations(phoenix_client, cluster_set)
+    await write_annotations(phoenix_client, cluster_set, failures_by_span_id)
     return cluster_set
 
 
@@ -219,20 +200,25 @@ async def _attempt_clustering(
     max_retries: int,
     max_clusters: int,
 ) -> FailureClusterSet:
-    """Drive the JSON-decode retry loop; semantic errors are non-retriable.
-
-    Re-prompting on a parse failure can recover (the LLM emitted prose by
-    mistake). Re-prompting on a partition-invariant violation will not —
-    the LLM's reasoning was the problem, not its formatting.
-    """
+    # Re-prompting can recover from a parse failure (LLM emitted prose); it
+    # cannot recover from a partition-invariant violation, so semantic
+    # errors raise immediately.
     prompt = initial_prompt
     last_decode_err: json.JSONDecodeError | None = None
+    last_raw: str = ""
     for attempt in range(max_retries + 1):
         raw = await _call_clusterer(prompt)
+        last_raw = raw
         try:
             body = json.loads(raw)
         except json.JSONDecodeError as exc:
             last_decode_err = exc
+            logger.warning(
+                "clusterer emitted non-JSON on attempt %d/%d: %s",
+                attempt + 1,
+                max_retries + 1,
+                raw[:_RAW_LOG_LIMIT],
+            )
             if attempt == max_retries:
                 break
             prompt = f"{RETRY_PROMPT}\n\n{initial_prompt}"
@@ -240,8 +226,18 @@ async def _attempt_clustering(
         try:
             return _validate_body(body, failures=failures, max_clusters=max_clusters)
         except ValueError as exc:
+            logger.warning(
+                "clusterer returned invalid partition: %s | raw=%s",
+                exc,
+                raw[:_RAW_LOG_LIMIT],
+            )
             msg = f"clusterer returned invalid partition: {exc}"
             raise ClusteringError(msg) from exc
+    logger.error(
+        "clusterer exhausted %d retries; last raw payload: %s",
+        max_retries,
+        last_raw[:_RAW_LOG_LIMIT],
+    )
     msg = f"clusterer returned malformed JSON after {max_retries} retries"
     raise ClusteringError(msg) from last_decode_err
 
@@ -252,7 +248,16 @@ def _validate_body(
     failures: list[FailedSpan],
     max_clusters: int,
 ) -> FailureClusterSet:
-    clusters_raw = body.get("clusters", []) if isinstance(body, dict) else []
+    if not isinstance(body, dict):
+        msg = (
+            f"clusterer returned non-dict JSON ({type(body).__name__}); "
+            "expected an object with a 'clusters' key"
+        )
+        raise ValueError(msg)
+    if "clusters" not in body:
+        msg = "clusterer response missing required 'clusters' key"
+        raise ValueError(msg)
+    clusters_raw = body["clusters"]
     if not clusters_raw:
         msg = "clusterer returned no clusters"
         raise ValueError(msg)
@@ -262,14 +267,30 @@ def _validate_body(
             f"exceeds MAX_CLUSTERS={max_clusters}"
         )
         raise ValueError(msg)
-    return FailureClusterSet(
+    cluster_set = FailureClusterSet(
         clusters=[FailureCluster(**c) for c in clusters_raw],
         total_failures=len(failures),
     )
+    # The pydantic partition check guarantees mutual exclusion among the
+    # span_ids the LLM emitted; it does NOT guarantee those ids match the
+    # input set. Without this check, hallucinated/swapped span_ids would
+    # silently land in the audit annotations.
+    input_spans = {f.span_id for f in failures}
+    emitted_spans = {sid for c in cluster_set.clusters for sid in c.span_ids}
+    if emitted_spans != input_spans:
+        missing = input_spans - emitted_spans
+        extra = emitted_spans - input_spans
+        msg = (
+            f"partition span_ids do not match input; "
+            f"missing={sorted(missing)} unexpected={sorted(extra)}"
+        )
+        raise ValueError(msg)
+    return cluster_set
 
 
 __all__ = [
     "CLUSTER_PROMPT",
+    "AnnotationWritebackError",
     "ClusteringError",
     "FailureCluster",
     "FailureClusterSet",

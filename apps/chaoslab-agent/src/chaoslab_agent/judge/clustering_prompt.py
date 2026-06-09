@@ -1,4 +1,10 @@
-"""LLM-as-clusterer prompt — verbatim from architecture/04 §5.1."""
+"""LLM-as-clusterer prompt body for the failure clusterer.
+
+Prompt prose is the partition-shape variant called out in
+docs/stories/story-6.2-failure-clustering.md (lines 220-243): 1-5
+clusters of `{span_id, failure_count}` rather than architecture/04 §5.1's
+3-7 clusters with `trace_id`/`exemplar_trace_id`/`suggested_fix_category`.
+"""
 # ruff: noqa: E501  — prompt prose intentionally exceeds line-length limits.
 
 CLUSTER_PROMPT = """You are analyzing failures of an LLM agent that was attacked by ChaosLab.

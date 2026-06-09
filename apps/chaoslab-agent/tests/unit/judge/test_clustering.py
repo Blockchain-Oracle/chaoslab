@@ -411,3 +411,260 @@ async def test_run_clustering_clusterer_model_is_locked_to_flash(
     monkeypatch.setattr(c, "_call_clusterer", stub)
     result = await run_clustering(failures, phoenix_client=_RecordingClient())
     assert result.clusterer_model == "gemini-3.5-flash"
+
+
+# ---------------------------------------------------------------------------
+# Rubric payload contract (round-2)
+# ---------------------------------------------------------------------------
+
+
+async def test_run_clustering_payload_carries_all_five_rubric_fields(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    failures = _failures(4)
+    stub = _StubClusterer([_valid_partition_json(failures)])
+    import chaoslab_agent.judge.clustering as c
+
+    monkeypatch.setattr(c, "_call_clusterer", stub)
+    await run_clustering(failures, phoenix_client=_RecordingClient())
+    rendered_prompt = stub.calls[0]
+    # The failures JSON is embedded between <failures> tags by the prompt.
+    payload_start = rendered_prompt.index("<failures>") + len("<failures>")
+    payload_end = rendered_prompt.index("</failures>")
+    payload = json.loads(rendered_prompt[payload_start:payload_end])
+    assert len(payload) == len(failures)
+    for entry, source in zip(payload, failures, strict=True):
+        assert entry["span_id"] == source.span_id
+        assert entry["fault_class"] == source.fault_class
+        assert entry["verdict"] == "FAIL"
+        assert entry["judge_reason"] == source.eval_score.reason
+        assert entry["trace_excerpt"] == source.trace_excerpt
+
+
+# ---------------------------------------------------------------------------
+# Boundary + semantic-non-retriable + ADR-007 (round-2)
+# ---------------------------------------------------------------------------
+
+
+async def test_exactly_five_clusters_passes(monkeypatch: pytest.MonkeyPatch) -> None:
+    failures = _failures(5)
+    body = {
+        "clusters": [
+            {
+                "cluster_id": f"cluster_{i:08x}",
+                "root_cause": f"r{i}",
+                "failure_count": 1,
+                "span_ids": [failures[i].span_id],
+                "fault_classes": [failures[i].fault_class],
+            }
+            for i in range(5)
+        ]
+    }
+    stub = _StubClusterer([json.dumps(body)])
+    import chaoslab_agent.judge.clustering as c
+
+    monkeypatch.setattr(c, "_call_clusterer", stub)
+    result = await run_clustering(failures, phoenix_client=_RecordingClient())
+    assert len(result.clusters) == 5
+
+
+async def test_empty_failures_raises_immediately() -> None:
+    with pytest.raises(ClusteringError, match="empty failure set"):
+        await run_clustering([], phoenix_client=_RecordingClient())
+
+
+async def test_adr_007_runtime_guard_rejects_wrong_model(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    failures = _failures(2)
+    import chaoslab_agent.judge.clustering as c
+
+    monkeypatch.setattr(
+        c,
+        "get_settings",
+        lambda: type("S", (), {"JUDGE_LLM": "claude-3-haiku", "MAX_CLUSTERS": 5})(),  # noqa: PLW0108
+    )
+    with pytest.raises(ClusteringError, match="ADR-007"):
+        await run_clustering(failures, phoenix_client=_RecordingClient())
+
+
+async def test_adr_007_runtime_guard_accepts_flash_variants(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Settings is locked but the runtime guard uses startswith so a future
+    # `gemini-3.5-flash-002` revision works without code change.
+    failures = _failures(2)
+    stub = _StubClusterer([_valid_partition_json(failures)])
+    import chaoslab_agent.judge.clustering as c
+
+    monkeypatch.setattr(c, "_call_clusterer", stub)
+    monkeypatch.setattr(
+        c,
+        "get_settings",
+        lambda: type("S", (), {"JUDGE_LLM": "gemini-3.5-flash-002", "MAX_CLUSTERS": 5})(),  # noqa: PLW0108
+    )
+    result = await run_clustering(failures, phoenix_client=_RecordingClient())
+    assert isinstance(result, FailureClusterSet)
+
+
+async def test_duplicate_span_id_in_failures_raises(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    f = _failures(1)[0]
+    with pytest.raises(ClusteringError, match="duplicate span_id"):
+        await run_clustering([f, f], phoenix_client=_RecordingClient())
+
+
+async def test_hallucinated_span_id_in_partition_raises(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    failures = _failures(3)
+    body = {
+        "clusters": [
+            {
+                "cluster_id": "cluster_aaaaaaaa",
+                "root_cause": "r",
+                "failure_count": 3,
+                # Replace one real span_id with a hallucinated one.
+                "span_ids": [failures[0].span_id, failures[1].span_id, "f" * 16],
+                "fault_classes": ["malformed_tool_output"],
+            }
+        ]
+    }
+    stub = _StubClusterer([json.dumps(body)])
+    import chaoslab_agent.judge.clustering as c
+
+    monkeypatch.setattr(c, "_call_clusterer", stub)
+    with pytest.raises(ClusteringError, match="span_ids do not match"):
+        await run_clustering(failures, phoenix_client=_RecordingClient())
+
+
+async def test_non_dict_json_body_raises_descriptive_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    failures = _failures(2)
+    stub = _StubClusterer([json.dumps(["not", "a", "dict"])])
+    import chaoslab_agent.judge.clustering as c
+
+    monkeypatch.setattr(c, "_call_clusterer", stub)
+    with pytest.raises(ClusteringError, match="non-dict"):
+        await run_clustering(failures, phoenix_client=_RecordingClient())
+
+
+async def test_missing_clusters_key_raises_descriptive_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    failures = _failures(2)
+    stub = _StubClusterer([json.dumps({"oops": []})])
+    import chaoslab_agent.judge.clustering as c
+
+    monkeypatch.setattr(c, "_call_clusterer", stub)
+    with pytest.raises(ClusteringError, match="missing required 'clusters' key"):
+        await run_clustering(failures, phoenix_client=_RecordingClient())
+
+
+async def test_semantic_violation_is_not_retried(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    failures = _failures(2)
+    bad = json.dumps({"clusters": []})
+    stub = _StubClusterer([bad, _valid_partition_json(failures)])
+    import chaoslab_agent.judge.clustering as c
+
+    monkeypatch.setattr(c, "_call_clusterer", stub)
+    with pytest.raises(ClusteringError, match="no clusters"):
+        await run_clustering(failures, phoenix_client=_RecordingClient())
+    assert len(stub.calls) == 1  # NOT retried
+
+
+# ---------------------------------------------------------------------------
+# Frozen + cluster_id uniqueness (round-2)
+# ---------------------------------------------------------------------------
+
+
+def test_failure_cluster_set_is_frozen() -> None:
+    s = FailureClusterSet(
+        clusters=[
+            FailureCluster(
+                cluster_id="cluster_aaaaaaaa",
+                root_cause="r",
+                failure_count=1,
+                span_ids=["s1"],
+                fault_classes=["malformed_tool_output"],
+            )
+        ],
+        total_failures=1,
+    )
+    with pytest.raises(ValidationError):
+        s.total_failures = 99  # type: ignore[misc]
+
+
+def test_failure_cluster_set_rejects_duplicate_cluster_ids() -> None:
+    with pytest.raises(ValidationError, match="cluster_id"):
+        FailureClusterSet(
+            clusters=[
+                FailureCluster(
+                    cluster_id="cluster_aaaaaaaa",
+                    root_cause="r1",
+                    failure_count=1,
+                    span_ids=["s1"],
+                    fault_classes=["malformed_tool_output"],
+                ),
+                FailureCluster(
+                    cluster_id="cluster_aaaaaaaa",
+                    root_cause="r2",
+                    failure_count=1,
+                    span_ids=["s2"],
+                    fault_classes=["prompt_injection"],
+                ),
+            ],
+            total_failures=2,
+        )
+
+
+def test_failure_cluster_immutable_attribute_set_fails() -> None:
+    c = FailureCluster(
+        cluster_id="cluster_aaaaaaaa",
+        root_cause="r",
+        failure_count=1,
+        span_ids=["s1"],
+        fault_classes=["malformed_tool_output"],
+    )
+    with pytest.raises(ValidationError):
+        c.failure_count = 99  # type: ignore[misc]
+
+
+# ---------------------------------------------------------------------------
+# Typed Gemini exceptions + empty response (round-2)
+# ---------------------------------------------------------------------------
+
+
+async def test_non_retriable_gemini_exception_raises_clustering_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    failures = _failures(2)
+    import chaoslab_agent.judge.clustering as c
+
+    class _BoomLLM:
+        async def async_generate_text(self, *, prompt: str, temperature: float) -> str:
+            raise RuntimeError("Quota exhausted")
+
+    monkeypatch.setattr(c, "get_judge_llm", lambda: _BoomLLM())  # noqa: PLW0108
+    # Don't monkeypatch _call_clusterer — we want the real path to surface.
+    with pytest.raises(ClusteringError, match="non-retriable"):
+        await run_clustering(failures, phoenix_client=_RecordingClient())
+
+
+async def test_empty_gemini_response_raises_clustering_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    failures = _failures(2)
+    import chaoslab_agent.judge.clustering as c
+
+    class _EmptyLLM:
+        async def async_generate_text(self, *, prompt: str, temperature: float) -> str:
+            return ""
+
+    monkeypatch.setattr(c, "get_judge_llm", lambda: _EmptyLLM())  # noqa: PLW0108
+    with pytest.raises(ClusteringError, match="empty response"):
+        await run_clustering(failures, phoenix_client=_RecordingClient())

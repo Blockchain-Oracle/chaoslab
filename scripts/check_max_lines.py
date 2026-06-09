@@ -29,7 +29,15 @@ EXTENSIONS = {".py", ".ts", ".tsx", ".js", ".jsx", ".md"}
 # Addresses PR #3 silent-failure-hunter F3 + pr-test-analyzer GAP-1.
 EXCLUDE_FILENAMES = {"__init__.py"}
 EXCLUDE_SUFFIXES = {".d.ts"}
-EXCLUDE_DIR_COMPONENTS = {"_vendored", "node_modules", ".next", "dist", "build"}
+EXCLUDE_DIR_COMPONENTS = {
+    "_vendored",
+    "node_modules",
+    ".next",
+    "dist",
+    "build",
+    # Tests are exempt per the module docstring — spec completeness > brevity.
+    "tests",
+}
 
 LINE_COMMENT_PREFIXES = ("#", "//", "/*", "*", "<!--")
 

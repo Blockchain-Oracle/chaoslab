@@ -72,15 +72,10 @@ class Settings(BaseSettings):
         gt=0.0,
         description="Per-tool latency SLA in ms. F4 rubric scores against this threshold.",
     )
-    MIN_CLUSTERS: int = Field(
-        default=1,
-        ge=1,
-        description="Lower bound on the clusterer output (story-6.2).",
-    )
     MAX_CLUSTERS: int = Field(
         default=5,
         ge=1,
-        description="Upper bound on the clusterer output (story-6.2).",
+        description="Upper bound on the clusterer output.",
     )
 
     @property
