@@ -120,6 +120,7 @@ gcloud iam service-accounts add-iam-policy-binding "${RUNTIME_SA_EMAIL}" \
 echo "==> Granting project-level roles to deploy SA: ${DEPLOY_SA_EMAIL}"
 for role in \
   "roles/run.admin" \
+  "roles/run.invoker" \
   "roles/artifactregistry.writer" \
   "roles/storage.admin" \
   "roles/cloudbuild.builds.editor" \
