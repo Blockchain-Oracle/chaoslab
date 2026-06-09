@@ -15,8 +15,7 @@ PATCHER_NAME = "Patcher"
 PATCHER_OUTPUT_KEY = "patcher_result"
 
 _DESCRIPTION = (
-    "Generates a HardeningRecipe from clustered failures and emits a Markdown "
-    "artifact + GitLab MR"
+    "Generates a HardeningRecipe from clustered failures and emits a Markdown artifact + GitLab MR"
 )
 # `{judge_result}` template reads the Judge sub-agent's output_key at runtime.
 _INSTRUCTION = (

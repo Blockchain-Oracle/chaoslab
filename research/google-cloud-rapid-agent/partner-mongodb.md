@@ -251,17 +251,17 @@ What kills a MongoDB submission:
 
 The Devpost MongoDB resources tab lists 9 specific URLs. Coverage check + fill-in:
 
-| Devpost-listed resource                                                                  | Status                              |
-| ---------------------------------------------------------------------------------------- | ----------------------------------- |
-| sample_mflix sample dataset (with `embedded_movies` vector collection)                    | ❌ missing — add below              |
-| Data Modeling docs                                                                       | ❌ missing — add below              |
-| MongoDB MCP Server get-started                                                           | ✅ covered (in body)                |
-| MongoDB Database Tools                                                                   | ❌ missing — add below              |
-| MongoDB Aggregations                                                                     | ❌ missing — add below              |
-| MongoDB Atlas Search                                                                     | ⚠ named in body; URL not pinned    |
-| MongoDB Atlas Vector Search                                                              | ✅ covered                          |
-| MongoDB AI Learning Hub (use-cases/artificial-intelligence)                              | ❌ missing — add below              |
-| AI Search & Retrieval product page                                                       | ❌ missing — add below              |
+| Devpost-listed resource                                                | Status                          |
+| ---------------------------------------------------------------------- | ------------------------------- |
+| sample_mflix sample dataset (with `embedded_movies` vector collection) | ❌ missing — add below          |
+| Data Modeling docs                                                     | ❌ missing — add below          |
+| MongoDB MCP Server get-started                                         | ✅ covered (in body)            |
+| MongoDB Database Tools                                                 | ❌ missing — add below          |
+| MongoDB Aggregations                                                   | ❌ missing — add below          |
+| MongoDB Atlas Search                                                   | ⚠ named in body; URL not pinned |
+| MongoDB Atlas Vector Search                                            | ✅ covered                      |
+| MongoDB AI Learning Hub (use-cases/artificial-intelligence)            | ❌ missing — add below          |
+| AI Search & Retrieval product page                                     | ❌ missing — add below          |
 
 ### Amendments
 

@@ -68,13 +68,13 @@ Enter exactly ONE of: Arize / Elastic / Fivetran / GitLab / MongoDB / Dynatrace.
 
 ### 7B. Essential Components (VERBATIM excerpts where legally material)
 
-| Requirement                                | Detail                                                                                                                                                                                                                                                                                                                                                  |
-| ------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Project Team**                           | Max 4 individuals. Team or organization entries: one Representative designated for prize allocation.                                                                                                                                                                                                                                                    |
-| **Functionality**                          | Must use Google Cloud + the specific Partner products relevant to the chosen track. **Use of services that directly compete with Google Cloud (cloud platform) or with the Partner whose track you've selected is NOT permitted.** Must install + run consistently on the platform; must function as depicted in video and text description.           |
-| **Platforms**                              | Must run on at least one of: **web, Android, or iOS**.                                                                                                                                                                                                                                                                                                  |
-| **New Projects Only**                      | "Projects must be newly created by the entrant during the Contest Period. The Project must be Your original creation not a modification or extension of Your or anyone else's existing work."                                                                                                                                                           |
-| **Third Party Integrations**               | Must have authorization to use any third-party SDKs/APIs/data per their terms.                                                                                                                                                                                                                                                                          |
+| Requirement                                     | Detail                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| ----------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Project Team**                                | Max 4 individuals. Team or organization entries: one Representative designated for prize allocation.                                                                                                                                                                                                                                                                                                                                  |
+| **Functionality**                               | Must use Google Cloud + the specific Partner products relevant to the chosen track. **Use of services that directly compete with Google Cloud (cloud platform) or with the Partner whose track you've selected is NOT permitted.** Must install + run consistently on the platform; must function as depicted in video and text description.                                                                                          |
+| **Platforms**                                   | Must run on at least one of: **web, Android, or iOS**.                                                                                                                                                                                                                                                                                                                                                                                |
+| **New Projects Only**                           | "Projects must be newly created by the entrant during the Contest Period. The Project must be Your original creation not a modification or extension of Your or anyone else's existing work."                                                                                                                                                                                                                                         |
+| **Third Party Integrations**                    | Must have authorization to use any third-party SDKs/APIs/data per their terms.                                                                                                                                                                                                                                                                                                                                                        |
 | **Limitation on Artificial Intelligence Usage** | **VERBATIM:** "Projects are required to utilize Google Cloud artificial intelligence tools, as detailed at https://cloud.google.com/terms/services (with examples including Gemini models on Agent Platform, BigQuery ML, and relevant APIs). You may also use the built-in AI-powered features within the specific Partner's products relevant to your chosen track. **All other artificial intelligence tools are not permitted.**" |
 
 ### What to Submit
@@ -123,8 +123,8 @@ Submission must:
 
 ### Stage 2: Scored Evaluation (4 equally-weighted criteria)
 
-| Criterion                       | Question                                                                                              |
-| ------------------------------- | ----------------------------------------------------------------------------------------------------- |
+| Criterion                        | Question                                                                                              |
+| -------------------------------- | ----------------------------------------------------------------------------------------------------- |
 | **Technological Implementation** | Does the interaction with Google Cloud and Partner services demonstrate quality software development? |
 | **Design**                       | Is the user experience and design of the project well thought out?                                    |
 | **Potential Impact**             | How big of an impact could the project have on the target communities?                                |
@@ -148,14 +148,14 @@ Highest-scoring submission per Track wins 1st; next wins 2nd; etc.
 
 ## 9. Prizes
 
-| Track    | 1st     | 2nd     | 3rd     |
-| -------- | ------- | ------- | ------- |
-| Arize    | $5,000  | $3,000  | $2,000  |
-| Elastic  | $5,000  | $3,000  | $2,000  |
-| Dynatrace| $5,000  | $3,000  | $2,000  |
-| Fivetran | $5,000  | $3,000  | $2,000  |
-| GitLab   | $5,000  | $3,000  | $2,000  |
-| MongoDB  | $5,000  | $3,000  | $2,000  |
+| Track     | 1st    | 2nd    | 3rd    |
+| --------- | ------ | ------ | ------ |
+| Arize     | $5,000 | $3,000 | $2,000 |
+| Elastic   | $5,000 | $3,000 | $2,000 |
+| Dynatrace | $5,000 | $3,000 | $2,000 |
+| Fivetran  | $5,000 | $3,000 | $2,000 |
+| GitLab    | $5,000 | $3,000 | $2,000 |
+| MongoDB   | $5,000 | $3,000 | $2,000 |
 
 1st place also receives **"Opportunity for a social media promotion."**
 
@@ -270,43 +270,43 @@ For questions: `support@devpost.com`.
 
 Mapped against the as-of-2026-06-03 state of the repo. Status flags: ✅ done, 🟡 in progress, 🔴 blocker, ⚪ scheduled, N/A not applicable.
 
-| §   | Requirement                                              | ChaosLab status                                                                                                  |
-| --- | -------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
-| 4   | Eligibility — Abu's country (Nigeria) not excluded       | ✅                                                                                                                |
-| 4   | Abu not OFAC SDN / Commerce Denied                       | ✅ (per Abu's prior statement, not blockchain-sanction-listed)                                                    |
-| 4   | Abu not Google/Partner/Devpost employee/contractor/family| ✅                                                                                                                |
-| 5   | Submitted before 2026-06-11 14:00 PT                     | ⚪ scheduled — deadline is 2026-06-11; ~8 days remaining                                                          |
-| 6   | $100 GCP credit form applied by 2026-06-04               | 🟡 Abu signaled "I set up the Google Cloud stuff" 2026-06-03 — VERIFY form submission, not just account login    |
-| 6   | Devpost account                                          | ✅ (Abu's submitted hackathon-pitch on 2026-06-03)                                                                |
-| 7A  | One track only — Arize                                   | ✅ (per project memory, spec, ADRs)                                                                               |
-| 7B  | Team size ≤ 4                                            | ✅ (solo build)                                                                                                   |
-| 7B  | "New Projects Only" — created during Contest Period      | ✅ (research/spec predates contest; agent code from S1.1 onward is in-period)                                     |
-| 7B  | Functions on web/Android/iOS                             | ✅ (Next.js 16 web app)                                                                                           |
-| 7B  | Uses Google Cloud + Arize products                       | ✅ (Gemini + ADK + Cloud Run + Arize Phoenix MCP)                                                                 |
-| 7B  | No competing cloud platform (AWS/Azure) for agent runtime| ✅ (3 Cloud Run services)                                                                                         |
-| 7B  | **Limitation on AI Usage** — only Google + Arize AI      | 🟡 **AUDIT REQUIRED PRE-SUBMIT.** Verify pyproject.toml, package.json, Dockerfile, Cloud Run env vars for ANY anthropic/claude/cursor/copilot/openai/langchain-as-primary/langgraph/llamaindex as RUNTIME deps. Dev tooling is OK. |
-| 7B  | 3-min demo video on YouTube/Vimeo                        | ⚪ scheduled S8.x (not yet started)                                                                               |
-| 7B  | Video in English or English subtitles                    | ⚪ scheduled                                                                                                      |
-| 7B  | Video shows project functioning                          | ⚪ scheduled                                                                                                      |
-| 7B  | Video ≤ 3 minutes                                        | ⚪ scheduled (per ux-spec.md the cascade-flip moment is at 2:15)                                                  |
-| 7B  | Video does NOT contain third-party trademarks/sponsorships| ⚪ scheduled — careful with GitLab/Phoenix UI screenshots; consider their TM use OK since we use their products    |
-| 7B  | Hosted Project URL accessible (no-login sandbox OK)      | ⚪ scheduled — deploy in S1.6 + demo seed in S8.2                                                                 |
-| 7B  | Public GitHub repo with detectable open-source license   | ✅ (Blockchain-Oracle/chaoslab, Apache-2.0 LICENSE at root, visible in About section — verified via S1.1 acceptance) |
-| 7B  | Devpost text description (features, tech, data, learnings)| ⚪ scheduled S8.x                                                                                                 |
-| 8   | Stage 1 viability: all required elements present         | ⚪ becomes verifiable at submission                                                                               |
-| 8   | Stage 1 viability: reasonable use of Google Cloud + Arize| ✅ (already integrated in spec)                                                                                   |
-| 8   | Stage 2 — Technological Implementation                   | 🟡 actively building (3 stories merged, 49 remaining; quality discipline enforced via PR-review subagents)        |
-| 8   | Stage 2 — Design (UX)                                    | 🟡 ux-spec.md drafted; S7.x epic dedicated to frontend                                                            |
-| 8   | Stage 2 — Potential Impact                               | 🟡 ChaosLab targets ANY agent (not just ADK) — broad applicability                                                |
-| 8   | Stage 2 — Quality of the Idea                            | 🟡 Cross-checked against Arize official quickstart: it does only trace plumbing; ChaosLab adds 4 fault classes + self-improvement loop + cross-framework targets — genuinely differentiated |
-| 10  | W-8BEN form ready if winner                              | ⚪ post-judging concern                                                                                           |
-| 10  | Nigerian bank can receive international USD wire         | 🟡 Abu to verify pre-judging                                                                                      |
-| 12  | OSI-approved license that doesn't limit commercial use   | ✅ Apache-2.0 satisfies (per opensource.org)                                                                      |
-| 12  | License detectable + visible at top of GitHub About      | ✅ (S1.1 acceptance test asserts this)                                                                            |
-| 12  | No vendored code that creates IP conflicts               | ✅ ADR-006 amended: attribution-only NOTICE for deepankarm/agent-chaos; no source code copied (SHA pinned in NOTICE) |
-| 15  | Submission is original work, no third-party IP infringement | 🟡 standard discipline; PR-review subagents enforce. NOTICE captures all attributions.                          |
-| 20  | Forum: California law (informational)                    | N/A — applies if dispute arises                                                                                  |
-| 21  | Arbitration: JAMS San Jose (informational)               | N/A                                                                                                              |
+| §   | Requirement                                                 | ChaosLab status                                                                                                                                                                                                                    |
+| --- | ----------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 4   | Eligibility — Abu's country (Nigeria) not excluded          | ✅                                                                                                                                                                                                                                 |
+| 4   | Abu not OFAC SDN / Commerce Denied                          | ✅ (per Abu's prior statement, not blockchain-sanction-listed)                                                                                                                                                                     |
+| 4   | Abu not Google/Partner/Devpost employee/contractor/family   | ✅                                                                                                                                                                                                                                 |
+| 5   | Submitted before 2026-06-11 14:00 PT                        | ⚪ scheduled — deadline is 2026-06-11; ~8 days remaining                                                                                                                                                                           |
+| 6   | $100 GCP credit form applied by 2026-06-04                  | 🟡 Abu signaled "I set up the Google Cloud stuff" 2026-06-03 — VERIFY form submission, not just account login                                                                                                                      |
+| 6   | Devpost account                                             | ✅ (Abu's submitted hackathon-pitch on 2026-06-03)                                                                                                                                                                                 |
+| 7A  | One track only — Arize                                      | ✅ (per project memory, spec, ADRs)                                                                                                                                                                                                |
+| 7B  | Team size ≤ 4                                               | ✅ (solo build)                                                                                                                                                                                                                    |
+| 7B  | "New Projects Only" — created during Contest Period         | ✅ (research/spec predates contest; agent code from S1.1 onward is in-period)                                                                                                                                                      |
+| 7B  | Functions on web/Android/iOS                                | ✅ (Next.js 16 web app)                                                                                                                                                                                                            |
+| 7B  | Uses Google Cloud + Arize products                          | ✅ (Gemini + ADK + Cloud Run + Arize Phoenix MCP)                                                                                                                                                                                  |
+| 7B  | No competing cloud platform (AWS/Azure) for agent runtime   | ✅ (3 Cloud Run services)                                                                                                                                                                                                          |
+| 7B  | **Limitation on AI Usage** — only Google + Arize AI         | 🟡 **AUDIT REQUIRED PRE-SUBMIT.** Verify pyproject.toml, package.json, Dockerfile, Cloud Run env vars for ANY anthropic/claude/cursor/copilot/openai/langchain-as-primary/langgraph/llamaindex as RUNTIME deps. Dev tooling is OK. |
+| 7B  | 3-min demo video on YouTube/Vimeo                           | ⚪ scheduled S8.x (not yet started)                                                                                                                                                                                                |
+| 7B  | Video in English or English subtitles                       | ⚪ scheduled                                                                                                                                                                                                                       |
+| 7B  | Video shows project functioning                             | ⚪ scheduled                                                                                                                                                                                                                       |
+| 7B  | Video ≤ 3 minutes                                           | ⚪ scheduled (per ux-spec.md the cascade-flip moment is at 2:15)                                                                                                                                                                   |
+| 7B  | Video does NOT contain third-party trademarks/sponsorships  | ⚪ scheduled — careful with GitLab/Phoenix UI screenshots; consider their TM use OK since we use their products                                                                                                                    |
+| 7B  | Hosted Project URL accessible (no-login sandbox OK)         | ⚪ scheduled — deploy in S1.6 + demo seed in S8.2                                                                                                                                                                                  |
+| 7B  | Public GitHub repo with detectable open-source license      | ✅ (Blockchain-Oracle/chaoslab, Apache-2.0 LICENSE at root, visible in About section — verified via S1.1 acceptance)                                                                                                               |
+| 7B  | Devpost text description (features, tech, data, learnings)  | ⚪ scheduled S8.x                                                                                                                                                                                                                  |
+| 8   | Stage 1 viability: all required elements present            | ⚪ becomes verifiable at submission                                                                                                                                                                                                |
+| 8   | Stage 1 viability: reasonable use of Google Cloud + Arize   | ✅ (already integrated in spec)                                                                                                                                                                                                    |
+| 8   | Stage 2 — Technological Implementation                      | 🟡 actively building (3 stories merged, 49 remaining; quality discipline enforced via PR-review subagents)                                                                                                                         |
+| 8   | Stage 2 — Design (UX)                                       | 🟡 ux-spec.md drafted; S7.x epic dedicated to frontend                                                                                                                                                                             |
+| 8   | Stage 2 — Potential Impact                                  | 🟡 ChaosLab targets ANY agent (not just ADK) — broad applicability                                                                                                                                                                 |
+| 8   | Stage 2 — Quality of the Idea                               | 🟡 Cross-checked against Arize official quickstart: it does only trace plumbing; ChaosLab adds 4 fault classes + self-improvement loop + cross-framework targets — genuinely differentiated                                        |
+| 10  | W-8BEN form ready if winner                                 | ⚪ post-judging concern                                                                                                                                                                                                            |
+| 10  | Nigerian bank can receive international USD wire            | 🟡 Abu to verify pre-judging                                                                                                                                                                                                       |
+| 12  | OSI-approved license that doesn't limit commercial use      | ✅ Apache-2.0 satisfies (per opensource.org)                                                                                                                                                                                       |
+| 12  | License detectable + visible at top of GitHub About         | ✅ (S1.1 acceptance test asserts this)                                                                                                                                                                                             |
+| 12  | No vendored code that creates IP conflicts                  | ✅ ADR-006 amended: attribution-only NOTICE for deepankarm/agent-chaos; no source code copied (SHA pinned in NOTICE)                                                                                                               |
+| 15  | Submission is original work, no third-party IP infringement | 🟡 standard discipline; PR-review subagents enforce. NOTICE captures all attributions.                                                                                                                                             |
+| 20  | Forum: California law (informational)                       | N/A — applies if dispute arises                                                                                                                                                                                                    |
+| 21  | Arbitration: JAMS San Jose (informational)                  | N/A                                                                                                                                                                                                                                |
 
 ---
 

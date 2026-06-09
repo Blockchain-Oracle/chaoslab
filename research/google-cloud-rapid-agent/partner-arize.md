@@ -173,21 +173,21 @@ The catch: the track's "meaningful use of tracing AND MCP AND eval loop" bar is 
 
 Devpost's Arize resources tab lists 13 official links + 1 contact email. The body of this file is load-bearing for the ChaosLab track and is canonical — this section only **adds** what the body doesn't yet name explicitly. Per-resource status:
 
-| Devpost-listed resource                                                                                                    | Status                                              |
-| -------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------- |
-| Phoenix Cloud (free) — https://app.phoenix.arize.com                                                                       | ✅ covered                                           |
-| Phoenix GitHub (open source) — https://github.com/Arize-ai/phoenix                                                         | ✅ covered                                           |
-| Phoenix docs — https://arize.com/docs/phoenix                                                                              | ✅ covered                                           |
-| Phoenix MCP Server guide — https://arize.com/docs/phoenix/integrations/phoenix-mcp-server                                  | ✅ covered                                           |
-| OpenInference GitHub — https://github.com/Arize-ai/openinference                                                           | ⚠ implicit (named the per-package PyPI's; not the umbrella repo) — add below |
-| openinference-instrumentation-google-adk PyPI — https://pypi.org/project/openinference-instrumentation-google-adk/         | ⚠ named the package, not the PyPI URL — add below                              |
-| openinference-instrumentation-vertexai PyPI — https://pypi.org/project/openinference-instrumentation-vertexai/             | ❌ missing — add below                                                          |
-| openinference-instrumentation-google-genai — https://github.com/Arize-ai/openinference/tree/main/python/instrumentation/openinference-instrumentation-google-genai | ❌ missing — add below                          |
-| github.com/Arize-ai/gemini-hackathon                                                                                       | ❌ missing — add below                                                          |
-| Agent Platform (Gemini) tracing guide — https://docs.arize.com/arize/llm-tracing/tracing-integrations-auto/vertex-ai-gemini | ❌ missing — add below                                                          |
-| Phoenix LLM-as-a-Judge evals — https://arize.com/docs/phoenix/evaluation/llm-evals                                         | ❌ missing — add below                                                          |
-| Hackathon Discord — https://discord.gg/7Dqk5ebCD4                                                                          | ❌ missing — add below                                                          |
-| `ryoung@arize.com` (Richard Young, technical contact)                                                                      | ❌ missing — add below                                                          |
+| Devpost-listed resource                                                                                                                                            | Status                                                                       |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------- |
+| Phoenix Cloud (free) — https://app.phoenix.arize.com                                                                                                               | ✅ covered                                                                   |
+| Phoenix GitHub (open source) — https://github.com/Arize-ai/phoenix                                                                                                 | ✅ covered                                                                   |
+| Phoenix docs — https://arize.com/docs/phoenix                                                                                                                      | ✅ covered                                                                   |
+| Phoenix MCP Server guide — https://arize.com/docs/phoenix/integrations/phoenix-mcp-server                                                                          | ✅ covered                                                                   |
+| OpenInference GitHub — https://github.com/Arize-ai/openinference                                                                                                   | ⚠ implicit (named the per-package PyPI's; not the umbrella repo) — add below |
+| openinference-instrumentation-google-adk PyPI — https://pypi.org/project/openinference-instrumentation-google-adk/                                                 | ⚠ named the package, not the PyPI URL — add below                            |
+| openinference-instrumentation-vertexai PyPI — https://pypi.org/project/openinference-instrumentation-vertexai/                                                     | ❌ missing — add below                                                       |
+| openinference-instrumentation-google-genai — https://github.com/Arize-ai/openinference/tree/main/python/instrumentation/openinference-instrumentation-google-genai | ❌ missing — add below                                                       |
+| github.com/Arize-ai/gemini-hackathon                                                                                                                               | ❌ missing — add below                                                       |
+| Agent Platform (Gemini) tracing guide — https://docs.arize.com/arize/llm-tracing/tracing-integrations-auto/vertex-ai-gemini                                        | ❌ missing — add below                                                       |
+| Phoenix LLM-as-a-Judge evals — https://arize.com/docs/phoenix/evaluation/llm-evals                                                                                 | ❌ missing — add below                                                       |
+| Hackathon Discord — https://discord.gg/7Dqk5ebCD4                                                                                                                  | ❌ missing — add below                                                       |
+| `ryoung@arize.com` (Richard Young, technical contact)                                                                                                              | ❌ missing — add below                                                       |
 
 ### Amendments — links the body did not already capture
 

@@ -316,9 +316,9 @@ def test_dockerignore_excludes_secrets_and_caches() -> None:
             continue
         active_patterns.add(line)
     for required in (".env", ".venv/", "tests/", "__pycache__/"):
-        assert required in active_patterns, (
-            f".dockerignore missing active entry: {required!r} " f"(saw {sorted(active_patterns)})"
-        )
+        assert (
+            required in active_patterns
+        ), f".dockerignore missing active entry: {required!r} (saw {sorted(active_patterns)})"
 
 
 @pytest.mark.integration

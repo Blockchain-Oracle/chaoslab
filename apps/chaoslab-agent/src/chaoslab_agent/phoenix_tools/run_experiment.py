@@ -188,8 +188,7 @@ async def _invoke_sdk(dataset_name: str, evaluators: list[str], task_callable_id
     """
     if task_callable_id not in TASK_REGISTRY:
         raise PhoenixExperimentError(
-            f"unknown task_callable_id: {task_callable_id!r} "
-            f"(registered={sorted(TASK_REGISTRY)!r})"
+            f"unknown task_callable_id: {task_callable_id!r} (registered={sorted(TASK_REGISTRY)!r})"
         )
     resolved_evaluators = _resolve_evaluators(evaluators)
     client = _build_client(get_settings())

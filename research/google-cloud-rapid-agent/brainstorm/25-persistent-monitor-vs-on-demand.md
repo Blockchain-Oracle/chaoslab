@@ -135,6 +135,7 @@ The question is whether anyone in market today combines (1) continuous monitorin
 - **Compliora** — explicit "AI Decision Audit Trail" positioning aligned to EU AI Act + HIPAA. Visited briefly via search-result title; needs deeper dive if we want to claim full coverage. Marked PARTIAL.
 
 URLs:
+
 - https://nono.sh/blog/secure-agent-audit
 - https://www.kiteworks.com/regulatory-compliance/ai-agent-audit-trail-siem-integration/
 - https://www.tierzero.ai/blog/ai-agent-audit-trail/
@@ -147,6 +148,7 @@ URLs:
 This is the load-bearing regulatory fact for Shape A vs Shape B. The sources disagree.
 
 **The regulation itself (Article 12, official text):**
+
 > "High-risk AI systems shall technically allow for the automatic recording of events (logs) over the lifetime of the system."
 
 The text says "automatic." It does NOT say "real-time," "streaming," or "continuous emission." It does NOT prescribe storage, transmission frequency, or architecture. (Source: https://artificialintelligenceact.eu/article/12/)
@@ -154,13 +156,15 @@ The text says "automatic." It does NOT say "real-time," "streaming," or "continu
 **Article 26(6)** — minimum 6 months retention for automatically generated logs.
 
 **Practitioner interpretation (FireTail blog, April 2026):**
+
 > "Automatic means logs are generated without operator intervention at the moment events occur. Scheduled exports do not count. Human-triggered captures do not count."
-(Source: https://www.firetail.ai/blog/article-12-and-the-logging-mandate-what-the-eu-ai-act-actually-requires)
+> (Source: https://www.firetail.ai/blog/article-12-and-the-logging-mandate-what-the-eu-ai-act-actually-requires)
 
 **Counter-take (Help Net Security, April 2026):**
+
 > "There's no finalized technical standard for Article 12 logging yet."
 > Two draft standards (prEN 18229-1 and ISO/IEC DIS 24970) remain incomplete.
-(Source: https://www.helpnetsecurity.com/2026/04/16/eu-ai-act-logging-requirements/)
+> (Source: https://www.helpnetsecurity.com/2026/04/16/eu-ai-act-logging-requirements/)
 
 **Honest conclusion.** The regulation is silent on real-time vs batch. The compliance vendor consensus (FireTail, CleanAim, others) is converging on the strict interpretation: continuous emission, no batch. Standards bodies have NOT ratified anything yet. Enforcement starts 2026-08-02 for high-risk AI.
 
@@ -184,6 +188,7 @@ For Phoenix Audit's marketing copy: it would be irresponsible to claim "EU AI Ac
 ### 2. If we add a continuous tier to Phoenix Audit v2, who do we compete with directly?
 
 In order of risk:
+
 1. **F5 AI Guardrails (ex-CalypsoAI)** — closest shape, has continuous + EU AI Act preset template. Constrained by F5 sales motion.
 2. **Promptfoo Enterprise (now OpenAI)** — distribution beast (OSS → 156 F500), creeping into continuous. Likely to formalize signed reports next.
 3. **Credo AI + Holistic AI** — policy-pack governance with continuous monitoring; sit above the agent rather than inside the trace.
@@ -196,6 +201,7 @@ The defensible Phoenix Audit moat against all four: **agent-native (span-tree le
 **Recommendation: ship Shape A as v1, demo a 30-second Shape B taste, roadmap Shape B as v2.**
 
 Reasoning:
+
 - **7 days to deadline.** Shape B (always-on monitor) requires a deployable sidecar/proxy, persistence, alerting, dashboards. That's 3-4 weeks of careful work, not 7 days. Trying to do both = mock-the-hot-path = forbidden per CLAUDE.md.
 - **Shape A is judge-legible.** "Point at agent → run 6 adversarial classes → signed PDF" is a 90-second demo. Judges score what they can see.
 - **Shape B is the v2 story.** It's the answer to "what's next?" — and demonstrating that you've thought through it scores judging dimensions on vision/durability.

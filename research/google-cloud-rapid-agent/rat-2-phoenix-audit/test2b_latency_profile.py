@@ -103,9 +103,7 @@ async def build_remote_and_runner():
     session_service = InMemorySessionService()
     t0 = stamp("InMemorySessionService() constructed", t0)
 
-    session = await session_service.create_session(
-        app_name="rat2-test2b", user_id="test-user"
-    )
+    session = await session_service.create_session(app_name="rat2-test2b", user_id="test-user")
     t0 = stamp("session.create() done", t0)
 
     runner = Runner(
@@ -151,7 +149,9 @@ async def pass_b_reuse_n5():
 
     print(f"[summary] 5 calls totaled: {sum(call_times):.3f}s")
     print(f"[summary] Mean per-call: {sum(call_times) / 5:.3f}s")
-    print(f"[summary] First call: {call_times[0]:.3f}s, subsequent mean: {sum(call_times[1:]) / 4:.3f}s")
+    print(
+        f"[summary] First call: {call_times[0]:.3f}s, subsequent mean: {sum(call_times[1:]) / 4:.3f}s"
+    )
     print(f"[total] Pass B end-to-end: {time.time() - overall:.3f}s")
     return call_times
 
@@ -165,8 +165,7 @@ async def pass_c_concurrent_n5():
 
     start = time.time()
     tasks = [
-        measure_a2a_call(remote, runner, session_id, f"Pass C concurrent {i + 1}")
-        for i in range(5)
+        measure_a2a_call(remote, runner, session_id, f"Pass C concurrent {i + 1}") for i in range(5)
     ]
     results = await asyncio.gather(*tasks, return_exceptions=True)
     wall = time.time() - start
@@ -231,8 +230,12 @@ def main():
         print("=" * 50)
         print(f"Pass A (single fresh):       {pa:.2f}s   (baseline — Test 2 was 15.87s here)")
         if pb:
-            print(f"Pass B (N=5 sequential reused): first={pb[0]:.2f}s, subsequent mean={sum(pb[1:]) / 4:.2f}s")
-        print(f"Pass C (N=5 concurrent reused): {pc[0]:.2f}s wall ({pc[1]}/{pc[1] + pc[2]} succeeded)")
+            print(
+                f"Pass B (N=5 sequential reused): first={pb[0]:.2f}s, subsequent mean={sum(pb[1:]) / 4:.2f}s"
+            )
+        print(
+            f"Pass C (N=5 concurrent reused): {pc[0]:.2f}s wall ({pc[1]}/{pc[1] + pc[2]} succeeded)"
+        )
 
         # Headline arithmetic for the 47-test scenario
         print()

@@ -234,14 +234,14 @@ What kills a Dynatrace submission:
 
 The Devpost Dynatrace resources tab lists 6 official links + the trial sign-up. Coverage check + fill-in:
 
-| Devpost-listed resource                                                                                                 | Status                                                         |
-| ----------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------- |
-| Dynatrace for Vertex AI / Agent Platform (Hub listing) — `dynatrace.com/hub/detail/vertex-ai/`                          | ❌ missing — add below                                         |
-| Dynatrace for Gemini Enterprise (GCP Marketplace one-click deploy)                                                      | ❌ missing — add below                                         |
-| AI Coding Agent Monitoring blog                                                                                         | ✅ covered (in sources)                                        |
-| Instrumentation Examples GitHub (`dynatrace-ai-agent-instrumentation-examples/ai-coding-agents`)                        | ❌ missing — add below                                         |
-| Bindplane (Google Edition)                                                                                              | ❌ missing — add below                                         |
-| Dynatrace free trial sign-up — `dynatrace.com/signup/`                                                                  | ⚠ partial (body uses `/trial/`; Devpost uses `/signup/`)       |
+| Devpost-listed resource                                                                          | Status                                                   |
+| ------------------------------------------------------------------------------------------------ | -------------------------------------------------------- |
+| Dynatrace for Vertex AI / Agent Platform (Hub listing) — `dynatrace.com/hub/detail/vertex-ai/`   | ❌ missing — add below                                   |
+| Dynatrace for Gemini Enterprise (GCP Marketplace one-click deploy)                               | ❌ missing — add below                                   |
+| AI Coding Agent Monitoring blog                                                                  | ✅ covered (in sources)                                  |
+| Instrumentation Examples GitHub (`dynatrace-ai-agent-instrumentation-examples/ai-coding-agents`) | ❌ missing — add below                                   |
+| Bindplane (Google Edition)                                                                       | ❌ missing — add below                                   |
+| Dynatrace free trial sign-up — `dynatrace.com/signup/`                                           | ⚠ partial (body uses `/trial/`; Devpost uses `/signup/`) |
 
 ### Amendments
 
