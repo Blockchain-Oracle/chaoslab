@@ -50,6 +50,17 @@ class AdapterDiscoveryError(AdapterError):
     """
 
 
+class AdapterInvocationError(AdapterError):
+    """Raised when a connected adapter's invoke() fails on the target side.
+
+    Examples: 4xx response from `/invoke`, malformed response body, schema
+    mismatch (422). Distinct from `AdapterConnectionError` so callers can
+    distinguish "target is reachable but rejected our request" from
+    "target is unreachable" — the former is often a fault-config bug, the
+    latter a target-availability problem.
+    """
+
+
 class BaselineAbortError(ChaosLabError):
     """Raised by `BaselineCheck.validate()` when the target's pre-flight pass
     rate is below the configured threshold.
