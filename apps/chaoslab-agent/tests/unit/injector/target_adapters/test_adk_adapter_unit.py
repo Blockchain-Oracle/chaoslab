@@ -165,9 +165,9 @@ async def test_invoke_bearer_auth_propagates_on_jsonrpc_post() -> None:
         return httpx.Response(200, json=_valid_agent_card())
 
     def _capture_post(request: httpx.Request) -> httpx.Response:
-        assert (
-            request.headers.get("Authorization") == "Bearer api-token-xyz"
-        ), f"Authorization header dropped on POST; got {dict(request.headers)!r}"
+        assert request.headers.get("Authorization") == "Bearer api-token-xyz", (
+            f"Authorization header dropped on POST; got {dict(request.headers)!r}"
+        )
         return httpx.Response(200, json=_jsonrpc_message_response("ok"))
 
     respx.get("http://localhost:8001/.well-known/agent-card.json").mock(side_effect=_capture_get)

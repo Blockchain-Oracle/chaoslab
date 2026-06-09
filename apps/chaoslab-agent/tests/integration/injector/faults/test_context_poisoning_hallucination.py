@@ -111,9 +111,9 @@ async def test_poisoned_rag_judged_hallucinated(judge_llm: LLM) -> None:
 
     # At least 1 run must be judged hallucinated
     hallucinated_rate = (labels == "hallucinated").mean()
-    assert (
-        hallucinated_rate >= 0.5
-    ), f"Expected hallucinated response, got labels: {labels.tolist()}"
+    assert hallucinated_rate >= 0.5, (
+        f"Expected hallucinated response, got labels: {labels.tolist()}"
+    )
 
 
 async def test_history_insert_judged_hallucinated(judge_llm: LLM) -> None:
@@ -168,6 +168,6 @@ async def test_history_insert_judged_hallucinated(judge_llm: LLM) -> None:
     labels = results[label_col]
 
     hallucinated_rate = (labels == "hallucinated").mean()
-    assert (
-        hallucinated_rate >= 0.5
-    ), f"Expected hallucinated response, got labels: {labels.tolist()}"
+    assert hallucinated_rate >= 0.5, (
+        f"Expected hallucinated response, got labels: {labels.tolist()}"
+    )

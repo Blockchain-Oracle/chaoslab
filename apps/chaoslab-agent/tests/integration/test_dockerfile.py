@@ -125,9 +125,9 @@ def test_image_builds_and_is_under_size_cap(built_image: str) -> None:
         "kB": value / 1024,
         "B": value / (1024 * 1024),
     }[unit]
-    assert (
-        mb < _MAX_IMAGE_MB
-    ), f"image is {mb:.1f}MB > {_MAX_IMAGE_MB}MB cap — check .dockerignore + --no-dev"
+    assert mb < _MAX_IMAGE_MB, (
+        f"image is {mb:.1f}MB > {_MAX_IMAGE_MB}MB cap — check .dockerignore + --no-dev"
+    )
 
 
 @pytest.mark.slow
@@ -140,9 +140,9 @@ def test_image_runs_as_non_root_user(built_image: str) -> None:
         text=True,
         check=True,
     )
-    assert (
-        result.stdout.strip() == _RUNTIME_USER
-    ), f"Config.User must be {_RUNTIME_USER!r}, got {result.stdout.strip()!r}"
+    assert result.stdout.strip() == _RUNTIME_USER, (
+        f"Config.User must be {_RUNTIME_USER!r}, got {result.stdout.strip()!r}"
+    )
 
 
 @pytest.mark.slow
@@ -289,9 +289,9 @@ def test_running_container_uid_is_10001(built_image: str) -> None:
             text=True,
             check=True,
         )
-        assert result.stdout.strip() == str(
-            _RUNTIME_UID
-        ), f"runtime uid must be {_RUNTIME_UID}, got {result.stdout.strip()!r}"
+        assert result.stdout.strip() == str(_RUNTIME_UID), (
+            f"runtime uid must be {_RUNTIME_UID}, got {result.stdout.strip()!r}"
+        )
     finally:
         subprocess.run(["docker", "rm", "-f", SMOKE_CONTAINER], capture_output=True, check=False)
 
@@ -316,9 +316,9 @@ def test_dockerignore_excludes_secrets_and_caches() -> None:
             continue
         active_patterns.add(line)
     for required in (".env", ".venv/", "tests/", "__pycache__/"):
-        assert (
-            required in active_patterns
-        ), f".dockerignore missing active entry: {required!r} (saw {sorted(active_patterns)})"
+        assert required in active_patterns, (
+            f".dockerignore missing active entry: {required!r} (saw {sorted(active_patterns)})"
+        )
 
 
 @pytest.mark.integration
@@ -341,7 +341,7 @@ def test_workflow_has_required_safety_gates() -> None:
     # Round-2 silent-failure-hunter findings:
     assert "Guard required repo variables" in body, "PROJECT_HASH guard step missing"
     assert "Pre-flight Secret Manager check" in body, "pre-flight secret check missing"
-    assert (
-        "Cleanup candidate revision on failure" in body
-    ), "if: failure() cleanup step missing — failed deploys accumulate revisions"
+    assert "Cleanup candidate revision on failure" in body, (
+        "if: failure() cleanup step missing — failed deploys accumulate revisions"
+    )
     assert "if: failure()" in body, "failure-conditional cleanup trigger missing"

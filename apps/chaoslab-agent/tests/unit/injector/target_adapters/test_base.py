@@ -189,9 +189,9 @@ def test_adapter_result_rejects_non_string_span_ids() -> None:
     with pytest.raises(ValidationError) as exc:
         AdapterResult.model_validate({"response": "ok", "span_ids": [123], "duration_ms": 1.0})
     errors = exc.value.errors()
-    assert any(
-        e["loc"] == ("span_ids", 0) and e["type"].startswith("string") for e in errors
-    ), f"expected string-type error on span_ids[0]; got {errors}"
+    assert any(e["loc"] == ("span_ids", 0) and e["type"].startswith("string") for e in errors), (
+        f"expected string-type error on span_ids[0]; got {errors}"
+    )
 
 
 def test_adapter_result_duration_zero_is_valid() -> None:
