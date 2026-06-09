@@ -94,6 +94,10 @@ async def test_short_delay_long_timeout_produces_slow_but_ok_callback() -> None:
     assert s.attributes.get("chaoslab.fault.delay_ms") == 300
     assert s.attributes.get("chaoslab.fault.timeout_ms") == 60_000
     assert s.attributes.get("chaoslab.fault.injected") is True
+    # BDD line 59: slow-but-OK leaves the TOOL span NOT in ERROR — we don't
+    # call httpx in this code path so the timeout never fires. OTel's default
+    # span status is UNSET (not OK); we assert "not ERROR" to match BDD intent.
+    assert s.status.status_code.name != "ERROR"
 
 
 async def test_target_tool_name_mismatch_lets_real_tool_run() -> None:
@@ -155,22 +159,28 @@ async def test_callback_accepts_adk_kwarg_invocation_contract() -> None:
 # ----------------------------------------------------------------------
 
 
-async def test_httpx_transport_writes_timeout_into_request_extensions() -> None:
-    """The transport shim must inject the timeout into request.extensions['timeout']."""
-    fault = LatencySpikeFault(delay_ms=300, timeout_ms=2500)
-    transport = cast(Any, fault.httpx_transport())
-    request = httpx.Request("GET", "http://example.invalid/")
+async def test_httpx_transport_writes_per_phase_timeout_into_request_extensions() -> None:
+    """The transport shim must write all 4 phases (connect/read/write/pool) into
+    ``request.extensions['timeout']`` so httpcore enforces them per-phase.
+
+    End-to-end timeout-enforcement is verified by httpx/httpcore's own test
+    suites — ``httpx.MockTransport`` bypasses the httpcore layer where
+    timeouts are actually enforced, so we cannot drive a ``ReadTimeout``
+    via MockTransport. The Injector sub-agent (S5.7) will exercise the
+    full path against a real httpx target via the live E2E demo run.
+    """
+    from chaoslab_agent.injector.faults.latency_spike import _TimeoutShimTransport
+
     captured: dict[str, Any] = {}
 
-    class _Probe(httpx.AsyncBaseTransport):
-        async def handle_async_request(self, request: httpx.Request) -> httpx.Response:
-            captured["extensions"] = dict(request.extensions)
-            return httpx.Response(200, request=request)
+    async def _probe(request: httpx.Request) -> httpx.Response:
+        captured["extensions"] = dict(request.extensions)
+        return httpx.Response(200, request=request)
 
-    # Rebind the inner transport to a no-network probe; the shim's contract
-    # is to inject timeouts into request.extensions before delegating, and
-    # _base is the documented attribute for the inner delegate.
-    transport._base = _Probe()
+    # Constructor-inject the inner transport — cleaner than rebinding a
+    # private attr (post-PR-43 type-design fix).
+    transport = _TimeoutShimTransport(2.5, inner=httpx.MockTransport(_probe))
+    request = httpx.Request("GET", "http://example.invalid/")
     await transport.handle_async_request(request)
 
     timeout_ext = captured["extensions"].get("timeout")
@@ -178,6 +188,26 @@ async def test_httpx_transport_writes_timeout_into_request_extensions() -> None:
     # 2500 ms == 2.5 s; the shim writes per-phase timeouts derived from a single ms value.
     assert timeout_ext.get("read") == pytest.approx(2.5, rel=0.01)
     assert timeout_ext.get("connect") == pytest.approx(2.5, rel=0.01)
+    assert timeout_ext.get("write") == pytest.approx(2.5, rel=0.01)
+    assert timeout_ext.get("pool") == pytest.approx(2.5, rel=0.01)
+
+
+async def test_httpx_transport_constructor_accepts_inner_for_test_injection() -> None:
+    """Public seam test: the constructor's ``inner=`` parameter lets tests inject
+    a probe without rebinding private attrs (type-design Round-2 fix).
+    """
+    from chaoslab_agent.injector.faults.latency_spike import _TimeoutShimTransport
+
+    invocations: list[str] = []
+
+    async def _track(request: httpx.Request) -> httpx.Response:
+        invocations.append(str(request.url))
+        return httpx.Response(204, request=request)
+
+    transport = _TimeoutShimTransport(1.0, inner=httpx.MockTransport(_track))
+    await transport.handle_async_request(httpx.Request("GET", "http://a.invalid/"))
+    await transport.handle_async_request(httpx.Request("GET", "http://b.invalid/"))
+    assert invocations == ["http://a.invalid/", "http://b.invalid/"]
 
 
 # ----------------------------------------------------------------------
@@ -186,21 +216,21 @@ async def test_httpx_transport_writes_timeout_into_request_extensions() -> None:
 # ----------------------------------------------------------------------
 
 
-@pytest.mark.slow
-async def test_demo_config_2s_span_attrs_carry_full_values(
+async def test_canonical_demo_config_attrs_survive_callback_path(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Demo config shape: delay carries through to span attrs unchanged.
+    """Verify the canonical 30_000/10_000 demo config flows attrs to the span.
 
-    The canonical demo uses ``delay_ms=30_000, timeout_ms=10_000`` — but the
-    raw 30s sleep makes even the slow-marked suite painful. The shape we
-    actually need to verify is that the SPAN ATTRS carry the full configured
-    values for the Judge to read; the asyncio.sleep mechanics are already
-    covered by the small-delta tests above. We monkeypatch ``asyncio.sleep``
-    in the fault module so the test runs in ~0s but still exercises the
-    full callback path with the demo config.
+    Scoped strictly to ``Pydantic validation accepts → span attrs carry the
+    values``. Real wall-clock behavior under the canonical config is covered
+    by ``test_real_long_sleep_takes_wall_clock_time`` below; here we
+    monkeypatch ``asyncio.sleep`` so the test is fast.
 
-    Skip with: ``pytest -m "not slow"`` (default PR config does this).
+    Defensive ``elapsed < 1.0`` guard ensures a broken monkeypatch (e.g. a
+    future ``from asyncio import sleep`` refactor that bypasses
+    ``ls_mod.asyncio.sleep``) surfaces as a failure rather than silently
+    sleeping for 30s — that's the PR-42 lying-attribute pattern applied
+    to test infra.
     """
     from chaoslab_agent.injector.faults import latency_spike as ls_mod
 
@@ -211,12 +241,34 @@ async def test_demo_config_2s_span_attrs_carry_full_values(
 
     fault = LatencySpikeFault(delay_ms=30_000, timeout_ms=10_000)
     callback = fault.as_callback()
+    start = time.monotonic()
     with _TEST_TRACER.start_as_current_span("test.tool.call") as span:
         span.set_attribute("openinference.span.kind", "TOOL")
         await callback(_LOOKUP_ORDER_TOOL, {"order_id": "12345"}, cast(ToolContext, None))
+    elapsed = time.monotonic() - start
+    assert elapsed < 1.0, f"monkeypatch leaked — test slept {elapsed:.1f}s"
 
     s = _last_tool_span(_TEST_EXPORTER)
     assert s.attributes is not None
     assert s.attributes.get("chaoslab.fault.delay_ms") == 30_000
     assert s.attributes.get("chaoslab.fault.timeout_ms") == 10_000
+    assert s.attributes.get("chaoslab.fault.injected") is True
+
+
+@pytest.mark.slow
+async def test_real_long_sleep_takes_wall_clock_time() -> None:
+    """Round-2 honesty test: ``@pytest.mark.slow`` actually exercises a real sleep.
+
+    The monkeypatched canonical-config test above validates Pydantic + attrs;
+    this one validates that ``asyncio.sleep`` truly extends the wall-clock
+    callback path. Uses delay_ms=1500 to keep the slow-suite runtime sane
+    (the canonical 30s demo config would add 30s to every nightly slow run).
+
+    Skip with: ``pytest -m "not slow"`` (default PR config does this).
+    """
+    fault = LatencySpikeFault(delay_ms=1500, timeout_ms=500)
+    _, _, elapsed = await _invoke_callback_in_tool_span(fault)
+    assert elapsed >= 1.5
+    s = _last_tool_span(_TEST_EXPORTER)
+    assert s.attributes is not None
     assert s.attributes.get("chaoslab.fault.injected") is True

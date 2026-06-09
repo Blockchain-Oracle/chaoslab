@@ -26,7 +26,7 @@ from __future__ import annotations
 import asyncio
 import secrets
 from collections.abc import Awaitable, Callable
-from typing import Any, Literal
+from typing import Any
 
 import httpx
 from opentelemetry import trace
@@ -35,6 +35,8 @@ from pydantic import BaseModel, Field
 from chaoslab_agent.adk_types import BaseTool, ToolContext
 
 _FAULT_TYPE = "latency_spike"
+# 2-minute ceiling — caps runaway delay/timeout configs at construction time;
+# comfortably above the 30s canonical demo (architecture/04 §3.4).
 _MAX_MS = 120_000
 _RAND_BUCKET = 1_000_000
 
@@ -80,14 +82,22 @@ def _make_callback(
 class _TimeoutShimTransport(httpx.AsyncBaseTransport):
     """Tightens per-phase httpx timeouts to a single seconds value.
 
-    The shim wraps a normal ``httpx.AsyncHTTPTransport`` instance; rebind
-    ``self._base`` for tests that want to observe ``request.extensions``
-    without hitting the network.
+    The shim writes ``request.extensions["timeout"]`` before delegating to
+    an inner transport. Tests inject ``inner=httpx.MockTransport(...)`` to
+    observe the extension shape or to drive a real ``ReadTimeout`` without
+    hitting the network. Production wires this around ``AsyncHTTPTransport``.
     """
 
-    def __init__(self, timeout_seconds: float) -> None:
+    def __init__(
+        self,
+        timeout_seconds: float,
+        *,
+        inner: httpx.AsyncBaseTransport | None = None,
+    ) -> None:
         self._timeout = httpx.Timeout(timeout_seconds)
-        self._base: httpx.AsyncBaseTransport = httpx.AsyncHTTPTransport()
+        self._inner: httpx.AsyncBaseTransport = (
+            inner if inner is not None else httpx.AsyncHTTPTransport()
+        )
 
     async def handle_async_request(self, request: httpx.Request) -> httpx.Response:
         request.extensions = {
@@ -99,7 +109,7 @@ class _TimeoutShimTransport(httpx.AsyncBaseTransport):
                 "pool": self._timeout.pool,
             },
         }
-        return await self._base.handle_async_request(request)
+        return await self._inner.handle_async_request(request)
 
 
-__all__: list[Literal["LatencySpikeFault"]] = ["LatencySpikeFault"]
+__all__ = ["LatencySpikeFault"]
