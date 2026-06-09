@@ -123,6 +123,7 @@ HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
     CMD ["python", "-c", "import sys, httpx;\nimport traceback\ntry:\n    httpx.get('http://localhost:8080/health', timeout=2).raise_for_status()\nexcept Exception as e:\n    sys.stderr.write(f'healthcheck failed: {e!r}\\n')\n    traceback.print_exc()\n    sys.exit(1)"]
 
 # Exec form (JSON array) — important for SIGTERM forwarding on Cloud Run scale-down.
-# `uv run` activates the venv; `chaoslab-agent` is the console script
-# resolving to chaoslab_agent.main:run_uvicorn (reads $PORT/$HOST env vars).
-CMD ["uv", "run", "chaoslab-agent"]
+# Invoke the console script directly; `uv run` re-resolves the workspace at
+# startup which fails because the runtime image omits pyproject.toml / README.
+# The venv is already on PATH via /opt/venv/bin (see ENV PATH above).
+CMD ["chaoslab-agent"]
