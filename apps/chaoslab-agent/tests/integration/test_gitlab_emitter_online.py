@@ -54,15 +54,21 @@ _REQUIRED_ENV_MISSING = pytest.mark.skipif(
 )
 
 
-# Session-wide registry of (branch_name, mr_iid) created by the tests below.
-# Populated by individual tests after emit() succeeds; consumed by the
-# autouse session-finalizer fixture when GITLAB_TEST_CLEANUP=1.
-_session_cleanup: list[tuple[str, int]] = []
+@pytest.fixture(scope="session")
+def cleanup_registry() -> list[tuple[str, int]]:
+    """Per-worker registry of (branch_name, mr_iid) created during this run.
+
+    Session-scoped fixture (not module-global) so pytest-xdist `--dist loadfile`
+    workers each get their own isolated registry instead of fragmenting a
+    shared global. Tests register via a try/finally guard around emit() so a
+    mid-test crash never leaves an MR/branch undelete-able.
+    """
+    return []
 
 
 @pytest.fixture(scope="session", autouse=True)
-def _gitlab_test_cleanup():
-    """Close MRs + delete branches created during the session if cleanup is opted in.
+def _gitlab_test_cleanup(cleanup_registry: list[tuple[str, int]]):
+    """Close MRs + delete branches at session-end IF cleanup is opted in.
 
     Default OFF preserves the judge-inspection workflow. Set GITLAB_TEST_CLEANUP=1
     locally to keep the test project tidy. Never raises; cleanup failures are
@@ -73,13 +79,13 @@ def _gitlab_test_cleanup():
     import httpx as _httpx
 
     yield
-    if not _CLEANUP_ENABLED or not (_GITLAB_TOKEN and _TEST_PROJECT_ID and _session_cleanup):
+    if not _CLEANUP_ENABLED or not (_GITLAB_TOKEN and _TEST_PROJECT_ID and cleanup_registry):
         return
     project_enc = quote(_TEST_PROJECT_ID, safe="")
     headers = {"PRIVATE-TOKEN": _GITLAB_TOKEN}
     log = logging.getLogger(__name__)
     with _httpx.Client(timeout=15.0) as http:
-        for branch_name, mr_iid in _session_cleanup:
+        for branch_name, mr_iid in cleanup_registry:
             try:
                 http.put(
                     f"https://gitlab.com/api/v4/projects/{project_enc}/merge_requests/{mr_iid}",
@@ -152,7 +158,9 @@ def _recipe(*, recipe_id: str | None = None) -> HardeningRecipe:
 
 
 @_REQUIRED_ENV_MISSING
-async def test_online_emit_returns_real_mr_url() -> None:
+async def test_online_emit_returns_real_mr_url(
+    cleanup_registry: list[tuple[str, int]],
+) -> None:
     """Round-trip: real branch, real commits, real MR. URL pattern locked."""
     # Make sure get_settings picks up the env-provided GITLAB_TOKEN. The
     # autouse fixture pattern from unit tests doesn't apply here (we WANT
@@ -162,7 +170,9 @@ async def test_online_emit_returns_real_mr_url() -> None:
     recipe = _recipe()
     emitter = GitLabMREmitter()  # uses default REST + MCP clients from Settings
     result = await emitter.emit(recipe, project_id=_TEST_PROJECT_ID or "")  # type: ignore[arg-type]
-    _session_cleanup.append((result.branch_name, result.mr_iid))
+    # Register BEFORE any further assertion — if an assertion fails (or the
+    # process crashes), the branch+MR on gitlab.com must still be cleanable.
+    cleanup_registry.append((result.branch_name, result.mr_iid))
 
     assert isinstance(result, GitLabEmitResult)
     assert re.fullmatch(r"https://gitlab\.com/.+/-/merge_requests/\d+", result.mr_url)
@@ -172,7 +182,9 @@ async def test_online_emit_returns_real_mr_url() -> None:
 
 
 @_REQUIRED_ENV_MISSING
-async def test_online_emit_commits_recipe_markdown_and_diff_files() -> None:
+async def test_online_emit_commits_recipe_markdown_and_diff_files(
+    cleanup_registry: list[tuple[str, int]],
+) -> None:
     """The MR branch contains the expected file paths: Markdown + diff + regression JSON."""
     import httpx
 
@@ -180,7 +192,7 @@ async def test_online_emit_commits_recipe_markdown_and_diff_files() -> None:
     recipe = _recipe()
     emitter = GitLabMREmitter()
     result = await emitter.emit(recipe, project_id=_TEST_PROJECT_ID or "")  # type: ignore[arg-type]
-    _session_cleanup.append((result.branch_name, result.mr_iid))
+    cleanup_registry.append((result.branch_name, result.mr_iid))
 
     # Fetch the branch's tree via REST to assert files landed. URL-encode the
     # project id since it may contain `/`.
@@ -207,7 +219,9 @@ async def test_online_emit_commits_recipe_markdown_and_diff_files() -> None:
 
 
 @_REQUIRED_ENV_MISSING
-async def test_online_emit_mr_description_visible_on_gitlab() -> None:
+async def test_online_emit_mr_description_visible_on_gitlab(
+    cleanup_registry: list[tuple[str, int]],
+) -> None:
     """Fetch the MR via REST and confirm the description contains the rendered Markdown."""
     import httpx
 
@@ -217,7 +231,7 @@ async def test_online_emit_mr_description_visible_on_gitlab() -> None:
     recipe = _recipe()
     emitter = GitLabMREmitter()
     result = await emitter.emit(recipe, project_id=_TEST_PROJECT_ID or "")  # type: ignore[arg-type]
-    _session_cleanup.append((result.branch_name, result.mr_iid))
+    cleanup_registry.append((result.branch_name, result.mr_iid))
 
     from urllib.parse import quote
 
