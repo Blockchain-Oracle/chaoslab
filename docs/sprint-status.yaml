@@ -160,13 +160,13 @@ stories:
     merged_at: "2026-06-09T21:20:00Z"
   - id: story-3.6-http-blackbox-adapter
     epic: "Epic 3 — Target adapter layer"
-    status: PENDING
+    status: COMPLETE
     estimate_hours: 2.0
     tags: [backend, p1, adapter, http-blackbox, tier3]
     depends_on: [story-3.1-adapter-interface]
     issue_url: ""
-    pr_url: ""
-    merged_at: ""
+    pr_url: "https://github.com/Blockchain-Oracle/chaoslab/pull/79"
+    merged_at: "2026-06-09T21:50:00Z"
 
   # ---------- Epic 4 — ChaosLab orchestrator + Phoenix tool wrappers ----------
   - id: story-4.1-agent-entrypoint
