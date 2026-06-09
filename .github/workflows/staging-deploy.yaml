@@ -133,6 +133,14 @@ jobs:
 
       - name: Deploy to Cloud Run (candidate, no traffic)
         if: steps.changed.outputs.value == 'true' || github.event_name == 'workflow_dispatch'
+        env:
+          # Phoenix provider config per ADR-017. We use Arize Phoenix Cloud
+          # as the demo backend (track-partner-aligned, free-tier covers
+          # judging window). Self-hosted Docker stays documented in
+          # infra/phoenix-self-host/ as the OSS distribution alternative.
+          # chaoslab-web ignores these — its stub doesn't emit traces.
+          PHOENIX_PROVIDER: customer
+          PHOENIX_COLLECTOR_ENDPOINT: https://app.phoenix.arize.com/v1/traces
         run: |
           gcloud run deploy ${{ matrix.service }} \
             --image="${REGION}-docker.pkg.dev/${PROJECT_ID}/chaoslab/${{ matrix.service }}:${GITHUB_SHA}" \
@@ -146,7 +154,8 @@ jobs:
             --port=8080 \
             --cpu-boost \
             --no-allow-unauthenticated \
-            --set-env-vars=ENVIRONMENT=staging,JUDGE_LLM=gemini-3.5-flash,SERVICE_VERSION="${GITHUB_SHA}" \
+            --set-env-vars=ENVIRONMENT=staging,JUDGE_LLM=gemini-3.5-flash,SERVICE_VERSION="${GITHUB_SHA}",PHOENIX_PROVIDER=${PHOENIX_PROVIDER},PHOENIX_COLLECTOR_ENDPOINT=${PHOENIX_COLLECTOR_ENDPOINT} \
+            --set-secrets=PHOENIX_API_KEY=phoenix-api-key:latest \
             --tag=candidate \
             --no-traffic
 
