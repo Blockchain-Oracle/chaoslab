@@ -131,7 +131,20 @@ jobs:
           cache-from: type=gha,scope=${{ matrix.service }}
           cache-to: type=gha,scope=${{ matrix.service }},mode=max
 
-      - name: Deploy to Cloud Run (candidate, no traffic)
+      - name: Detect existing Cloud Run service (blue/green eligibility)
+        if: steps.changed.outputs.value == 'true' || github.event_name == 'workflow_dispatch'
+        id: bluegreen
+        run: |
+          # `--no-traffic --tag=candidate` is illegal on first creation;
+          # gate the candidate path on whether the service already exists.
+          if gcloud run services describe "${{ matrix.service }}" --region="${REGION}" >/dev/null 2>&1; then
+            echo "value=true" >> "${GITHUB_OUTPUT}"
+          else
+            echo "value=false" >> "${GITHUB_OUTPUT}"
+            echo "::notice::First deploy of ${{ matrix.service }} — skipping candidate tag + smoke + promote"
+          fi
+
+      - name: Deploy to Cloud Run
         if: steps.changed.outputs.value == 'true' || github.event_name == 'workflow_dispatch'
         env:
           # Phoenix provider config per ADR-017. We use Arize Phoenix Cloud
@@ -142,6 +155,12 @@ jobs:
           PHOENIX_PROVIDER: customer
           PHOENIX_COLLECTOR_ENDPOINT: https://app.phoenix.arize.com/v1/traces
         run: |
+          if [ "${{ steps.bluegreen.outputs.value }}" = "true" ]; then
+            CANDIDATE_FLAGS="--tag=candidate --no-traffic"
+          else
+            CANDIDATE_FLAGS=""
+          fi
+          # shellcheck disable=SC2086  # CANDIDATE_FLAGS is a controlled flag string
           gcloud run deploy ${{ matrix.service }} \
             --image="${REGION}-docker.pkg.dev/${PROJECT_ID}/chaoslab/${{ matrix.service }}:${GITHUB_SHA}" \
             --region="${REGION}" \
@@ -156,11 +175,10 @@ jobs:
             --no-allow-unauthenticated \
             --set-env-vars=ENVIRONMENT=staging,JUDGE_LLM=gemini-3.5-flash,SERVICE_VERSION="${GITHUB_SHA}",PHOENIX_PROVIDER=${PHOENIX_PROVIDER},PHOENIX_COLLECTOR_ENDPOINT=${PHOENIX_COLLECTOR_ENDPOINT} \
             --set-secrets=PHOENIX_API_KEY=phoenix-api-key:latest \
-            --tag=candidate \
-            --no-traffic
+            ${CANDIDATE_FLAGS}
 
       - name: Smoke-test candidate revision
-        if: steps.changed.outputs.value == 'true' || github.event_name == 'workflow_dispatch'
+        if: (steps.changed.outputs.value == 'true' || github.event_name == 'workflow_dispatch') && steps.bluegreen.outputs.value == 'true'
         id: smoke
         run: |
           # Cloud Run candidate URL is in the deploy output; query it instead
@@ -189,7 +207,7 @@ jobs:
           exit 1
 
       - name: Promote candidate to 100% traffic
-        if: steps.changed.outputs.value == 'true' || github.event_name == 'workflow_dispatch'
+        if: (steps.changed.outputs.value == 'true' || github.event_name == 'workflow_dispatch') && steps.bluegreen.outputs.value == 'true'
         run: |
           gcloud run services update-traffic ${{ matrix.service }} \
             --to-latest=100 \
