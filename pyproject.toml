@@ -35,6 +35,7 @@ select = [
 ignore = [
   "S101",          # assert (allowed in tests)
   "PLR0913",       # too-many-arguments (sometimes needed for ADK signatures)
+  "PLC0415",       # import-outside-top-level (intentional for deferred startup imports)
 ]
 
 [tool.ruff.lint.per-file-ignores]
@@ -44,7 +45,7 @@ ignore = [
 # hardcoded literals (e.g., `subprocess.run(["docker", "build", ...])`).
 "**/tests/**" = ["S101", "S105", "S106", "S603", "S607", "PLR2004", "T201"]
 "scripts/**" = ["T201"]  # CLI scripts legitimately print diagnostic output
-"research/**" = ["T201", "S101", "PLR2004", "E402", "F401"]  # RAT smoke scripts: CLI-style, throwaway, intentional layout
+"research/**" = ["T201", "S101", "PLR2004", "E402", "F401", "PLW2901", "B007"]  # RAT smoke scripts: CLI-style, throwaway, intentional layout
 "__init__.py" = ["F401"]
 "**/_vendored/**" = ["ALL"]
 
@@ -123,6 +124,7 @@ exclude_lines = [
 
 [dependency-groups]
 dev = [
+    "arize-phoenix>=17.2.0",
     "arize-phoenix-client>=2.7.0",
     "arize-phoenix-otel>=0.16.1",
     "google-adk[a2a]>=2.1.0,<3.0.0",
