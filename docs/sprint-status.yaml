@@ -281,7 +281,7 @@ stories:
     merged_at: "2026-06-09T08:29:00Z"
   - id: story-5.7-injector-sub-agent
     epic: "Epic 5 — Fault injection"
-    status: PENDING
+    status: COMPLETE
     estimate_hours: 2.0
     tags: [backend, p0, injector]
     depends_on:
@@ -295,8 +295,8 @@ stories:
         story-4.4-phoenix-write-annotation-tool,
       ]
     issue_url: ""
-    pr_url: ""
-    merged_at: ""
+    pr_url: "https://github.com/Blockchain-Oracle/chaoslab/pull/45"
+    merged_at: "2026-06-09T09:26:00Z"
 
   # ---------- Epic 6 — Judge + clustering + hardening recipe ----------
   - id: story-6.1-judge-rubrics
