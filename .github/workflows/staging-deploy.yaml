@@ -174,7 +174,7 @@ jobs:
             --cpu-boost \
             --no-allow-unauthenticated \
             --set-env-vars=ENVIRONMENT=staging,JUDGE_LLM=gemini-3.5-flash,SERVICE_VERSION="${GITHUB_SHA}",PHOENIX_PROVIDER=${PHOENIX_PROVIDER},PHOENIX_COLLECTOR_ENDPOINT=${PHOENIX_COLLECTOR_ENDPOINT} \
-            --set-secrets=PHOENIX_API_KEY=phoenix-api-key:latest \
+            --set-secrets=PHOENIX_API_KEY=phoenix-api-key:latest,GEMINI_API_KEY=gemini-api-key:latest \
             ${CANDIDATE_FLAGS}
 
       - name: Smoke-test candidate revision
