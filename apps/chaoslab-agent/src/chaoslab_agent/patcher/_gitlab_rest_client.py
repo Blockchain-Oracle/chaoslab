@@ -37,6 +37,8 @@ class GitLabRestClientError(RuntimeError):
 class _BranchesEndpoint(Protocol):
     def create(self, data: dict[str, str], **kwargs: Any) -> Any: ...
 
+    def delete(self, id: str, **kwargs: Any) -> Any: ...  # noqa: A002 — gitlab SDK arg name
+
 
 @runtime_checkable
 class _CommitsEndpoint(Protocol):
@@ -63,6 +65,22 @@ class GitLabRestClient:
             msg = f"GitLab branch create failed: {type(exc).__name__}: {exc}"
             raise GitLabRestClientError(msg) from exc
         logger.info("gitlab_branch_created branch=%s ref=%s", branch_name, ref)
+
+    def delete_branch(self, branch_name: str) -> None:
+        """DELETE /projects/:id/repository/branches/:branch via python-gitlab.
+
+        Used by `GitLabMREmitter` as a best-effort rollback when MR creation
+        fails after the branch+commit pair already landed on GitLab — without
+        this, retries hit `Branch already exists` (422) and the user is stuck
+        in a half-applied state. Raises GitLabRestClientError on failure so
+        the emitter can surface "branch landed without MR" in the user error.
+        """
+        try:
+            self._project.branches.delete(branch_name)
+        except Exception as exc:
+            msg = f"GitLab branch delete failed: {type(exc).__name__}: {exc}"
+            raise GitLabRestClientError(msg) from exc
+        logger.info("gitlab_branch_deleted branch=%s", branch_name)
 
     def create_commit_with_files(
         self,

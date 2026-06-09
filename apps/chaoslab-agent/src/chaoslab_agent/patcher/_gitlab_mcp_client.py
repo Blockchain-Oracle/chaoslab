@@ -3,11 +3,20 @@
 Per ADR-011 + partner-gitlab.md: ONLY `create_merge_request` flows through MCP.
 Branch + file ops use python-gitlab (see _gitlab_rest_client). Community MCP
 servers (zereight / mcpland / wadew) are BANNED — judging-credit penalty.
+
+Round-2 hardening (PR #74 reviewer fleet):
+- Positive equality check `endpoint == OFFICIAL_ENDPOINT` (the substring banned-list
+  is informational; the equality is load-bearing).
+- 4xx non-401 errors wrap to GitLabMcpError (was leaking as httpx.HTTPStatusError).
+- Nested MCP errors (`result.error` / `result.isError`) surfaced explicitly.
+- JSONDecodeError on non-JSON responses (HTML maintenance page, auth wall) → retry.
+- Explicit missing-`result`-key error vs. empty-dict-result silent fallthrough.
 """
 
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 from typing import Any
 
@@ -20,6 +29,7 @@ _BANNED_FRAGMENTS: tuple[str, ...] = ("zereight", "mcpland", "wadew")
 _MAX_ATTEMPTS: int = 3
 _RETRY_BASE_SECONDS: float = 1.0
 _HTTP_UNAUTHORIZED: int = 401
+_HTTP_BAD_REQUEST: int = 400
 _HTTP_INTERNAL_ERROR: int = 500
 
 
@@ -37,8 +47,13 @@ class GitLabMcpClient:
         client: httpx.AsyncClient | None = None,
     ) -> None:
         self._endpoint = endpoint or OFFICIAL_ENDPOINT
-        if any(b in self._endpoint for b in _BANNED_FRAGMENTS):
-            msg = f"Community MCP endpoints banned per partner-gitlab.md: {self._endpoint}"
+        if self._endpoint != OFFICIAL_ENDPOINT:
+            # Better error message when the URL matches a known community wrapper;
+            # otherwise fall through to the strict ADR-011 mismatch message.
+            if any(b in self._endpoint for b in _BANNED_FRAGMENTS):
+                msg = f"Community MCP endpoints banned per partner-gitlab.md: {self._endpoint}"
+                raise ValueError(msg)
+            msg = f"Endpoint must be {OFFICIAL_ENDPOINT!r} per ADR-011 (got {self._endpoint!r})"
             raise ValueError(msg)
         self._token = token
         self._client = client or httpx.AsyncClient(timeout=30.0)
@@ -78,16 +93,68 @@ class GitLabMcpClient:
             response = await self._client.post(self._endpoint, json=payload, headers=headers)
             if response.status_code == _HTTP_UNAUTHORIZED:
                 raise GitLabMcpError(f"GitLab MCP authentication failed (401) tool={tool_name}")
-            if response.status_code >= _HTTP_INTERNAL_ERROR and attempt < _MAX_ATTEMPTS - 1:
-                await asyncio.sleep(_RETRY_BASE_SECONDS * (2**attempt))
-                continue
-            response.raise_for_status()
-            data = response.json()
-            if "error" in data:
-                raise GitLabMcpError(f"GitLab MCP error tool={tool_name} error={data['error']}")
-            return data.get("result", {})
+            if response.status_code >= _HTTP_INTERNAL_ERROR:
+                if attempt < _MAX_ATTEMPTS - 1:
+                    await asyncio.sleep(_RETRY_BASE_SECONDS * (2**attempt))
+                    continue
+                # Retries exhausted — wrap as GitLabMcpError (was leaking as
+                # httpx.HTTPStatusError via raise_for_status, escaping the
+                # emitter's `except GitLabMcpError` handler).
+                raise GitLabMcpError(
+                    f"GitLab MCP {response.status_code} (retries exhausted) tool={tool_name} "
+                    f"body={response.text[:200]}"
+                )
+            if _HTTP_BAD_REQUEST <= response.status_code < _HTTP_INTERNAL_ERROR:
+                # Non-401 4xx — wrap explicitly so the emitter's `except
+                # GitLabMcpError` catches it instead of letting httpx.HTTPStatusError
+                # escape the orchestrator.
+                raise GitLabMcpError(
+                    f"GitLab MCP {response.status_code} tool={tool_name} body={response.text[:200]}"
+                )
+            try:
+                data = response.json()
+            except (json.JSONDecodeError, ValueError) as exc:
+                if attempt < _MAX_ATTEMPTS - 1:
+                    # Server returned 200 + non-JSON (HTML maintenance page, etc.) —
+                    # retry, the next attempt may get JSON.
+                    await asyncio.sleep(_RETRY_BASE_SECONDS * (2**attempt))
+                    continue
+                msg = (
+                    f"GitLab MCP returned non-JSON body tool={tool_name} "
+                    f"body_head={response.text[:200]}"
+                )
+                raise GitLabMcpError(msg) from exc
+            return self._unwrap_result(data, tool_name)
         status = response.status_code if response else "?"
         raise GitLabMcpError(f"GitLab MCP exhausted retries tool={tool_name} last_status={status}")
+
+    @staticmethod
+    def _unwrap_result(data: dict[str, Any], tool_name: str) -> dict[str, Any]:
+        """Surface MCP error envelopes; return the success payload otherwise."""
+        # JSON-RPC top-level error.
+        if "error" in data:
+            raise GitLabMcpError(f"GitLab MCP error tool={tool_name} error={data['error']}")
+        # Distinguish "no result key" from "result is an empty dict" — the former
+        # signals a broken server or wrong endpoint version; conflating with the
+        # latter would silently fall through to `_extract_mr_field` raising a
+        # less-informative "missing key" error.
+        if "result" not in data:
+            raise GitLabMcpError(
+                f"GitLab MCP response had no 'result' key tool={tool_name} keys={list(data.keys())}"
+            )
+        result = data["result"]
+        # Tool-level error envelope (MCP convention) — surface explicitly so the
+        # GitLab API's actual error message (e.g. "422 branch already exists")
+        # reaches the user instead of bubbling as a missing-web_url error.
+        if isinstance(result, dict):
+            if result.get("isError"):
+                raise GitLabMcpError(
+                    f"GitLab MCP tool {tool_name} returned isError=true result={result}"
+                )
+            nested = result.get("error")
+            if nested:
+                raise GitLabMcpError(f"GitLab MCP tool {tool_name} returned nested error: {nested}")
+        return result if isinstance(result, dict) else {}
 
     async def aclose(self) -> None:
         await self._client.aclose()

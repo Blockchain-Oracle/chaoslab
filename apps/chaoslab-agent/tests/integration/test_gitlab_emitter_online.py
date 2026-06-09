@@ -13,8 +13,11 @@ The test project must:
 - have at least one initial commit so branch creation can use `main` as ref
 - the token's user must have Developer or higher access
 
-The tests intentionally do NOT clean up the MR or branch — judges may want
-to inspect the artifacts post-run (per S6.6 Notes).
+Cleanup policy (TQ-LOW #32): default is preserve (judges may want to inspect
+the artifacts post-run). Set `GITLAB_TEST_CLEANUP=1` to close MRs + delete
+branches at session-finish — useful when iterating locally and the test
+project would otherwise accumulate cruft against gitlab.com's per-project MR
+cap + per-token rate limits.
 """
 
 from __future__ import annotations
@@ -44,10 +47,52 @@ pytestmark = [pytest.mark.online, pytest.mark.integration]
 
 _GITLAB_TOKEN = os.environ.get("GITLAB_TOKEN")
 _TEST_PROJECT_ID = os.environ.get("GITLAB_TEST_PROJECT_ID")
+_CLEANUP_ENABLED = os.environ.get("GITLAB_TEST_CLEANUP") == "1"
 _REQUIRED_ENV_MISSING = pytest.mark.skipif(
     not (_GITLAB_TOKEN and _TEST_PROJECT_ID),
     reason="GITLAB_TOKEN + GITLAB_TEST_PROJECT_ID must be set for online tests",
 )
+
+
+# Session-wide registry of (branch_name, mr_iid) created by the tests below.
+# Populated by individual tests after emit() succeeds; consumed by the
+# autouse session-finalizer fixture when GITLAB_TEST_CLEANUP=1.
+_session_cleanup: list[tuple[str, int]] = []
+
+
+@pytest.fixture(scope="session", autouse=True)
+def _gitlab_test_cleanup():
+    """Close MRs + delete branches created during the session if cleanup is opted in.
+
+    Default OFF preserves the judge-inspection workflow. Set GITLAB_TEST_CLEANUP=1
+    locally to keep the test project tidy. Never raises; cleanup failures are
+    logged so a broken cleanup never masks a real test failure."""
+    import logging
+    from urllib.parse import quote
+
+    import httpx as _httpx
+
+    yield
+    if not _CLEANUP_ENABLED or not (_GITLAB_TOKEN and _TEST_PROJECT_ID and _session_cleanup):
+        return
+    project_enc = quote(_TEST_PROJECT_ID, safe="")
+    headers = {"PRIVATE-TOKEN": _GITLAB_TOKEN}
+    log = logging.getLogger(__name__)
+    with _httpx.Client(timeout=15.0) as http:
+        for branch_name, mr_iid in _session_cleanup:
+            try:
+                http.put(
+                    f"https://gitlab.com/api/v4/projects/{project_enc}/merge_requests/{mr_iid}",
+                    headers=headers,
+                    json={"state_event": "close"},
+                )
+                http.delete(
+                    f"https://gitlab.com/api/v4/projects/{project_enc}/repository/branches/"
+                    f"{quote(branch_name, safe='')}",
+                    headers=headers,
+                )
+            except Exception:
+                log.exception("gitlab_test_cleanup_failed branch=%s mr_iid=%d", branch_name, mr_iid)
 
 
 def _unique_recipe_id() -> str:
@@ -117,6 +162,7 @@ async def test_online_emit_returns_real_mr_url() -> None:
     recipe = _recipe()
     emitter = GitLabMREmitter()  # uses default REST + MCP clients from Settings
     result = await emitter.emit(recipe, project_id=_TEST_PROJECT_ID or "")  # type: ignore[arg-type]
+    _session_cleanup.append((result.branch_name, result.mr_iid))
 
     assert isinstance(result, GitLabEmitResult)
     assert re.fullmatch(r"https://gitlab\.com/.+/-/merge_requests/\d+", result.mr_url)
@@ -134,6 +180,7 @@ async def test_online_emit_commits_recipe_markdown_and_diff_files() -> None:
     recipe = _recipe()
     emitter = GitLabMREmitter()
     result = await emitter.emit(recipe, project_id=_TEST_PROJECT_ID or "")  # type: ignore[arg-type]
+    _session_cleanup.append((result.branch_name, result.mr_iid))
 
     # Fetch the branch's tree via REST to assert files landed. URL-encode the
     # project id since it may contain `/`.
@@ -170,6 +217,7 @@ async def test_online_emit_mr_description_visible_on_gitlab() -> None:
     recipe = _recipe()
     emitter = GitLabMREmitter()
     result = await emitter.emit(recipe, project_id=_TEST_PROJECT_ID or "")  # type: ignore[arg-type]
+    _session_cleanup.append((result.branch_name, result.mr_iid))
 
     from urllib.parse import quote
 

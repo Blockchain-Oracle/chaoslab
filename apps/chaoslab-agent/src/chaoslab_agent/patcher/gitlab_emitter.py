@@ -62,12 +62,9 @@ class GitLabEmitResult(BaseModel):
     @field_validator("mr_url")
     @classmethod
     def _mr_url_is_https_gitlab_mr(cls, value: str) -> str:
-        # Plain str (HttpUrl is too loose — it would accept http://gitlab.com
-        # and example.com). The pattern enforces https + gitlab.com + the
-        # `/-/merge_requests/<int>` tail that judges click on.
-        if not value.startswith("https://"):
-            msg = f"mr_url must be https:// (got {value[:32]}...)"
-            raise ValueError(msg)
+        # Single pattern is load-bearing — the regex starts with `^https://gitlab\.com/`
+        # so the prefix is enforced as a side effect. A separate `startswith` check
+        # would just duplicate that constraint.
         if not _MR_URL_PATTERN.match(value):
             msg = (
                 "mr_url must match https://gitlab.com/.../-/merge_requests/<id> "
@@ -132,13 +129,21 @@ class GitLabMREmitter:
                 labels=["chaoslab", "hardening-recipe"],
             )
         except GitLabMcpError as exc:
+            # The REST half already landed branch+commit on GitLab. If we
+            # don't roll back, retries hit `Branch already exists` (422) on
+            # the next attempt and the user is stuck in a half-applied state.
+            # Best-effort delete — log failure but preserve the original cause
+            # so the operator sees what actually broke. The branch_name is
+            # included in the user-facing message so manual cleanup is
+            # possible at gitlab.com/.../-/branches/<branch_name>.
+            self._rollback_branch_best_effort(rest, branch_name)
             # Translate auth failures with a marker the receipt-card surface
             # can grep ("authentication") — the bare MCP error message stays in
             # __cause__ for the on-call engineer.
             if "401" in str(exc) or "authentication" in str(exc).lower():
-                msg = f"GitLab MR authentication failed: {exc}"
+                msg = f"GitLab MR authentication failed (branch={branch_name}): {exc}"
                 raise GitLabEmitterError(msg) from exc
-            msg = f"GitLab MR creation failed: {exc}"
+            msg = f"GitLab MR creation failed (branch={branch_name}): {exc}"
             raise GitLabEmitterError(msg) from exc
 
         mr_url = self._extract_mr_field(mr, "web_url")
@@ -205,29 +210,85 @@ class GitLabMREmitter:
         # Headers first (so the reviewer sees the metadata before the
         # rendered Markdown body), then the same render_recipe output S6.5
         # uploads to GCS — single source of truth for the Markdown artifact.
+        # HardeningRecipe.target_agent_id only enforces min_length=1, so a
+        # backtick inside would break the inline code-span and degrade the
+        # regulator-readable artifact. Strip + WARNING log so bad upstream
+        # data is observable rather than silently corrupting the MR.
+        safe_agent_id = self._sanitize_code_span(recipe.target_agent_id, "target_agent_id")
+        safe_recipe_id = self._sanitize_code_span(recipe.recipe_id, "recipe_id")
         return (
             "# ChaosLab Hardening Recipe\n\n"
-            f"**Recipe ID:** `{recipe.recipe_id}`\n"
-            f"**Target agent:** `{recipe.target_agent_id}`\n"
+            f"**Recipe ID:** `{safe_recipe_id}`\n"
+            f"**Target agent:** `{safe_agent_id}`\n"
             f"**Estimated resilience improvement:** "
             f"{recipe.estimated_resilience_improvement * 100:.1f}%\n\n"
             "---\n\n" + render_recipe(recipe)
         )
 
     @staticmethod
+    def _sanitize_code_span(value: str, field_name: str) -> str:
+        """Strip backticks from `value` so an inline Markdown code-span stays intact.
+
+        Logs WARNING on substitution so an upstream model emitting Markdown
+        control chars surfaces in Cloud Logging instead of silently degrading
+        the regulator-facing MR description.
+        """
+        if "`" in value:
+            logger.warning(
+                "mr_description_sanitized field=%s original=%r — backticks stripped",
+                field_name,
+                value,
+            )
+            return value.replace("`", "")
+        return value
+
+    @staticmethod
     def _extract_mr_field(mr: dict[str, Any], key: str) -> str:
-        """Pull `key` from the MCP response, supporting two known envelope shapes."""
-        if key in mr:
+        """Pull `key` from the MCP response, supporting both known envelope shapes.
+
+        Some MCP servers return the tool result top-level (`{"iid": 42, ...}`);
+        others wrap it in the `content` list shape per MCP spec
+        (`{"content": [{"type": "json", "json": {"iid": 42, ...}}]}`). Tested
+        against both shapes; envelope-path usage is WARNING-logged so a
+        production drift to the envelope shape is observable instead of silent.
+        """
+        # Top-level — but an explicit null on the field IS a server bug (returning
+        # the string "None" would then fail mr_url validation with a confusing
+        # "must match pattern" error instead of surfacing the actual issue).
+        if key in mr and mr[key] is not None:
             return str(mr[key])
         content = mr.get("content")
         if isinstance(content, list) and content:
             first = content[0]
             if isinstance(first, dict):
                 inner = first.get("json") or {}
-                if isinstance(inner, dict) and key in inner:
+                if isinstance(inner, dict) and inner.get(key) is not None:
+                    logger.warning(
+                        "mcp_envelope_fallback_used key=%s — MCP returned `content[0].json` "
+                        "shape; consider verifying server version",
+                        key,
+                    )
                     return str(inner[key])
-        msg = f"GitLab MR response missing required field {key!r}: keys={list(mr.keys())}"
+        msg = (
+            f"GitLab MR response missing required field {key!r} "
+            f"(or value was null): keys={list(mr.keys())}"
+        )
         raise GitLabEmitterError(msg)
+
+    @staticmethod
+    def _rollback_branch_best_effort(rest: GitLabRestClient, branch_name: str) -> None:
+        """Delete a branch after MR creation failed. Logs on error but never raises.
+
+        Best-effort: if rollback itself fails (network, IAM gap, etc.), we still
+        want to propagate the ORIGINAL MR-creation error. The branch_name is
+        included in the user-facing GitLabEmitterError so manual cleanup is
+        possible via gitlab.com/.../-/branches/<branch_name>.
+        """
+        try:
+            rest.delete_branch(branch_name)
+            logger.info("orphan_branch_rolled_back branch=%s", branch_name)
+        except Exception:
+            logger.exception("orphan_branch_rollback_failed branch=%s", branch_name)
 
     def _get_rest_client(self, project_id: str) -> GitLabRestClient:
         if self._rest_client is not None:

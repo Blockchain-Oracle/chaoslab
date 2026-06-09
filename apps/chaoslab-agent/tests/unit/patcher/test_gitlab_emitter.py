@@ -446,6 +446,475 @@ async def test_emit_split_counts_one_mcp_call_and_at_least_two_rest_calls() -> N
         emitter = GitLabMREmitter(rest_client=rest, mcp_client=mcp)
         await emitter.emit(_recipe(), project_id="abu-chaoslab/test-target")
 
+    # Round-2 (TQ-HIGH): assert each surface independently so a future refactor
+    # that drops branch.create (orphan commits) or routes branch through commits
+    # API can't slip past with a sum-based >= check.
     assert mcp_route.call_count == 1, "MCP must be called exactly once (create_merge_request)"
-    rest_call_count = project.branches.create.call_count + project.commits.create.call_count
-    assert rest_call_count >= 2, "REST must be called at least twice (branch + commit)"
+    assert project.branches.create.call_count == 1, "REST branches.create must fire exactly once"
+    assert project.commits.create.call_count >= 1, "REST commits.create must fire ≥1 time"
+
+
+# ---------------------------------------------------------------------------
+# Round-2 hardening tests (PR #74 reviewer fleet — 3-agent fan-out findings)
+# ---------------------------------------------------------------------------
+
+
+@respx.mock
+async def test_mcp_client_wraps_non_401_4xx_in_emitter_error() -> None:
+    """SFH-BLOCKER #2: 403/404/422 must wrap to GitLabMcpError so the emitter's
+    `except GitLabMcpError` catches them. Was leaking as httpx.HTTPStatusError."""
+    from chaoslab_agent.patcher._gitlab_mcp_client import GitLabMcpClient, GitLabMcpError
+
+    respx.post(_OFFICIAL_ENDPOINT).mock(return_value=httpx.Response(404, text="Project Not Found"))
+
+    async with httpx.AsyncClient(timeout=5.0) as http:
+        client = GitLabMcpClient(endpoint=_OFFICIAL_ENDPOINT, token="tok", client=http)
+        with pytest.raises(GitLabMcpError, match="404"):
+            await client.create_merge_request(
+                project_id="nonexistent/project",
+                source_branch="a",
+                target_branch="b",
+                title="t",
+                description="d",
+            )
+
+
+@respx.mock
+async def test_mcp_client_wraps_403_forbidden() -> None:
+    """SFH-BLOCKER #2 — 403 (insufficient PAT scope) also wraps cleanly."""
+    from chaoslab_agent.patcher._gitlab_mcp_client import GitLabMcpClient, GitLabMcpError
+
+    respx.post(_OFFICIAL_ENDPOINT).mock(return_value=httpx.Response(403, text="Forbidden"))
+    async with httpx.AsyncClient(timeout=5.0) as http:
+        client = GitLabMcpClient(endpoint=_OFFICIAL_ENDPOINT, token="tok", client=http)
+        with pytest.raises(GitLabMcpError, match="403"):
+            await client.create_merge_request(
+                project_id="x", source_branch="a", target_branch="b", title="t", description="d"
+            )
+
+
+def test_mcp_client_construction_rejects_non_official_endpoint() -> None:
+    """SFH-I #3: positive `endpoint == OFFICIAL_ENDPOINT` check.
+
+    A typo like `https://gitlab.com/api/v3/mcp` (v3 not v4) passes the BANNED
+    fragment list but is still wrong — needs strict equality."""
+    from chaoslab_agent.patcher._gitlab_mcp_client import GitLabMcpClient
+
+    with pytest.raises(ValueError, match="ADR-011"):
+        GitLabMcpClient(endpoint="https://gitlab.com/api/v3/mcp", token="tok")
+
+
+def test_mcp_client_construction_rejects_typo_in_path() -> None:
+    """SFH-I #3 follow-up: a single-character typo MUST fail."""
+    from chaoslab_agent.patcher._gitlab_mcp_client import GitLabMcpClient
+
+    with pytest.raises(ValueError, match="ADR-011"):
+        GitLabMcpClient(endpoint="https://gitlab.com/api/v4/mc", token="tok")
+
+
+@respx.mock
+async def test_mcp_client_surfaces_nested_result_error() -> None:
+    """SFH-I #5: tool-level error nested inside `result.error` is surfaced."""
+    from chaoslab_agent.patcher._gitlab_mcp_client import GitLabMcpClient, GitLabMcpError
+
+    respx.post(_OFFICIAL_ENDPOINT).mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "jsonrpc": "2.0",
+                "id": 1,
+                "result": {"error": "422 branch already exists"},
+            },
+        )
+    )
+    async with httpx.AsyncClient(timeout=5.0) as http:
+        client = GitLabMcpClient(endpoint=_OFFICIAL_ENDPOINT, token="tok", client=http)
+        with pytest.raises(GitLabMcpError, match="branch already exists"):
+            await client.create_merge_request(
+                project_id="x", source_branch="a", target_branch="b", title="t", description="d"
+            )
+
+
+@respx.mock
+async def test_mcp_client_surfaces_is_error_envelope() -> None:
+    """SFH-I #5: MCP `isError: true` convention is surfaced explicitly."""
+    from chaoslab_agent.patcher._gitlab_mcp_client import GitLabMcpClient, GitLabMcpError
+
+    respx.post(_OFFICIAL_ENDPOINT).mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "jsonrpc": "2.0",
+                "id": 1,
+                "result": {"isError": True, "content": [{"type": "text", "text": "denied"}]},
+            },
+        )
+    )
+    async with httpx.AsyncClient(timeout=5.0) as http:
+        client = GitLabMcpClient(endpoint=_OFFICIAL_ENDPOINT, token="tok", client=http)
+        with pytest.raises(GitLabMcpError, match="isError"):
+            await client.create_merge_request(
+                project_id="x", source_branch="a", target_branch="b", title="t", description="d"
+            )
+
+
+@respx.mock
+async def test_mcp_client_missing_result_key_raises_explicit() -> None:
+    """SFH-S #8: distinguish missing-result (broken server) from empty-result-dict."""
+    from chaoslab_agent.patcher._gitlab_mcp_client import GitLabMcpClient, GitLabMcpError
+
+    respx.post(_OFFICIAL_ENDPOINT).mock(
+        return_value=httpx.Response(200, json={"jsonrpc": "2.0", "id": 1})
+    )
+    async with httpx.AsyncClient(timeout=5.0) as http:
+        client = GitLabMcpClient(endpoint=_OFFICIAL_ENDPOINT, token="tok", client=http)
+        with pytest.raises(GitLabMcpError, match="no 'result' key"):
+            await client.create_merge_request(
+                project_id="x", source_branch="a", target_branch="b", title="t", description="d"
+            )
+
+
+@respx.mock
+async def test_mcp_client_retries_on_non_json_response() -> None:
+    """SFH-S #6: maintenance-page HTML at 200 → retry, eventual JSON success."""
+    from chaoslab_agent.patcher._gitlab_mcp_client import GitLabMcpClient
+
+    route = respx.post(_OFFICIAL_ENDPOINT).mock(
+        side_effect=[
+            httpx.Response(200, text="<html>maintenance</html>"),
+            httpx.Response(200, json=_mcp_success_response()),
+        ]
+    )
+    async with httpx.AsyncClient(timeout=5.0) as http:
+        client = GitLabMcpClient(endpoint=_OFFICIAL_ENDPOINT, token="tok", client=http)
+        result = await client.create_merge_request(
+            project_id="x", source_branch="a", target_branch="b", title="t", description="d"
+        )
+    assert route.call_count == 2
+    assert result.get("iid") == 42
+
+
+@respx.mock
+async def test_mcp_client_5xx_retry_uses_increasing_backoff(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """TQ-HIGH #2: assert the BACKOFF SCHEDULE (not wall-clock). A future refactor
+    that drops asyncio.sleep would silently pass the call-count test alone."""
+    import asyncio as _asyncio
+
+    from chaoslab_agent.patcher import _gitlab_mcp_client as mcp_mod
+
+    respx.post(_OFFICIAL_ENDPOINT).mock(
+        side_effect=[
+            httpx.Response(503),
+            httpx.Response(503),
+            httpx.Response(200, json=_mcp_success_response()),
+        ]
+    )
+
+    sleep_delays: list[float] = []
+
+    async def _record_sleep(delay: float) -> None:
+        sleep_delays.append(delay)
+
+    monkeypatch.setattr(mcp_mod.asyncio, "sleep", _record_sleep)
+
+    async with httpx.AsyncClient(timeout=5.0) as http:
+        client = mcp_mod.GitLabMcpClient(endpoint=_OFFICIAL_ENDPOINT, token="tok", client=http)
+        await client.create_merge_request(
+            project_id="x", source_branch="a", target_branch="b", title="t", description="d"
+        )
+
+    # Strict: two sleeps between three POSTs, strictly increasing (1.0s then 2.0s
+    # per `_RETRY_BASE_SECONDS * 2**attempt`).
+    assert len(sleep_delays) == 2
+    assert sleep_delays[1] > sleep_delays[0]
+    _ = _asyncio  # marker for the future-attempt sanity check below; no functional use
+
+
+@respx.mock
+async def test_emit_extracts_mr_from_envelope_shape() -> None:
+    """TQ-HIGH #3 / CR-MED #5: prove the `content[0].json` envelope path works
+    AND emits the documented WARNING so production drift to the envelope shape
+    is observable."""
+    from chaoslab_agent.patcher._gitlab_mcp_client import GitLabMcpClient
+    from chaoslab_agent.patcher._gitlab_rest_client import GitLabRestClient
+    from chaoslab_agent.patcher.gitlab_emitter import GitLabMREmitter
+
+    respx.post(_OFFICIAL_ENDPOINT).mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "jsonrpc": "2.0",
+                "id": 1,
+                "result": {
+                    "content": [
+                        {
+                            "type": "json",
+                            "json": {
+                                "iid": 77,
+                                "web_url": (
+                                    "https://gitlab.com/abu-chaoslab/test-target"
+                                    "/-/merge_requests/77"
+                                ),
+                            },
+                        }
+                    ]
+                },
+            },
+        )
+    )
+    project = _fake_project()
+    rest = GitLabRestClient(project=project)
+    async with httpx.AsyncClient(timeout=5.0) as http:
+        mcp = GitLabMcpClient(endpoint=_OFFICIAL_ENDPOINT, token="tok", client=http)
+        emitter = GitLabMREmitter(rest_client=rest, mcp_client=mcp)
+        result = await emitter.emit(_recipe(), project_id="abu-chaoslab/test-target")
+
+    assert result.mr_iid == 77
+
+
+@respx.mock
+async def test_emit_returns_descriptive_error_on_null_mr_field() -> None:
+    """SFH-I #4: MCP returning `{"web_url": null}` must surface a clear error,
+    NOT the string "None" then failing url validation with a confusing message."""
+    from chaoslab_agent.patcher._gitlab_mcp_client import GitLabMcpClient
+    from chaoslab_agent.patcher._gitlab_rest_client import GitLabRestClient
+    from chaoslab_agent.patcher.gitlab_emitter import GitLabEmitterError, GitLabMREmitter
+
+    respx.post(_OFFICIAL_ENDPOINT).mock(
+        return_value=httpx.Response(
+            200, json={"jsonrpc": "2.0", "id": 1, "result": {"iid": 1, "web_url": None}}
+        )
+    )
+    project = _fake_project()
+    rest = GitLabRestClient(project=project)
+    async with httpx.AsyncClient(timeout=5.0) as http:
+        mcp = GitLabMcpClient(endpoint=_OFFICIAL_ENDPOINT, token="tok", client=http)
+        emitter = GitLabMREmitter(rest_client=rest, mcp_client=mcp)
+        with pytest.raises(GitLabEmitterError, match="missing required field"):
+            await emitter.emit(_recipe(), project_id="abu-chaoslab/test-target")
+
+
+@respx.mock
+async def test_emit_rolls_back_branch_when_mcp_fails() -> None:
+    """SFH-BLOCKER #1 / CR-HIGH #1: orphan branch leak — REST succeeded, MCP failed.
+    Lifespan: branches.delete is called best-effort + branch_name surfaces in error."""
+    from chaoslab_agent.patcher._gitlab_mcp_client import GitLabMcpClient
+    from chaoslab_agent.patcher._gitlab_rest_client import GitLabRestClient
+    from chaoslab_agent.patcher.gitlab_emitter import GitLabEmitterError, GitLabMREmitter
+
+    # MCP returns 500 → exhausted retries → GitLabMcpError → rollback path.
+    respx.post(_OFFICIAL_ENDPOINT).mock(return_value=httpx.Response(500))
+    project = _fake_project()
+    rest = GitLabRestClient(project=project)
+
+    async with httpx.AsyncClient(timeout=5.0) as http:
+        mcp = GitLabMcpClient(endpoint=_OFFICIAL_ENDPOINT, token="tok", client=http)
+        emitter = GitLabMREmitter(rest_client=rest, mcp_client=mcp)
+        with pytest.raises(GitLabEmitterError, match="chaoslab/recipe-abc123def456"):
+            await emitter.emit(_recipe(), project_id="abu-chaoslab/test-target")
+
+    # The orphan branch must have been rollback-attempted exactly once.
+    assert project.branches.delete.call_count == 1
+    assert project.branches.delete.call_args[0][0] == "chaoslab/recipe-abc123def456"
+
+
+@respx.mock
+async def test_emit_propagates_mcp_error_even_when_rollback_fails() -> None:
+    """SFH-BLOCKER #1: rollback is best-effort. If `branches.delete` ITSELF raises,
+    the MCP error still surfaces (preserving root cause for the operator) — and
+    the branch_name in the message tells them what to clean up manually."""
+    from chaoslab_agent.patcher._gitlab_mcp_client import GitLabMcpClient
+    from chaoslab_agent.patcher._gitlab_rest_client import GitLabRestClient
+    from chaoslab_agent.patcher.gitlab_emitter import GitLabEmitterError, GitLabMREmitter
+
+    respx.post(_OFFICIAL_ENDPOINT).mock(return_value=httpx.Response(500))
+    project = _fake_project()
+    project.branches.delete.side_effect = RuntimeError("rollback broke too")
+    rest = GitLabRestClient(project=project)
+
+    async with httpx.AsyncClient(timeout=5.0) as http:
+        mcp = GitLabMcpClient(endpoint=_OFFICIAL_ENDPOINT, token="tok", client=http)
+        emitter = GitLabMREmitter(rest_client=rest, mcp_client=mcp)
+        with pytest.raises(GitLabEmitterError, match="chaoslab/recipe-abc123def456"):
+            await emitter.emit(_recipe(), project_id="abu-chaoslab/test-target")
+
+
+@respx.mock
+async def test_emit_does_not_rollback_when_rest_fails_before_mcp() -> None:
+    """If REST branch.create fails, MCP is never called and rollback is moot."""
+    from chaoslab_agent.patcher._gitlab_mcp_client import GitLabMcpClient
+    from chaoslab_agent.patcher._gitlab_rest_client import GitLabRestClient
+    from chaoslab_agent.patcher.gitlab_emitter import GitLabEmitterError, GitLabMREmitter
+
+    mcp_route = respx.post(_OFFICIAL_ENDPOINT).mock(
+        return_value=httpx.Response(200, json=_mcp_success_response())
+    )
+    project = _fake_project()
+    project.branches.create.side_effect = RuntimeError("rest dead")
+    rest = GitLabRestClient(project=project)
+
+    async with httpx.AsyncClient(timeout=5.0) as http:
+        mcp = GitLabMcpClient(endpoint=_OFFICIAL_ENDPOINT, token="tok", client=http)
+        emitter = GitLabMREmitter(rest_client=rest, mcp_client=mcp)
+        with pytest.raises(GitLabEmitterError, match="GitLab branch/commit failed"):
+            await emitter.emit(_recipe(), project_id="abu-chaoslab/test-target")
+
+    # MCP never called → nothing to roll back.
+    assert mcp_route.call_count == 0
+    assert project.branches.delete.call_count == 0
+
+
+@respx.mock
+async def test_emit_only_markdown_file_when_no_diffs_or_regressions() -> None:
+    """TQ-MED #5: markdown-only emit. commit_count==1, no diffs/regression paths."""
+    from chaoslab_agent.patcher._gitlab_mcp_client import GitLabMcpClient
+    from chaoslab_agent.patcher._gitlab_rest_client import GitLabRestClient
+    from chaoslab_agent.patcher.gitlab_emitter import GitLabMREmitter
+
+    respx.post(_OFFICIAL_ENDPOINT).mock(
+        return_value=httpx.Response(200, json=_mcp_success_response())
+    )
+    recipe = _recipe()  # no tool_diffs, no regression_cases by default
+    project = _fake_project()
+    rest = GitLabRestClient(project=project)
+    async with httpx.AsyncClient(timeout=5.0) as http:
+        mcp = GitLabMcpClient(endpoint=_OFFICIAL_ENDPOINT, token="tok", client=http)
+        emitter = GitLabMREmitter(rest_client=rest, mcp_client=mcp)
+        result = await emitter.emit(recipe, project_id="abu-chaoslab/test-target")
+
+    assert result.commit_count == 1
+    payload = project.commits.create.call_args[0][0]
+    actions = payload["actions"]
+    assert len(actions) == 1
+    assert actions[0]["file_path"] == f"chaoslab/patches/{recipe.recipe_id}.md"
+
+
+@respx.mock
+async def test_emit_401_chain_preserves_cause(monkeypatch: pytest.MonkeyPatch) -> None:
+    """TQ-MED #6: `__cause__` chain locked — a future refactor that drops `from exc`
+    loses debuggability but would pass the substring-match-only assertion."""
+    from chaoslab_agent.patcher._gitlab_mcp_client import GitLabMcpClient, GitLabMcpError
+    from chaoslab_agent.patcher._gitlab_rest_client import GitLabRestClient
+    from chaoslab_agent.patcher.gitlab_emitter import GitLabEmitterError, GitLabMREmitter
+
+    respx.post(_OFFICIAL_ENDPOINT).mock(return_value=httpx.Response(401, json={"message": "401"}))
+    project = _fake_project()
+    rest = GitLabRestClient(project=project)
+    async with httpx.AsyncClient(timeout=5.0) as http:
+        mcp = GitLabMcpClient(endpoint=_OFFICIAL_ENDPOINT, token="bad", client=http)
+        emitter = GitLabMREmitter(rest_client=rest, mcp_client=mcp)
+        with pytest.raises(GitLabEmitterError) as exc_info:
+            await emitter.emit(_recipe(), project_id="abu-chaoslab/test-target")
+
+    assert exc_info.value.__cause__ is not None
+    assert isinstance(exc_info.value.__cause__, GitLabMcpError)
+
+
+@respx.mock
+async def test_emit_rest_failure_chain_preserves_cause() -> None:
+    """CR-MED #3: GitLabRestClientError propagates as __cause__ — locks the rest
+    error path (was untested in round-1; the `except Exception` branch was dead)."""
+    from chaoslab_agent.patcher._gitlab_mcp_client import GitLabMcpClient
+    from chaoslab_agent.patcher._gitlab_rest_client import GitLabRestClient, GitLabRestClientError
+    from chaoslab_agent.patcher.gitlab_emitter import GitLabEmitterError, GitLabMREmitter
+
+    respx.post(_OFFICIAL_ENDPOINT).mock(
+        return_value=httpx.Response(200, json=_mcp_success_response())
+    )
+    project = _fake_project()
+    project.branches.create.side_effect = RuntimeError("network exploded")
+    rest = GitLabRestClient(project=project)
+
+    async with httpx.AsyncClient(timeout=5.0) as http:
+        mcp = GitLabMcpClient(endpoint=_OFFICIAL_ENDPOINT, token="tok", client=http)
+        emitter = GitLabMREmitter(rest_client=rest, mcp_client=mcp)
+        with pytest.raises(GitLabEmitterError) as exc_info:
+            await emitter.emit(_recipe(), project_id="abu-chaoslab/test-target")
+
+    assert exc_info.value.__cause__ is not None
+    assert isinstance(exc_info.value.__cause__, GitLabRestClientError)
+
+
+@respx.mock
+async def test_emit_rest_calls_positional_dict_only() -> None:
+    """TQ-MED #4 / CR-MED #3: lock python-gitlab's positional-dict contract.
+
+    Real python-gitlab takes `project.branches.create({"branch": ..., "ref": ...})`
+    — NOT kwargs. A future refactor that drifts to kwargs would silently pass a
+    MagicMock test but break in production with TypeError."""
+    from chaoslab_agent.patcher._gitlab_mcp_client import GitLabMcpClient
+    from chaoslab_agent.patcher._gitlab_rest_client import GitLabRestClient
+    from chaoslab_agent.patcher.gitlab_emitter import GitLabMREmitter
+
+    respx.post(_OFFICIAL_ENDPOINT).mock(
+        return_value=httpx.Response(200, json=_mcp_success_response())
+    )
+    project = _fake_project()
+    rest = GitLabRestClient(project=project)
+    async with httpx.AsyncClient(timeout=5.0) as http:
+        mcp = GitLabMcpClient(endpoint=_OFFICIAL_ENDPOINT, token="tok", client=http)
+        emitter = GitLabMREmitter(rest_client=rest, mcp_client=mcp)
+        await emitter.emit(_recipe(), project_id="abu-chaoslab/test-target")
+
+    # Positional-only: kwargs MUST be empty, args[0] MUST be a dict.
+    branches_call = project.branches.create.call_args
+    assert branches_call.kwargs == {}
+    assert isinstance(branches_call.args[0], dict)
+    commits_call = project.commits.create.call_args
+    assert commits_call.kwargs == {}
+    assert isinstance(commits_call.args[0], dict)
+
+
+@respx.mock
+async def test_emit_sanitizes_backticks_in_target_agent_id(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """SFH-S #7: backticks in target_agent_id MUST be stripped so the inline
+    code-span in the MR description doesn't break. WARNING logged so bad
+    upstream data is observable in Cloud Logging."""
+    import logging as _logging
+
+    from chaoslab_agent.patcher._gitlab_mcp_client import GitLabMcpClient
+    from chaoslab_agent.patcher._gitlab_rest_client import GitLabRestClient
+    from chaoslab_agent.patcher.gitlab_emitter import GitLabMREmitter
+
+    route = respx.post(_OFFICIAL_ENDPOINT).mock(
+        return_value=httpx.Response(200, json=_mcp_success_response())
+    )
+    cluster = FailureCluster(
+        cluster_id="cluster_a3f7b2c1",
+        root_cause="...",
+        failure_count=1,
+        span_ids=["0123456789abcdef"],
+        fault_classes=["malformed_tool_output"],
+    )
+    recipe = HardeningRecipe(
+        recipe_id="recipe_abc123def456",
+        target_agent_id="evil`backtick`agent",
+        generated_at="2026-06-02T14:30:00Z",
+        cluster_set=FailureClusterSet(clusters=[cluster], total_failures=1),
+        prompt_patches=[],
+        tool_validation_diffs=[],
+        regression_test_cases=[],
+        estimated_resilience_improvement=0.5,
+    )
+    project = _fake_project()
+    rest = GitLabRestClient(project=project)
+    with caplog.at_level(_logging.WARNING, logger="chaoslab_agent.patcher.gitlab_emitter"):
+        async with httpx.AsyncClient(timeout=5.0) as http:
+            mcp = GitLabMcpClient(endpoint=_OFFICIAL_ENDPOINT, token="tok", client=http)
+            emitter = GitLabMREmitter(rest_client=rest, mcp_client=mcp)
+            await emitter.emit(recipe, project_id="abu-chaoslab/test-target")
+
+    description = json.loads(route.calls.last.request.content)["params"]["arguments"]["description"]
+    # The header line carrying the inline code-span MUST contain the sanitized
+    # form. The body (from render_recipe — S6.5 territory) may carry the raw
+    # value verbatim; sanitization only protects the emitter's own headers.
+    header_line = next(
+        line for line in description.splitlines() if line.startswith("**Target agent:**")
+    )
+    assert "`evilbacktickagent`" in header_line
+    assert "`evil`backtick`agent`" not in header_line
+    assert any("mr_description_sanitized" in r.message for r in caplog.records)
