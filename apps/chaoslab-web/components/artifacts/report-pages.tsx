@@ -84,14 +84,36 @@ export function ReportPage({ page, signed }: ReportPageProps) {
             </span>
           </div>
         ))}
+        {/* Locked texts render VERBATIM from the canonical fixtures —
+            docs/run-config-schema.md §"Default-mode variant" and
+            docs/header-convention.md §"Audit-report warning". No rewording
+            permitted (verbatim-lock discipline; only declared placeholders
+            may substitute — here {N} = 1 for probe 06). */}
         <LockedParagraph title="DATA RESIDENCY — DEFAULT HOSTING VARIANT">
-          Trace data produced during this audit was processed by Phoenix Audit acting as a data
-          processor under GDPR Article 28 and cryptographically erased 24 hours after this report
-          was emitted. Erasure requests: erasure@phoenix-audit.example
+          Audit traces are retained in Phoenix Audit&apos;s hosted Phoenix project for 24 hours
+          after this report&apos;s cryptographic signature is emitted, then cryptographically erased
+          via Cloud KMS key-shred. Phoenix Audit acts as a GDPR Article 28 data processor for the
+          duration of the retention window. This signed PDF is the durable artifact; all underlying
+          probe-and-response data is destroyed after the retention window closes.
         </LockedParagraph>
+        <p
+          className="mono"
+          style={{
+            fontSize: 9.5,
+            color: 'var(--ink-3)',
+            margin: '-6px 0 8px',
+            letterSpacing: '0.04em',
+          }}
+        >
+          Erasure requests (GDPR Art. 17): erasure@phoenix-audit.example · honored within 72 h
+        </p>
         <LockedParagraph title="HEADER CONVENTION WARNING — INCLUDED FOR THIS RUN">
-          One or more probes did not confirm the audit-mode header convention. Side-effecting tool
-          calls during this audit may have been executed for real.
+          Target did not signal it honored the X-Phoenix-Audit-* headers (`phoenix_audit.honored =
+          true` was absent from 1 probe-response spans). Side-effecting tool calls during this audit
+          run MAY have been executed for real against the target. To opt into dry-run behavior, the
+          target must read `X-Phoenix-Audit-Dry-Run` and short-circuit side-effecting tools when its
+          value is `true`, AND emit `phoenix_audit.honored = true` as a span attribute on every
+          response.
         </LockedParagraph>
         {signed ? (
           <div

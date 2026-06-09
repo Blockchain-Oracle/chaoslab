@@ -10,6 +10,10 @@ interface ChamberHeaderProps {
   mode: 'replay' | 'live'
   /** Live-mode only: surfaced when the chamber is pacing from the timeline backfill */
   demoPacing?: boolean
+  /** Live-mode only: actual EventSource open-state from the SSE bridge.
+   *  The LIVE indicator must reflect reality, never assert "CONNECTED"
+   *  unconditionally (review finding #5). */
+  connected?: boolean
 }
 
 const PHASE_SEQ: DerivedAuditState['phase'][] = [
@@ -20,7 +24,13 @@ const PHASE_SEQ: DerivedAuditState['phase'][] = [
   'succeeded',
 ]
 
-export function ChamberHeader({ s, elapsedDisplay, mode, demoPacing }: ChamberHeaderProps) {
+export function ChamberHeader({
+  s,
+  elapsedDisplay,
+  mode,
+  demoPacing,
+  connected,
+}: ChamberHeaderProps) {
   const phaseIdx = PHASE_SEQ.indexOf(s.phase)
   return (
     <header
@@ -91,7 +101,7 @@ export function ChamberHeader({ s, elapsedDisplay, mode, demoPacing }: ChamberHe
           >
             PRE-RECORDED REPLAY
           </span>
-        ) : (
+        ) : connected ? (
           <span
             className="mono"
             style={{
@@ -107,6 +117,29 @@ export function ChamberHeader({ s, elapsedDisplay, mode, demoPacing }: ChamberHe
               <span className="phase-dot"></span>
             </span>{' '}
             LIVE · SSE CONNECTED
+          </span>
+        ) : (
+          <span
+            className="mono"
+            style={{
+              fontSize: 10.5,
+              letterSpacing: '0.14em',
+              color: 'var(--warn)',
+              display: 'inline-flex',
+              gap: 8,
+              alignItems: 'center',
+            }}
+          >
+            <span
+              style={{
+                width: 7,
+                height: 7,
+                borderRadius: '50%',
+                border: '1.4px solid var(--warn)',
+                display: 'inline-block',
+              }}
+            ></span>{' '}
+            SSE CONNECTING…
           </span>
         )}
         <A

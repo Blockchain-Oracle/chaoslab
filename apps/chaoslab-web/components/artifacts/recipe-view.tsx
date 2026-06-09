@@ -7,15 +7,17 @@ import { SectionHead } from '@/components/ui/section-head'
 import { FaultClass, SpanLink } from '@/components/ui/stamps'
 import { TopBar } from '@/components/ui/topbar'
 import { CLUSTER_SET, HERO_RUN, RECIPE, fmtDate } from '@/lib/fixtures'
+import { useSafeTimeout } from '@/lib/use-safe-timeout'
 import { OpTag } from './op-tag'
 
 export function RecipeView() {
   const r = RECIPE
   const c = CLUSTER_SET.clusters[0]
   const [copied, setCopied] = useState(false)
+  const schedule = useSafeTimeout()
   const flash = () => {
     setCopied(true)
-    setTimeout(() => setCopied(false), 1400)
+    schedule(() => setCopied(false), 1400)
   }
   if (!c) return null
   return (

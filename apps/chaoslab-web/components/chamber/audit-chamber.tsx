@@ -31,6 +31,13 @@ interface AuditChamberProps {
   clockCeiling?: number
   /** Live-mode only: raw SSE wire lines for the event feed. */
   liveLines?: string[]
+  /** Live-mode only: whether the EventSource is currently open. Drives the
+   *  truthfulness of the header's LIVE indicator. */
+  liveConnected?: boolean
+  /** Live-mode only: terminal stream error detail; renders the failure
+   *  banner so a dead run is never visually indistinguishable from a
+   *  running one. */
+  liveError?: string | null
 }
 
 export function AuditChamber({
@@ -39,6 +46,8 @@ export function AuditChamber({
   livePhase,
   clockCeiling,
   liveLines,
+  liveConnected,
+  liveError,
 }: AuditChamberProps) {
   const ceiling = clockCeiling
   const { t, playing, setPlaying, seek, restart } = useAuditClock(
@@ -63,7 +72,50 @@ export function AuditChamber({
   return (
     <div className="chamber-scope" style={{ paddingBottom: 90 }}>
       <div className="grain"></div>
-      <ChamberHeader s={s} elapsedDisplay={elapsedDisplay} mode={mode} demoPacing={demoPacing} />
+      <ChamberHeader
+        s={s}
+        elapsedDisplay={elapsedDisplay}
+        mode={mode}
+        demoPacing={demoPacing}
+        connected={liveConnected}
+      />
+
+      {liveError ? (
+        <div
+          style={{
+            maxWidth: 1180,
+            margin: '20px auto 0',
+            padding: '0 40px',
+            position: 'relative',
+            zIndex: 2,
+          }}
+        >
+          <div
+            style={{
+              border: '1px solid var(--fail-glow)',
+              borderRadius: 4,
+              padding: '14px 18px',
+              background: 'rgba(220,90,60,0.08)',
+            }}
+          >
+            <div
+              className="mono"
+              style={{
+                fontSize: 10.5,
+                letterSpacing: '0.14em',
+                color: 'var(--fail-glow)',
+                marginBottom: 6,
+              }}
+            >
+              ✕ AUDIT STREAM ERROR
+            </div>
+            <div style={{ fontSize: 13, color: 'var(--chamber-ink-2)', lineHeight: 1.6 }}>
+              {liveError}. Nothing was signed or filed. Completed probes are preserved in the
+              Phoenix trace.
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       <div
         ref={arenaRef}

@@ -9,6 +9,7 @@ import { SectionHead } from '@/components/ui/section-head'
 import { Toggle } from '@/components/ui/toggle'
 import { TopBar } from '@/components/ui/topbar'
 import { AGENTS, HERO_RUN, HISTORY, agentById, fmtDate } from '@/lib/fixtures'
+import { useSafeTimeout } from '@/lib/use-safe-timeout'
 
 const SNIPPET = `from phoenix_audit import instrument
 
@@ -26,6 +27,7 @@ export function AgentDetailView({ id }: AgentDetailViewProps) {
   const a = agentById(id) ?? AGENTS[0]
   const [copied, setCopied] = useState(false)
   const [mon, setMon] = useState(!!a?.monitoring.enabled)
+  const schedule = useSafeTimeout()
   if (!a) return null
   const runs = HISTORY.filter((r) => r.agentId === a.id)
   const err = a.status === 'unreachable'
@@ -238,7 +240,7 @@ export function AgentDetailView({ id }: AgentDetailViewProps) {
                   }}
                   onClick={() => {
                     setCopied(true)
-                    setTimeout(() => setCopied(false), 1500)
+                    schedule(() => setCopied(false), 1500)
                   }}
                 >
                   {copied ? 'Copied ✓' : 'Copy'}

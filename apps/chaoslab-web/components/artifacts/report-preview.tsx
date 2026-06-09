@@ -6,6 +6,7 @@ import { PageFoot } from '@/components/ui/page-foot'
 import { Seal } from '@/components/ui/seal'
 import { TopBar } from '@/components/ui/topbar'
 import { HERO_RUN } from '@/lib/fixtures'
+import { useSafeTimeout } from '@/lib/use-safe-timeout'
 import { PageThumb } from './page-thumb'
 import { REPORT_PAGES, ReportPage, type ReportPageId } from './report-pages'
 
@@ -19,9 +20,10 @@ export function ReportPreview({ runId }: ReportPreviewProps) {
   const r = HERO_RUN
   const [page, setPage] = useState<ReportPageId>('cover')
   const [signState, setSignState] = useState<SignState>('idle')
+  const schedule = useSafeTimeout()
   const sign = () => {
     setSignState('signing')
-    setTimeout(() => setSignState('signed'), 2100)
+    schedule(() => setSignState('signed'), 2100)
   }
   return (
     <div className="page-enter">

@@ -16,6 +16,8 @@ export function LiveAuditShell({ runId }: LiveAuditShellProps) {
       livePhase={stream.phase}
       clockCeiling={stream.clockCeiling}
       liveLines={stream.wireLines}
+      liveConnected={stream.connected}
+      liveError={stream.error}
     />
   )
 }
