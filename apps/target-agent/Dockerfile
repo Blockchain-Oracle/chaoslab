@@ -101,6 +101,11 @@ COPY --from=ghcr.io/astral-sh/uv:0.11.18 /uv /uvx /usr/local/bin/
 
 # Copy the venv to a stable /opt/venv path (independent of WORKDIR).
 COPY --from=build --chown=appuser:appuser /workspace/.venv /opt/venv
+# Rewrite console-script shebangs from the build-stage path to the runtime
+# path (uv bakes /workspace/.venv/bin/python3 into every entry-point).
+RUN find /opt/venv/bin -maxdepth 1 -type f -executable -print0 \
+    | xargs -0 sed -i '1s|#!/workspace/.venv|#!/opt/venv|'
+
 COPY --from=build --chown=appuser:appuser /workspace/apps/target-agent/src /app/src
 COPY --from=build --chown=appuser:appuser /workspace/apps/target-agent/pyproject.toml /app/pyproject.toml
 
