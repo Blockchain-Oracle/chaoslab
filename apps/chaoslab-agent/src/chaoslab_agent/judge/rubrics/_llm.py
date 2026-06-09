@@ -1,4 +1,4 @@
-"""Shared lazy `Phoenix.evals.LLM` singleton for all rubrics."""
+"""Shared lazy `phoenix.evals.LLM` singleton for all rubrics."""
 
 from __future__ import annotations
 
@@ -13,14 +13,20 @@ _JUDGE: Any = None
 
 
 def get_judge_llm() -> LLM:
-    # Lazy: instantiating `LLM(provider="google_genai", ...)` at module load
-    # triggers a credential check that breaks unit-test imports without
-    # GOOGLE_API_KEY set.
+    # Lazy because `LLM(provider="google", ...)` constructs a google-genai
+    # client that performs ADC / credential discovery at instantiation. In
+    # tests we never hit this path.
+    #
+    # Vertex AI backend selection happens via the three env vars
+    # `GOOGLE_GENAI_USE_VERTEXAI=true`, `GOOGLE_CLOUD_PROJECT`, and
+    # `GOOGLE_CLOUD_LOCATION` set on the Cloud Run revision. When unset
+    # (e.g. self-hosters who BYO an AI Studio key) the SDK falls back to
+    # `GEMINI_API_KEY` / `GOOGLE_API_KEY` env vars.
     global _JUDGE  # noqa: PLW0603
     if _JUDGE is None:
         from phoenix.evals import LLM
 
-        _JUDGE = LLM(provider="google_genai", model=get_settings().JUDGE_LLM)
+        _JUDGE = LLM(provider="google", model=get_settings().JUDGE_LLM)
     return _JUDGE
 
 

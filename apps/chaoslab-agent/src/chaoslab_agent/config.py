@@ -44,7 +44,25 @@ class Settings(BaseSettings):
         ),
     )
 
-    gemini_api_key: SecretStr
+    # Vertex AI is the hosted default — Cloud Run mounts ADC via the runtime
+    # service account, so no key is needed. AI Studio (BYO `gemini_api_key`)
+    # stays available for OSS self-hosters without GCP.
+    google_genai_use_vertexai: bool = Field(
+        default=False,
+        description="True → google-genai SDK routes through Vertex AI (ADC).",
+    )
+    google_cloud_project: str | None = Field(
+        default=None,
+        description="GCP project id for Vertex AI; required when use_vertexai is True.",
+    )
+    google_cloud_location: str = Field(
+        default="us-central1",
+        description="Vertex AI region; us-central1 is the default Gemini home.",
+    )
+    gemini_api_key: SecretStr | None = Field(
+        default=None,
+        description="AI Studio key. Optional — required only when not using Vertex AI.",
+    )
     judge_llm: str = Field(
         default=JUDGE_LLM_LOCKED,
         description="Locked to 'gemini-3.5-flash' per ADR-007 + CLAUDE.md hard rule.",
@@ -103,6 +121,22 @@ class Settings(BaseSettings):
         return v
 
     @model_validator(mode="after")
+    def _gemini_backend_wired(self) -> Settings:
+        # One of the two judge-LLM paths must be wired. Vertex needs the
+        # project id (location has a default); AI Studio needs the API key.
+        if self.google_genai_use_vertexai:
+            if not self.google_cloud_project:
+                raise ValueError(
+                    "GOOGLE_CLOUD_PROJECT is REQUIRED when GOOGLE_GENAI_USE_VERTEXAI=true"
+                )
+        elif self.gemini_api_key is None:
+            raise ValueError(
+                "Set GOOGLE_GENAI_USE_VERTEXAI=true + GOOGLE_CLOUD_PROJECT for the "
+                "hosted Vertex path, or GEMINI_API_KEY for the BYO AI Studio path"
+            )
+        return self
+
+    @model_validator(mode="after")
     def _phoenix_provider_byo_requires_key(self) -> Settings:
         # ADR-017 hybrid: BYO mode demands Customer-supplied key. Default mode tolerates
         # no key (we host our own Phoenix; auth lives inside our infra).
@@ -128,4 +162,4 @@ class Settings(BaseSettings):
 @functools.lru_cache(maxsize=1)
 def get_settings() -> Settings:
     """Cached Settings accessor — same instance across the process."""
-    return Settings()  # ty: ignore[missing-argument]
+    return Settings()

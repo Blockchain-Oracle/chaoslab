@@ -7,7 +7,9 @@ set -euo pipefail
 : "${PROJECT:?must set PROJECT (GCP project id)}"
 : "${PHOENIX_API_KEY_VALUE:?must set PHOENIX_API_KEY_VALUE (Arize Phoenix Cloud key)}"
 : "${GITLAB_TOKEN_VALUE:?must set GITLAB_TOKEN_VALUE (GitLab personal access token for MR emission)}"
-: "${GEMINI_API_KEY_VALUE:?must set GEMINI_API_KEY_VALUE (Google AI Studio Gemini key — JUDGE_LLM credentials)}"
+# Hosted deploys use Vertex AI (ADC via the runtime SA) — no Gemini key.
+# Set GEMINI_API_KEY_VALUE only when shipping an AI Studio BYO build.
+GEMINI_API_KEY_VALUE="${GEMINI_API_KEY_VALUE:-}"
 
 RUNTIME_SA="${RUNTIME_SA:-chaoslab-runtime}"
 RUNTIME_SA_EMAIL="${RUNTIME_SA}@${PROJECT}.iam.gserviceaccount.com"
@@ -36,16 +38,20 @@ printf '%s' "${GITLAB_TOKEN_VALUE}" | gcloud secrets versions add gitlab-token \
   --project="${PROJECT}" \
   --data-file=-
 
-echo "==> Creating secret: gemini-api-key"
-printf '%s' "${GEMINI_API_KEY_VALUE}" | gcloud secrets create gemini-api-key \
-  --project="${PROJECT}" \
-  --replication-policy="automatic" \
-  --data-file=- || \
-printf '%s' "${GEMINI_API_KEY_VALUE}" | gcloud secrets versions add gemini-api-key \
-  --project="${PROJECT}" \
-  --data-file=-
+SECRETS=(phoenix-api-key gitlab-token)
+if [ -n "${GEMINI_API_KEY_VALUE}" ]; then
+  echo "==> Creating optional secret: gemini-api-key (BYO AI Studio path)"
+  printf '%s' "${GEMINI_API_KEY_VALUE}" | gcloud secrets create gemini-api-key \
+    --project="${PROJECT}" \
+    --replication-policy="automatic" \
+    --data-file=- || \
+  printf '%s' "${GEMINI_API_KEY_VALUE}" | gcloud secrets versions add gemini-api-key \
+    --project="${PROJECT}" \
+    --data-file=-
+  SECRETS+=(gemini-api-key)
+fi
 
-for secret in phoenix-api-key gitlab-token gemini-api-key; do
+for secret in "${SECRETS[@]}"; do
   echo "==> Binding runtime SA ${RUNTIME_SA_EMAIL} as secretAccessor on ${secret}"
   gcloud secrets add-iam-policy-binding "${secret}" \
     --project="${PROJECT}" \
@@ -58,10 +64,8 @@ cat <<EOF
 ==============================================================================
 Secret Manager bootstrap complete.
 
-Secrets created (or new version added):
-  phoenix-api-key  →  bound: ${RUNTIME_SA_EMAIL}
-  gitlab-token     →  bound: ${RUNTIME_SA_EMAIL}
-  gemini-api-key   →  bound: ${RUNTIME_SA_EMAIL}
+Secrets created (or new version added) — bound to ${RUNTIME_SA_EMAIL}:
+$(printf '  %s\n' "${SECRETS[@]}")
 
 Verify with:
   gcloud secrets list --project=${PROJECT}

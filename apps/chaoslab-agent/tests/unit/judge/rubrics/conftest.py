@@ -15,9 +15,13 @@ SPAN_ID = "0123456789abcdef"
 
 
 @pytest.fixture(autouse=True)
-def _gemini_api_key(monkeypatch: pytest.MonkeyPatch) -> None:
-    # Settings requires GEMINI_API_KEY; F4 reads LATENCY_SLA_MS via get_settings().
-    monkeypatch.setenv("GEMINI_API_KEY", "test-gemini")
+def _vertex_env(monkeypatch: pytest.MonkeyPatch) -> None:
+    # Wire the Vertex AI path so Settings() construction succeeds without
+    # any real credential. F4 only reads LATENCY_SLA_MS; the judge LLM is
+    # stubbed out in every other rubric test.
+    monkeypatch.setenv("GOOGLE_GENAI_USE_VERTEXAI", "true")
+    monkeypatch.setenv("GOOGLE_CLOUD_PROJECT", "test-project")
+    monkeypatch.setenv("GOOGLE_CLOUD_LOCATION", "us-central1")
     get_settings.cache_clear()
 
 
