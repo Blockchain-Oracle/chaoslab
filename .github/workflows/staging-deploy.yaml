@@ -181,21 +181,29 @@ jobs:
         if: (steps.changed.outputs.value == 'true' || github.event_name == 'workflow_dispatch') && steps.bluegreen.outputs.value == 'true'
         id: smoke
         run: |
-          # Cloud Run candidate URL is in the deploy output; query it instead
-          # of computing it (which requires the PROJECT_HASH that varies per
-          # project + service combo).
+          # Read the candidate URL from status.traffic[].url where tag=candidate.
+          # `services describe --filter` is invalid for this resource — use
+          # --format with a flatten projection instead.
           CANDIDATE_URL=$(gcloud run services describe ${{ matrix.service }} \
             --region="${REGION}" \
-            --format='value(status.traffic.url)' \
-            --filter='status.traffic.tag=candidate' | head -1)
+            --format='value(status.traffic[].url,status.traffic[].tag)' \
+            | awk '/candidate/ {print $1; exit}')
           if [ -z "${CANDIDATE_URL}" ]; then
+            # Cloud Run candidate URL pattern: insert `candidate---` between
+            # https:// and the service hostname.
             CANDIDATE_URL=$(gcloud run services describe ${{ matrix.service }} \
               --region="${REGION}" \
               --format='value(status.url)' | sed 's|https://|https://candidate---|')
           fi
           echo "candidate_url=${CANDIDATE_URL}"
+          # Service runs with --no-allow-unauthenticated; smoke must present
+          # an OIDC identity token. The deploy SA already has run.invoker
+          # via roles/run.admin granted in workload-identity-federation.sh.
+          ID_TOKEN=$(gcloud auth print-identity-token)
           for i in 1 2 3 4 5; do
-            HTTP_STATUS=$(curl -s -o /tmp/smoke-body -w "%{http_code}" "${CANDIDATE_URL}/health" || echo "000")
+            HTTP_STATUS=$(curl -s -o /tmp/smoke-body \
+              -H "Authorization: Bearer ${ID_TOKEN}" \
+              -w "%{http_code}" "${CANDIDATE_URL}/health" || echo "000")
             echo "smoke attempt ${i}: HTTP ${HTTP_STATUS}"
             if [ "${HTTP_STATUS}" = "200" ]; then
               echo "smoke OK"
@@ -204,6 +212,7 @@ jobs:
             sleep 6
           done
           echo "::error::smoke failed after 5 retries against ${CANDIDATE_URL}/health"
+          cat /tmp/smoke-body | head -20
           exit 1
 
       - name: Promote candidate to 100% traffic

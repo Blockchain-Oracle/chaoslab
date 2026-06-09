@@ -114,6 +114,7 @@ USER appuser
 EXPOSE 8001
 
 # Exec form (JSON array) — important for SIGTERM forwarding on Cloud Run scale-down.
-# Shell form would not forward signals to the Python process.
-# `uv run` activates the venv; equivalent to /opt/venv/bin/target-agent.
-CMD ["uv", "run", "target-agent"]
+# Console script on PATH via /opt/venv/bin; calling uv at runtime would
+# re-resolve the workspace and fail because the runtime image omits
+# pyproject.toml / README.md.
+CMD ["target-agent"]
