@@ -29,6 +29,19 @@ gcloud services enable \
   secretmanager.googleapis.com \
   --project="${PROJECT}"
 
+# Artifact Registry repository — Cloud Run pulls images from here. The
+# repo is per-region; staging-deploy.yaml's image tag bakes in
+# `us-central1-docker.pkg.dev/${PROJECT}/chaoslab/<service>:<sha>`.
+REGION="${REGION:-us-central1}"
+REPO_NAME="${REPO_NAME:-chaoslab}"
+echo "==> Creating Artifact Registry repository: ${REPO_NAME} (${REGION})"
+gcloud artifacts repositories create "${REPO_NAME}" \
+  --repository-format=docker \
+  --location="${REGION}" \
+  --description="ChaosLab service images" \
+  --project="${PROJECT}" 2>/dev/null || \
+  echo "  -> repository already exists, continuing"
+
 # GOTCHA-1: attribute-condition is a CASE-SENSITIVE LITERAL match against
 # the GITHUB_OWNER/GITHUB_REPO string. "Blockchain-Oracle/chaoslab" !=
 # "blockchain-oracle/chaoslab". If you typo the case, OIDC succeeds but no
