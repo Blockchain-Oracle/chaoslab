@@ -46,6 +46,8 @@ interface AuditChamberProps {
   liveProbes?: LiveProbe[]
   liveCluster?: LiveCluster | null
   liveRecipe?: LiveRecipe | null
+  /** Live-mode only: authoritative tally from the complete frame. */
+  liveSummary?: { passed: number; failed: number; errored: number } | null
 }
 
 export function AuditChamber({
@@ -59,6 +61,7 @@ export function AuditChamber({
   liveProbes,
   liveCluster,
   liveRecipe,
+  liveSummary,
 }: AuditChamberProps) {
   const ceiling = clockCeiling
   const { t, playing, setPlaying, seek, restart } = useAuditClock(
@@ -190,7 +193,7 @@ export function AuditChamber({
             Real wire events take precedence over the timeline fixtures. */}
         <div style={{ display: 'grid', gap: 22, alignContent: 'start' }}>
           {hasRealProbes ? (
-            <LiveProbeLedger probes={liveProbes ?? []} />
+            <LiveProbeLedger probes={liveProbes ?? []} summary={liveSummary ?? null} />
           ) : (
             <ProbeLedger s={s} failRefs={failRefs} />
           )}

@@ -17,8 +17,11 @@ export interface LiveProbe {
   state: 'running' | 'done'
   status?: string
   spanId?: string
-  verdict?: 'pass' | 'fail'
+  /** `error` = the judge rubric itself failed (rate limit / safety block) —
+   *  a MARKED non-verdict, never coerced into pass or fail. */
+  verdict?: 'pass' | 'fail' | 'error'
   transportError?: boolean
+  rubricError?: boolean
   score?: number
 }
 
@@ -27,6 +30,14 @@ export interface LiveCluster {
   totalFailures: number
   clusterIds: string[]
   rootCauses: string[]
+  /** Failures excluded from clustering because they carried no span evidence. */
+  excludedTransportFailures: number
+  /** Probes whose rubric call itself errored — also unclusterable. */
+  rubricErrors: number
+  /** Clustering succeeded but Phoenix rejected the annotation write-back. */
+  annotationWritebackFailed: boolean
+  /** Set when failures existed but none were clusterable. */
+  skipped?: string
 }
 
 export interface LiveRecipe {
@@ -49,10 +60,13 @@ export interface AuditStreamState {
   probes: LiveProbe[]
   cluster: LiveCluster | null
   recipe: LiveRecipe | null
-  /** Final pass/fail tally from the complete frame, when provided. */
-  summary: { passed: number; failed: number } | null
+  /** Final tally from the complete frame, when provided — the backend's
+   *  authoritative counts, preferred over frontend-derived tallies. */
+  summary: { passed: number; failed: number; errored: number } | null
   error: string | null
 }
+
+const VALID_VERDICTS: ReadonlySet<string> = new Set(['pass', 'fail', 'error'])
 
 const VALID_PHASES: ReadonlySet<string> = new Set<Phase>([
   'queued',
@@ -220,20 +234,33 @@ export function useAuditStream(runId: string): AuditStreamState {
       const p = parseJson<{
         n?: number
         verdict?: string
+        fault_class?: string
         span_id?: string
         score?: number
         transport_error?: boolean
+        rubric_error?: boolean
       }>(raw)
       if (typeof p?.n !== 'number') return
+      // Validate the verdict against the union — a malformed wire value must
+      // NOT be coerced into a displayed FAIL (that would be invented
+      // compliance data). Unknown verdicts are logged and dropped.
+      if (!p.verdict || !VALID_VERDICTS.has(p.verdict)) {
+        append(`error {"detail":"unrecognized verdict value: ${String(p.verdict)}"}`)
+        return
+      }
       const n = p.n
-      const verdict = p.verdict === 'pass' ? 'pass' : 'fail'
+      const verdict = p.verdict as 'pass' | 'fail' | 'error'
       setState((s) => ({
         ...s,
         probes: upsertProbe(s.probes, {
           n,
+          // test_verdict frames are self-contained (carry fault_class) so a
+          // late-joining client never renders an 'unknown' chip.
+          ...(p.fault_class ? { faultClass: p.fault_class } : {}),
           state: 'done',
           verdict,
           transportError: p.transport_error === true,
+          rubricError: p.rubric_error === true,
           ...(typeof p.score === 'number' ? { score: p.score } : {}),
           ...(p.span_id ? { spanId: p.span_id } : {}),
         }),
@@ -248,6 +275,10 @@ export function useAuditStream(runId: string): AuditStreamState {
         total_failures?: number
         cluster_ids?: string[]
         root_causes?: string[]
+        excluded_transport_failures?: number
+        rubric_errors?: number
+        annotation_writeback_failed?: boolean
+        skipped?: string
       }>(raw)
       if (!p) return
       setState((s) => ({
@@ -257,6 +288,10 @@ export function useAuditStream(runId: string): AuditStreamState {
           totalFailures: p.total_failures ?? 0,
           clusterIds: p.cluster_ids ?? [],
           rootCauses: p.root_causes ?? [],
+          excludedTransportFailures: p.excluded_transport_failures ?? 0,
+          rubricErrors: p.rubric_errors ?? 0,
+          annotationWritebackFailed: p.annotation_writeback_failed === true,
+          ...(p.skipped ? { skipped: p.skipped } : {}),
         },
       }))
     })
@@ -275,14 +310,14 @@ export function useAuditStream(runId: string): AuditStreamState {
     source.addEventListener('complete', (e) => {
       const raw = data(e)
       append(`complete ${raw}`)
-      const p = parseJson<{ passed?: number; failed?: number }>(raw)
+      const p = parseJson<{ passed?: number; failed?: number; errored?: number }>(raw)
       setState((s) => ({
         ...s,
         phase: 'succeeded',
         clockCeiling: ceilingForPhase('succeeded'),
         summary:
           typeof p?.passed === 'number' && typeof p?.failed === 'number'
-            ? { passed: p.passed, failed: p.failed }
+            ? { passed: p.passed, failed: p.failed, errored: p.errored ?? 0 }
             : s.summary,
       }))
       source?.close()

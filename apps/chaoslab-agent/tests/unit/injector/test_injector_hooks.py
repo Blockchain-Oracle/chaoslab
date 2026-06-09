@@ -127,3 +127,25 @@ async def test_no_hooks_is_the_default_and_does_not_crash(
     assert patched_injector.on_attack_end is None
     state = await patched_injector.run()
     assert state.total_attacks == 8
+
+
+@pytest.mark.asyncio
+async def test_hook_exception_does_not_abort_the_audit(
+    patched_injector: Injector,
+) -> None:
+    """Hooks are UI telemetry — an SSE-plumbing failure must never kill a
+    real audit run. The exception is logged, the attacks continue."""
+    calls = {"n": 0}
+
+    async def exploding_hook(_arg: Any) -> None:
+        calls["n"] += 1
+        msg = "synthetic-sse-plumbing-failure"
+        raise RuntimeError(msg)
+
+    patched_injector.on_attack_start = exploding_hook
+    patched_injector.on_attack_end = exploding_hook
+
+    state = await patched_injector.run()
+
+    assert state.total_attacks == 8  # every attack still ran
+    assert calls["n"] == 16  # every hook still fired (and failed) per attack

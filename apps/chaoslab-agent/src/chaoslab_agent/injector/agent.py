@@ -272,13 +272,15 @@ class Injector(BaseModel):
             plan = self._build_plan()
             for attack in plan:
                 if self.on_attack_start is not None:
-                    await self.on_attack_start(attack)
+                    await self._fire_hook(self.on_attack_start, attack, hook_name="start")
                 recorded_before = self.state.total_attacks
                 await self._run_one_attack(attack)
                 # Fire the end hook only for the result THIS attack recorded —
                 # never re-announce a previous attack's tail.
                 if self.on_attack_end is not None and self.state.total_attacks > recorded_before:
-                    await self.on_attack_end(self.state.attack_results[-1])
+                    await self._fire_hook(
+                        self.on_attack_end, self.state.attack_results[-1], hook_name="end"
+                    )
             return self.state
         finally:
             try:
@@ -291,6 +293,26 @@ class Injector(BaseModel):
                     error=str(disconnect_err),
                     exc_info=True,
                 )
+
+    @staticmethod
+    async def _fire_hook(
+        hook: Callable[[Any], Awaitable[None]], arg: Any, *, hook_name: str = ""
+    ) -> None:
+        """Invoke a progress hook without letting it abort the audit.
+
+        Hooks are UI telemetry — an SSE-plumbing exception must never kill a
+        real audit run mid-flight. Failures are logged loudly, never silent.
+        """
+        try:
+            await hook(arg)
+        except Exception as hook_err:
+            _log.error(
+                "attack_hook_failed",
+                hook=hook_name,
+                exc_type=type(hook_err).__name__,
+                error=str(hook_err),
+                exc_info=True,
+            )
 
     async def _run_baseline(self) -> None:
         """BaselineCheck owns its own connect/disconnect lifecycle.

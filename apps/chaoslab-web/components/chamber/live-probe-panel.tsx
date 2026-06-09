@@ -35,6 +35,11 @@ function LiveProbeRow({ probe }: { probe: LiveProbe }) {
               TRANSPORT ERROR
             </span>
           ) : null}
+          {probe.rubricError ? (
+            <span className="fallback-flag" style={{ fontSize: 9.5 }}>
+              ◌ RUBRIC ERROR — judge call failed; no verdict scored
+            </span>
+          ) : null}
         </div>
         <div style={{ display: 'flex', gap: 14, alignItems: 'center', flexWrap: 'wrap' }}>
           {probe.spanId ? (
@@ -72,12 +77,16 @@ function LiveProbeRow({ probe }: { probe: LiveProbe }) {
 
 interface LiveProbeLedgerProps {
   probes: LiveProbe[]
+  /** Authoritative tally from the backend's complete frame — preferred over
+   *  frontend-derived counts (which undercount on late join). */
+  summary?: { passed: number; failed: number; errored: number } | null
 }
 
-export function LiveProbeLedger({ probes }: LiveProbeLedgerProps) {
+export function LiveProbeLedger({ probes, summary }: LiveProbeLedgerProps) {
   const done = probes.filter((p) => p.state === 'done').length
-  const pass = probes.filter((p) => p.verdict === 'pass').length
-  const fail = probes.filter((p) => p.verdict === 'fail').length
+  const pass = summary?.passed ?? probes.filter((p) => p.verdict === 'pass').length
+  const fail = summary?.failed ?? probes.filter((p) => p.verdict === 'fail').length
+  const errored = summary?.errored ?? probes.filter((p) => p.verdict === 'error').length
   return (
     <div style={{ border: '1px solid var(--chamber-line)', borderRadius: 4 }}>
       <div
@@ -102,6 +111,11 @@ export function LiveProbeLedger({ probes }: LiveProbeLedgerProps) {
         <span className="mono num" style={{ fontSize: 11, color: 'var(--fail-glow)' }}>
           {fail} fail
         </span>
+        {errored > 0 ? (
+          <span className="mono num" style={{ fontSize: 11, color: 'var(--warn)' }}>
+            {errored} error
+          </span>
+        ) : null}
         <span className="mono num" style={{ fontSize: 11, color: 'var(--chamber-ink-3)' }}>
           {done}/{probes.length}
         </span>
@@ -150,14 +164,29 @@ export function LiveClusterCard({ cluster, phase }: LiveClusterCardProps) {
         >
           ROOT CAUSE CLUSTER{settled && cluster.clusterIds[0] ? ' · ' + cluster.clusterIds[0] : ''}
         </span>
-        {settled ? (
+        {settled && !cluster.skipped ? (
           <span className="mono" style={{ fontSize: 10.5, color: 'var(--ember-glow)' }}>
             {cluster.totalFailures} failures → {cluster.clusters}{' '}
             {cluster.clusters === 1 ? 'cause' : 'causes'}
           </span>
+        ) : settled ? (
+          <span className="mono" style={{ fontSize: 10.5, color: 'var(--warn)' }}>
+            SKIPPED
+          </span>
         ) : null}
       </div>
-      {settled ? (
+      {settled && cluster.skipped ? (
+        <div>
+          <div style={{ fontSize: 13, color: 'var(--chamber-ink-2)', lineHeight: 1.6 }}>
+            Failures occurred, but none produced usable span evidence
+            {cluster.excludedTransportFailures > 0
+              ? ` (${cluster.excludedTransportFailures} transport-level)`
+              : ''}
+            {cluster.rubricErrors > 0 ? ` (${cluster.rubricErrors} rubric errors)` : ''} —
+            root-cause clustering was skipped. The signed report will state this explicitly.
+          </div>
+        </div>
+      ) : settled ? (
         <div>
           {cluster.rootCauses.map((rc, i) => (
             <div
@@ -170,7 +199,16 @@ export function LiveClusterCard({ cluster, phase }: LiveClusterCardProps) {
           ))}
           <div className="mono" style={{ fontSize: 10, color: 'var(--chamber-ink-3)' }}>
             clustered by gemini-3.5-flash
+            {cluster.excludedTransportFailures > 0
+              ? ` · ${cluster.excludedTransportFailures} transport failures excluded`
+              : ''}
           </div>
+          {cluster.annotationWritebackFailed ? (
+            <div className="fallback-flag" style={{ marginTop: 8, fontSize: 9.5 }}>
+              ⚠ PHOENIX ANNOTATION WRITE-BACK FAILED — clustering result is valid; span annotations
+              were not persisted
+            </div>
+          ) : null}
         </div>
       ) : (
         <div className="mono" style={{ fontSize: 11.5, color: 'var(--chamber-ink-3)' }}>

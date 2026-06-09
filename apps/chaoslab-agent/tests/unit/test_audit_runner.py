@@ -33,6 +33,7 @@ from chaoslab_agent.patcher.recipe import HardeningRecipe
 SPAN_OK_PASS = "a" * 16
 SPAN_OK_FAIL = "b" * 16
 SPAN_TRANSPORT = "c" * 16
+SPAN_RUBRIC_BOOM = "e" * 16
 
 
 def _attack_result(
@@ -132,6 +133,9 @@ def wired(monkeypatch: pytest.MonkeyPatch) -> _Emitted:
     emitted = _Emitted()
 
     async def fake_apply_rubric(inp: Any) -> EvalScore:
+        if inp.span_id == SPAN_RUBRIC_BOOM:
+            msg = "synthetic-rubric-rate-limit"
+            raise RuntimeError(msg)
         if inp.span_id == SPAN_OK_FAIL:
             return EvalScore(passed=False, score=0.0, reason="injected directive obeyed")
         return EvalScore(passed=True, score=1.0, reason="refused correctly")
@@ -205,14 +209,21 @@ async def test_event_order_with_failures(wired: _Emitted) -> None:
     assert "recipe" in names
     assert names[-1] == "complete"
 
-    # verdicts: rubric pass / rubric fail / transport fail
+    # verdicts: rubric pass / rubric fail / transport fail — every frame is
+    # self-contained (carries fault_class) so late-join clients render real chips
     verdicts = [p for n, p in wired.frames if n == "test_verdict"]
     assert [v["verdict"] for v in verdicts] == ["pass", "fail", "fail"]
     assert verdicts[2]["transport_error"] is True
+    assert all(v["fault_class"] == "prompt_injection" for v in verdicts)
 
     # clusterer sees ONLY the rubric failure — never the transport failure
     (clustered,) = wired.clusterer_calls
     assert [f.span_id for f in clustered] == [SPAN_OK_FAIL]
+
+    cluster_payload = wired.first("cluster_set")
+    assert cluster_payload["excluded_transport_failures"] == 1
+    assert cluster_payload["annotation_writeback_failed"] is False
+    assert "skipped" not in cluster_payload
 
     recipe_payload = wired.first("recipe")
     assert recipe_payload["recipe_id"] == "recipe_deadbeefcafe"
@@ -221,6 +232,8 @@ async def test_event_order_with_failures(wired: _Emitted) -> None:
     complete = wired.first("complete")
     assert complete["passed"] == 1
     assert complete["failed"] == 2
+    assert complete["errored"] == 0
+    assert complete["transport_failed"] == 1
 
     assert phases == ["injector", "judge", "patcher", "succeeded"]
 
@@ -252,3 +265,107 @@ async def test_clean_run_skips_clustering_and_recipe(wired: _Emitted) -> None:
     assert complete["passed"] == 2
     assert complete["failed"] == 0
     assert phases == ["injector", "judge", "patcher", "succeeded"]
+
+
+@pytest.mark.asyncio
+async def test_rubric_exception_is_contained_per_probe(wired: _Emitted) -> None:
+    """One rate-limited rubric call must not void the other probes' verdicts.
+
+    The errored probe gets a MARKED `error` verdict (never a fabricated pass
+    or an unmarked fail) and is excluded from the clusterer input.
+    """
+    from chaoslab_agent.audit_runner import drive_audit
+
+    _FakeInjector.results = [
+        _attack_result(0, SPAN_OK_PASS, "ok"),
+        _attack_result(1, SPAN_RUBRIC_BOOM, "ok"),
+        _attack_result(2, SPAN_OK_FAIL, "ok"),
+    ]
+    phases: list[str] = []
+
+    await drive_audit(
+        run_id="run_rubricboom12",
+        target_url="https://target.example",
+        runs_per_fault=1,
+        emit=wired.emit,
+        set_phase=phases.append,
+    )
+
+    verdicts = [p for n, p in wired.frames if n == "test_verdict"]
+    assert [v["verdict"] for v in verdicts] == ["pass", "error", "fail"]
+    assert verdicts[1]["rubric_error"] is True
+
+    # the errored probe never reaches the clusterer
+    (clustered,) = wired.clusterer_calls
+    assert [f.span_id for f in clustered] == [SPAN_OK_FAIL]
+
+    complete = wired.first("complete")
+    assert complete["passed"] == 1
+    assert complete["failed"] == 1
+    assert complete["errored"] == 1
+    # the run completed — containment, not collapse
+    assert phases == ["injector", "judge", "patcher", "succeeded"]
+
+
+@pytest.mark.asyncio
+async def test_writeback_failure_recovers_valid_cluster_set(
+    wired: _Emitted, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """AnnotationWritebackError preserves a VALID clustering — the driver must
+    recover it (marked) instead of voiding clustering + patcher + recipe."""
+    import chaoslab_agent.audit_runner as ar
+    from chaoslab_agent.judge import AnnotationWritebackError
+
+    preserved = _cluster_set([SPAN_OK_FAIL])
+
+    async def boom_writeback(failures: Any, client: Any, **_: Any) -> FailureClusterSet:
+        raise AnnotationWritebackError(
+            cluster_set=preserved, attempted_count=1, cause=RuntimeError("phoenix 503")
+        )
+
+    monkeypatch.setattr(ar, "run_clustering", boom_writeback)
+
+    _FakeInjector.results = [_attack_result(0, SPAN_OK_FAIL, "ok")]
+    phases: list[str] = []
+
+    await drive_audit_for_test(wired, phases)
+
+    cluster_payload = wired.first("cluster_set")
+    assert cluster_payload["annotation_writeback_failed"] is True
+    assert cluster_payload["clusters"] == 1
+    # recipe still generated from the recovered cluster_set
+    assert wired.first("recipe")["recipe_id"] == "recipe_deadbeefcafe"
+    assert phases == ["injector", "judge", "patcher", "succeeded"]
+
+
+@pytest.mark.asyncio
+async def test_all_transport_failures_is_not_a_clean_run(wired: _Emitted) -> None:
+    """Failures with zero clusterable evidence must be reported as skipped
+    clustering — never silently shaped like a clean audit."""
+    _FakeInjector.results = [_attack_result(0, SPAN_TRANSPORT, "error")]
+    phases: list[str] = []
+
+    await drive_audit_for_test(wired, phases)
+
+    cluster_payload = wired.first("cluster_set")
+    assert cluster_payload["skipped"] == "no_clusterable_failures"
+    assert cluster_payload["clusters"] == 0
+    assert cluster_payload["excluded_transport_failures"] == 1
+    assert "recipe" not in wired.names()
+
+    complete = wired.first("complete")
+    assert complete["failed"] == 1
+    assert complete["transport_failed"] == 1
+    assert phases == ["injector", "judge", "patcher", "succeeded"]
+
+
+async def drive_audit_for_test(wired: _Emitted, phases: list[str]) -> None:
+    from chaoslab_agent.audit_runner import drive_audit
+
+    await drive_audit(
+        run_id="run_fixturecase1",
+        target_url="https://target.example",
+        runs_per_fault=1,
+        emit=wired.emit,
+        set_phase=phases.append,
+    )
