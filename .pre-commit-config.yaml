@@ -26,11 +26,16 @@ repos:
         always_run: true
 
       - id: eslint
-        name: ESLint (changed TS files)
-        entry: pnpm --filter chaoslab-web exec eslint --fix
+        name: ESLint (chaoslab-web package)
+        # `pnpm --filter chaoslab-web exec eslint <paths>` cd's into apps/chaoslab-web/
+        # and then can't resolve repo-root file paths pre-commit hands it. Run the
+        # package's own lint script instead — lints the whole web package every
+        # commit (correct, slightly more work than per-file). See audit-notes.md
+        # IF-14 for the discovery context.
+        entry: pnpm --filter chaoslab-web run lint
         language: system
-        files: \.(ts|tsx|js|jsx)$
-        pass_filenames: true
+        files: ^apps/chaoslab-web/.*\.(ts|tsx|js|jsx)$
+        pass_filenames: false
 
       - id: prettier
         name: Prettier (changed files)

@@ -1,0 +1,227 @@
+'use client'
+
+import { useEffect, useState } from 'react'
+import { useRouter } from 'next/navigation'
+import { DepthOption } from '@/components/new-audit/depth-option'
+import { FrameworkPicker } from '@/components/new-audit/framework-picker'
+import { OverridesBlock } from '@/components/new-audit/overrides-block'
+import { Field } from '@/components/ui/field'
+import { A } from '@/components/ui/link'
+import { PageFoot } from '@/components/ui/page-foot'
+import { PageShell } from '@/components/ui/page-shell'
+import { SectionHead } from '@/components/ui/section-head'
+import { TopBar } from '@/components/ui/topbar'
+
+function probeCheck(url: string): { ok: true } | { ok: false; error: string } {
+  if (!url.trim()) return { ok: false, error: 'Enter a target agent address.' }
+  if (!/^https:\/\/|^a2a:\/\//i.test(url.trim()))
+    return {
+      ok: false,
+      error: 'Must be a reachable HTTPS URL, or an A2A address for ADK-native agents.',
+    }
+  if (/unreachable/.test(url))
+    return { ok: false, error: 'Probe ping failed — the target agent did not respond.' }
+  if (/error/.test(url))
+    return {
+      ok: false,
+      error: 'The target agent returned an error to the probe ping (HTTP 500).',
+    }
+  return { ok: true }
+}
+
+export default function NewAuditPage() {
+  const router = useRouter()
+  const [hosting, setHosting] = useState<'default' | 'byo'>('default')
+  const [url, setUrl] = useState('')
+  const [touched, setTouched] = useState(false)
+  const [pinging, setPinging] = useState(false)
+  const [pinged, setPinged] = useState(false)
+  const [depth, setDepth] = useState<1 | 2>(2)
+  const [framework, setFramework] = useState('EU AI Act')
+  const [showOverrides, setShowOverrides] = useState(false)
+  const [skipCats, setSkipCats] = useState<string[]>([])
+  const [cap, setCap] = useState(6)
+  const [judge, setJudge] = useState('gemini-3.5-flash (default)')
+
+  useEffect(() => {
+    setHosting((localStorage.getItem('pa_hosting') as 'default' | 'byo' | null) ?? 'default')
+  }, [])
+
+  const check = probeCheck(url)
+
+  useEffect(() => {
+    setPinged(false)
+    if (!check.ok) return
+    setPinging(true)
+    const id = setTimeout(() => {
+      setPinging(false)
+      setPinged(true)
+    }, 900)
+    return () => {
+      clearTimeout(id)
+      setPinging(false)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [url])
+
+  const run = () => {
+    setTouched(true)
+    if (!check.ok) return
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem('pa_audit_t_live')
+    }
+    router.push('/run/run_9f3c2ab81d4e')
+  }
+
+  const hint = pinging
+    ? 'Probe ping in progress…'
+    : pinged
+      ? '✓ Reachable · responded in 142 ms · framework detected: Google ADK (A2A)'
+      : 'HTTPS URL, or an A2A address for ADK-native agents.'
+
+  return (
+    <PageShell label="new-audit">
+      <div className="page-enter">
+        <TopBar />
+        <div className="shell" style={{ padding: '54px 40px 70px', maxWidth: 880 }}>
+          <div className="kicker" style={{ marginBottom: 14 }}>
+            New audit run
+          </div>
+          <h1 className="display" style={{ fontSize: 40, marginBottom: 10 }}>
+            Start a new audit.
+          </h1>
+          <p className="muted" style={{ marginBottom: 44, maxWidth: 560, textWrap: 'pretty' }}>
+            Four decisions, one button. The audit takes roughly 90 seconds and ends with a signed
+            audit report you can file.
+          </p>
+
+          <SectionHead no="§1" title="Target agent" />
+          <Field
+            label="Target agent address"
+            error={touched && !check.ok ? check.error : null}
+            hint={hint}
+          >
+            <input
+              className={'text-input ' + (touched && !check.ok ? 'invalid' : '')}
+              placeholder="https://agents.yourcompany.com/agent — or a2a://…"
+              value={url}
+              onChange={(e) => setUrl(e.target.value)}
+              onBlur={() => setTouched(true)}
+              spellCheck="false"
+            />
+          </Field>
+
+          <SectionHead no="§2" title="Audit depth" />
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: '1fr 1fr',
+              gap: 16,
+              marginBottom: 40,
+            }}
+            role="radiogroup"
+          >
+            <DepthOption
+              selected={depth === 1}
+              onSelect={() => setDepth(1)}
+              sub="DEPTH 1 · BLACK-BOX"
+              title="Zero setup"
+              body="The audit sees only what crosses the wire. Verdicts are correct, but root-cause clustering can't see inside the target agent — findings are reported per test."
+            />
+            <DepthOption
+              selected={depth === 2}
+              onSelect={() => setDepth(2)}
+              sub="DEPTH 2 · INSTRUMENTED"
+              title="Full root-cause clustering"
+              body="Add a 3-line snippet to your agent's startup and Phoenix Audit can read its internal trace tree — failures collapse into root cause clusters with span-level evidence."
+              link="How do I add the snippet? ↗"
+            />
+          </div>
+
+          <FrameworkPicker framework={framework} setFramework={setFramework} />
+
+          {hosting === 'byo' ? (
+            <div>
+              <SectionHead
+                no="§3b"
+                title="Your Phoenix instance"
+                right={<span className="tag">BYO hosting mode</span>}
+              />
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+                <Field label="Phoenix endpoint URL">
+                  <input
+                    className="text-input"
+                    placeholder="https://phoenix.yourcompany.internal"
+                  />
+                </Field>
+                <Field label="Project name">
+                  <input className="text-input" placeholder="prior-auth-audits" />
+                </Field>
+              </div>
+              <Field label="API key">
+                <input className="text-input" type="password" placeholder="phx_…" />
+              </Field>
+              <p className="muted" style={{ fontSize: 12.5, marginTop: -10, marginBottom: 36 }}>
+                Audit trace data never leaves your tenancy. Phoenix Audit holds no copy after the
+                run completes.
+              </p>
+            </div>
+          ) : (
+            <div
+              className="mono muted"
+              style={{
+                fontSize: 11,
+                letterSpacing: '0.04em',
+                margin: '-18px 0 38px',
+                display: 'flex',
+                gap: 8,
+                alignItems: 'baseline',
+              }}
+            >
+              <span style={{ color: 'var(--ember-deep)' }}>◆</span>
+              Phoenix Audit–hosted · trace data cryptographically erased 24 h after the signed
+              report (GDPR Art. 28) · change in{' '}
+              <A to="settings" style={{ color: 'var(--ember-deep)' }}>
+                Settings
+              </A>
+            </div>
+          )}
+
+          <OverridesBlock
+            showOverrides={showOverrides}
+            setShowOverrides={setShowOverrides}
+            skipCats={skipCats}
+            setSkipCats={setSkipCats}
+            cap={cap}
+            setCap={setCap}
+            judge={judge}
+            setJudge={setJudge}
+          />
+
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 20,
+              borderTop: '1px solid var(--ink)',
+              paddingTop: 24,
+            }}
+          >
+            <button
+              className="btn ember"
+              style={{ padding: '16px 34px', fontSize: 13 }}
+              onClick={run}
+            >
+              Run audit
+            </button>
+            <span className="muted" style={{ fontSize: 12.5, maxWidth: 380, lineHeight: 1.55 }}>
+              ~90 seconds · audit-mode headers sent on every probe · ends with a signed audit
+              report.
+            </span>
+          </div>
+        </div>
+        <PageFoot />
+      </div>
+    </PageShell>
+  )
+}
