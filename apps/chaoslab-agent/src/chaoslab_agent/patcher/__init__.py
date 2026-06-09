@@ -7,6 +7,11 @@ from chaoslab_agent.patcher.agent import (
     build_patcher_agent,
     estimate_resilience_improvement,
 )
+from chaoslab_agent.patcher.gitlab_emitter import (
+    GitLabEmitResult,
+    GitLabEmitterError,
+    GitLabMREmitter,
+)
 from chaoslab_agent.patcher.markdown_emitter import EmitResult, MarkdownEmitter
 from chaoslab_agent.patcher.recipe import (
     FailureCluster,
@@ -25,6 +30,9 @@ __all__ = [
     "FailureCluster",
     "FailureClusterSet",
     "FaultClass",
+    "GitLabEmitResult",
+    "GitLabEmitterError",
+    "GitLabMREmitter",
     "HardeningRecipe",
     "MarkdownEmitter",
     "Patcher",
