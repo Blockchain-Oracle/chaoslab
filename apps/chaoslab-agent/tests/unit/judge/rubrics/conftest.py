@@ -5,10 +5,20 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
+import pytest
+
+from chaoslab_agent.config import get_settings
 from chaoslab_agent.judge.rubrics._base import PhoenixClient, _SpansNamespace
 
 # Canonical 16-hex-char span id; satisfies RubricInput's pattern check.
 SPAN_ID = "0123456789abcdef"
+
+
+@pytest.fixture(autouse=True)
+def _gemini_api_key(monkeypatch: pytest.MonkeyPatch) -> None:
+    # Settings requires GEMINI_API_KEY; F4 reads LATENCY_SLA_MS via get_settings().
+    monkeypatch.setenv("GEMINI_API_KEY", "test-gemini")
+    get_settings.cache_clear()
 
 
 @dataclass
