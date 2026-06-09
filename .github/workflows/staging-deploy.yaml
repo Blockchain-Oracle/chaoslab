@@ -204,9 +204,19 @@ jobs:
           # Service runs with --no-allow-unauthenticated; smoke must present
           # an OIDC identity token. The deploy SA already has run.invoker
           # via roles/run.admin granted in workload-identity-federation.sh.
-          # WIF-issued tokens need an explicit audience for Cloud Run; without
-          # it the runtime rejects the token as having the wrong `aud` claim.
-          ID_TOKEN=$(gcloud auth print-identity-token --audiences="${CANDIDATE_URL}")
+          # WIF tokens aren't service-account credentials, so
+          # `gcloud auth print-identity-token --audiences=...` rejects them.
+          # Instead, hit iamcredentials.googleapis.com with the workflow
+          # access token; the deploy SA impersonates itself (self-tokenCreator
+          # binding in workload-identity-federation.sh) to mint an
+          # audience-correct ID token for the candidate URL.
+          ACCESS_TOKEN=$(gcloud auth print-access-token)
+          ID_TOKEN=$(curl -sS -X POST \
+            -H "Authorization: Bearer ${ACCESS_TOKEN}" \
+            -H "Content-Type: application/json" \
+            "https://iamcredentials.googleapis.com/v1/projects/-/serviceAccounts/${DEPLOY_SA}:generateIdToken" \
+            -d "{\"audience\":\"${CANDIDATE_URL}\",\"includeEmail\":true}" \
+            | python3 -c "import json,sys; print(json.load(sys.stdin)['token'])")
           for i in 1 2 3 4 5; do
             HTTP_STATUS=$(curl -s -o /tmp/smoke-body \
               -H "Authorization: Bearer ${ID_TOKEN}" \

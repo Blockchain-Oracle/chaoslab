@@ -101,6 +101,16 @@ gcloud iam service-accounts add-iam-policy-binding "${DEPLOY_SA_EMAIL}" \
 # TO the DEPLOY_SA breaks Cloud Run deploys ~30 seconds in with a
 # "permission denied for serviceAccountUser" error. The deploy SA needs
 # this role to specify the runtime SA as the Cloud Run service identity.
+# Smoke step calls iamcredentials.googleapis.com to mint an audience-correct
+# ID token for the private Cloud Run candidate URL. The deploy SA must be
+# able to impersonate itself to do so.
+echo "==> Granting self-tokenCreator on ${DEPLOY_SA_EMAIL}"
+gcloud iam service-accounts add-iam-policy-binding "${DEPLOY_SA_EMAIL}" \
+  --project="${PROJECT}" \
+  --role="roles/iam.serviceAccountTokenCreator" \
+  --member="serviceAccount:${DEPLOY_SA_EMAIL}" \
+  --quiet > /dev/null
+
 echo "==> Granting serviceAccountUser on ${RUNTIME_SA_EMAIL} to ${DEPLOY_SA_EMAIL}"
 gcloud iam service-accounts add-iam-policy-binding "${RUNTIME_SA_EMAIL}" \
   --project="${PROJECT}" \
