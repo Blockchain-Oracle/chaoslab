@@ -1,12 +1,14 @@
 'use client'
 
 import { useRef } from 'react'
+import type { LiveCluster, LiveProbe, LiveRecipe } from '@/lib/sse-bridge'
 import type { Phase } from '@/lib/types'
 import { deriveAudit } from '@/lib/timeline'
 import { CascadeOverlay } from './cascade-overlay'
 import { ChamberHeader } from './chamber-header'
 import { ClusterCard } from './cluster-card'
 import { EventFeed } from './event-feed'
+import { LiveClusterCard, LiveProbeLedger, LiveRecipeCard } from './live-probe-panel'
 import { Pipeline } from './pipeline'
 import { ProbeLedger } from './probe-ledger'
 import { Receipt } from './receipt'
@@ -38,6 +40,14 @@ interface AuditChamberProps {
    *  banner so a dead run is never visually indistinguishable from a
    *  running one. */
   liveError?: string | null
+  /** Live-mode only: REAL per-probe events. Non-empty switches the right
+   *  canvas from the timeline fixtures to wire-truth rendering and hides
+   *  the DEMO PACING disclosure. */
+  liveProbes?: LiveProbe[]
+  liveCluster?: LiveCluster | null
+  liveRecipe?: LiveRecipe | null
+  /** Live-mode only: authoritative tally from the complete frame. */
+  liveSummary?: { passed: number; failed: number; errored: number } | null
 }
 
 export function AuditChamber({
@@ -48,6 +58,10 @@ export function AuditChamber({
   liveLines,
   liveConnected,
   liveError,
+  liveProbes,
+  liveCluster,
+  liveRecipe,
+  liveSummary,
 }: AuditChamberProps) {
   const ceiling = clockCeiling
   const { t, playing, setPlaying, seek, restart } = useAuditClock(
@@ -56,6 +70,7 @@ export function AuditChamber({
   )
   const baseState = deriveAudit(t)
   const s = livePhase ? { ...baseState, phase: livePhase } : baseState
+  const hasRealProbes = (liveProbes?.length ?? 0) > 0
 
   const arenaRef = useRef<HTMLDivElement | null>(null)
   const clusterRef = useRef<HTMLDivElement | null>(null)
@@ -76,7 +91,7 @@ export function AuditChamber({
         s={s}
         elapsedDisplay={elapsedDisplay}
         mode={mode}
-        demoPacing={demoPacing}
+        demoPacing={demoPacing && !hasRealProbes}
         connected={liveConnected}
       />
 
@@ -130,14 +145,16 @@ export function AuditChamber({
           zIndex: 2,
         }}
       >
-        <CascadeOverlay s={s} arenaRef={arenaRef} failRefs={failRefs} clusterRef={clusterRef} />
+        {!hasRealProbes ? (
+          <CascadeOverlay s={s} arenaRef={arenaRef} failRefs={failRefs} clusterRef={clusterRef} />
+        ) : null}
 
         {/* left rail: pipeline + event feed + header warning */}
         <div style={{ display: 'grid', gap: 30, alignContent: 'start' }}>
           <Pipeline s={s} />
           <EventFeed t={t} liveLines={liveLines} />
 
-          {s.headerWarn ? (
+          {s.headerWarn && !hasRealProbes ? (
             <div
               style={{
                 border: '1px dashed var(--warn)',
@@ -172,17 +189,31 @@ export function AuditChamber({
           ) : null}
         </div>
 
-        {/* right canvas: ledger + cluster + recipe */}
+        {/* right canvas: ledger + cluster + recipe.
+            Real wire events take precedence over the timeline fixtures. */}
         <div style={{ display: 'grid', gap: 22, alignContent: 'start' }}>
-          <ProbeLedger s={s} failRefs={failRefs} />
+          {hasRealProbes ? (
+            <LiveProbeLedger probes={liveProbes ?? []} summary={liveSummary ?? null} />
+          ) : (
+            <ProbeLedger s={s} failRefs={failRefs} />
+          )}
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 22 }}>
-            <ClusterCard s={s} clusterRef={clusterRef} />
-            <RecipeCard s={s} />
+            {hasRealProbes ? (
+              <>
+                <LiveClusterCard cluster={liveCluster ?? null} phase={s.phase} />
+                <LiveRecipeCard recipe={liveRecipe ?? null} phase={s.phase} />
+              </>
+            ) : (
+              <>
+                <ClusterCard s={s} clusterRef={clusterRef} />
+                <RecipeCard s={s} />
+              </>
+            )}
           </div>
         </div>
       </div>
 
-      {s.receipt ? <Receipt mode={mode} /> : null}
+      {s.receipt && !hasRealProbes ? <Receipt mode={mode} /> : null}
       {mode === 'replay' ? (
         <Transport
           t={t}

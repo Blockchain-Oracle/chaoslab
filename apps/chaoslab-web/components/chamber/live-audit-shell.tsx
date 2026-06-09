@@ -18,6 +18,10 @@ export function LiveAuditShell({ runId }: LiveAuditShellProps) {
       liveLines={stream.wireLines}
       liveConnected={stream.connected}
       liveError={stream.error}
+      liveProbes={stream.probes}
+      liveCluster={stream.cluster}
+      liveRecipe={stream.recipe}
+      liveSummary={stream.summary}
     />
   )
 }
