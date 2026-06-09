@@ -7,6 +7,7 @@ from chaoslab_agent.patcher.agent import (
     build_patcher_agent,
     estimate_resilience_improvement,
 )
+from chaoslab_agent.patcher.markdown_emitter import EmitResult, MarkdownEmitter
 from chaoslab_agent.patcher.recipe import (
     FailureCluster,
     FailureClusterSet,
@@ -20,10 +21,12 @@ from chaoslab_agent.patcher.recipe import (
 
 __all__ = [
     "PATCHER_NAME",
+    "EmitResult",
     "FailureCluster",
     "FailureClusterSet",
     "FaultClass",
     "HardeningRecipe",
+    "MarkdownEmitter",
     "Patcher",
     "PatcherEmptyResponseError",
     "PromptPatch",

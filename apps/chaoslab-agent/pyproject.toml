@@ -33,6 +33,7 @@ dependencies = [
   "structlog>=24",
   # Google Secret Manager — PHOENIX_API_KEY fallback for Cloud Run BYO mode.
   "google-cloud-secret-manager>=2.28.0,<3.0.0",
+  "google-cloud-storage>=3.11.0",
 ]
 
 [dependency-groups]
