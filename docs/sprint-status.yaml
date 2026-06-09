@@ -133,13 +133,13 @@ stories:
     merged_at: "2026-06-08T13:55:00Z"
   - id: story-3.3-langchain-adapter
     epic: "Epic 3 — Target adapter layer"
-    status: PENDING
+    status: COMPLETE
     estimate_hours: 2.0
     tags: [backend, p0, adapter, langchain, tier2]
     depends_on: [story-3.1-adapter-interface]
     issue_url: ""
-    pr_url: ""
-    merged_at: ""
+    pr_url: "https://github.com/Blockchain-Oracle/chaoslab/pull/76"
+    merged_at: "2026-06-09T20:15:00Z"
   - id: story-3.4-crewai-adapter
     epic: "Epic 3 — Target adapter layer"
     status: PENDING
