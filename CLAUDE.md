@@ -105,6 +105,8 @@ pre-commit run --all-files
 
 **GCP IAM bootstrap** (S1.4) is a MANUAL ONE-TIME step. Run via `bash infra/workload-identity-federation.sh && bash infra/secret-manager-setup.sh` after setting the env vars listed in `infra/README.md`. CI workflows in `.github/workflows/*.yaml` assume this has happened (WIF pool + service accounts + Secret Manager secrets are all live).
 
+**Staging deploys** (S1.6) fire on every push to `main` via `.github/workflows/staging-deploy.yaml`. The "build once, promote everywhere" invariant (ADR-008) means the `:${{ github.sha }}` image tag is the unit of promotion — prod (S1.7) uses the SAME image hash via `prod-promote.yaml`. The workflow uses a matrix over 3 services (chaoslab-agent, target-agent, chaoslab-web) with `paths-filter` skipping unchanged services. WIF auth via S1.4's `chaoslab-deploy` SA; runtime SA is `chaoslab-runtime`. Blue/green: deploy with `--no-traffic --tag=candidate`, smoke-test the candidate URL, then `update-traffic --to-latest=100` on success.
+
 ---
 
 ## When to research mid-implementation

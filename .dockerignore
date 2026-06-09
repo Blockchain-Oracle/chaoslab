@@ -1,0 +1,68 @@
+# Repo-root .dockerignore — applied when `docker build` runs from repo root
+# (which is how staging-deploy.yaml builds, with `context: .`).
+# Per-app .dockerignore files (e.g. apps/target-agent/Dockerfile.dockerignore)
+# add app-specific exclusions on top of this baseline.
+
+# VCS
+.git
+.gitignore
+.gitattributes
+.gitleaks.toml
+
+# Editor + OS
+.idea
+.vscode
+.DS_Store
+*.swp
+
+# Local env (NEVER bake into images)
+.env
+.env.local
+.env.*.local
+.env.production
+
+# Build artifacts + caches
+node_modules
+.next
+dist
+build
+__pycache__
+*.pyc
+.pytest_cache
+.mypy_cache
+.ruff_cache
+.ty_cache
+.coverage
+htmlcov
+.venv
+venv
+
+# Docs + research (never needed at runtime; saves ~10MB per image)
+docs
+research
+*.md
+!apps/chaoslab-agent/README.md
+!apps/target-agent/README.md
+!apps/chaoslab-web/README.md
+!README.md
+
+# Tests (image runs code, not tests)
+tests
+**/tests
+**/test_*.py
+**/*.test.ts
+
+# CI
+.github
+
+# Infra (operator-only scripts, not runtime)
+infra
+
+# Python virtual envs that might be in subdirs
+**/.venv
+**/venv
+
+# Misc
+*.log
+*.tmp
+.dockerignore
