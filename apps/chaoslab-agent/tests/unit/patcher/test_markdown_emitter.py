@@ -9,7 +9,13 @@ import pytest
 
 from chaoslab_agent.config import get_settings
 from chaoslab_agent.judge.clustering import FailureClusterSet
-from chaoslab_agent.patcher.markdown_emitter import EmitResult, MarkdownEmitter
+from chaoslab_agent.patcher.markdown_emitter import (
+    EmitResult,
+    MarkdownEmitter,
+    StorageClient,
+    _Blob,
+    _Bucket,
+)
 from chaoslab_agent.patcher.recipe import (
     FailureCluster,
     HardeningRecipe,
@@ -44,13 +50,20 @@ def _recipe() -> HardeningRecipe:
     )
 
 
-class _RecordingBlob:
+class _RecordingBlob(_Blob):
     def __init__(self) -> None:
         self.uploaded: tuple[bytes, str] | None = None
         self.signed_args: dict[str, Any] = {}
+        self.if_generation_match: int | None = None
 
-    def upload_from_string(self, content: bytes, content_type: str) -> None:
-        self.uploaded = (content, content_type)
+    def upload_from_string(
+        self,
+        data: bytes,
+        content_type: str,
+        if_generation_match: int = 0,
+    ) -> None:
+        self.uploaded = (data, content_type)
+        self.if_generation_match = if_generation_match
 
     def generate_signed_url(
         self,
@@ -75,17 +88,21 @@ class _RecordingBlob:
         )
 
 
-class _RecordingBucket:
-    def __init__(self, blob: _RecordingBlob) -> None:
+class _RecordingBucket(_Bucket):
+    def __init__(self, blob: _RecordingBlob, *, exists_result: bool = True) -> None:
         self._blob = blob
         self.blob_names: list[str] = []
+        self._exists = exists_result
 
     def blob(self, name: str) -> _RecordingBlob:
         self.blob_names.append(name)
         return self._blob
 
+    def exists(self) -> bool:
+        return self._exists
 
-class _RecordingClient:
+
+class _RecordingClient(StorageClient):
     def __init__(self) -> None:
         self.blob = _RecordingBlob()
         self.bucket_obj = _RecordingBucket(self.blob)
@@ -149,21 +166,178 @@ async def test_emit_markdown_bytes_count_matches_content() -> None:
     assert result.markdown_bytes == len(uploaded[0])
 
 
-async def test_emit_result_rejects_non_https_signed_url() -> None:
-    class _BadClient:
+# ---------------------------------------------------------------------------
+# Round-2 regression tests (PR #70 review findings)
+# ---------------------------------------------------------------------------
+
+
+async def test_emit_passes_if_generation_match_zero_to_block_clobber() -> None:
+    client = _RecordingClient()
+    await MarkdownEmitter(storage_client=client).emit(_recipe())
+    # if_generation_match=0 → GCS rejects with 412 if the blob already exists.
+    assert client.blob.if_generation_match == 0
+
+
+async def test_emit_translates_precondition_failed_to_typed_error() -> None:
+    from chaoslab_agent.patcher.markdown_emitter import RecipeAlreadyExistsError
+
+    class PreconditionFailed(Exception):  # noqa: N818 — name matches GCS SDK class
+        pass
+
+    class _RejectingBlob:
+        def upload_from_string(
+            self, content: bytes, content_type: str, if_generation_match: int = 0
+        ) -> None:
+            raise PreconditionFailed("412")
+
+        def generate_signed_url(self, **kwargs: Any) -> str:  # pragma: no cover
+            return "https://storage.googleapis.com/x.md?X-Goog-Signature=z"
+
+    class _Bucket:
+        def blob(self, name: str) -> Any:
+            return _RejectingBlob()
+
+        def exists(self) -> bool:
+            return True
+
+    class _Client:
         def bucket(self, name: str) -> Any:
-            class _BadBlob:
-                def upload_from_string(self, content: bytes, content_type: str) -> None:
-                    return None
+            return _Bucket()
 
-                def generate_signed_url(self, **kwargs: Any) -> str:
-                    return "http://insecure.example/recipe.md"
+    with pytest.raises(RecipeAlreadyExistsError):
+        await MarkdownEmitter(storage_client=_Client()).emit(_recipe())
 
-            class _BadBucket:
-                def blob(self, name: str) -> Any:
-                    return _BadBlob()
 
-            return _BadBucket()
+async def test_emit_translates_generic_upload_failure_to_emitter_error() -> None:
+    from chaoslab_agent.patcher.markdown_emitter import MarkdownEmitterError
 
-    with pytest.raises(ValueError, match="https://"):
-        await MarkdownEmitter(storage_client=_BadClient()).emit(_recipe())
+    class _BoomBlob:
+        def upload_from_string(
+            self, content: bytes, content_type: str, if_generation_match: int = 0
+        ) -> None:
+            raise RuntimeError("network unreachable")
+
+        def generate_signed_url(self, **kwargs: Any) -> str:  # pragma: no cover
+            return "https://storage.googleapis.com/x.md"
+
+    class _Bucket:
+        def blob(self, name: str) -> Any:
+            return _BoomBlob()
+
+        def exists(self) -> bool:
+            return True
+
+    class _Client:
+        def bucket(self, name: str) -> Any:
+            return _Bucket()
+
+    with pytest.raises(MarkdownEmitterError, match="network unreachable"):
+        await MarkdownEmitter(storage_client=_Client()).emit(_recipe())
+
+
+async def test_health_check_fails_when_bucket_does_not_exist() -> None:
+    from chaoslab_agent.patcher.markdown_emitter import BucketNotConfiguredError
+
+    class _MissingBucket:
+        def blob(self, name: str) -> Any:  # pragma: no cover
+            raise AssertionError("should not be reached")
+
+        def exists(self) -> bool:
+            return False
+
+    class _Client:
+        def bucket(self, name: str) -> Any:
+            return _MissingBucket()
+
+    with pytest.raises(BucketNotConfiguredError, match="does not exist"):
+        await MarkdownEmitter(storage_client=_Client()).health_check()
+
+
+async def test_health_check_translates_iam_error_to_typed_error() -> None:
+    from chaoslab_agent.patcher.markdown_emitter import BucketNotConfiguredError
+
+    class _ForbiddenBucket:
+        def blob(self, name: str) -> Any:  # pragma: no cover
+            raise AssertionError("should not be reached")
+
+        def exists(self) -> bool:
+            raise RuntimeError("403 Forbidden")
+
+    class _Client:
+        def bucket(self, name: str) -> Any:
+            return _ForbiddenBucket()
+
+    with pytest.raises(BucketNotConfiguredError, match="403"):
+        await MarkdownEmitter(storage_client=_Client()).health_check()
+
+
+async def test_health_check_passes_on_existing_bucket() -> None:
+    client = _RecordingClient()
+    await MarkdownEmitter(storage_client=client).health_check()
+
+
+# ---------------------------------------------------------------------------
+# EmitResult schema invariants (no bypass via direct construction)
+# ---------------------------------------------------------------------------
+
+
+def test_emit_result_rejects_non_https_signed_url_at_field_validator() -> None:
+    from pydantic import ValidationError
+
+    # Bypasses the build factory — the field_validator must still enforce.
+    with pytest.raises(ValidationError, match="https://"):
+        EmitResult(
+            recipe_id="recipe_abc123def456",
+            gcs_uri="gs://chaoslab-recipes/recipe_abc123def456.md",
+            signed_url="http://insecure.example/recipe.md",
+            markdown_bytes=10,
+            ttl_seconds=604800,
+        )
+
+
+def test_emit_result_rejects_signed_url_not_pointed_at_googleapis() -> None:
+    from pydantic import ValidationError
+
+    with pytest.raises(ValidationError, match=r"storage\.googleapis\.com"):
+        EmitResult(
+            recipe_id="recipe_abc123def456",
+            gcs_uri="gs://chaoslab-recipes/recipe_abc123def456.md",
+            signed_url="https://attacker.example/forged.md",
+            markdown_bytes=10,
+            ttl_seconds=604800,
+        )
+
+
+def test_emit_result_rejects_ttl_above_seven_days() -> None:
+    from pydantic import ValidationError
+
+    # v4 SA-keyed signing caps at 7 days = 604800 seconds.
+    with pytest.raises(ValidationError):
+        EmitResult(
+            recipe_id="recipe_abc123def456",
+            gcs_uri="gs://chaoslab-recipes/recipe_abc123def456.md",
+            signed_url=(
+                "https://storage.googleapis.com/chaoslab-recipes/recipe.md?X-Goog-Signature=z"
+            ),
+            markdown_bytes=10,
+            ttl_seconds=604801,
+        )
+
+
+def test_emit_result_rejects_invalid_gcs_uri_shape() -> None:
+    from pydantic import ValidationError
+
+    for bad in [
+        "s3://chaoslab-recipes/recipe.md",
+        "gs://Chaoslab-Recipes/recipe.md",  # uppercase rejected
+        "gs://chaoslab-recipes/recipe.txt",  # missing .md
+        "gs://chaoslab-recipes/",  # missing object name
+    ]:
+        with pytest.raises(ValidationError):
+            EmitResult(
+                recipe_id="recipe_abc123def456",
+                gcs_uri=bad,
+                signed_url=("https://storage.googleapis.com/x.md?X-Goog-Signature=z"),
+                markdown_bytes=10,
+                ttl_seconds=604800,
+            )

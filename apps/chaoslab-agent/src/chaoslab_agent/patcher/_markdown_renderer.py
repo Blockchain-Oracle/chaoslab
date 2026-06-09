@@ -6,6 +6,7 @@ Separated from markdown_emitter.py so unit tests run without GCS creds.
 from __future__ import annotations
 
 import json
+import logging
 
 from chaoslab_agent.patcher.recipe import (
     FailureCluster,
@@ -14,6 +15,8 @@ from chaoslab_agent.patcher.recipe import (
     RegressionTestCase,
     ToolValidationDiff,
 )
+
+logger = logging.getLogger(__name__)
 
 # Show at most N span_ids per cluster; the rest collapse to an ellipsis so
 # wide clusters don't blow up the Markdown.
@@ -64,12 +67,18 @@ def _render_root_causes(recipe: HardeningRecipe) -> str:
 
 def _render_one_cluster(c: FailureCluster) -> str:
     preview = c.span_ids[:_SPAN_ID_PREVIEW]
-    suffix = " ..." if len(c.span_ids) > _SPAN_ID_PREVIEW else ""
+    extra = len(c.span_ids) - _SPAN_ID_PREVIEW
+    # Make the suppression auditable — `... (+N more)` is grep-able and
+    # tells a reviewer how big the elided tail actually was.
+    suffix = f" ... (+{extra} more)" if extra > 0 else ""
+    # FailureCluster.fault_classes has min_length=1 at the schema level,
+    # but render defensively in case a future relaxation slips through.
+    fault_classes = ", ".join(c.fault_classes) if c.fault_classes else "_(unclassified)_"
     return (
         f"### {c.cluster_id}\n"
         f"- **Root cause:** {c.root_cause}\n"
         f"- **Failure count:** {c.failure_count}\n"
-        f"- **Fault classes:** {', '.join(c.fault_classes)}\n"
+        f"- **Fault classes:** {fault_classes}\n"
         f"- **Affected span IDs:** `{', '.join(preview)}`{suffix}\n\n"
     )
 
@@ -126,10 +135,21 @@ def _render_regression_test_cases(recipe: HardeningRecipe) -> str:
 
 
 def _render_one_regression(idx: int, tc: RegressionTestCase) -> str:
-    # `model_dump` flattens through the `extra="allow"` field so any Phoenix
-    # metadata round-trips into the rendered JSON.
-    payload = json.dumps(tc.model_dump(), indent=2)
+    # Pydantic extras carry Phoenix metadata into the rendered JSON.
+    # `default=str` survives non-JSON-native scalars (datetime, bytes,
+    # set) that a future dataset column could carry — better lossy than
+    # crashing the render and losing the whole recipe.
+    dumped = tc.model_dump()
+    payload = json.dumps(dumped, indent=2, default=_json_default_with_warning)
     return f"{idx}. ```json\n{payload}\n```\n\n"
+
+
+def _json_default_with_warning(obj: object) -> str:
+    logger.warning(
+        "regression_test_case carried non-JSON-native value type=%s; coerced via str()",
+        type(obj).__name__,
+    )
+    return str(obj)
 
 
 def _render_estimated_improvement(recipe: HardeningRecipe) -> str:
@@ -145,7 +165,18 @@ def _render_fallback_notice(recipe: HardeningRecipe) -> str:
     # Audit-fidelity: surface fallback-marked clusters to the reader so a
     # reviewer of the signed recipe can tell pseudoknowledge from real
     # LLM-generated patches.
-    cluster_ids = recipe.metadata.get("fallback_cluster_ids", [])
+    cluster_ids = recipe.metadata.get("fallback_cluster_ids", []) or []
+    valid_cluster_ids = {c.cluster_id for c in recipe.cluster_set.clusters}
+    unknown = [cid for cid in cluster_ids if cid not in valid_cluster_ids]
+    if unknown:
+        # A fallback_cluster_id that doesn't correspond to any cluster in
+        # the recipe is a data-integrity bug upstream; warn so the
+        # Patcher pipeline shows up in logs rather than silently producing
+        # a misleading Markdown.
+        logger.warning(
+            "fallback_cluster_ids references unknown cluster_id(s): %s",
+            ", ".join(unknown),
+        )
     bullet_list = "\n".join(f"- `{cid}`" for cid in cluster_ids)
     return (
         "## Fallback Clusters\n\n"

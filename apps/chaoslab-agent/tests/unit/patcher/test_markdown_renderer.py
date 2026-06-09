@@ -5,6 +5,8 @@ from __future__ import annotations
 import re
 from typing import Any
 
+import pytest
+
 from chaoslab_agent.judge.clustering import FailureClusterSet
 from chaoslab_agent.judge.rubrics import FaultClass
 from chaoslab_agent.patcher._markdown_renderer import render_recipe
@@ -51,7 +53,7 @@ def _recipe(**overrides: Any) -> HardeningRecipe:
 
 
 # ---------------------------------------------------------------------------
-# Section headers + recipe_id (BDD line 44-51)
+# Section headers + recipe_id
 # ---------------------------------------------------------------------------
 
 
@@ -80,7 +82,7 @@ def test_render_includes_target_agent_id_and_generated_at() -> None:
 
 
 # ---------------------------------------------------------------------------
-# Prompt patches (BDD line 53-55)
+# Prompt patches
 # ---------------------------------------------------------------------------
 
 
@@ -122,7 +124,7 @@ def test_empty_prompt_patches_renders_italic_placeholder() -> None:
 
 
 # ---------------------------------------------------------------------------
-# Tool validation diffs (BDD line 57-60)
+# Tool validation diffs
 # ---------------------------------------------------------------------------
 
 
@@ -150,7 +152,7 @@ def test_empty_tool_validation_diffs_renders_italic_placeholder() -> None:
 
 
 # ---------------------------------------------------------------------------
-# Estimated improvement formatting (BDD line 62-64)
+# Estimated improvement formatting
 # ---------------------------------------------------------------------------
 
 
@@ -170,7 +172,7 @@ def test_estimated_improvement_one_renders_hundred_percent() -> None:
 
 
 # ---------------------------------------------------------------------------
-# Cluster rendering (BDD line 66-69)
+# Cluster rendering
 # ---------------------------------------------------------------------------
 
 
@@ -265,3 +267,74 @@ def test_render_recipe_is_deterministic_for_same_input() -> None:
     first = render_recipe(recipe)
     second = render_recipe(recipe)
     assert first == second
+
+
+# ---------------------------------------------------------------------------
+# Round-2 regression tests (PR #70 review findings)
+# ---------------------------------------------------------------------------
+
+
+def test_insert_only_patch_does_not_render_a_before_block() -> None:
+    recipe = _recipe(
+        prompt_patches=[
+            PromptPatch(section="system_prompt", operation="insert", after="x"),
+        ]
+    )
+    md = render_recipe(recipe)
+    section = md.split("## Prompt Patches")[1].split("## ")[0]
+    assert "Before:" not in section
+
+
+def test_exactly_five_span_ids_no_ellipsis() -> None:
+    cluster = _cluster(span_ids=[f"{i:016x}" for i in range(5)])
+    recipe = _recipe(
+        cluster_set=FailureClusterSet(clusters=[cluster], total_failures=5),
+    )
+    md = render_recipe(recipe)
+    span_line = md.split("Affected span IDs")[1].split("\n")[0]
+    assert "..." not in span_line
+    assert "more" not in span_line
+
+
+def test_six_span_ids_renders_plus_n_more_suffix() -> None:
+    cluster = _cluster(span_ids=[f"{i:016x}" for i in range(6)])
+    recipe = _recipe(
+        cluster_set=FailureClusterSet(clusters=[cluster], total_failures=6),
+    )
+    md = render_recipe(recipe)
+    span_line = md.split("Affected span IDs")[1].split("\n")[0]
+    assert "(+1 more)" in span_line
+
+
+def test_fallback_metadata_with_unknown_cluster_id_logs_warning(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    # Audit-fidelity: a `fallback_cluster_ids` entry that doesn't map to any
+    # cluster in the recipe is a data-integrity bug upstream; the renderer
+    # should still emit the notice but log a warning so the bug surfaces.
+    recipe = _recipe(metadata={"fallback_cluster_ids": ["cluster_99999999"]})
+    with caplog.at_level("WARNING"):
+        md = render_recipe(recipe)
+    assert "## Fallback Clusters" in md
+    assert any("unknown cluster_id" in r.message for r in caplog.records)
+
+
+def test_regression_case_with_non_json_native_value_renders_via_str(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    # `extra="allow"` lets a Phoenix metadata column carry a non-JSON
+    # scalar (e.g. datetime / set). Render lossy via str() rather than
+    # crashing the whole recipe; warn so the coercion shows up in logs.
+    from datetime import datetime
+
+    tc = RegressionTestCase(
+        input="x",
+        expected="y",
+        recorded_at=datetime(2026, 6, 9, 12, 0, 0),  # ty: ignore[unknown-argument]
+    )
+    recipe = _recipe(regression_test_cases=[tc])
+    with caplog.at_level("WARNING"):
+        md = render_recipe(recipe)
+    section = md.split("## Regression Test Cases")[1].split("## ")[0]
+    assert "2026-06-09" in section
+    assert any("non-JSON-native" in r.message for r in caplog.records)
