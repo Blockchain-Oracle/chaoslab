@@ -15,6 +15,7 @@ from chaoslab_agent.injector.target_adapters.base import (
     TargetSpec,
 )
 from chaoslab_agent.injector.target_adapters.crewai_adapter import CrewAIAdapter
+from chaoslab_agent.injector.target_adapters.http_blackbox_adapter import HTTPBlackboxAdapter
 from chaoslab_agent.injector.target_adapters.langchain_adapter import LangChainAdapter
 from chaoslab_agent.injector.target_adapters.openai_sdk_adapter import OpenAISDKAdapter
 
@@ -25,6 +26,7 @@ __all__ = [
     "AdapterResult",
     "AdapterTier",
     "CrewAIAdapter",
+    "HTTPBlackboxAdapter",
     "LangChainAdapter",
     "OpenAISDKAdapter",
     "TargetAdapter",
