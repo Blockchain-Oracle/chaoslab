@@ -379,7 +379,13 @@ async def test_invoke_propagates_session_id_to_context() -> None:
     await adapter.disconnect()
 
 
-async def test_auth_dict_without_bearer_does_not_set_header() -> None:
-    """If spec.auth is set but has no 'bearer' key, no Authorization header is added."""
+async def test_auth_dict_without_bearer_raises_discovery_error() -> None:
+    """Round-2 review (SFH-B2 + CR-#3): silently sending NO auth for a
+    non-`bearer` key dict is a footgun — pattern #2. The shared
+    `_common.bearer_headers` now raises AdapterDiscoveryError naming the
+    keys that WERE provided so the operator sees the typo immediately."""
+    from chaoslab_agent.errors import AdapterDiscoveryError
+
     spec = _spec(auth={"x-api-key": "alt-scheme-not-supported-yet"})
-    assert _bearer_headers(spec) is None
+    with pytest.raises(AdapterDiscoveryError, match="no 'bearer' key"):
+        _bearer_headers(spec)

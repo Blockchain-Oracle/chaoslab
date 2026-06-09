@@ -7,10 +7,13 @@ logic. Tier-2 adapters (LangChain, CrewAI, OpenAI Agents SDK) call
 ``proxy.base_url`` via an `X-LiteLLM-Base-Url` header so the target's
 LiteLLM-routed model call goes through our interception point.
 
-When ``fault_config`` is missing the ``"kind": "prompt_injection"`` marker,
-this yields ``None`` so the adapter takes the unmodified path. The
-``None`` return value is the language-level None — NOT a placeholder mock,
-which keeps the file §14-clean.
+Round-2 review changes (SFH-I4 + SFH-I5 + CR-#2):
+- `ProxyContext` is now base_url-only — the speculative `custom_logger_active`
+  field was YAGNI until S5.3 actually wires registration. Truthiness of the
+  context (None vs ProxyContext) is the only signal Tier-2 adapters need.
+- `fault_config is None or .get("kind") != "prompt_injection"` is the explicit
+  short-circuit — the previous `if not fault_config:` silently collapsed
+  three different runtime states (None / {} / {"kind": None}).
 """
 
 from __future__ import annotations
@@ -31,12 +34,14 @@ logger = logging.getLogger(__name__)
 _DEFAULT_PROXY_BASE_URL: str = "http://localhost:4000/v1"
 
 
-@dataclass
+@dataclass(frozen=True)
 class ProxyContext:
-    """Active LiteLLM proxy session — passed to the adapter's invoke loop."""
+    """Active LiteLLM proxy session — the adapter forwards `base_url` as
+    the `X-LiteLLM-Base-Url` header. ``frozen=True`` so a caller can't mutate
+    the URL mid-flight (round-2 review: any state needed beyond `base_url`
+    lives in S5.3's real callback registration, not here)."""
 
     base_url: str
-    custom_logger_active: bool
 
 
 @asynccontextmanager
@@ -45,17 +50,23 @@ async def litellm_proxy_session(
 ) -> AsyncIterator[ProxyContext | None]:
     """Yield a `ProxyContext` when fault_config asks for LLM-layer interception.
 
-    Yields ``None`` for every fault_config that is missing or whose ``kind``
-    is not ``"prompt_injection"`` — adapters use that as the signal to skip
-    the `X-LiteLLM-Base-Url` header. The detailed payload-mutation logic
+    Yields ``None`` for fault_config that is missing OR whose ``kind`` is not
+    ``"prompt_injection"`` — adapters use that as the signal to skip the
+    `X-LiteLLM-Base-Url` header. The detailed payload-mutation logic
     (e.g., LiteLLM CustomLogger registration in `litellm.callbacks`) lands
     in S5.3 PromptInjectionFault; S3.3 only proves the context-manager
     wiring round-trips through Tier-2 adapters.
+
+    Exception propagation contract: an exception raised INSIDE the
+    ``async with litellm_proxy_session(...) as proxy:`` block propagates
+    cleanly (the generator's ``finally`` runs first, then re-raises). The
+    test in ``test__litellm_proxy.py`` locks this so a future refactor
+    can't accidentally swallow the caller's exception.
     """
-    if not fault_config or fault_config.get("kind") != "prompt_injection":
+    if fault_config is None or fault_config.get("kind") != "prompt_injection":
         yield None
         return
-    proxy = ProxyContext(base_url=_DEFAULT_PROXY_BASE_URL, custom_logger_active=True)
+    proxy = ProxyContext(base_url=_DEFAULT_PROXY_BASE_URL)
     logger.info(
         "litellm_proxy_session_active fault_kind=%s base_url=%s",
         fault_config.get("kind"),
@@ -64,10 +75,9 @@ async def litellm_proxy_session(
     try:
         yield proxy
     finally:
-        # Mark the context dead so any downstream code holding a reference
-        # can't accidentally believe the proxy is still active after teardown.
-        # The actual `litellm.callbacks.remove(...)` lands in S5.3.
-        proxy.custom_logger_active = False
+        # S5.3 will register a `litellm.callbacks.remove(...)` here. For
+        # round-1+2 we just log the teardown — proves the `finally` runs
+        # even when the caller's `async with` block raises.
         logger.info("litellm_proxy_session_torn_down base_url=%s", proxy.base_url)
 
 

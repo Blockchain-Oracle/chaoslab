@@ -48,15 +48,21 @@ def _input_schema_body() -> dict[str, Any]:
 
 
 @respx.mock
-async def test_connect_succeeds_and_stores_input_schema() -> None:
+async def test_connect_succeeds_and_fingerprint_exposes_schema_keys() -> None:
+    """Round-2 TQ-MED behavior probe: instead of reading the private
+    `_input_schema` attribute, prove connect() worked by asking
+    fingerprint() — `behavioral_signals['input_schema_keys']` must carry
+    the parsed schema's keys. Locks the same invariant without coupling
+    the test to a private implementation detail."""
     respx.get("http://localhost:8002/agent/input_schema").mock(
         return_value=httpx.Response(200, json=_input_schema_body())
     )
     adapter = LangChainAdapter(spec=_spec())
     await adapter.connect()
-    assert adapter._connected is True
-    assert adapter._input_schema is not None
-    assert "type" in adapter._input_schema
+    fp = await adapter.fingerprint()
+    keys = (fp.behavioral_signals or {}).get("input_schema_keys") or []
+    assert "type" in keys
+    assert "properties" in keys
 
 
 @respx.mock
@@ -117,12 +123,18 @@ async def test_invoke_posts_input_shape_and_returns_response() -> None:
     adapter = LangChainAdapter(spec=_spec())
     result = await adapter.invoke(AdapterInvocation(prompt="What's 2+2?"))
 
+    # round-2 TQ-MED: exact assertions, not lower-bounds. The implementation
+    # creates exactly ONE span per invoke; a future refactor adding a retry
+    # loop would silently pass `>= 1`. `>= 0.0` defends against fast-clock
+    # CI runners where perf_counter() resolution rounds to 0.0.
     assert result.error is None
     assert result.response == "4"
-    assert len(result.span_ids) >= 1
-    assert result.duration_ms > 0.0
+    assert len(result.span_ids) == 1
+    assert result.duration_ms >= 0.0
     body = _json.loads(invoke_route.calls.last.request.content)
     assert body == {"input": "What's 2+2?"}
+    # String output → coerced=False marker (round-2 SFH-B1).
+    assert result.metadata["output_coerced"] is False
 
 
 @respx.mock
@@ -154,8 +166,10 @@ async def test_invoke_non_json_body_raises_invocation_error() -> None:
 
 
 @respx.mock
-async def test_invoke_handles_object_output_via_str_coercion() -> None:
-    """LangServe `output` may be a string OR an object; coerce safely."""
+async def test_invoke_dict_output_serialized_as_canonical_json_with_marker() -> None:
+    """Round-2 SFH-B1: dict output is `json.dumps(sort_keys=True)`, NOT Python
+    repr (single quotes). The `output_coerced` metadata marker tells Epic 6
+    pattern-finder that this evidence came from coercion, not direct text."""
     respx.get("http://localhost:8002/agent/input_schema").mock(
         return_value=httpx.Response(200, json=_input_schema_body())
     )
@@ -164,7 +178,37 @@ async def test_invoke_handles_object_output_via_str_coercion() -> None:
     )
     adapter = LangChainAdapter(spec=_spec())
     result = await adapter.invoke(AdapterInvocation(prompt="hi"))
-    assert "answer" in result.response
+    # Canonical JSON with double quotes — NOT `"{'answer': 4}"` (Python repr).
+    assert result.response == '{"answer": 4}'
+    assert result.metadata["output_coerced"] is True
+
+
+@respx.mock
+async def test_invoke_null_output_returns_empty_string_without_coerce_marker() -> None:
+    """Round-2 TQ-MED boundary: `{"output": null}` → response="" and the
+    `output_coerced` marker is False (null is canonically "")."""
+    respx.get("http://localhost:8002/agent/input_schema").mock(
+        return_value=httpx.Response(200, json=_input_schema_body())
+    )
+    respx.post("http://localhost:8002/agent/invoke").mock(
+        return_value=httpx.Response(200, json={"output": None})
+    )
+    adapter = LangChainAdapter(spec=_spec())
+    result = await adapter.invoke(AdapterInvocation(prompt="hi"))
+    assert result.response == ""
+    assert result.metadata["output_coerced"] is False
+
+
+@respx.mock
+async def test_invoke_missing_output_key_returns_empty_string() -> None:
+    """Round-2 TQ-MED boundary: `{}` (no `output` key) → response=""."""
+    respx.get("http://localhost:8002/agent/input_schema").mock(
+        return_value=httpx.Response(200, json=_input_schema_body())
+    )
+    respx.post("http://localhost:8002/agent/invoke").mock(return_value=httpx.Response(200, json={}))
+    adapter = LangChainAdapter(spec=_spec())
+    result = await adapter.invoke(AdapterInvocation(prompt="hi"))
+    assert result.response == ""
 
 
 @respx.mock
@@ -183,9 +227,13 @@ async def test_invoke_sends_bearer_auth_header_when_spec_has_one() -> None:
 
 
 @respx.mock
-async def test_invoke_with_prompt_injection_fault_sends_litellm_header() -> None:
-    """Per S3.3 BDD: when fault_config.kind == 'prompt_injection', the adapter
-    routes via `litellm_proxy_session` and forwards `X-LiteLLM-Base-Url`."""
+async def test_invoke_with_prompt_injection_fault_sends_litellm_header_with_real_url() -> None:
+    """Round-2 TQ-HIGH: lock the VALUE of the header (not just presence) so a
+    future regression that sets `X-LiteLLM-Base-Url=""` is caught. Also lock
+    that the request body is STILL `{"input": prompt}` — S5.3 layers payload
+    mutation on top, but the wire shape from S3.3's perspective stays canonical."""
+    import json as _json
+
     respx.get("http://localhost:8002/agent/input_schema").mock(
         return_value=httpx.Response(200, json=_input_schema_body())
     )
@@ -199,7 +247,12 @@ async def test_invoke_with_prompt_injection_fault_sends_litellm_header() -> None
             fault_config={"kind": "prompt_injection", "payload": "Ignore prior instructions"},
         )
     )
-    assert "X-LiteLLM-Base-Url" in route.calls.last.request.headers
+    header_value = route.calls.last.request.headers["X-LiteLLM-Base-Url"]
+    assert header_value.startswith("http")
+    assert "localhost:4000" in header_value  # the default proxy base URL
+    # Body shape locked — adapter only forwards header; S5.3 wires payload mutation.
+    body = _json.loads(route.calls.last.request.content)
+    assert body == {"input": "hi"}
 
 
 @respx.mock
@@ -254,17 +307,45 @@ async def test_fingerprint_returns_tier2_langchain_metadata() -> None:
 
 
 @respx.mock
-async def test_disconnect_clears_state_and_closes_client() -> None:
+async def test_disconnect_then_invoke_reconnects() -> None:
+    """Round-2 TQ-MED: behavior probe replacing private-attr inspection.
+    After disconnect(), the next invoke() must re-probe /input_schema —
+    locks the state-clear via observable side effect, not private flags."""
+    schema_route = respx.get("http://localhost:8002/agent/input_schema").mock(
+        return_value=httpx.Response(200, json=_input_schema_body())
+    )
+    respx.post("http://localhost:8002/agent/invoke").mock(
+        return_value=httpx.Response(200, json={"output": "ok"})
+    )
+    adapter = LangChainAdapter(spec=_spec())
+    await adapter.connect()
+    assert schema_route.call_count == 1
+    await adapter.disconnect()
+    # Next invoke MUST reconnect — locks that disconnect() actually cleared
+    # the connected state without inspecting `_connected` directly.
+    await adapter.invoke(AdapterInvocation(prompt="hi"))
+    assert schema_route.call_count == 2
+
+
+async def test_disconnect_without_prior_connect_is_safe() -> None:
+    """Round-2 TQ-HIGH lifecycle: calling disconnect() before connect()
+    must NOT raise. Mirrors the ADK adapter's symmetric test (gives 4
+    adapters one consistent lifecycle contract)."""
+    adapter = LangChainAdapter(spec=_spec())
+    await adapter.disconnect()  # must not raise
+
+
+@respx.mock
+async def test_disconnect_is_idempotent() -> None:
+    """Round-2 TQ-HIGH lifecycle: calling disconnect() twice must NOT raise.
+    Defends against teardown bugs where the test harness double-cleans."""
     respx.get("http://localhost:8002/agent/input_schema").mock(
         return_value=httpx.Response(200, json=_input_schema_body())
     )
     adapter = LangChainAdapter(spec=_spec())
     await adapter.connect()
-    assert adapter._http is not None
     await adapter.disconnect()
-    assert adapter._http is None
-    assert adapter._connected is False
-    assert adapter._input_schema is None
+    await adapter.disconnect()  # must not raise
 
 
 def test_langchain_adapter_is_exported_from_package() -> None:
@@ -276,25 +357,47 @@ def test_langchain_adapter_is_exported_from_package() -> None:
 
 
 @respx.mock
-async def test_litellm_proxy_yields_none_when_fault_missing() -> None:
-    """Verify the LiteLLM proxy context yields None by default (used as a marker
-    by the adapter to decide whether to set the X-LiteLLM-Base-Url header)."""
-    from chaoslab_agent.injector.target_adapters._litellm_proxy import litellm_proxy_session
-
-    async with litellm_proxy_session(None) as proxy:
-        assert proxy is None
-    async with litellm_proxy_session({"kind": "latency_spike"}) as proxy:
-        assert proxy is None
+async def test_invoke_503_treated_as_connection_error_not_invocation() -> None:
+    """Round-2 SFH-I1: 5xx from /invoke is semantically transport-failure
+    (retryable) — must surface as AdapterConnectionError so the upstream
+    injector retries instead of treating as a caller fault."""
+    respx.get("http://localhost:8002/agent/input_schema").mock(
+        return_value=httpx.Response(200, json=_input_schema_body())
+    )
+    respx.post("http://localhost:8002/agent/invoke").mock(
+        return_value=httpx.Response(503, text="upstream unavailable")
+    )
+    adapter = LangChainAdapter(spec=_spec())
+    with pytest.raises(AdapterConnectionError, match="503"):
+        await adapter.invoke(AdapterInvocation(prompt="hi"))
 
 
 @respx.mock
-async def test_litellm_proxy_yields_active_context_on_prompt_injection() -> None:
-    from chaoslab_agent.injector.target_adapters._litellm_proxy import litellm_proxy_session
+async def test_invoke_502_503_504_all_surface_as_connection_error() -> None:
+    """SFH-I1 broader: every retryable 5xx maps to ConnectionError so injector
+    consistently retries 502/503/504 vs. permanent-fail 4xx."""
+    for status in (502, 503, 504):
+        respx.reset()
+        respx.get("http://localhost:8002/agent/input_schema").mock(
+            return_value=httpx.Response(200, json=_input_schema_body())
+        )
+        respx.post("http://localhost:8002/agent/invoke").mock(
+            return_value=httpx.Response(status, text="upstream")
+        )
+        adapter = LangChainAdapter(spec=_spec())
+        with pytest.raises(AdapterConnectionError, match=str(status)):
+            await adapter.invoke(AdapterInvocation(prompt="hi"))
 
-    async with litellm_proxy_session({"kind": "prompt_injection"}) as proxy:
-        assert proxy is not None
-        assert proxy.custom_logger_active is True
-        assert proxy.base_url.startswith("http")
-    # After the context exits, the proxy MUST be marked inactive — defends
-    # against a downstream caller holding a stale reference.
-    assert proxy.custom_logger_active is False
+
+def test_bearer_headers_raise_on_wrong_auth_key() -> None:
+    """Round-2 SFH-B2: spec.auth={'api_key': '...'} silently sent NO auth
+    in round-1; now raises AdapterDiscoveryError naming the keys provided
+    so the operator sees the typo immediately. Locks the same shared-
+    helper behavior the ADK test also pins."""
+    from pydantic import SecretStr
+
+    from chaoslab_agent.errors import AdapterDiscoveryError
+    from chaoslab_agent.injector.target_adapters._common import bearer_headers
+
+    with pytest.raises(AdapterDiscoveryError, match="no 'bearer' key"):
+        bearer_headers(_spec(auth={"api_key": SecretStr("x")}))
