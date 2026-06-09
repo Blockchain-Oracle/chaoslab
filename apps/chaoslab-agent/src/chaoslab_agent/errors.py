@@ -13,6 +13,8 @@ SDK-side detail and is best-effort scrubbed at the call site.
 
 from __future__ import annotations
 
+from typing import Any
+
 
 class ChaosLabError(Exception):
     """Root of the Phoenix Audit domain exception hierarchy."""
@@ -46,3 +48,23 @@ class AdapterDiscoveryError(AdapterError):
     so callers can degrade to Tier 3 (HTTP black-box) on discovery failure
     while still failing fast on transport failure.
     """
+
+
+class BaselineAbortError(ChaosLabError):
+    """Raised by `BaselineCheck.validate()` when the target's pre-flight pass
+    rate is below the configured threshold.
+
+    The Chaos Toolkit steady-state-hypothesis gate (architecture/01 §7 Move 5):
+    if the target is already broken pre-injection, the resilience signal from
+    a fault-injection run is meaningless — abort the entire chaos run loud.
+
+    Carries the structured ``BaselineResult`` so the orchestrator can include
+    the full snapshot in the regulator-facing audit report without parsing
+    the message string. ``result`` is typed ``Any`` here to avoid the
+    circular import with ``injector.preflight``; concrete type is
+    ``chaoslab_agent.injector.preflight.BaselineResult``.
+    """
+
+    def __init__(self, message: str, *, result: Any | None = None) -> None:
+        super().__init__(message)
+        self.result = result
