@@ -302,6 +302,22 @@ Phoenix by trace_id at scoring time).
 
 **Implication for S6.5 / S6.6 (emitters):** the exported JSON Schema (`packages/shared-types/hardening-recipe.json`) carries `FailureClusterSet` as a `$defs` entry. Frontend types generated from the JSON Schema will mirror the partition invariant — the TypeScript side gets the same guarantees.
 
+### IF-12 — `storage.objectAdmin` does NOT include `storage.buckets.get`; lifespan probe needs bucket-level role (S6.5, PR #71 post-merge)
+
+**Discovered in:** S6.5 round-3+4 (PR #71) post-merge staging deploy. Round-3 wired `MarkdownEmitter.health_check()` into the FastAPI lifespan, which calls `bucket.exists()` at boot. The infra bootstrap script had granted `roles/storage.objectAdmin` to the runtime SA, expecting it to cover the recipe-artifact bucket — but `objectAdmin` only covers OBJECT-level operations (`storage.objects.create/get/delete/list`). The `bucket.exists()` call requires `storage.buckets.get`, a BUCKET-LEVEL permission only included in `roles/storage.admin` (or legacy `bucketReader`/`bucketWriter`).
+
+**Symptom:** Cloud Run revision creation timed out with `The user-provided container failed to start and listen on the port` because the lifespan `await MarkdownEmitter().health_check()` raised `BucketUnreachableError: 403 Forbidden ... storage.buckets.get denied`. Uvicorn never bound port 8080.
+
+**Resolution applied (PR #71 follow-up commit):**
+
+- `infra/workload-identity-federation.sh` now creates the recipes bucket (`GCS_RECIPES_BUCKET`, default `chaoslab-recipes`, region `us-central1`) AND binds BOTH `roles/storage.admin` (for `buckets.get`) and `roles/storage.objectAdmin` (for object writes) — bucket-scoped, still least-privilege.
+- Also added `roles/iam.serviceAccountTokenCreator` (project-level) on the runtime SA so v4 signed-URL generation works without a JSON key (the SDK calls IAM `signBlob` on the SA itself).
+- See `GOTCHA-6` block in `infra/workload-identity-federation.sh` for the full rationale.
+
+**Implication for fresh project bootstrap:** running `bash infra/workload-identity-federation.sh` on a new GCP project now provisions the bucket + IAM correctly. Anyone running the script in this state on an existing project will get an idempotent `already exists` notice for the bucket and the IAM bindings will be add-only.
+
+**Implication for S6.5 going forward:** the round-3 design (fail-loud-at-boot via lifespan probe) is exactly correct — the staging incident was a real misconfiguration that the gate caught. Do NOT walk back the lifespan probe; this is the gate working as designed.
+
 ### IF-7 — 400-line rule scope ambiguity for `docs/` (S1.2, PR #2 code-reviewer)
 
 **Discovered in:** S1.2 PR #2 review. After the prettier reformat (`f87ff0f`), 2 docs crossed the 400-line threshold and 2 already-oversized docs got slightly worse via table-padding. CLAUDE.md L44 says "No file >400 lines (Python, TS, JSX, Markdown)" — Markdown explicitly in scope. But `docs/coding-standards.md` L12 narrows enforcement to `apps/`, `packages/`, `scripts/`.

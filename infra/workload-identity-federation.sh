@@ -139,12 +139,45 @@ for role in \
   "roles/logging.logWriter" \
   "roles/monitoring.metricWriter" \
   "roles/aiplatform.user" \
+  "roles/iam.serviceAccountTokenCreator" \
   ; do
   echo "  -> ${role}"
   gcloud projects add-iam-policy-binding "${PROJECT}" \
     --member="serviceAccount:${RUNTIME_SA_EMAIL}" \
     --role="${role}" \
     --condition=None \
+    --quiet > /dev/null
+done
+
+# GOTCHA-6: The recipes-artifact bucket must exist + the runtime SA needs
+# `storage.buckets.get` (not just `storage.objectAdmin`) because S6.5's
+# MarkdownEmitter.health_check() does `bucket.exists()` at lifespan startup.
+# `objectAdmin` covers OBJECTS only; the existence probe needs a bucket-level
+# role. Discovered during round-3+4 staging deploy: with only objectAdmin
+# bound, Cloud Run boots fail with 403 storage.buckets.get on the SA. Bind
+# `roles/storage.admin` on JUST this bucket (bucket-scoped, still least-privilege).
+GCS_RECIPES_BUCKET="${GCS_RECIPES_BUCKET:-chaoslab-recipes}"
+GCS_RECIPES_REGION="${GCS_RECIPES_REGION:-us-central1}"
+echo "==> Ensuring GCS bucket: gs://${GCS_RECIPES_BUCKET}"
+if gcloud storage buckets describe "gs://${GCS_RECIPES_BUCKET}" --quiet > /dev/null 2>&1; then
+  echo "  -> already exists"
+else
+  gcloud storage buckets create "gs://${GCS_RECIPES_BUCKET}" \
+    --project="${PROJECT}" \
+    --location="${GCS_RECIPES_REGION}" \
+    --uniform-bucket-level-access \
+    --quiet > /dev/null
+  echo "  -> created in ${GCS_RECIPES_REGION}"
+fi
+echo "==> Binding bucket-scoped IAM on gs://${GCS_RECIPES_BUCKET} for ${RUNTIME_SA_EMAIL}"
+for role in \
+  "roles/storage.admin" \
+  "roles/storage.objectAdmin" \
+  ; do
+  echo "  -> ${role}"
+  gcloud storage buckets add-iam-policy-binding "gs://${GCS_RECIPES_BUCKET}" \
+    --member="serviceAccount:${RUNTIME_SA_EMAIL}" \
+    --role="${role}" \
     --quiet > /dev/null
 done
 
