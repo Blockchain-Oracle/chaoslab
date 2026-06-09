@@ -107,6 +107,34 @@ B1-B13 listed in `spec-audit/00-audit-summary.md` §"Minor amendments." Doc-hygi
 
 Discoveries made while implementing stories that contradict spec text. Each one updates this section so the next story doesn't re-hit the same wall.
 
+### IF-14 — Pre-commit ESLint hook fails on real chaoslab-web TS files (Epic 7 port, 2026-06-09)
+
+**Discovered in:** Epic 7 frontend port commit. The `.pre-commit-config.yaml` ESLint hook entry was `pnpm --filter chaoslab-web exec eslint --fix` with `pass_filenames: true`. This worked silently while there were no `.ts`/`.tsx` files in `apps/chaoslab-web/` (S1.2 noted "auto-skips until S7.1 introduces .ts files"), but the moment real TS files landed it failed with `No files matching the pattern "apps/chaoslab-web/components/chamber/cascade-overlay.tsx" were found` because `pnpm --filter chaoslab-web exec` cd's into `apps/chaoslab-web/` before invoking eslint, but pre-commit feeds it paths relative to the repo root.
+
+This is the exact same shape as IF-2 (Prettier had to drop the `--filter chaoslab-web` and run from workspace root).
+
+**Fix applied:** ESLint hook entry switched to `pnpm --filter chaoslab-web run lint` with `pass_filenames: false` and `files: ^apps/chaoslab-web/.*\.(ts|tsx|js|jsx)$`. This invokes the chaoslab-web package's own `lint` script (`eslint .` from inside that directory), which resolves paths correctly. Slightly more work per commit (lints the whole web package vs only changed files) but correct.
+
+**Implication for future stories:** Any new package added under `apps/` needs its own hook entry following the same pattern (`pnpm --filter <name> run lint`, `files: ^apps/<name>/...`, `pass_filenames: false`). Per-file hooks that cd into a subdir fundamentally can't work with pre-commit's repo-root path convention.
+
+### IF-13 — Designer's prototype delivered 2026-06-09 supersedes ux-spec.md (Epic 7 frontend port)
+
+**Discovered in:** Epic 7 frontend port (story-7.1 onward). Abu engaged a designer who delivered a complete React/HTML prototype covering all 11 user-facing routes — landing, new-audit wizard, live audit chamber, pre-recorded replay, audit history, target-agents (list + detail), hardening recipe, signed PDF preview with Cloud KMS signing animation, continuous monitoring, settings, error/empty/blocked-state gallery, plus the 1200×630 Open Graph image. The designer's prototype contradicts `docs/ux-spec.md` (which specified OKLCH attack-matrix dark theme + visx resilience curve + 5×5 attack grid).
+
+**The designer's prototype is the canonical visual answer.** Locked design system: paper/ink + ember chamber palette (3-radius docs, 6-radius cards), Newsreader serif (display), Instrument Sans (body), IBM Plex Mono (mono). Hand-built primitives — no shadcn/ui, no visx, no Framer Motion. Cascade-flip rendered via custom t-driven overlay; signing rendered via custom 36s-linear-spin seal; receipt slides up at t=23.6 from the deterministic timeline.
+
+**Port shape (single PR off `feat/phoenix-audit-frontend-port`):**
+
+- Next.js 16 App Router + React 19 + TypeScript strict + Tailwind 4 + pnpm workspace
+- 13 routes shipping: `/`, `/new`, `/replay`, `/run/[runId]`, `/audits`, `/agents`, `/agents/[id]`, `/recipe/[recipeId]`, `/report/[runId]`, `/monitoring`, `/settings`, `/states`, `/opengraph-image`, `/api/health`
+- Hybrid SSE bridge for the live route: real `phase_change`/`complete`/`error` events from `chaoslab-agent/main.py:_drive_orchestrator` drive the phase rail; per-probe ticker + cluster-flip + recipe streaming come from the deterministic timeline at `lib/timeline.ts` (because the backend doesn't emit per-probe SSE events yet — that's Epic 5.x follow-on work). Disclosed via the on-screen "DEMO PACING" tag in the chamber header so reviewers/judges see the bridge.
+
+**Implication for sprint-status:** Stories S7.1 through S7.12 are all delivered in this single PR (not as 12 separate PRs). The original Epic 7 12-story breakdown under-spec'd the work; the designer covered ~21 surfaces worth of features. Post-merge, sprint-status.yaml will mark S7.1–S7.12 COMPLETE against the same PR URL and add an S7.13 row capturing the designer-delivered surfaces that weren't in the original Epic 7 plan (wizard, history, agents+detail, recipe, report preview, monitoring, settings, states, OG image).
+
+**Implication for the visual-loop gate:** Designer's 16 anchor screenshots from `/Users/abu/Downloads/Phoenix Audit/shots/` are checked into `apps/chaoslab-web/public/screenshots/anchor/` and serve as the locked anchors for future PRs touching the frontend.
+
+**Out of scope for this PR (deferred):** backend per-probe SSE emission (Epic 5.x), real PDF generator (Epic 6), real Cloud KMS sign integration. The "Sign and file" button on `/report/[runId]` shows the 2.1s veil + transitions to signed state — the underlying Cloud KMS call + PDF bytes are stub for the frontend slot.
+
 ### IF-1 — Gitleaks v8.21+ rejects legacy `[[allowlist.paths]]` per-path schema (S1.2, 2026-06-03)
 
 **Discovered in:** S1.2 (pre-commit hooks). Hook `Detect hardcoded secrets` fails on first run with `'Allowlist.Paths[0]' expected type 'string', got unconvertible type 'map[string]interface {}'`.

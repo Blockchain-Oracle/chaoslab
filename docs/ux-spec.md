@@ -1,5 +1,9 @@
 # UX Spec — Phoenix Audit
 
+> **SUPERSEDED 2026-06-09 by the designer's React/HTML prototype shipped into `apps/chaoslab-web/`.** The OKLCH attack-matrix + visx resilience-curve design described below was the spec-writer's draft before a real designer was engaged. The actual production frontend uses the designer's "Audit Register" forensic-editorial design system (paper/ink + ember chamber, Newsreader/Instrument Sans/IBM Plex Mono, hand-built primitives — NO shadcn/ui, NO visx, NO Framer Motion). The `<AttackMatrix>` / `<ResilienceCurve>` components named below DO NOT EXIST; the killer demo lands on `<ProbeLedger>` + `<ClusterCard>` + `<RecipeCard>` in the chamber-scoped live audit view, with the cascade-flip rendered via a custom t-driven `<CascadeOverlay>`. Canonical product context lives in `docs/DESIGNER-BRIEF.md` and the per-route component map in `apps/chaoslab-web/components/`. **The content below is preserved verbatim for the spec audit trail only — do not implement against it.**
+
+---
+
 **Status:** DRAFT — pending Abu approval (LOCKS upon approval)
 **Anchor source:** `research/google-cloud-rapid-agent/architecture/05-ux-and-demo.md` + `research/google-cloud-rapid-agent/best-practices/04-nextjs-production.md` + `research/google-cloud-rapid-agent/brainstorm/23-trust-auditor-demo-and-product-path.md` (2026-06-04 demo arc spec)
 **Last updated:** 2026-06-04 (rebranded from ChaosLab; demo arc updated to Phoenix Audit cascade-flip moment — "3 failures, 1 root cause, patch in 4 seconds")
