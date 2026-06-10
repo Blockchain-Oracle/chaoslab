@@ -50,6 +50,8 @@ dev = [
   "pytest-asyncio>=0.24",
   "pytest-cov>=5",
   "respx>=0.21",
+  "cryptography>=43",
+  "pypdf>=5",
 ]
 
 [project.scripts]

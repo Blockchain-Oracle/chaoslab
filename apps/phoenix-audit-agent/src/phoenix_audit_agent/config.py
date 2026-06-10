@@ -83,6 +83,14 @@ class Settings(BaseSettings):
         ge=1,
         description="Upper bound on the clusterer output.",
     )
+    TARGET_PHOENIX_PROJECT: str = Field(
+        default="target-agent",
+        min_length=1,
+        description=(
+            "Phoenix project the TARGET agent's traces land in — the Judge reads "
+            "probe-response spans from here (target-agent/observability.py default)."
+        ),
+    )
     GCS_RECIPES_BUCKET: str = Field(
         # Legacy chaoslab-* bucket name kept through the phoenix-audit rename
         # (live storage rename judged churn-without-benefit — see CLAUDE.md).

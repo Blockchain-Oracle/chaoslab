@@ -20,15 +20,31 @@ no Gemini, no Phoenix, no network.
 
 from __future__ import annotations
 
+from collections.abc import Iterator
 from dataclasses import dataclass, field
 from typing import Any, ClassVar, Literal
 
 import pytest
 
+from phoenix_audit_agent.config import get_settings
 from phoenix_audit_agent.injector.agent import AttackResult, AttackRun, InjectorState
 from phoenix_audit_agent.judge.clustering import FailureCluster, FailureClusterSet
 from phoenix_audit_agent.judge.rubrics import EvalScore
 from phoenix_audit_agent.patcher.recipe import HardeningRecipe
+
+
+@pytest.fixture(autouse=True)
+def _settings_env(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
+    # _judge_attacks reads TARGET_PHOENIX_PROJECT via get_settings(); wire the
+    # Vertex path so Settings() construction is deterministic regardless of the
+    # developer's shell env (CI runs clean — local .env must not mask this).
+    monkeypatch.setenv("GOOGLE_GENAI_USE_VERTEXAI", "true")
+    monkeypatch.setenv("GOOGLE_CLOUD_PROJECT", "test-project")
+    monkeypatch.setenv("GOOGLE_CLOUD_LOCATION", "us-central1")
+    get_settings.cache_clear()
+    yield
+    get_settings.cache_clear()
+
 
 SPAN_OK_PASS = "a" * 16
 SPAN_OK_FAIL = "b" * 16
@@ -47,6 +63,19 @@ def _attack_result(
         status=status,
         duration_ms=10.0,
     )
+
+
+def _v1_span(span_id: str, *, attributes: dict[str, Any]) -> dict[str, Any]:
+    """Dict-shaped span as the real phoenix client returns from get_spans."""
+    return {
+        "name": "agent.invoke",
+        "context": {"trace_id": span_id * 2, "span_id": span_id},
+        "span_kind": "AGENT",
+        "start_time": "2026-06-10T00:00:00+00:00",
+        "end_time": "2026-06-10T00:00:01+00:00",
+        "status_code": "OK",
+        "attributes": attributes,
+    }
 
 
 @dataclass
@@ -161,14 +190,14 @@ def wired(monkeypatch: pytest.MonkeyPatch) -> _Emitted:
             "signature.json": "https://gcs.example/reports/r/signature.json",
         }
 
-    class _FakeSpan:
-        # No phoenix_audit.honored attribute — the demo target doesn't emit
-        # the header-convention ack yet, so honored_missing counts these.
-        attributes: ClassVar[dict[str, Any]] = {}
-
     class _FakeSpans:
-        async def get_span(self, span_id: str) -> Any:
-            return _FakeSpan()
+        # Mirrors the real client: get_spans by trace. No phoenix_audit.honored
+        # attribute — the demo target doesn't emit the header-convention ack
+        # yet, so honored_missing counts these. Tests build trace_id=span_id*2,
+        # so the matching span id is recoverable from the queried trace.
+        async def get_spans(self, **kwargs: Any) -> list[dict[str, Any]]:
+            trace_id = kwargs["trace_ids"][0]
+            return [_v1_span(trace_id[:16], attributes={})]
 
     class _FakePhoenix:
         spans = _FakeSpans()
@@ -322,12 +351,10 @@ async def test_honored_span_attribute_excludes_compliant_target(
     is NOT counted in the locked warning's {N}."""
     import phoenix_audit_agent.audit_runner as ar
 
-    class _HonoredSpan:
-        attributes: ClassVar[dict[str, Any]] = {"phoenix_audit.honored": True}
-
     class _HonoredSpans:
-        async def get_span(self, span_id: str) -> Any:
-            return _HonoredSpan()
+        async def get_spans(self, **kwargs: Any) -> list[dict[str, Any]]:
+            trace_id = kwargs["trace_ids"][0]
+            return [_v1_span(trace_id[:16], attributes={"phoenix_audit.honored": True})]
 
     class _HonoredPhoenix:
         spans = _HonoredSpans()
@@ -343,6 +370,37 @@ async def test_honored_span_attribute_excludes_compliant_target(
 
     (rd,) = wired.report_data
     assert rd.honored_missing_count == 0
+
+
+@pytest.mark.asyncio
+async def test_unreadable_spans_disclosed_not_counted_compliant(
+    wired: _Emitted, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A Phoenix read outage must surface as honored_unreadable_count — never
+    inflate {N}, never silently shape the target as compliant."""
+    import httpx
+
+    import phoenix_audit_agent.audit_runner as ar
+
+    class _DownSpans:
+        async def get_spans(self, **kwargs: Any) -> list[dict[str, Any]]:
+            raise httpx.ConnectError("phoenix unreachable")
+
+    class _DownPhoenix:
+        spans = _DownSpans()
+
+    monkeypatch.setattr(ar, "make_phoenix_client", _DownPhoenix)
+    _FakeInjector.results = [
+        _attack_result(0, SPAN_OK_PASS, "ok"),
+        _attack_result(1, SPAN_OK_FAIL, "ok"),
+    ]
+    phases: list[str] = []
+
+    await drive_audit_for_test(wired, phases)
+
+    (rd,) = wired.report_data
+    assert rd.honored_missing_count == 0
+    assert rd.honored_unreadable_count == 2
 
 
 @pytest.mark.asyncio

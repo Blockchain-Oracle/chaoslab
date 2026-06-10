@@ -211,6 +211,41 @@ async def test_stream_emits_phase_change_when_phase_transitions(
     assert '"phase": "judge"' in joined, joined
 
 
+async def test_stream_reconnect_after_drain_gets_terminal_frame_not_hang(
+    client: httpx.AsyncClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A reconnect after the run finished and its queue was drained must get a
+    terminal `stream_end` frame and close — silent-failure pattern #7 was an
+    infinite 0.5s tick loop with the chamber stuck on 'connected'."""
+    from phoenix_audit_agent import main as _main
+
+    async def fixture_drive(run_id: str) -> None:
+        queue = _main._RUN_QUEUES[run_id]
+        await queue.put(
+            {"event": "complete", "data": json.dumps({"phase": "succeeded", "run_id": run_id})}
+        )
+        await queue.put(None)
+
+    monkeypatch.setattr(_main, "_drive_orchestrator", fixture_drive)
+
+    run_resp = await client.post("/run", json={"target_url": "http://localhost:8001"})
+    run_id = run_resp.json()["run_id"]
+
+    # First consumer drains everything including the sentinel.
+    async with client.stream("GET", f"/stream?runId={run_id}") as resp:
+        first = "".join([chunk async for chunk in resp.aiter_text()])
+    assert "event: complete" in first
+
+    # Run state survives in the cleanup window — reconnect must terminate.
+    chunks: list[str] = []
+    async with client.stream("GET", f"/stream?runId={run_id}") as resp:
+        async for chunk in resp.aiter_text():
+            chunks.append(chunk)
+    joined = "".join(chunks)
+    assert "event: stream_end" in joined, joined
+    assert "events_already_consumed" in joined, joined
+
+
 async def test_cancel_task_cancels_in_flight_drive() -> None:
     """`_cancel_task` is what the /stream disconnect path invokes. Test directly.
 

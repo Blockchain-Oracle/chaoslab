@@ -72,6 +72,9 @@ class ReportData(BaseModel):
     recipe_id: str | None
     markdown_url: str | None
     honored_missing_count: int = Field(ge=0)
+    # Response spans the auditor could NOT read from Phoenix. Disclosed so the
+    # report never implies "verified compliant" for spans nobody inspected.
+    honored_unreadable_count: int = Field(default=0, ge=0)
 
 
 def _esc(value: str) -> str:
@@ -159,6 +162,15 @@ def build_report_html(data: ReportData) -> str:
         warning_block = (
             "<div class='locked'><div class='locked-title'>HEADER CONVENTION WARNING — "
             f"INCLUDED FOR THIS RUN</div><p>{warning_text}</p></div>"
+        )
+    if data.honored_unreadable_count > 0:
+        # NOT part of the locked paragraph — a separate factual disclosure so
+        # the regulator can tell "verified" apart from "unverifiable".
+        warning_block += (
+            "<p class='marker-block'>HEADER VERIFICATION INCOMPLETE — "
+            f"{data.honored_unreadable_count} probe-response span(s) could not be "
+            "read from Phoenix; their header-convention status is unverified and "
+            "they are excluded from the warning count above.</p>"
         )
 
     recipe_block = (

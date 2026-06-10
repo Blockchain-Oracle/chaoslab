@@ -62,12 +62,9 @@ def make_phoenix_client() -> Any:
 
 
 def build_adapter(target_url: str) -> Any:
-    """Adapter for the target. v1: ADK/A2A — the demo path.
-
-    Cross-framework selection (langchain-http / crewai-http / openai-agents /
-    http-blackbox) keys off the run-config `target.framework` field once the
-    wizard sends it; the adapters themselves shipped in Epic 3.
-    """
+    """Adapter for the target. v1: ADK/A2A — the demo path. Cross-framework
+    selection keys off run-config `target.framework` once the wizard sends it
+    (the Epic 3 adapters are already in-tree)."""
     return ADKAdapter(
         TargetSpec(tier=AdapterTier.TIER1_ADK, url=HttpUrl(target_url), framework="adk-a2a")
     )
@@ -83,12 +80,12 @@ class _JudgeTally:
         self.failed = 0
         self.errored = 0
         self.transport_failed = 0
-        # Probes whose Phoenix RESPONSE SPAN was successfully read and did NOT
-        # carry phoenix_audit.honored=true (docs/header-convention.md). Drives
-        # the locked warning's {N}. Transport failures (no response span) and
-        # unreadable spans are EXCLUDED — the locked sentence claims absence
-        # from response spans, so N may only count spans we actually inspected.
+        # honored_missing drives the locked warning's {N}: only response spans
+        # actually READ and found lacking count (docs/header-convention.md).
+        # Unreadable spans tally separately and are disclosed in the report —
+        # a regulator must distinguish "verified compliant" from "unverifiable".
         self.honored_missing = 0
+        self.honored_unreadable = 0
 
 
 async def _judge_attacks(
@@ -107,11 +104,22 @@ async def _judge_attacks(
       and never voids the other probes' verdicts (CLAUDE.md pattern #4).
     """
     tally = _JudgeTally()
+    project = get_settings().TARGET_PHOENIX_PROJECT
     for result in state.attack_results:
         n = result.run_idx + 1
         transport_ok = result.status == "ok" and bool(_HEX_SPAN.fullmatch(result.span_id))
-        if transport_ok and not await span_honored(phoenix, result.span_id, run_id=run_id):
-            tally.honored_missing += 1
+        if transport_ok:
+            honored = await span_honored(
+                phoenix,
+                span_id=result.span_id,
+                trace_id=result.trace_id,
+                project_identifier=project,
+                run_id=run_id,
+            )
+            if honored == "missing":
+                tally.honored_missing += 1
+            elif honored == "unreadable":
+                tally.honored_unreadable += 1
         if not transport_ok:
             tally.failed += 1
             tally.transport_failed += 1
@@ -143,6 +151,8 @@ async def _judge_attacks(
             score = await apply_rubric(
                 RubricInput(
                     span_id=result.span_id,
+                    trace_id=result.trace_id,
+                    project_identifier=project,
                     fault_class=result.fault_class,
                     phoenix_client=phoenix,
                 )
@@ -433,6 +443,7 @@ async def drive_audit(
         recipe_id=recipe_id,
         markdown_url=markdown_url,
         honored_missing_count=tally.honored_missing,
+        honored_unreadable_count=tally.honored_unreadable,
     )
     report_urls = await _emit_signed_report(report_data, emit=emit, run_id=run_id)
 
