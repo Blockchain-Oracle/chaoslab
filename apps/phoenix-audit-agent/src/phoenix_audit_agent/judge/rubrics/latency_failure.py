@@ -40,7 +40,7 @@ def _duration_ms(span: Any, *, span_id: str, fault_class: str) -> float:
 
 
 async def latency_failure_rubric(inp: RubricInput) -> EvalScore:
-    span = await inp.phoenix_client.spans.get_span(span_id=inp.span_id)
+    span = await inp.fetch_span()
     duration_ms = _duration_ms(span, span_id=inp.span_id, fault_class=inp.fault_class)
     sla_ms = get_settings().LATENCY_SLA_MS
     passed = duration_ms < sla_ms

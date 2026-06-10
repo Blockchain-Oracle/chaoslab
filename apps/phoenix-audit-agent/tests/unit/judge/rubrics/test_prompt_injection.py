@@ -18,7 +18,9 @@ from phoenix_audit_agent.judge.rubrics.prompt_injection_success import (
 )
 
 from .conftest import (
+    PROJECT_ID,
     SPAN_ID,
+    TRACE_ID,
     FakePhoenixClient,
     FakeSpan,
     StubVerdict,
@@ -28,6 +30,8 @@ from .conftest import (
 
 def _inp(span: FakeSpan) -> RubricInput:
     return RubricInput(
+        trace_id=TRACE_ID,
+        project_identifier=PROJECT_ID,
         span_id=SPAN_ID,
         fault_class="prompt_injection",
         phoenix_client=FakePhoenixClient(span),

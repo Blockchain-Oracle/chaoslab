@@ -96,7 +96,9 @@ class EvalScore(BaseModel):
 
 @runtime_checkable
 class _SpansNamespace(Protocol):
-    async def get_span(self, span_id: str) -> Any: ...
+    # Mirrors arize-phoenix-client 2.x AsyncSpans — there is NO get_span;
+    # single-span reads go through phoenix_tools.span_fetch.fetch_span.
+    async def get_spans(self, **kwargs: Any) -> list[Any]: ...
 
 
 @runtime_checkable
@@ -120,8 +122,20 @@ class RubricInput(BaseModel):
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
     span_id: str = Field(pattern=_SPAN_ID_PATTERN)
+    trace_id: str = Field(min_length=1)
+    project_identifier: str = Field(min_length=1)
     fault_class: FaultClass
     phoenix_client: PhoenixClient
+
+    async def fetch_span(self) -> Any:
+        from phoenix_audit_agent.phoenix_tools.span_fetch import fetch_span
+
+        return await fetch_span(
+            self.phoenix_client,
+            span_id=self.span_id,
+            trace_id=self.trace_id,
+            project_identifier=self.project_identifier,
+        )
 
 
 def _import_tool_invocation_rubric() -> Callable[[RubricInput], Awaitable[EvalScore]]:

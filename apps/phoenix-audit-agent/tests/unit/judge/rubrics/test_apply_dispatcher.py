@@ -17,7 +17,15 @@ from phoenix_audit_agent.judge.rubrics import (
     apply_rubric,
 )
 
-from .conftest import SPAN_ID, FakePhoenixClient, FakeSpan, StubVerdict, stub_evaluator
+from .conftest import (
+    PROJECT_ID,
+    SPAN_ID,
+    TRACE_ID,
+    FakePhoenixClient,
+    FakeSpan,
+    StubVerdict,
+    stub_evaluator,
+)
 
 # ---------------------------------------------------------------------------
 # EvalScore + RubricInput schema validation
@@ -74,6 +82,8 @@ def test_fault_class_literal_enumerates_four_values() -> None:
 def test_rubric_input_rejects_empty_span_id() -> None:
     with pytest.raises(ValidationError):
         RubricInput(
+            trace_id=TRACE_ID,
+            project_identifier=PROJECT_ID,
             span_id="",
             fault_class="malformed_tool_output",
             phoenix_client=FakePhoenixClient(FakeSpan()),
@@ -83,6 +93,8 @@ def test_rubric_input_rejects_empty_span_id() -> None:
 def test_rubric_input_rejects_non_hex_span_id() -> None:
     with pytest.raises(ValidationError):
         RubricInput(
+            trace_id=TRACE_ID,
+            project_identifier=PROJECT_ID,
             span_id="not-hex-at-all",
             fault_class="malformed_tool_output",
             phoenix_client=FakePhoenixClient(FakeSpan()),
@@ -93,6 +105,8 @@ def test_rubric_input_accepts_32_char_trace_id() -> None:
     # Injector may pass either a 16-char span id or a 32-char trace id.
     long_id = "abcdef0123456789" * 2
     rip = RubricInput(
+        trace_id=TRACE_ID,
+        project_identifier=PROJECT_ID,
         span_id=long_id,
         fault_class="latency_spike",
         phoenix_client=FakePhoenixClient(FakeSpan()),
@@ -119,6 +133,8 @@ async def test_dispatcher_raises_on_unknown_fault_class() -> None:
 async def test_dispatcher_routes_latency_spike_to_deterministic_rubric() -> None:
     span = FakeSpan(attributes={"phoenix-audit.duration_ms": 1200.0})
     inp = RubricInput(
+        trace_id=TRACE_ID,
+        project_identifier=PROJECT_ID,
         span_id=SPAN_ID,
         fault_class="latency_spike",
         phoenix_client=FakePhoenixClient(span),
@@ -141,6 +157,8 @@ async def test_dispatcher_routes_malformed_tool_output_to_f1(
     )
     result = await apply_rubric(
         RubricInput(
+            trace_id=TRACE_ID,
+            project_identifier=PROJECT_ID,
             span_id=SPAN_ID,
             fault_class="malformed_tool_output",
             phoenix_client=FakePhoenixClient(span),
@@ -163,6 +181,8 @@ async def test_dispatcher_routes_prompt_injection_to_f2(
     )
     result = await apply_rubric(
         RubricInput(
+            trace_id=TRACE_ID,
+            project_identifier=PROJECT_ID,
             span_id=SPAN_ID,
             fault_class="prompt_injection",
             phoenix_client=FakePhoenixClient(span),
@@ -185,6 +205,8 @@ async def test_dispatcher_routes_context_poisoning_to_f3(
     )
     result = await apply_rubric(
         RubricInput(
+            trace_id=TRACE_ID,
+            project_identifier=PROJECT_ID,
             span_id=SPAN_ID,
             fault_class="context_poisoning",
             phoenix_client=FakePhoenixClient(span),

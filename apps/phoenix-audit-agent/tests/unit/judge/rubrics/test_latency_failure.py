@@ -11,11 +11,13 @@ from phoenix_audit_agent.judge.rubrics import (
 )
 from phoenix_audit_agent.judge.rubrics.latency_failure import latency_failure_rubric
 
-from .conftest import SPAN_ID, FakePhoenixClient, FakeSpan
+from .conftest import PROJECT_ID, SPAN_ID, TRACE_ID, FakePhoenixClient, FakeSpan
 
 
 def _inp(span: FakeSpan) -> RubricInput:
     return RubricInput(
+        trace_id=TRACE_ID,
+        project_identifier=PROJECT_ID,
         span_id=SPAN_ID,
         fault_class="latency_spike",
         phoenix_client=FakePhoenixClient(span),

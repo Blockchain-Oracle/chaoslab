@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from datetime import UTC, datetime
 from typing import Any
 
 import pytest
@@ -12,6 +13,8 @@ from phoenix_audit_agent.judge.rubrics._base import PhoenixClient, _SpansNamespa
 
 # Canonical 16-hex-char span id; satisfies RubricInput's pattern check.
 SPAN_ID = "0123456789abcdef"
+TRACE_ID = SPAN_ID * 2
+PROJECT_ID = "target-agent"
 
 
 @pytest.fixture(autouse=True)
@@ -32,12 +35,31 @@ class FakeSpan:
     end_time_ns: int = 0
 
 
-class FakeSpansClient(_SpansNamespace):
-    def __init__(self, span: FakeSpan) -> None:
-        self._span = span
+def _iso(ns: int) -> str:
+    return "" if not ns else datetime.fromtimestamp(ns / 1e9, tz=UTC).isoformat()
 
-    async def get_span(self, span_id: str) -> FakeSpan:
-        return self._span
+
+class FakeSpansClient(_SpansNamespace):
+    """Mirrors the REAL arize-phoenix-client 2.x AsyncSpans: only get_spans,
+    returning dict-shaped v1.Span objects scoped to a trace."""
+
+    def __init__(self, span: FakeSpan, *, span_id: str = SPAN_ID) -> None:
+        self._span = span
+        self._span_id = span_id
+
+    async def get_spans(self, **kwargs: Any) -> list[dict[str, Any]]:
+        return [
+            {
+                "name": "fake-span",
+                "context": {"trace_id": TRACE_ID, "span_id": self._span_id},
+                "span_kind": "AGENT",
+                "start_time": _iso(self._span.start_time_ns),
+                "end_time": _iso(self._span.end_time_ns),
+                "status_code": "OK",
+                "parent_id": "aaaabbbbccccdddd",
+                "attributes": dict(self._span.attributes),
+            }
+        ]
 
 
 class FakePhoenixClient(PhoenixClient):
@@ -72,7 +94,9 @@ def stub_evaluator(verdict: StubVerdict, *, captured: list[dict[str, Any]] | Non
 
 
 __all__ = [
+    "PROJECT_ID",
     "SPAN_ID",
+    "TRACE_ID",
     "FakePhoenixClient",
     "FakeSpan",
     "FakeSpansClient",
