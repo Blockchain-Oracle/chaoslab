@@ -92,4 +92,38 @@ class AgentRecord(BaseModel):
     owner_uid: str | None = None
 
 
-__all__ = ["AgentRecord", "Framework", "RunCompletion", "RunPhase", "RunRecord", "RunSource"]
+Cadence = Literal["hourly", "daily"]
+
+
+class ScheduleRecord(BaseModel):
+    """A continuous-monitoring schedule. The tick claims due schedules by
+    advancing next_fire_at BEFORE launching — crash-after-claim skips one
+    tick; it never double-fires."""
+
+    model_config = ConfigDict(extra="ignore")
+
+    schedule_id: str = Field(min_length=1)
+    agent_id: str | None = None
+    target_url: str = Field(min_length=1)
+    cadence: Cadence = "daily"
+    enabled: bool = True
+    next_fire_at: str = Field(min_length=1)
+    last_fired_at: str | None = None
+    last_run_id: str | None = None
+    deliver_email: bool = False
+    email_recipient: str | None = None
+    created_at: str = Field(min_length=1)
+    org_id: str = "default"
+    owner_uid: str | None = None
+
+
+__all__ = [
+    "AgentRecord",
+    "Cadence",
+    "Framework",
+    "RunCompletion",
+    "RunPhase",
+    "RunRecord",
+    "RunSource",
+    "ScheduleRecord",
+]
