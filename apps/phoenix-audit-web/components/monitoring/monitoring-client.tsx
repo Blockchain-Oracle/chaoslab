@@ -10,7 +10,7 @@ import { Toggle } from '@/components/ui/toggle'
 import { TopBar } from '@/components/ui/topbar'
 import type { ScheduleDto } from '@/lib/api'
 import { fmtDate } from '@/lib/format'
-import type { MergedAgent, MergedRun } from '@/lib/sample-merge'
+import type { AgentSpec, HistoryRow } from '@/lib/types'
 
 const CADENCES: { label: string; value: 'hourly' | 'daily' | null }[] = [
   { label: 'Hourly', value: 'hourly' },
@@ -20,9 +20,9 @@ const CADENCES: { label: string; value: 'hourly' | 'daily' | null }[] = [
 ]
 
 export interface MonitoringClientProps {
-  agents: MergedAgent[]
+  agents: AgentSpec[]
   schedules: ScheduleDto[]
-  scheduledRuns: MergedRun[]
+  scheduledRuns: HistoryRow[]
   liveError: string | null
 }
 

@@ -1,18 +1,17 @@
 'use client'
 
-import { TIMELINE } from '@/lib/fixtures'
-
 interface TransportProps {
   t: number
+  /** Real recorded duration of the replayed run, from events.json. */
+  duration: number
   playing: boolean
   setPlaying: (next: boolean) => void
   seek: (t: number) => void
   restart: () => void
-  mode: 'replay' | 'live'
 }
 
-export function Transport({ t, playing, setPlaying, seek, restart, mode }: TransportProps) {
-  const label = playing ? 'Pause' : t >= TIMELINE.duration ? 'Replay' : 'Play'
+export function Transport({ t, duration, playing, setPlaying, seek, restart }: TransportProps) {
+  const label = playing ? 'Pause' : t >= duration ? 'Replay' : 'Play'
   return (
     <div
       style={{
@@ -45,7 +44,7 @@ export function Transport({ t, playing, setPlaying, seek, restart, mode }: Trans
         <input
           type="range"
           min={0}
-          max={TIMELINE.duration}
+          max={duration}
           step={0.05}
           value={t}
           onChange={(e) => seek(parseFloat(e.target.value))}
@@ -57,11 +56,11 @@ export function Transport({ t, playing, setPlaying, seek, restart, mode }: Trans
           style={{
             fontSize: 11,
             color: 'var(--chamber-ink-2)',
-            width: 110,
+            width: 130,
             textAlign: 'right',
           }}
         >
-          {t.toFixed(1)}s / {TIMELINE.duration}s {mode === 'replay' ? '· replay' : ''}
+          {t.toFixed(1)}s / {duration.toFixed(0)}s · replay
         </span>
       </div>
     </div>

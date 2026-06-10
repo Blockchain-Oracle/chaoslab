@@ -1,31 +1,18 @@
 'use client'
 
-import { useEffect, useMemo, useRef } from 'react'
-import { EVENT_LOG } from '@/lib/timeline'
+import { useEffect, useRef } from 'react'
 
 interface EventFeedProps {
-  t: number
-  /** Live mode override — pre-formatted "TIMESTAMP  event payload" lines
-   *  arriving over the real SSE wire. When present, replaces the synthesized
-   *  EVENT_LOG slice. */
-  liveLines?: string[]
+  /** Pre-formatted "TIMESTAMP  event payload" wire lines — live SSE or the
+   *  replayed recorded timeline. There is no synthesized fallback. */
+  lines: string[]
 }
 
-export function EventFeed({ t, liveLines }: EventFeedProps) {
+export function EventFeed({ lines }: EventFeedProps) {
   const ref = useRef<HTMLDivElement | null>(null)
-  const visible = useMemo(() => {
-    if (liveLines) {
-      return liveLines.map((line) => ({ at: 0, line, prefix: '' }))
-    }
-    return EVENT_LOG.filter((e) => e.at <= t).map((e) => ({
-      at: e.at,
-      line: e.line,
-      prefix: e.at.toFixed(1).padStart(5, '0') + 's',
-    }))
-  }, [t, liveLines])
   useEffect(() => {
     if (ref.current) ref.current.scrollTop = ref.current.scrollHeight
-  }, [visible.length])
+  }, [lines.length])
   return (
     <div>
       <div
@@ -50,7 +37,7 @@ export function EventFeed({ t, liveLines }: EventFeedProps) {
           background: 'rgba(0,0,0,0.25)',
         }}
       >
-        {visible.length === 0 ? (
+        {lines.length === 0 ? (
           <div
             className="mono"
             style={{
@@ -59,23 +46,21 @@ export function EventFeed({ t, liveLines }: EventFeedProps) {
               opacity: 0.5,
             }}
           >
-            waiting for connection…
+            waiting for events…
           </div>
         ) : null}
-        {visible.map((e, i) => (
+        {lines.map((line, i) => (
           <div
             key={i}
             className="mono"
             style={{
               fontSize: 10.5,
               lineHeight: 1.9,
-              color: i === visible.length - 1 ? 'var(--ember-glow)' : 'var(--chamber-ink-3)',
+              color: i === lines.length - 1 ? 'var(--ember-glow)' : 'var(--chamber-ink-3)',
               whiteSpace: 'nowrap',
             }}
           >
-            {e.prefix ? <span style={{ opacity: 0.5 }}>{e.prefix}</span> : null}
-            {e.prefix ? '  ' : ''}
-            {e.line}
+            {line}
           </div>
         ))}
       </div>

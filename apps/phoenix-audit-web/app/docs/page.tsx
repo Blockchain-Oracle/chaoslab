@@ -87,7 +87,7 @@ const SECTIONS: DocSection[] = [
     no: '§7',
     title: 'Sample data vs your data',
     body: [
-      'Fresh accounts start empty — the stat blocks count your real audits only. The seeded Meridian sample world (the audits, agents and reports marked SAMPLE) exists so you can explore a finished audit before running one; it never mixes silently with your records, and sample fixtures are labeled everywhere they appear. The public demo replay at /replay is a recorded sample run.',
+      'The stat blocks count your real audits only. Rows marked SAMPLE are REAL audits of the deployed demo target — seeded through the same pipeline as yours and visible to every account so a fresh register is never empty. They are labeled everywhere they appear and never inflate your stats. The public demo replay at /replay plays the newest seeded run\u2019s recorded timeline.',
     ],
   },
 ]

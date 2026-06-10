@@ -8,7 +8,14 @@ import { A } from '@/components/ui/link'
 import { PageFoot } from '@/components/ui/page-foot'
 import { TopBar } from '@/components/ui/topbar'
 
-export function FinishedRunSummary({ detail }: { detail: RunDetailDto }) {
+interface FinishedRunSummaryProps {
+  detail: RunDetailDto
+  /** Set when a replay timeline WAS recorded but could not be loaded —
+   *  disclosed, never silently rendered as "no replay exists". */
+  replayError?: string
+}
+
+export function FinishedRunSummary({ detail, replayError }: FinishedRunSummaryProps) {
   const run = detail.run
   const failed = run.phase === 'failed'
   return (
@@ -63,6 +70,22 @@ export function FinishedRunSummary({ detail }: { detail: RunDetailDto }) {
             </div>
           ) : null}
         </div>
+        {replayError ? (
+          <p
+            className="mono"
+            style={{
+              fontSize: 11,
+              color: 'var(--warn, #8a6d1a)',
+              border: '1px dashed currentColor',
+              borderRadius: 4,
+              padding: '10px 14px',
+              marginBottom: 22,
+            }}
+          >
+            ⚠ A replay timeline was recorded for this run but could not be loaded right now (
+            {replayError}). Reload to retry.
+          </p>
+        ) : null}
         {failed && !run.report_available ? (
           <p className="mono muted" style={{ fontSize: 11.5, lineHeight: 1.7, marginBottom: 22 }}>
             ✕ Nothing was signed or filed for this run — completed probes are preserved in the

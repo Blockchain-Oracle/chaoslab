@@ -1,4 +1,4 @@
-import type { DerivedAuditState } from '@/lib/types'
+import type { Phase } from '@/lib/types'
 
 interface StationProps {
   label: string
@@ -74,14 +74,14 @@ function Connector({ active }: { active: boolean }) {
 }
 
 interface PipelineProps {
-  s: DerivedAuditState
+  phase: Phase
 }
 
-export function Pipeline({ s }: PipelineProps) {
-  const seq: DerivedAuditState['phase'][] = ['injector', 'judge', 'patcher']
-  const idx = seq.indexOf(s.phase)
-  const doneIdx = s.phase === 'succeeded' ? 3 : idx
-  const probing = s.phase === 'injector'
+export function Pipeline({ phase }: PipelineProps) {
+  const seq: Phase[] = ['injector', 'judge', 'patcher']
+  const idx = seq.indexOf(phase)
+  const doneIdx = phase === 'succeeded' ? 3 : idx
+  const probing = phase === 'injector'
   return (
     <div>
       <div
@@ -99,21 +99,21 @@ export function Pipeline({ s }: PipelineProps) {
         <Station
           label="INJECTOR"
           sub="sends the test battery"
-          active={s.phase === 'injector'}
+          active={phase === 'injector'}
           done={doneIdx > 0}
         />
         <Connector active={doneIdx >= 1} />
         <Station
           label="JUDGE"
           sub="verdicts + clustering"
-          active={s.phase === 'judge'}
+          active={phase === 'judge'}
           done={doneIdx > 1}
         />
         <Connector active={doneIdx >= 2} />
         <Station
           label="PATCHER"
           sub="hardening recipe"
-          active={s.phase === 'patcher'}
+          active={phase === 'patcher'}
           done={doneIdx > 2}
         />
       </div>
@@ -155,7 +155,7 @@ export function Pipeline({ s }: PipelineProps) {
             className="mono"
             style={{ fontSize: 10.5, color: 'var(--chamber-ink-3)', marginTop: 3 }}
           >
-            prior-auth · Google ADK · Depth 2 (instrumented)
+            instrumented over A2A · traces land in Phoenix
           </div>
         </div>
       </div>

@@ -1,12 +1,13 @@
-// Registry truth rules (story-9.10): stats count REAL work only; samples
-// hide behind an explicit affordance; artifact links must be earned.
+// Registry truth rules (story-9.10/9.11): stats count YOUR work only;
+// seeded samples are visible and labeled but never inflate account numbers;
+// artifact links must be earned.
 
 import { describe, expect, it } from 'vitest'
-import { realStats, visibleRows } from '@/lib/sample-merge'
 import { runToHistoryRow, type RunRecordDto } from '@/lib/api'
-import type { MergedRun } from '@/lib/sample-merge'
+import { registryStats } from '@/lib/registry-stats'
+import type { HistoryRow } from '@/lib/types'
 
-function row(over: Partial<MergedRun>): MergedRun {
+function row(over: Partial<HistoryRow>): HistoryRow {
   return {
     id: 'run_x',
     date: '2026-06-10T00:00:00Z',
@@ -19,34 +20,22 @@ function row(over: Partial<MergedRun>): MergedRun {
     source: 'manual',
     sample: false,
     ...over,
-  } as MergedRun
+  }
 }
 
-describe('realStats', () => {
-  it('counts only real rows — a fresh account reads 0, not 47', () => {
+describe('registryStats', () => {
+  it('counts only your rows — seeded samples never inflate account stats', () => {
     const rows = [
       row({ id: 'r1', pass: 6, fail: 0 }),
       row({ id: 'r2', pass: 3, fail: 3 }),
       row({ id: 's1', sample: true, pass: 6, fail: 0 }),
     ]
-    expect(realStats(rows)).toEqual({ audits: 2, withFindings: 1, passedClean: 1 })
+    expect(registryStats(rows)).toEqual({ audits: 2, withFindings: 1, passedClean: 1 })
   })
 
   it('errored-only runs are neither findings nor clean passes', () => {
     const rows = [row({ id: 'r1', pass: 0, fail: 0, errored: 6 })]
-    expect(realStats(rows)).toEqual({ audits: 1, withFindings: 0, passedClean: 0 })
-  })
-})
-
-describe('visibleRows', () => {
-  const rows = [row({ id: 'r1' }), row({ id: 's1', sample: true })]
-
-  it('hides samples by default', () => {
-    expect(visibleRows(rows, false).map((r) => r.id)).toEqual(['r1'])
-  })
-
-  it('shows samples only on explicit request', () => {
-    expect(visibleRows(rows, true).map((r) => r.id)).toEqual(['r1', 's1'])
+    expect(registryStats(rows)).toEqual({ audits: 1, withFindings: 0, passedClean: 0 })
   })
 })
 
@@ -68,7 +57,9 @@ describe('runToHistoryRow report availability', () => {
       transport_failed: 6,
       recipe_id: null,
       report_available: false,
+      events_available: false,
       mr_url: null,
+      owner_uid: 'user-a',
     } as RunRecordDto
     expect(runToHistoryRow(dto).reportAvailable).toBe(false)
   })
