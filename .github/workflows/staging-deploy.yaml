@@ -69,7 +69,10 @@ jobs:
             # and CI invoke it. SELF URL + invoker email resolve at deploy time
             # (scheduler-tick OIDC verification; fail-closed when unset).
             auth_flag: --no-allow-unauthenticated
-            extra_env: ",SERVICE_BASE_URL=__RESOLVE_SELF_URL__,SCHEDULER_INVOKER_EMAIL=__DEPLOY_SA__,FIREBASE_PROJECT_ID=__PROJECT_ID__,DEMO_TARGET_URL=__RESOLVE_TARGET_AGENT_URL__"
+            # KMS_SIGNING_KEY_VERSION: without it every run logs CRITICAL and
+            # skips the signed report (key provisioned by infra/workload-
+            # identity-federation.sh; staging never had it until 2026-06-10).
+            extra_env: ",SERVICE_BASE_URL=__RESOLVE_SELF_URL__,SCHEDULER_INVOKER_EMAIL=__DEPLOY_SA__,FIREBASE_PROJECT_ID=__PROJECT_ID__,DEMO_TARGET_URL=__RESOLVE_TARGET_AGENT_URL__,KMS_SIGNING_KEY_VERSION=projects/__PROJECT_ID__/locations/us-central1/keyRings/phoenix-audit/cryptoKeys/report-signer/cryptoKeyVersions/1"
             # The run registry + SSE queues are in-process (main.py): a second
             # instance means POST /run and GET /stream can land on different
             # pods → 404 mid-demo. One instance trivially handles the audit.
@@ -196,7 +199,9 @@ jobs:
           # infra/phoenix-self-host/ as the OSS distribution alternative.
           # phoenix-audit-web ignores these — its stub doesn't emit traces.
           PHOENIX_PROVIDER: customer
-          PHOENIX_COLLECTOR_ENDPOINT: https://app.phoenix.arize.com/v1/traces
+          # Space-scoped URL is REQUIRED on Phoenix Cloud — the bare host 401s
+          # every export AND the judge's rubric reads (RAT-results.md C1).
+          PHOENIX_COLLECTOR_ENDPOINT: https://app.phoenix.arize.com/s/blockchainoracle-dev/v1/traces
         run: |
           if [ "${{ steps.bluegreen.outputs.value }}" = "true" ]; then
             CANDIDATE_FLAGS="--tag=candidate --no-traffic"
@@ -207,7 +212,9 @@ jobs:
           # would silently mis-wire web->agent on a recreated service or a
           # forked project. Fails loud if the agent has never been deployed.
           EXTRA_ENV='${{ matrix.extra_env }}'
-          EXTRA_ENV="${EXTRA_ENV/__PROJECT_ID__/${PROJECT_ID}}"
+          # // = replace ALL occurrences — extra_env carries the placeholder
+          # twice (FIREBASE_PROJECT_ID + KMS_SIGNING_KEY_VERSION).
+          EXTRA_ENV="${EXTRA_ENV//__PROJECT_ID__/${PROJECT_ID}}"
           if [ "${EXTRA_ENV#*__RESOLVE_AGENT_URL__}" != "${EXTRA_ENV}" ]; then
             AGENT_URL=$(gcloud run services describe phoenix-audit-agent \
               --region="${REGION}" --format='value(status.url)')
