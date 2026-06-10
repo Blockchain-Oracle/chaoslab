@@ -631,6 +631,26 @@ stories:
     issue_url: ""
     pr_url: "https://github.com/Blockchain-Oracle/phoenix-audit/pull/98"
     merged_at: "2026-06-10T14:29:00Z"
+  - id: story-9.11-truth-pass-2
+    epic: "Epic 9 — product surfaces real"
+    # Code merged (PRs #99 + #100); status flips COMPLETE after the staging
+    # seed + featured-run/replay verification walk (needs Abu's ADC login).
+    status: PENDING
+    estimate_hours: 0.0
+    tags: [fullstack, p0, ux-truth]
+    depends_on: [story-9.10-ux-truth-pass]
+    issue_url: ""
+    pr_url: "https://github.com/Blockchain-Oracle/phoenix-audit/pull/100"
+    merged_at: "2026-06-10T17:50:00Z"
+  - id: story-9.12-user-profile
+    epic: "Epic 9 — product surfaces real"
+    status: COMPLETE
+    estimate_hours: 0.0
+    tags: [fullstack, p0, settings]
+    depends_on: [story-9.4-firebase-auth, story-9.11-truth-pass-2]
+    issue_url: ""
+    pr_url: "https://github.com/Blockchain-Oracle/phoenix-audit/pull/101"
+    merged_at: "2026-06-10T18:30:00Z"
 
 # Totals: 58 stories across 9 epics.
 # Aggregate estimate: ~78 hours of coding-agent work.
