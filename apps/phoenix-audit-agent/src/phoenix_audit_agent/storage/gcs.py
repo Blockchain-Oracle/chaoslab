@@ -19,6 +19,26 @@ if TYPE_CHECKING:
 _CLIENT: Any | None = None
 
 
+_IAM_SIGNING_CREDS: Any | None = None
+
+
+def _iam_signing_credentials() -> Any:
+    """cloud-platform-scoped ADC for IAM signBlob calls (module-cached).
+
+    The storage client's own token is devstorage-scoped and the IAM
+    credentials API rejects it with 403 "insufficient authentication
+    scopes" — signing needs a separately-scoped token.
+    """
+    global _IAM_SIGNING_CREDS
+    if _IAM_SIGNING_CREDS is None:
+        import google.auth
+
+        _IAM_SIGNING_CREDS, _ = google.auth.default(
+            scopes=["https://www.googleapis.com/auth/cloud-platform"]
+        )
+    return _IAM_SIGNING_CREDS
+
+
 def signed_get_url(blob: Any, *, ttl: timedelta) -> str:
     """v4 signed GET URL that also works on token-only credentials.
 
@@ -33,13 +53,16 @@ def signed_get_url(blob: Any, *, ttl: timedelta) -> str:
     kwargs: dict[str, Any] = {}
     creds = getattr(getattr(blob, "client", None), "_credentials", None)
     if creds is not None and not hasattr(creds, "sign_bytes"):
-        if not getattr(creds, "valid", False):
+        iam_creds = _iam_signing_credentials()
+        if not getattr(iam_creds, "valid", False):
             from google.auth.transport import requests as ga_requests
 
-            creds.refresh(ga_requests.Request())
+            iam_creds.refresh(ga_requests.Request())
         kwargs = {
-            "service_account_email": creds.service_account_email,
-            "access_token": creds.token,
+            "service_account_email": (
+                getattr(iam_creds, "service_account_email", None) or creds.service_account_email
+            ),
+            "access_token": iam_creds.token,
         }
     return str(blob.generate_signed_url(version="v4", expiration=ttl, method="GET", **kwargs))
 
