@@ -30,6 +30,7 @@ from phoenix_audit_agent._time import utc_now_iso
 from phoenix_audit_agent.api._url_guard import validate_target_url
 from phoenix_audit_agent.api.agents import router as agents_router
 from phoenix_audit_agent.api.auth import AuthedUser, require_user
+from phoenix_audit_agent.api.profile import router as profile_router
 from phoenix_audit_agent.api.runs import router as runs_router
 from phoenix_audit_agent.api.schedules import router as schedules_router
 from phoenix_audit_agent.api.schedules import set_run_launcher
@@ -397,6 +398,7 @@ set_run_launcher(_launch_scheduled_run)
 app.include_router(runs_router)
 app.include_router(agents_router)
 app.include_router(schedules_router)
+app.include_router(profile_router)
 
 
 def run_uvicorn() -> None:

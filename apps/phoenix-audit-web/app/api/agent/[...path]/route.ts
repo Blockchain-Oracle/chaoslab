@@ -23,6 +23,7 @@ const ALLOWED = [
   /^agents\/[a-zA-Z0-9_-]+$/,
   /^schedules$/,
   /^schedules\/[a-zA-Z0-9_-]+$/,
+  /^profile$/,
   /^health$/,
 ]
 
