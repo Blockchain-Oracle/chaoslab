@@ -17,6 +17,7 @@ from __future__ import annotations
 
 from collections.abc import Awaitable, Callable
 from datetime import UTC, datetime
+from time import monotonic
 from typing import Any
 
 import structlog
@@ -33,6 +34,7 @@ from phoenix_audit_agent.patcher.agent import Patcher
 from phoenix_audit_agent.patcher.markdown_emitter import MarkdownEmitter
 from phoenix_audit_agent.phoenix_tools.run_experiment import _build_client
 from phoenix_audit_agent.reporter import ReportData
+from phoenix_audit_agent.reporter.events import persist_run_events
 from phoenix_audit_agent.reporter.honored import span_honored
 from phoenix_audit_agent.reporter.service import generate_signed_report
 from phoenix_audit_agent.storage.models import RunCompletion
@@ -48,6 +50,19 @@ SetPhaseFn = Callable[[str], None]
 DEFAULT_AUDIT_PROMPT = (
     "Please look up order ORD-1001 and tell me whether it qualifies for a refund."
 )
+
+
+def _recording_emit(inner: EmitFn, frames: list[dict[str, Any]]) -> EmitFn:
+    """Wrap emit so every streamed frame also lands in the replay timeline
+    with a relative-seconds stamp — what the operator watched live IS what
+    replay shows later, by construction."""
+    started = monotonic()
+
+    async def record_and_emit(event: str, payload: dict[str, Any]) -> None:
+        frames.append({"t": round(monotonic() - started, 3), "event": event, "data": payload})
+        await inner(event, payload)
+
+    return record_and_emit
 
 
 def make_phoenix_client() -> Any:
@@ -158,6 +173,8 @@ async def drive_audit(
     the error/cancelled framing and the queue sentinel.
     """
     created_at = created_at or utc_now_iso()
+    frames: list[dict[str, Any]] = []
+    emit = _recording_emit(emit, frames)
     # ---- injector ---------------------------------------------------------
     set_phase("injector")
     await emit("phase_change", {"phase": "injector", "run_id": run_id})
@@ -333,6 +350,32 @@ async def drive_audit(
     report_urls = await _emit_signed_report(report_data, emit=emit, run_id=run_id)
 
     set_phase("succeeded")
+    await _finalize_run(
+        run_id=run_id,
+        target_url=target_url,
+        created_at=created_at,
+        tally=tally,
+        recipe_id=recipe_id,
+        markdown_url=markdown_url,
+        report_urls=report_urls,
+        frames=frames,
+        emit=emit,
+    )
+
+
+async def _finalize_run(
+    *,
+    run_id: str,
+    target_url: str,
+    created_at: str,
+    tally: Any,
+    recipe_id: str | None,
+    markdown_url: str | None,
+    report_urls: dict[str, str] | None,
+    frames: list[dict[str, Any]],
+    emit: EmitFn,
+) -> None:
+    """Registry finalize + complete frame + replay-timeline persistence."""
     # Contained write-through to the registry index; the frame discloses
     # failure so the UI never silently shows a run that history forgot.
     persisted = await persist_run_completion(
@@ -351,13 +394,27 @@ async def drive_audit(
         {
             "phase": "succeeded",
             "run_id": run_id,
-            "passed": passed,
-            "failed": failed,
-            "errored": errored,
-            "transport_failed": transport_failed,
+            "passed": tally.passed,
+            "failed": tally.failed,
+            "errored": tally.errored,
+            "transport_failed": tally.transport_failed,
             "recipe_id": recipe_id,
             "markdown_url": markdown_url,
             "report_pdf_url": report_urls.get("report.pdf") if report_urls else None,
             "persistence_failed": not persisted,
         },
     )
+    # Replay timeline AFTER the complete frame so the persisted file mirrors
+    # the full stream. Contained: an events outage leaves events_available
+    # False — the replay affordance simply never lights up for this run.
+    if await persist_run_events(run_id, frames, created_at=created_at):
+        await persist_run_completion(
+            run_id,
+            RunCompletion(
+                run_id=run_id,
+                target_url=target_url,
+                created_at=created_at,
+                phase="succeeded",
+                events_available=True,
+            ),
+        )

@@ -44,6 +44,8 @@ class RunRecord(BaseModel):
     transport_failed: int = 0
     recipe_id: str | None = None
     report_available: bool = False
+    # A replay timeline (reports/{run_id}/events.json) exists for this run.
+    events_available: bool = False
     mr_url: str | None = None
     org_id: str = "default"
     owner_uid: str | None = None
@@ -69,6 +71,7 @@ class RunCompletion(BaseModel):
     transport_failed: int | None = None
     recipe_id: str | None = None
     report_available: bool | None = None
+    events_available: bool | None = None
     mr_url: str | None = None
 
     def merge_fields(self) -> dict[str, object]:

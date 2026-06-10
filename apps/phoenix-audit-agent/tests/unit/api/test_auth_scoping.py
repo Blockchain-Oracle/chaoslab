@@ -319,7 +319,9 @@ def test_every_route_requires_user_or_is_explicitly_public() -> None:
     from phoenix_audit_agent.api.auth import require_user
     from phoenix_audit_agent.main import app
 
-    public = {"/health", "/internal/scheduler-tick"}  # tick has its own OIDC gate
+    # tick has its own OIDC gate; /featured-run serves ONLY ownerless sample
+    # runs (story-9.11) and is the public /replay showcase source.
+    public = {"/health", "/internal/scheduler-tick", "/featured-run"}
     fastapi_builtins = {"/openapi.json", "/docs", "/docs/oauth2-redirect", "/redoc"}
 
     unprotected = [
