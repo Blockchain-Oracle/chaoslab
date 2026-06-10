@@ -36,8 +36,9 @@ logger = logging.getLogger(__name__)
 _QUEUE_SENTINEL: None = None
 
 # How long to keep finished run state in the registries before sweeping it out
-# (in seconds). A /stream client may still be replaying a just-finished run, so
-# the registry isn't dropped immediately on task completion.
+# (in seconds). Queues are consumed-once (no replay): the window lets a client
+# that hasn't connected yet drain the buffered frames of a just-finished run.
+# Reconnects after the queue is drained get a terminal `stream_end` frame.
 _RUN_CLEANUP_DELAY_SEC = 300.0
 
 RunPhase = Literal["queued", "injector", "judge", "patcher", "succeeded", "failed"]
@@ -284,6 +285,26 @@ async def stream(
                 except TimeoutError:
                     if await request.is_disconnected():
                         _cancel_task(runId)
+                        return
+                    # Reconnect after the run finished: the queue was already
+                    # drained (sentinel consumed by the first consumer), so
+                    # without this the generator ticks forever while the
+                    # chamber shows "connected". Frames are enqueued before
+                    # the task completes, so done-task + empty queue means
+                    # there is nothing left to deliver — say so and close.
+                    task = _RUN_TASKS.get(runId)
+                    if (task is None or task.done()) and queue.empty():
+                        state = _RUN_REGISTRY.get(runId)
+                        yield {
+                            "event": "stream_end",
+                            "data": json.dumps(
+                                {
+                                    "run_id": runId,
+                                    "phase": state.phase if state else "unknown",
+                                    "reason": "events_already_consumed",
+                                }
+                            ),
+                        }
                         return
                     continue
                 if frame is _QUEUE_SENTINEL:

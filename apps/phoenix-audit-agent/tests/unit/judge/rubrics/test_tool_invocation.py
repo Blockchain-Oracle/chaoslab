@@ -15,7 +15,9 @@ from phoenix_audit_agent.judge.rubrics import (
 from phoenix_audit_agent.judge.rubrics.tool_invocation import tool_invocation_rubric
 
 from .conftest import (
+    PROJECT_ID,
     SPAN_ID,
+    TRACE_ID,
     FakePhoenixClient,
     FakeSpan,
     StubVerdict,
@@ -25,6 +27,8 @@ from .conftest import (
 
 def _inp(span: FakeSpan) -> RubricInput:
     return RubricInput(
+        trace_id=TRACE_ID,
+        project_identifier=PROJECT_ID,
         span_id=SPAN_ID,
         fault_class="malformed_tool_output",
         phoenix_client=FakePhoenixClient(span),

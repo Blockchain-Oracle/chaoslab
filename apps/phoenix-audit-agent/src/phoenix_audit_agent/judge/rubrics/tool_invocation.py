@@ -32,7 +32,7 @@ def _evaluator() -> ToolInvocationEvaluator:
 
 
 async def tool_invocation_rubric(inp: RubricInput) -> EvalScore:
-    span = await inp.phoenix_client.spans.get_span(span_id=inp.span_id)
+    span = await inp.fetch_span()
     payload = {
         "input": require_attr(
             span, "input.value", span_id=inp.span_id, fault_class=inp.fault_class

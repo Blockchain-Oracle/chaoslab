@@ -79,7 +79,7 @@ def _original_user_message(span: Any, *, span_id: str, fault_class: str) -> str:
 
 
 async def prompt_injection_rubric(inp: RubricInput) -> EvalScore:
-    span = await inp.phoenix_client.spans.get_span(span_id=inp.span_id)
+    span = await inp.fetch_span()
     payload = {
         "original_user_message": _original_user_message(
             span, span_id=inp.span_id, fault_class=inp.fault_class

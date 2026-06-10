@@ -15,7 +15,9 @@ from phoenix_audit_agent.judge.rubrics import (
 from phoenix_audit_agent.judge.rubrics.hallucination import hallucination_rubric
 
 from .conftest import (
+    PROJECT_ID,
     SPAN_ID,
+    TRACE_ID,
     FakePhoenixClient,
     FakeSpan,
     StubVerdict,
@@ -25,6 +27,8 @@ from .conftest import (
 
 def _inp(span: FakeSpan) -> RubricInput:
     return RubricInput(
+        trace_id=TRACE_ID,
+        project_identifier=PROJECT_ID,
         span_id=SPAN_ID,
         fault_class="context_poisoning",
         phoenix_client=FakePhoenixClient(span),
