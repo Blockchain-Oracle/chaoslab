@@ -569,13 +569,13 @@ stories:
   # ---------- Epic 9 — product surfaces go real (post-prototype gap-close) ----------
   - id: story-9.1-firestore-persistence
     epic: "Epic 9 — product surfaces real"
-    status: PENDING
+    status: COMPLETE
     estimate_hours: 0.0
     tags: [backend, p0, persistence]
     depends_on: [story-5.8-real-audit-pipeline]
     issue_url: ""
-    pr_url: ""
-    merged_at: ""
+    pr_url: "https://github.com/Blockchain-Oracle/phoenix-audit/pull/92"
+    merged_at: "2026-06-10"
   - id: story-9.2-web-real-wiring
     epic: "Epic 9 — product surfaces real"
     status: PENDING
