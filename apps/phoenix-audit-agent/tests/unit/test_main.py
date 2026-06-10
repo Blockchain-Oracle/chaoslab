@@ -37,6 +37,11 @@ def _env(monkeypatch: pytest.MonkeyPatch, tmp_path) -> Iterator[None]:
 
     Also resets the module-level run registries — every test in this module
     starts from a clean slate, regardless of which fixtures it requests."""
+    from phoenix_audit_agent.storage import agents as agent_storage
+    from phoenix_audit_agent.storage import runs as run_storage
+
+    from .storage.fakes import InMemoryAgentStore, InMemoryRunStore
+
     for key in list(os.environ):
         if key.startswith(("PHOENIX_", "GEMINI_", "JUDGE_", "TARGET_", "GITLAB_", "GCS_")):
             monkeypatch.delenv(key, raising=False)
@@ -44,7 +49,13 @@ def _env(monkeypatch: pytest.MonkeyPatch, tmp_path) -> Iterator[None]:
     monkeypatch.chdir(tmp_path)
     get_settings.cache_clear()
     _reset_run_registries()
+    # In-memory store seams — POST /run write-through must never touch real
+    # Firestore from a developer machine with live ADC.
+    run_storage.set_run_store(InMemoryRunStore())
+    agent_storage.set_agent_store(InMemoryAgentStore())
     yield
+    run_storage.set_run_store(None)
+    agent_storage.set_agent_store(None)
     _reset_run_registries()
     get_settings.cache_clear()
 
@@ -321,6 +332,47 @@ async def test_stream_emits_full_phase_change_sequence(
     pat = joined.find('"phase": "patcher"')
     assert -1 < inj < jud < pat, f"phase order broken (inj={inj}, jud={jud}, pat={pat}):\n{joined}"
     assert joined.count("event: phase_change") == 3, joined
+
+
+async def test_orchestrator_failure_persists_failed_phase(
+    client: httpx.AsyncClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A crashed audit must not read as 'queued' in the registry forever."""
+    from phoenix_audit_agent import main as _main
+    from phoenix_audit_agent.storage import runs as run_storage
+
+    async def boom(**_kw) -> None:
+        raise RuntimeError("synthetic pipeline crash")
+
+    monkeypatch.setattr(_main, "drive_audit", boom)
+
+    r = await client.post("/run", json={"target_url": "http://localhost:8001"})
+    run_id = r.json()["run_id"]
+    # drain the stream so the orchestrator task completes
+    async with client.stream("GET", f"/stream?runId={run_id}") as resp:
+        async for _ in resp.aiter_text():
+            pass
+
+    record = await run_storage.get_run_store().get(run_id)
+    assert record is not None
+    assert record.phase == "failed"
+    assert record.finished_at is not None
+
+
+async def test_post_run_writes_run_record_with_source(client: httpx.AsyncClient) -> None:
+    """POST /run write-through: the registry index gets a queued record."""
+    from phoenix_audit_agent.storage import runs as run_storage
+
+    r = await client.post(
+        "/run", json={"target_url": "http://localhost:8001", "source": "scheduled"}
+    )
+    run_id = r.json()["run_id"]
+
+    record = await run_storage.get_run_store().get(run_id)
+    assert record is not None
+    assert record.source == "scheduled"
+    assert record.target_url == "http://localhost:8001"
+    assert record.phase == "queued"
 
 
 async def test_get_agents_known_returns_spec(client: httpx.AsyncClient) -> None:

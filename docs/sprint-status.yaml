@@ -566,7 +566,63 @@ stories:
     pr_url: ""
     merged_at: ""
 
-# Totals: 52 stories across 8 epics.
+  # ---------- Epic 9 — product surfaces go real (post-prototype gap-close) ----------
+  - id: story-9.1-firestore-persistence
+    epic: "Epic 9 — product surfaces real"
+    status: PENDING
+    estimate_hours: 0.0
+    tags: [backend, p0, persistence]
+    depends_on: [story-5.8-real-audit-pipeline]
+    issue_url: ""
+    pr_url: ""
+    merged_at: ""
+  - id: story-9.2-web-real-wiring
+    epic: "Epic 9 — product surfaces real"
+    status: PENDING
+    estimate_hours: 0.0
+    tags: [frontend, p0]
+    depends_on: [story-9.1-firestore-persistence]
+    issue_url: ""
+    pr_url: ""
+    merged_at: ""
+  - id: story-9.3-monitoring-scheduler
+    epic: "Epic 9 — product surfaces real"
+    status: PENDING
+    estimate_hours: 0.0
+    tags: [backend, p0, monitoring]
+    depends_on: [story-9.1-firestore-persistence]
+    issue_url: ""
+    pr_url: ""
+    merged_at: ""
+  - id: story-9.4-firebase-auth
+    epic: "Epic 9 — product surfaces real"
+    status: PENDING
+    estimate_hours: 0.0
+    tags: [fullstack, p0, auth]
+    depends_on: [story-9.2-web-real-wiring]
+    issue_url: ""
+    pr_url: ""
+    merged_at: ""
+  - id: story-9.5-email-summaries
+    epic: "Epic 9 — product surfaces real"
+    status: PENDING
+    estimate_hours: 0.0
+    tags: [backend, p1, email]
+    depends_on: [story-9.3-monitoring-scheduler]
+    issue_url: ""
+    pr_url: ""
+    merged_at: ""
+  - id: story-9.6-gitlab-e2e-verification
+    epic: "Epic 9 — product surfaces real"
+    status: PENDING
+    estimate_hours: 0.0
+    tags: [verification, p0, gitlab]
+    depends_on: [story-9.1-firestore-persistence]
+    issue_url: ""
+    pr_url: ""
+    merged_at: ""
+
+# Totals: 58 stories across 9 epics.
 # Aggregate estimate: ~78 hours of coding-agent work.
 # 9 days × multiple parallel coding agents = comfortably fits.
 # Critical path: 1.1 → 1.2 → 1.5 → 1.6 → 1.7 → 2.1 → ... → 5.7 → 6.x → 8.4.

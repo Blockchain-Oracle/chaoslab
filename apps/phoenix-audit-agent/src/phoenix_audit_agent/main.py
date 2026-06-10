@@ -26,8 +26,12 @@ from fastapi import FastAPI, HTTPException, Request
 from pydantic import BaseModel, ConfigDict, Field
 from sse_starlette.sse import EventSourceResponse
 
+from phoenix_audit_agent.api.agents import router as agents_router
+from phoenix_audit_agent.api.runs import router as runs_router
 from phoenix_audit_agent.audit_runner import drive_audit
 from phoenix_audit_agent.config import GCS_PROBE_ENV_NAME, get_settings
+from phoenix_audit_agent.storage.models import RunRecord, RunSource
+from phoenix_audit_agent.storage.runs import create_run_record, persist_run_completion
 
 logger = logging.getLogger(__name__)
 
@@ -61,6 +65,10 @@ class RunRequest(BaseModel):
         le=20,
         description="Attacks per fault class (4 classes -> total = 4x this).",
     )
+    source: RunSource = Field(
+        default="manual",
+        description="manual (operator-initiated) or scheduled (monitoring tick).",
+    )
 
 
 class RunResponse(BaseModel):
@@ -74,13 +82,6 @@ class HealthResponse(BaseModel):
     version: str
     judge_llm: str
     phoenix_provider: Literal["phoenix-audit", "customer"]
-
-
-class AgentSpec(BaseModel):
-    agent_id: str
-    url: str
-    framework: Literal["adk-a2a", "langchain-http", "crewai-http", "openai-agents", "http-blackbox"]
-    registered_at: str
 
 
 class _RunState(BaseModel):
@@ -103,17 +104,6 @@ class _RunState(BaseModel):
 _RUN_REGISTRY: dict[str, _RunState] = {}
 _RUN_QUEUES: dict[str, asyncio.Queue[dict[str, Any] | None]] = {}
 _RUN_TASKS: dict[str, asyncio.Task[None]] = {}
-
-# Demo target — a hardcoded seed for `/agents/{id}` resolution. The real
-# cross-framework adapter registry is the responsibility of Epic 3.
-_AGENT_REGISTRY: dict[str, AgentSpec] = {
-    "demo-target": AgentSpec(
-        agent_id="demo-target",
-        url="http://localhost:8001",
-        framework="adk-a2a",
-        registered_at="2026-06-08T00:00:00Z",
-    ),
-}
 
 
 def _iso_now() -> str:
@@ -167,6 +157,7 @@ async def _drive_orchestrator(run_id: str) -> None:
         # the cancelled frame or sentinel; queue is unbounded so put_nowait is safe.
         queue.put_nowait({"event": "cancelled", "data": json.dumps({"run_id": run_id})})
         queue.put_nowait(_QUEUE_SENTINEL)
+        await _persist_failed_phase(run_id, state)
         raise
     except Exception as e:
         state.phase = "failed"
@@ -178,8 +169,24 @@ async def _drive_orchestrator(run_id: str) -> None:
             }
         )
         queue.put_nowait(_QUEUE_SENTINEL)
+        await _persist_failed_phase(run_id, state)
         return
     queue.put_nowait(_QUEUE_SENTINEL)
+
+
+async def _persist_failed_phase(run_id: str, state: _RunState) -> None:
+    """Contained registry update — a crashed audit must not read as 'queued'
+    in the regulator-facing registry forever."""
+    await persist_run_completion(
+        run_id,
+        {
+            "run_id": run_id,
+            "target_url": state.request.target_url,
+            "created_at": state.created_at,
+            "phase": "failed",
+            "finished_at": _iso_now(),
+        },
+    )
 
 
 def _schedule_run_cleanup(run_id: str, delay: float = _RUN_CLEANUP_DELAY_SEC) -> None:
@@ -258,6 +265,17 @@ async def start_run(payload: RunRequest) -> RunResponse:
     created = _iso_now()
     _RUN_REGISTRY[run_id] = _RunState(run_id=run_id, request=payload, created_at=created)
     _RUN_QUEUES[run_id] = asyncio.Queue()
+    # Write-through to the registry index (contained — a Firestore outage must
+    # never block an audit; finalize at run end heals a failed create).
+    await create_run_record(
+        RunRecord(
+            run_id=run_id,
+            agent_id=payload.agent_id,
+            target_url=payload.target_url,
+            source=payload.source,
+            created_at=created,
+        )
+    )
     task = asyncio.create_task(_drive_orchestrator(run_id))
     task.add_done_callback(lambda _t: _schedule_run_cleanup(run_id))
     _RUN_TASKS[run_id] = task
@@ -328,12 +346,8 @@ def _cancel_task(run_id: str) -> None:
         task.cancel()
 
 
-@app.get("/agents/{agent_id}", response_model=AgentSpec)
-async def get_agent(agent_id: str) -> AgentSpec:
-    spec = _AGENT_REGISTRY.get(agent_id)
-    if spec is None:
-        raise HTTPException(status_code=404, detail=f"agent_id not found: {agent_id}")
-    return spec
+app.include_router(runs_router)
+app.include_router(agents_router)
 
 
 def run_uvicorn() -> None:

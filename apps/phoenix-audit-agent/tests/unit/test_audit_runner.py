@@ -35,14 +35,22 @@ from phoenix_audit_agent.patcher.recipe import HardeningRecipe
 
 @pytest.fixture(autouse=True)
 def _settings_env(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
-    # _judge_attacks reads TARGET_PHOENIX_PROJECT via get_settings(); wire the
+    # drive_audit reads TARGET_PHOENIX_PROJECT via get_settings(); wire the
     # Vertex path so Settings() construction is deterministic regardless of the
     # developer's shell env (CI runs clean — local .env must not mask this).
+    from phoenix_audit_agent.storage import runs as run_storage
+
+    from .storage.fakes import InMemoryRunStore
+
     monkeypatch.setenv("GOOGLE_GENAI_USE_VERTEXAI", "true")
     monkeypatch.setenv("GOOGLE_CLOUD_PROJECT", "test-project")
     monkeypatch.setenv("GOOGLE_CLOUD_LOCATION", "us-central1")
     get_settings.cache_clear()
+    # In-memory store seam — the finalize write-through must never touch real
+    # Firestore from a developer machine with live ADC.
+    run_storage.set_run_store(InMemoryRunStore())
     yield
+    run_storage.set_run_store(None)
     get_settings.cache_clear()
 
 
@@ -521,6 +529,60 @@ async def test_all_transport_failures_is_not_a_clean_run(wired: _Emitted) -> Non
     complete = wired.first("complete")
     assert complete["failed"] == 1
     assert complete["transport_failed"] == 1
+    assert phases == ["injector", "judge", "patcher", "succeeded"]
+
+
+@pytest.mark.asyncio
+async def test_completion_persisted_to_run_store(wired: _Emitted) -> None:
+    """The registry index gets the finalize write-through; the complete frame
+    discloses persistence success."""
+    from phoenix_audit_agent.storage import runs as run_storage
+
+    _FakeInjector.results = [
+        _attack_result(0, SPAN_OK_PASS, "ok"),
+        _attack_result(1, SPAN_OK_FAIL, "ok"),
+    ]
+    phases: list[str] = []
+
+    await drive_audit_for_test(wired, phases)
+
+    record = await run_storage.get_run_store().get("run_fixturecase1")
+    assert record is not None
+    assert record.phase == "succeeded"
+    assert record.passed == 1
+    assert record.failed == 1
+    assert record.recipe_id == "recipe_deadbeefcafe"
+    assert record.report_available is True
+    assert record.finished_at is not None
+    assert wired.first("complete")["persistence_failed"] is False
+
+
+@pytest.mark.asyncio
+async def test_persistence_failure_disclosed_never_fatal(wired: _Emitted) -> None:
+    """A Firestore outage must not void a successful audit — the run completes
+    and the complete frame is MARKED (CLAUDE.md pattern #4)."""
+    from phoenix_audit_agent.storage import runs as run_storage
+
+    class _DownStore:
+        async def create(self, record: Any) -> None:
+            raise RuntimeError("firestore down")
+
+        async def finalize(self, run_id: str, fields: dict[str, Any]) -> None:
+            raise RuntimeError("firestore down")
+
+        async def list_runs(self, **kw: Any) -> list[Any]:
+            return []
+
+        async def get(self, run_id: str) -> Any:
+            return None
+
+    run_storage.set_run_store(_DownStore())
+    _FakeInjector.results = [_attack_result(0, SPAN_OK_PASS, "ok")]
+    phases: list[str] = []
+
+    await drive_audit_for_test(wired, phases)
+
+    assert wired.first("complete")["persistence_failed"] is True
     assert phases == ["injector", "judge", "patcher", "succeeded"]
 
 
