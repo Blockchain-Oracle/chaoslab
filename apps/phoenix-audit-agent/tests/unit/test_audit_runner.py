@@ -688,6 +688,68 @@ async def test_events_timeline_persisted_and_flagged(wired: _Emitted) -> None:
 
 
 @pytest.mark.asyncio
+async def test_pipeline_failure_persists_partial_timeline(
+    wired: _Emitted, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A mid-audit crash keeps the already-recorded frames replayable — a
+    failed run's timeline is exactly when replay matters for forensics
+    (PR #99 review C1)."""
+    import phoenix_audit_agent.audit_runner as ar
+    from phoenix_audit_agent.storage import runs as run_storage
+
+    async def boom_clustering(failures: Any, client: Any, **_: Any) -> Any:
+        msg = "synthetic-clusterer-crash"
+        raise RuntimeError(msg)
+
+    monkeypatch.setattr(ar, "run_clustering", boom_clustering)
+    _FakeInjector.results = [_attack_result(0, SPAN_OK_FAIL, "ok")]
+    phases: list[str] = []
+
+    with pytest.raises(RuntimeError, match="synthetic-clusterer-crash"):
+        await drive_audit_for_test(wired, phases)
+
+    (call,) = wired.events_calls
+    frames = call["frames"]
+    # Everything emitted before the crash is preserved — and nothing more.
+    assert [f["event"] for f in frames] == wired.names()
+    assert "complete" not in [f["event"] for f in frames]
+    record = await run_storage.get_run_store().get("run_fixturecase1")
+    assert record is not None
+    assert record.events_available is True
+    assert record.phase == "failed"
+
+
+@pytest.mark.asyncio
+async def test_events_flag_finalize_failure_is_contained(
+    wired: _Emitted, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """events.json uploaded but the events_available registry write fails:
+    the audit still completes; the flag stays False (GCS/registry drift is
+    logged at the call site — disclosure, not silence)."""
+    import phoenix_audit_agent.audit_runner as ar
+    from phoenix_audit_agent.storage import runs as run_storage
+
+    real_persist = ar.persist_run_completion
+
+    async def flaky_persist(run_id: str, completion: Any) -> bool:
+        if completion.events_available:
+            return False
+        return await real_persist(run_id, completion)
+
+    monkeypatch.setattr(ar, "persist_run_completion", flaky_persist)
+    _FakeInjector.results = [_attack_result(0, SPAN_OK_PASS, "ok")]
+    phases: list[str] = []
+
+    await drive_audit_for_test(wired, phases)
+
+    assert wired.first("complete")["persistence_failed"] is False
+    record = await run_storage.get_run_store().get("run_fixturecase1")
+    assert record is not None
+    assert record.events_available is False
+    assert phases == ["injector", "judge", "patcher", "succeeded"]
+
+
+@pytest.mark.asyncio
 async def test_events_persist_failure_contained(
     wired: _Emitted, monkeypatch: pytest.MonkeyPatch
 ) -> None:

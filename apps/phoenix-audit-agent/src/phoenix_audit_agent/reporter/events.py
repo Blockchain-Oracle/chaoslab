@@ -1,8 +1,9 @@
 """Replay-timeline artifact — reports/{run_id}/events.json (story-9.11).
 
-Every audit's SSE frame stream is persisted verbatim so any finished run can
-be replayed from wire truth. Same bucket/path conventions and create-only
-upload as the report artifact set (ReportEmitter reuse).
+The SSE frame stream of succeeded AND failed audits is persisted verbatim so
+those runs replay from wire truth (cancelled runs are not persisted — awaits
+during task cancellation re-raise). Same bucket/path conventions and
+create-only upload as the report artifact set (ReportEmitter reuse).
 """
 
 from __future__ import annotations

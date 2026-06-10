@@ -118,10 +118,14 @@ async def featured_run() -> RunDetailResponse:
     """Public (deliberately unauthenticated) — the newest ownerless finished
     run with a replay timeline. Backs the landing /replay showcase; owned
     runs can never surface here."""
-    rows, _truncated = await get_run_store().list_runs(limit=200, visible_to=None)
+    rows, truncated = await get_run_store().list_runs(limit=200, visible_to=None)
     for record in rows:
         if record.owner_uid is None and record.phase == "succeeded" and record.events_available:
             return await _detail_response(record)
+    if truncated:
+        # Samples may exist beyond the newest-200 window — disclosed, so the
+        # public showcase going dark under growth is greppable, not silent.
+        _log.warning("featured_run_404_window_truncated", scanned=len(rows))
     raise HTTPException(status_code=404, detail="no featured run available")
 
 

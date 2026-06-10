@@ -24,8 +24,12 @@ import sys
 from phoenix_audit_agent._time import utc_now_iso
 from phoenix_audit_agent.audit_runner import drive_audit
 from phoenix_audit_agent.config import get_settings
-from phoenix_audit_agent.storage.models import RunRecord
-from phoenix_audit_agent.storage.runs import create_run_record, get_run_store
+from phoenix_audit_agent.storage.models import RunCompletion, RunRecord
+from phoenix_audit_agent.storage.runs import (
+    create_run_record,
+    get_run_store,
+    persist_run_completion,
+)
 
 
 async def existing_sample_count() -> int:
@@ -43,16 +47,38 @@ async def seed_one(target_url: str, runs_per_fault: int) -> str:
     )
 
     async def emit(event: str, payload: dict) -> None:
-        print(f"  [{run_id}] {event}", flush=True)
+        # persistence_failed surfaced loudly: a seed whose registry write
+        # failed must not read as a clean "seed complete".
+        suffix = (
+            " PERSISTENCE_FAILED"
+            if event == "complete" and payload.get("persistence_failed")
+            else ""
+        )
+        print(f"  [{run_id}] {event}{suffix}", flush=True)
 
-    await drive_audit(
-        run_id=run_id,
-        target_url=target_url,
-        runs_per_fault=runs_per_fault,
-        emit=emit,
-        set_phase=lambda _p: None,
-        created_at=created,
-    )
+    try:
+        await drive_audit(
+            run_id=run_id,
+            target_url=target_url,
+            runs_per_fault=runs_per_fault,
+            emit=emit,
+            set_phase=lambda _p: None,
+            created_at=created,
+        )
+    except Exception:
+        # Ownerless records are PUBLIC sample rows — a crashed seed must not
+        # strand a queued-forever phantom in everyone's registry.
+        await persist_run_completion(
+            run_id,
+            RunCompletion(
+                run_id=run_id,
+                target_url=target_url,
+                created_at=created,
+                phase="failed",
+                finished_at=utc_now_iso(),
+            ),
+        )
+        raise
     return run_id
 
 
