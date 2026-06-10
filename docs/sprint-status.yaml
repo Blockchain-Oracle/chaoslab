@@ -587,13 +587,13 @@ stories:
     merged_at: "2026-06-10"
   - id: story-9.3-monitoring-scheduler
     epic: "Epic 9 — product surfaces real"
-    status: PENDING
+    status: COMPLETE
     estimate_hours: 0.0
     tags: [backend, p0, monitoring]
     depends_on: [story-9.1-firestore-persistence]
     issue_url: ""
-    pr_url: ""
-    merged_at: ""
+    pr_url: "https://github.com/Blockchain-Oracle/phoenix-audit/pull/94"
+    merged_at: "2026-06-10"
   - id: story-9.4-firebase-auth
     epic: "Epic 9 — product surfaces real"
     status: PENDING
