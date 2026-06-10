@@ -122,3 +122,23 @@ describe('parseEventsDocument', () => {
     expect(parseEventsDocument({ ...doc, frames: [] })).toBeNull()
   })
 })
+
+describe('parseEventsDocument hardening (PR #100 review)', () => {
+  const doc = {
+    run_id: 'run_x',
+    created_at: '2026-06-10T00:00:00Z',
+    duration_sec: 9.0,
+    frames: FRAMES,
+  }
+
+  it('rejects non-finite t and duration', () => {
+    expect(parseEventsDocument({ ...doc, duration_sec: NaN })).toBeNull()
+    expect(parseEventsDocument({ ...doc, frames: [{ t: NaN, event: 'x', data: {} }] })).toBeNull()
+  })
+
+  it('sorts out-of-order frames so the fold cannot silently truncate', () => {
+    const shuffled = [...FRAMES].reverse()
+    const parsed = parseEventsDocument({ ...doc, frames: shuffled })
+    expect(parsed?.frames.map((f) => f.t)).toEqual(FRAMES.map((f) => f.t))
+  })
+})

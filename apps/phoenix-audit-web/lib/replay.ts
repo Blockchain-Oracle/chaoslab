@@ -24,19 +24,27 @@ export function parseEventsDocument(raw: unknown): RunEventsDocument | null {
   if (typeof raw !== 'object' || raw === null) return null
   const doc = raw as Record<string, unknown>
   if (typeof doc.run_id !== 'string' || typeof doc.created_at !== 'string') return null
-  if (typeof doc.duration_sec !== 'number') return null
+  // Also reject duration <= 0: a zero-length timeline would freeze the
+  // playback clock and render an unusable scrubber — the summary path with a
+  // disclosed load failure is the honest degradation.
+  if (typeof doc.duration_sec !== 'number' || !Number.isFinite(doc.duration_sec)) return null
+  if (doc.duration_sec <= 0) return null
   if (!Array.isArray(doc.frames) || doc.frames.length === 0) return null
   for (const f of doc.frames) {
     if (typeof f !== 'object' || f === null) return null
     const frame = f as Record<string, unknown>
-    if (typeof frame.t !== 'number' || typeof frame.event !== 'string') return null
+    if (typeof frame.t !== 'number' || !Number.isFinite(frame.t)) return null
+    if (typeof frame.event !== 'string') return null
     if (typeof frame.data !== 'object' || frame.data === null) return null
   }
+  // Defensive sort: replayStateAt's fold breaks at the first frame.t > t, so
+  // an out-of-order document would silently truncate the replay.
+  const frames = (doc.frames as unknown as RecordedFrame[]).slice().sort((a, b) => a.t - b.t)
   return {
     run_id: doc.run_id,
     created_at: doc.created_at,
     duration_sec: doc.duration_sec,
-    frames: doc.frames as unknown as RecordedFrame[],
+    frames,
   }
 }
 
@@ -57,10 +65,10 @@ export function runReplayLabel(run: {
   run_id: string
   target_url: string
   framework_label: string
-  owner_uid: string | null
+  owner_uid?: string | null
 }): string {
   const host = run.target_url.replace(/^https?:\/\//, '')
   const framework = run.framework_label.split('·')[0]?.trim() || run.framework_label
-  const kind = run.owner_uid === null ? 'sample replay' : 'replay'
+  const kind = run.owner_uid == null ? 'sample replay' : 'replay'
   return `${run.run_id} · ${host} · ${framework} (${kind})`
 }

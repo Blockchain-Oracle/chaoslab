@@ -92,8 +92,9 @@ export function runToHistoryRow(dto: RunRecordDto): HistoryRow {
     reportAvailable: dto.report_available,
     eventsAvailable: dto.events_available,
     // Ownerless records are the seeded REAL sample audits — visible to all,
-    // labeled (story-9.11). Every authed run carries owner_uid since S9.4.
-    sample: dto.owner_uid === null,
+    // labeled (story-9.11). Loose == also catches an OMITTED field (deploy
+    // skew/stale cache) — an unlabeled sample inflating stats is the failure.
+    sample: dto.owner_uid == null,
     ...(dto.mr_url ? { mrUrl: dto.mr_url } : {}),
   }
 }
@@ -111,7 +112,7 @@ export function agentToSpec(dto: AgentRecordDto): AgentSpec {
     lastAudit: dto.registered_at,
     status: dto.status,
     // Ownerless agents are the seeded demo targets — real, runnable, labeled.
-    sample: dto.owner_uid === null,
+    sample: dto.owner_uid == null,
   }
 }
 
@@ -165,15 +166,33 @@ export async function fetchFeaturedRun(): Promise<Live<RunDetailDto | null>> {
   }
 }
 
+export interface EventsFetchResult {
+  doc: RunEventsDocument | null
+  /** Why the timeline could not be loaded — pages must DISCLOSE this
+   *  ("replay recorded but unavailable"), never imply no replay exists. */
+  error: string | null
+}
+
 /** Server-side fetch of a run's persisted timeline from its signed GCS URL
- *  (server-side: no browser CORS in play). Malformed documents yield null —
- *  the page renders the honest summary instead of a fabricated replay. */
-export async function fetchEventsDocument(signedUrl: string): Promise<RunEventsDocument | null> {
+ *  (server-side: no browser CORS in play). Failures are returned AND logged —
+ *  a registry that says events_available=true while the load fails is drift
+ *  someone must be able to debug. */
+export async function fetchEventsDocument(signedUrl: string): Promise<EventsFetchResult> {
   try {
     const res = await fetch(signedUrl, { cache: 'no-store' })
-    if (!res.ok) return null
-    return parseEventsDocument(await res.json())
-  } catch {
-    return null
+    if (!res.ok) {
+      console.error(`events.json fetch failed: HTTP ${res.status}`)
+      return { doc: null, error: `timeline fetch failed (HTTP ${res.status})` }
+    }
+    const doc = parseEventsDocument(await res.json())
+    if (!doc) {
+      console.error('events.json failed shape validation')
+      return { doc: null, error: 'timeline document failed validation' }
+    }
+    return { doc, error: null }
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err)
+    console.error('events.json fetch error:', msg)
+    return { doc: null, error: `timeline fetch error (${msg})` }
   }
 }

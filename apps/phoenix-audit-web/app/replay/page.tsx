@@ -10,9 +10,7 @@ export const dynamic = 'force-dynamic'
 // persisted wire timeline (story-9.11). No fixtures.
 export default async function ReplayPage() {
   const featured = await fetchFeaturedRun()
-  const eventsUrl = featured.data?.artifact_urls['events.json']
-  const doc = eventsUrl ? await fetchEventsDocument(eventsUrl) : null
-  if (!featured.data || !doc) {
+  if (!featured.data) {
     return (
       <PageShell label="replay">
         <div className="shell" style={{ padding: '80px 40px' }}>
@@ -34,11 +32,33 @@ export default async function ReplayPage() {
       </PageShell>
     )
   }
+  const eventsUrl = featured.data.artifact_urls['events.json']
+  const events = eventsUrl ? await fetchEventsDocument(eventsUrl) : null
+  if (!events?.doc) {
+    // The sample run EXISTS — claiming "not seeded" here would be a false
+    // statement. Disclose the load failure instead.
+    return (
+      <PageShell label="replay">
+        <div className="shell" style={{ padding: '80px 40px' }}>
+          <EmptyState
+            kicker="REPLAY UNAVAILABLE"
+            title="The sample replay couldn't load."
+            body={`A seeded sample audit exists, but its recorded timeline could not be loaded right now${events?.error ? ` (${events.error})` : ' (signed timeline link unavailable)'}. Reload to retry.`}
+            action={
+              <A to="" className="btn small ghost">
+                Back to the landing page
+              </A>
+            }
+          />
+        </div>
+      </PageShell>
+    )
+  }
   const run = featured.data.run
   const host = run.target_url.replace(/^https?:\/\//, '')
   return (
     <PageShell label="replay">
-      <ReplayShell doc={doc} runLabel={`${run.run_id} · ${host} · sample replay`} />
+      <ReplayShell doc={events.doc} runLabel={`${run.run_id} · ${host} · sample replay`} />
     </PageShell>
   )
 }
