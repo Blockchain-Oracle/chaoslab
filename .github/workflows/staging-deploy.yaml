@@ -65,6 +65,10 @@ jobs:
             changed_key: agent
             dockerfile: apps/phoenix-audit-agent/Dockerfile
             smoke_path: /health
+            # IAM-gated — only the web service (runtime SA) and CI invoke it.
+            auth_flag: --no-allow-unauthenticated
+            extra_env: ""
+
           - service: target-agent
             path: apps/target-agent
             changed_key: target_agent
@@ -72,11 +76,20 @@ jobs:
             # A2A agent — no FastAPI /health; the agent-card endpoint is the
             # standard "is the container alive" probe.
             smoke_path: /.well-known/agent.json
+            # Sacrificial demo bot — public so the (IAM-gated) audit agent can
+            # probe it without service-to-service token plumbing in adapters.
+            auth_flag: --allow-unauthenticated
+            extra_env: ""
           - service: phoenix-audit-web
             path: apps/phoenix-audit-web
             changed_key: web
             dockerfile: apps/phoenix-audit-web/Dockerfile
             smoke_path: /
+            # The public judge-facing site. It reaches the IAM-gated agent via
+            # /api/agent (server-minted ID tokens) — AGENT_URL is the stable
+            # per-project Cloud Run URL (suffix is project-number derived).
+            auth_flag: --allow-unauthenticated
+            extra_env: ",AGENT_URL=https://phoenix-audit-agent-kkkl7l77da-uc.a.run.app"
     steps:
       - name: Determine if this service changed
         id: changed
@@ -177,8 +190,8 @@ jobs:
             --cpu=1 \
             --port=8080 \
             --cpu-boost \
-            --no-allow-unauthenticated \
-            --set-env-vars=ENVIRONMENT=staging,JUDGE_LLM=gemini-3.5-flash,SERVICE_VERSION="${GITHUB_SHA}",PHOENIX_PROVIDER=${PHOENIX_PROVIDER},PHOENIX_COLLECTOR_ENDPOINT=${PHOENIX_COLLECTOR_ENDPOINT},GOOGLE_GENAI_USE_VERTEXAI=true,GOOGLE_CLOUD_PROJECT=${PROJECT_ID},GOOGLE_CLOUD_LOCATION=us-central1 \
+            ${{ matrix.auth_flag }} \
+            --set-env-vars=ENVIRONMENT=staging,JUDGE_LLM=gemini-3.5-flash,SERVICE_VERSION="${GITHUB_SHA}",PHOENIX_PROVIDER=${PHOENIX_PROVIDER},PHOENIX_COLLECTOR_ENDPOINT=${PHOENIX_COLLECTOR_ENDPOINT},GOOGLE_GENAI_USE_VERTEXAI=true,GOOGLE_CLOUD_PROJECT=${PROJECT_ID},GOOGLE_CLOUD_LOCATION=us-central1${{ matrix.extra_env }} \
             --set-secrets=PHOENIX_API_KEY=phoenix-api-key:latest \
             ${CANDIDATE_FLAGS}
 

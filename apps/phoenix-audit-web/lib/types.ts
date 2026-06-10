@@ -146,6 +146,10 @@ export interface HistoryRow {
   mr: boolean
   source: HistorySource
   tier3?: boolean
+  /** Real runs: the audited URL (shown when the agent id has no registry entry). */
+  targetUrl?: string
+  /** Real runs: live MR link from the run record. */
+  mrUrl?: string
 }
 
 export interface AggregateStats {

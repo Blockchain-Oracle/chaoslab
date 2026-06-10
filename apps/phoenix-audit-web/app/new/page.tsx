@@ -14,7 +14,7 @@ import { TopBar } from '@/components/ui/topbar'
 
 function probeCheck(url: string): { ok: true } | { ok: false; error: string } {
   if (!url.trim()) return { ok: false, error: 'Enter a target agent address.' }
-  if (!/^https:\/\/|^a2a:\/\//i.test(url.trim()))
+  if (!/^https:\/\/|^a2a:\/\/|^http:\/\/(localhost|127\.)/i.test(url.trim()))
     return {
       ok: false,
       error: 'Must be a reachable HTTPS URL, or an A2A address for ADK-native agents.',
@@ -42,6 +42,8 @@ export default function NewAuditPage() {
   const [skipCats, setSkipCats] = useState<string[]>([])
   const [cap, setCap] = useState(6)
   const [judge, setJudge] = useState('gemini-3.5-flash (default)')
+  const [starting, setStarting] = useState(false)
+  const [startError, setStartError] = useState<string | null>(null)
 
   useEffect(() => {
     setHosting((localStorage.getItem('pa_hosting') as 'default' | 'byo' | null) ?? 'default')
@@ -64,13 +66,30 @@ export default function NewAuditPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [url])
 
-  const run = () => {
+  const run = async () => {
     setTouched(true)
-    if (!check.ok) return
+    if (!check.ok || starting) return
     if (typeof window !== 'undefined') {
       localStorage.removeItem('pa_audit_t_live')
     }
-    router.push('/run/run_9f3c2ab81d4e')
+    setStarting(true)
+    setStartError(null)
+    try {
+      // REAL audit — POST /run through the same-origin proxy, then follow the
+      // returned run id into the live chamber. No fixture short-circuit.
+      const res = await fetch('/api/agent/run', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ target_url: url.trim(), source: 'manual' }),
+      })
+      if (!res.ok) throw new Error(`the audit service answered ${res.status}`)
+      const body = (await res.json()) as { run_id?: string }
+      if (!body.run_id) throw new Error('the audit service returned no run id')
+      router.push(`/run/${body.run_id}`)
+    } catch (err) {
+      setStartError(err instanceof Error ? err.message : String(err))
+      setStarting(false)
+    }
   }
 
   const hint = pinging
@@ -211,13 +230,19 @@ export default function NewAuditPage() {
               className="btn ember"
               style={{ padding: '16px 34px', fontSize: 13 }}
               onClick={run}
+              disabled={starting}
             >
-              Run audit
+              {starting ? 'Starting audit…' : 'Run audit'}
             </button>
             <span className="muted" style={{ fontSize: 12.5, maxWidth: 380, lineHeight: 1.55 }}>
               ~90 seconds · audit-mode headers sent on every probe · ends with a signed audit
               report.
             </span>
+            {startError ? (
+              <span className="mono" style={{ fontSize: 11.5, color: 'var(--fail)' }}>
+                ✕ Could not start the audit — {startError}
+              </span>
+            ) : null}
           </div>
         </div>
         <PageFoot />

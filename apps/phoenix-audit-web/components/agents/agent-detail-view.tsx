@@ -9,6 +9,7 @@ import { SectionHead } from '@/components/ui/section-head'
 import { Toggle } from '@/components/ui/toggle'
 import { TopBar } from '@/components/ui/topbar'
 import { AGENTS, HERO_RUN, HISTORY, agentById, fmtDate } from '@/lib/fixtures'
+import type { MergedAgent, MergedRun } from '@/lib/sample-merge'
 import { useSafeTimeout } from '@/lib/use-safe-timeout'
 
 const SNIPPET = `from phoenix_audit import instrument
@@ -20,22 +21,50 @@ instrument(project="prior-auth",
 
 interface AgentDetailViewProps {
   id: string
+  /** Server-provided real agent (sample=false) or labeled sample. Fixture
+   *  lookup remains the fallback for legacy callers. */
+  agent?: MergedAgent
+  /** Server-provided run history (real + sample, labeled). */
+  runs?: MergedRun[]
 }
 
-export function AgentDetailView({ id }: AgentDetailViewProps) {
+export function AgentDetailView({ id, agent, runs: runsProp }: AgentDetailViewProps) {
   const router = useRouter()
-  const a = agentById(id) ?? AGENTS[0]
+  const a = agent ?? agentById(id) ?? AGENTS[0]
   const [copied, setCopied] = useState(false)
   const [mon, setMon] = useState(!!a?.monitoring.enabled)
+  const [starting, setStarting] = useState(false)
+  const [startError, setStartError] = useState<string | null>(null)
   const schedule = useSafeTimeout()
   if (!a) return null
-  const runs = HISTORY.filter((r) => r.agentId === a.id)
+  const isSample = agent ? agent.sample : true
+  const runs = runsProp ?? HISTORY.filter((r) => r.agentId === a.id)
   const err = a.status === 'unreachable'
-  const runHero = () => {
+  const runHero = async () => {
     if (typeof window !== 'undefined') {
       window.localStorage.removeItem('pa_audit_t_live')
     }
-    router.push(`/run/${HERO_RUN.id}`)
+    if (isSample) {
+      // Sample agents replay the hero fixture run.
+      router.push(`/run/${HERO_RUN.id}`)
+      return
+    }
+    setStarting(true)
+    setStartError(null)
+    try {
+      const res = await fetch('/api/agent/run', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ target_url: a.url, agent_id: a.id, source: 'manual' }),
+      })
+      if (!res.ok) throw new Error(`the audit service answered ${res.status}`)
+      const body = (await res.json()) as { run_id?: string }
+      if (!body.run_id) throw new Error('the audit service returned no run id')
+      router.push(`/run/${body.run_id}`)
+    } catch (e) {
+      setStartError(e instanceof Error ? e.message : String(e))
+      setStarting(false)
+    }
   }
   return (
     <div className="page-enter">
@@ -58,8 +87,8 @@ export function AgentDetailView({ id }: AgentDetailViewProps) {
           <h1 className="display" style={{ fontSize: 38, flex: 1 }}>
             {a.name}
           </h1>
-          <button className="btn ember" onClick={runHero} disabled={err}>
-            Run audit now
+          <button className="btn ember" onClick={runHero} disabled={err || starting}>
+            {starting ? 'Starting…' : 'Run audit now'}
           </button>
         </div>
         <div
@@ -71,6 +100,11 @@ export function AgentDetailView({ id }: AgentDetailViewProps) {
             marginBottom: 36,
           }}
         >
+          {startError ? (
+            <span className="mono" style={{ fontSize: 11.5, color: 'var(--fail)', width: '100%' }}>
+              ✕ Could not start the audit — {startError}
+            </span>
+          ) : null}
           <span className="mono muted" style={{ fontSize: 12 }}>
             {a.url}
           </span>
