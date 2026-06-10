@@ -53,3 +53,35 @@ def test_trace_middleware_installed(assembled: Starlette) -> None:
 def test_mount_keeps_a2a_as_fallthrough(assembled: Starlette) -> None:
     mounts = [r for r in assembled.routes if isinstance(r, Mount)]
     assert mounts, "A2A app must be mounted for non-hook paths"
+
+
+def test_inner_lifespan_runs_so_lifespan_registered_routes_serve(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """google-adk's to_a2a() registers ALL A2A routes (incl. the agent card)
+    inside the inner app's LIFESPAN — and Starlette never runs a mounted
+    sub-app's lifespan. Without explicit delegation every A2A path 404s in
+    the container (staging smoke failure 2026-06-10)."""
+    from contextlib import asynccontextmanager
+    from typing import Any as AnyT
+
+    from starlette.testclient import TestClient
+
+    from target_agent import server
+
+    async def card(request: AnyT) -> PlainTextResponse:
+        return PlainTextResponse("card")
+
+    @asynccontextmanager
+    async def inner_lifespan(app: Starlette) -> Any:
+        app.router.routes.append(Route("/.well-known/agent-card.json", card, methods=["GET"]))
+        yield
+
+    fake_a2a = Starlette(lifespan=inner_lifespan)
+    monkeypatch.setattr(server, "_build_a2a_app", lambda: fake_a2a)
+    assembled = server._assemble_app()
+    # Context-managed client = lifespan actually runs, like uvicorn does.
+    with TestClient(assembled) as client:  # ty: ignore[invalid-argument-type]
+        resp = client.get("/.well-known/agent-card.json")
+    assert resp.status_code == 200
+    assert resp.text == "card"
