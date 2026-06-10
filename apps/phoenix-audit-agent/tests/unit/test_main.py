@@ -43,7 +43,9 @@ def _env(monkeypatch: pytest.MonkeyPatch, tmp_path) -> Iterator[None]:
     from .storage.fakes import InMemoryAgentStore, InMemoryRunStore
 
     for key in list(os.environ):
-        if key.startswith(("PHOENIX_", "GEMINI_", "JUDGE_", "TARGET_", "GITLAB_", "GCS_")):
+        if key.startswith(
+            ("PHOENIX_", "GEMINI_", "JUDGE_", "TARGET_", "GITLAB_", "GCS_", "FIREBASE_")
+        ):
             monkeypatch.delenv(key, raising=False)
     monkeypatch.setenv("GEMINI_API_KEY", "test-gemini")
     monkeypatch.chdir(tmp_path)
@@ -58,6 +60,12 @@ def _env(monkeypatch: pytest.MonkeyPatch, tmp_path) -> Iterator[None]:
     agent_storage.set_agent_store(None)
     _reset_run_registries()
     get_settings.cache_clear()
+
+
+@pytest.fixture(autouse=True)
+def _authed(auth_as) -> None:
+    """This module's subject is run/stream plumbing, not auth — requests
+    arrive pre-authenticated as `user-test` (auth wiring: test_auth_scoping)."""
 
 
 @pytest.fixture

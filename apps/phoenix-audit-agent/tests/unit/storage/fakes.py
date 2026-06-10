@@ -29,6 +29,7 @@ class InMemoryRunStore:
         agent_id: str | None = None,
         source: str | None = None,
         limit: int = 50,
+        visible_to: str | None = None,
     ) -> tuple[list[RunRecord], bool]:
         # NOTE: Firestore filters within the newest 200 docs only (index-free
         # query); this fake filters across ALL docs (never truncates).
@@ -37,6 +38,8 @@ class InMemoryRunStore:
             rows = [r for r in rows if r.agent_id == agent_id]
         if source is not None:
             rows = [r for r in rows if r.source == source]
+        if visible_to is not None:
+            rows = [r for r in rows if r.owner_uid in (None, visible_to)]
         rows.sort(key=lambda r: r.created_at, reverse=True)
         return rows[:limit], False
 
