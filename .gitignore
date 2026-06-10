@@ -67,3 +67,4 @@ scratch/
 # Claude Code local state (untracked agent settings, plans, review snapshots)
 .claude/
 .playwright-mcp/
+instrusctions.md
