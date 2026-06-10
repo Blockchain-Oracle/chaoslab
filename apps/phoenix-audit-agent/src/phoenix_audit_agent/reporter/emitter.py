@@ -34,12 +34,14 @@ class ReportEmitter:
         self._client: StorageClient = storage_client or cast(StorageClient, get_storage_client())
 
     def _upload_one(self, blob_name: str, payload: bytes, content_type: str) -> str:
+        from phoenix_audit_agent.storage.gcs import signed_get_url
+
         bucket = self._client.bucket(self._bucket_name)
         blob = bucket.blob(blob_name)
         # if_generation_match=0 → create-only: a retry/re-run can never
         # silently overwrite an already-delivered regulator artifact.
         blob.upload_from_string(payload, content_type=content_type, if_generation_match=0)
-        return blob.generate_signed_url(version="v4", expiration=self._ttl, method="GET")
+        return signed_get_url(blob, ttl=self._ttl)
 
     async def emit(self, run_id: str, artifacts: dict[str, bytes]) -> dict[str, str]:
         """Upload the signature sidecar FIRST, then the rest concurrently.

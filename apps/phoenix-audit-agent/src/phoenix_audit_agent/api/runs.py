@@ -28,18 +28,14 @@ router = APIRouter()
 
 async def sign_blob_url(blob_name: str) -> str:
     """v4 signed GET URL for an existing blob (module attribute = test seam)."""
-    from phoenix_audit_agent.storage.gcs import get_storage_client
+    from phoenix_audit_agent.storage.gcs import get_storage_client, signed_get_url
 
     settings = get_settings()
 
     def _sign() -> str:
         client = get_storage_client()
         blob = client.bucket(settings.GCS_RECIPES_BUCKET).blob(blob_name)
-        return blob.generate_signed_url(
-            version="v4",
-            expiration=timedelta(days=settings.GCS_SIGNED_URL_TTL_DAYS),
-            method="GET",
-        )
+        return signed_get_url(blob, ttl=timedelta(days=settings.GCS_SIGNED_URL_TTL_DAYS))
 
     return await asyncio.to_thread(_sign)
 
