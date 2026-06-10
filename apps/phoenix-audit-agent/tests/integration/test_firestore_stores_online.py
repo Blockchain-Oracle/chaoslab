@@ -50,7 +50,7 @@ async def test_run_store_roundtrip_and_finalize_merge() -> None:
         assert record.passed == 6
         assert record.target_url == "https://target.example"  # merge kept create fields
 
-        rows = await store.list_runs(limit=200)
+        rows, _truncated = await store.list_runs(limit=200)
         assert any(r.run_id == run_id for r in rows)
     finally:
         await store.db.collection("runs").document(run_id).delete()

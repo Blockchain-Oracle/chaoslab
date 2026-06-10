@@ -29,17 +29,16 @@ class InMemoryRunStore:
         agent_id: str | None = None,
         source: str | None = None,
         limit: int = 50,
-    ) -> list[RunRecord]:
+    ) -> tuple[list[RunRecord], bool]:
         # NOTE: Firestore filters within the newest 200 docs only (index-free
-        # query); this fake filters across ALL docs. Divergence is irrelevant
-        # below 200 runs but documented for honesty.
+        # query); this fake filters across ALL docs (never truncates).
         rows = [RunRecord.model_validate(d) for d in self._docs.values()]
         if agent_id is not None:
             rows = [r for r in rows if r.agent_id == agent_id]
         if source is not None:
             rows = [r for r in rows if r.source == source]
         rows.sort(key=lambda r: r.created_at, reverse=True)
-        return rows[:limit]
+        return rows[:limit], False
 
     async def get(self, run_id: str) -> RunRecord | None:
         doc = self._docs.get(run_id)
@@ -82,16 +81,21 @@ class InMemoryScheduleStore:
         doc = self._docs.get(schedule_id)
         return ScheduleRecord.model_validate(doc) if doc else None
 
-    async def claim_due(self, *, now_iso: str, advance: Any) -> list[ScheduleRecord]:
+    async def claim_due(self, *, now_iso: str, advance: Any) -> tuple[list[ScheduleRecord], int]:
+        from datetime import datetime
+
+        def _p(ts: str) -> datetime:
+            return datetime.fromisoformat(ts.replace("Z", "+00:00"))
+
         claimed: list[ScheduleRecord] = []
         for doc in list(self._docs.values()):
             record = ScheduleRecord.model_validate(doc)
-            if not record.enabled or record.next_fire_at > now_iso:
+            if not record.enabled or _p(record.next_fire_at) > _p(now_iso):
                 continue
             # claim-before-launch: advance the fire time FIRST, like prod.
             self._docs[record.schedule_id]["next_fire_at"] = advance(record)
             claimed.append(record)
-        return claimed
+        return claimed, 0
 
     async def mark_fired(self, schedule_id: str, *, run_id: str, fired_at: str) -> None:
         self._docs[schedule_id]["last_fired_at"] = fired_at

@@ -591,8 +591,8 @@ async def test_persistence_failure_disclosed_never_fatal(wired: _Emitted) -> Non
         async def finalize(self, run_id: str, completion: Any) -> None:
             raise RuntimeError("firestore down")
 
-        async def list_runs(self, **kw: Any) -> list[Any]:
-            return []
+        async def list_runs(self, **kw: Any) -> tuple[list[Any], bool]:
+            return [], False
 
         async def get(self, run_id: str) -> Any:
             return None

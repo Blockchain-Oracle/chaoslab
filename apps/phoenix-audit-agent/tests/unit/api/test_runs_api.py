@@ -53,7 +53,7 @@ def _record(run_id: str, *, created_at: str, **kw: Any) -> RunRecord:
 async def test_list_runs_empty(client: httpx.AsyncClient) -> None:
     r = await client.get("/runs")
     assert r.status_code == 200
-    assert r.json() == {"runs": []}
+    assert r.json() == {"runs": [], "truncated": False}
 
 
 async def test_list_runs_newest_first_with_fields(client: httpx.AsyncClient) -> None:

@@ -32,6 +32,11 @@ class TickResult(BaseModel):
     claimed: int
     launched: list[str]
     launch_failures: int
+    # Disclosure counters: corrupted schedule docs skipped during the claim,
+    # and post-launch bookkeeping (mark_fired) failures — operators must see
+    # both in the tick response, not only in logs.
+    corrupted_docs: int = 0
+    bookkeeping_failures: int = 0
 
 
 def advance_fire_time(record: ScheduleRecord) -> str:
@@ -57,9 +62,10 @@ def advance_fire_time(record: ScheduleRecord) -> str:
 
 async def run_tick(*, store: ScheduleStore, launch: LaunchFn) -> TickResult:
     now_iso = datetime.now(UTC).isoformat()
-    schedules = await store.claim_due(now_iso=now_iso, advance=advance_fire_time)
+    schedules, corrupted = await store.claim_due(now_iso=now_iso, advance=advance_fire_time)
     launched: list[str] = []
     failures = 0
+    bookkeeping_failures = 0
     for schedule in schedules:
         try:
             run_id = await launch(schedule)
@@ -77,11 +83,18 @@ async def run_tick(*, store: ScheduleStore, launch: LaunchFn) -> TickResult:
             await store.mark_fired(schedule.schedule_id, run_id=run_id, fired_at=now_iso)
         except Exception:
             # The run IS launched and registered; the schedule bookkeeping
-            # lagging is logged, never fatal.
+            # lagging is logged AND counted, never fatal.
+            bookkeeping_failures += 1
             _log.error(
                 "schedule_mark_fired_failed", schedule_id=schedule.schedule_id, exc_info=True
             )
-    return TickResult(claimed=len(schedules), launched=launched, launch_failures=failures)
+    return TickResult(
+        claimed=len(schedules),
+        launched=launched,
+        launch_failures=failures,
+        corrupted_docs=corrupted,
+        bookkeeping_failures=bookkeeping_failures,
+    )
 
 
 __all__ = ["LaunchFn", "TickResult", "advance_fire_time", "run_tick"]
