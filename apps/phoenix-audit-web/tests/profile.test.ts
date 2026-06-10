@@ -38,6 +38,14 @@ describe('parseProfile', () => {
   it('rejects an unknown hosting_pref instead of forwarding it to the UI', () => {
     expect(parseProfile({ ...VALID, hosting_pref: 'cloud9' })).toBeNull()
   })
+
+  it('rejects wrong-typed nullable fields instead of coercing drift to null', () => {
+    // A number where a string belongs is schema drift the error path must
+    // disclose — silently reading it as "no value" would mask it.
+    expect(parseProfile({ ...VALID, org_name: 42 })).toBeNull()
+    expect(parseProfile({ ...VALID, email: { addr: 'x' } })).toBeNull()
+    expect(parseProfile({ ...VALID, created_at: 1718000000 })).toBeNull()
+  })
 })
 
 describe('fetchProfile / saveProfile', () => {

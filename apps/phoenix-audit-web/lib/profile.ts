@@ -3,7 +3,10 @@
 // back as an error tuple the UI must disclose — never a silently-kept
 // default dressed up as the user's saved preference.
 
-export type HostingPref = 'default' | 'byo'
+// Single TS source for the backend's HostingPref Literal — the type and the
+// runtime membership check below both derive from this list.
+export const HOSTING_PREFS = ['default', 'byo'] as const
+export type HostingPref = (typeof HOSTING_PREFS)[number]
 
 export interface ProfileDto {
   uid: string
@@ -25,22 +28,35 @@ export interface ProfileResult {
   error: string | null
 }
 
+/** null/undefined → null; string → string; anything else is schema drift the
+ *  caller must reject (silently coercing it to null would mask the drift). */
+function nullableString(v: unknown): string | null | false {
+  if (v == null) return null
+  return typeof v === 'string' ? v : false
+}
+
 export function parseProfile(json: unknown): ProfileDto | null {
   if (typeof json !== 'object' || json === null) return null
   const o = json as Record<string, unknown>
   if (typeof o.uid !== 'string' || !o.uid) return null
   if (typeof o.framework_default !== 'string' || !o.framework_default) return null
-  if (o.hosting_pref !== 'default' && o.hosting_pref !== 'byo') return null
+  if (!HOSTING_PREFS.includes(o.hosting_pref as HostingPref)) return null
   if (typeof o.onboarded !== 'boolean') return null
+  const email = nullableString(o.email)
+  const orgName = nullableString(o.org_name)
+  const createdAt = nullableString(o.created_at)
+  const updatedAt = nullableString(o.updated_at)
+  if (email === false || orgName === false || createdAt === false || updatedAt === false)
+    return null
   return {
     uid: o.uid,
-    email: typeof o.email === 'string' ? o.email : null,
-    org_name: typeof o.org_name === 'string' ? o.org_name : null,
+    email,
+    org_name: orgName,
     framework_default: o.framework_default,
-    hosting_pref: o.hosting_pref,
+    hosting_pref: o.hosting_pref as HostingPref,
     onboarded: o.onboarded,
-    created_at: typeof o.created_at === 'string' ? o.created_at : null,
-    updated_at: typeof o.updated_at === 'string' ? o.updated_at : null,
+    created_at: createdAt,
+    updated_at: updatedAt,
   }
 }
 

@@ -27,10 +27,16 @@ def _env(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
             monkeypatch.delenv(key, raising=False)
     monkeypatch.setenv("GEMINI_API_KEY", "test-gemini")
     get_settings.cache_clear()
-    profile_storage.set_profile_store(InMemoryProfileStore())
     yield
-    profile_storage.set_profile_store(None)
     get_settings.cache_clear()
+
+
+@pytest.fixture(autouse=True)
+def profile_store(_env: None) -> Iterator[InMemoryProfileStore]:
+    store = InMemoryProfileStore()
+    profile_storage.set_profile_store(store)
+    yield store
+    profile_storage.set_profile_store(None)
 
 
 @pytest.fixture(autouse=True)
@@ -48,7 +54,7 @@ async def client() -> AsyncIterator[httpx.AsyncClient]:
 
 
 async def test_get_profile_returns_defaults_without_creating_doc(
-    client: httpx.AsyncClient,
+    client: httpx.AsyncClient, profile_store: InMemoryProfileStore
 ) -> None:
     r = await client.get("/profile")
     assert r.status_code == 200
@@ -60,8 +66,7 @@ async def test_get_profile_returns_defaults_without_creating_doc(
     assert body["hosting_pref"] == "default"
     assert body["onboarded"] is False
     # Read-only default: no document materialized by a GET.
-    store = profile_storage.get_profile_store()
-    assert await store.get("user-profile-1") is None
+    assert await profile_store.get("user-profile-1") is None
 
 
 async def test_patch_upserts_subset_and_get_reflects(client: httpx.AsyncClient) -> None:
@@ -91,6 +96,44 @@ async def test_patch_rejects_unknown_fields_and_bad_values(client: httpx.AsyncCl
     assert (await client.patch("/profile", json={"is_admin": True})).status_code == 422
     assert (await client.patch("/profile", json={"hosting_pref": "cloud9"})).status_code == 422
     assert (await client.patch("/profile", json={"framework_default": ""})).status_code == 422
+
+
+async def test_patch_rejects_explicit_null_for_non_nullable_fields(
+    client: httpx.AsyncClient,
+) -> None:
+    # An explicit null persisted past model_copy would brick every later
+    # GET/PATCH with a 500 (review finding on PR #101) — must be a 422.
+    for payload in ({"framework_default": None}, {"hosting_pref": None}, {"onboarded": None}):
+        assert (await client.patch("/profile", json=payload)).status_code == 422
+    assert (await client.get("/profile")).status_code == 200
+
+
+async def test_get_mirrors_token_email_over_stored_copy(
+    client: httpx.AsyncClient, profile_store: InMemoryProfileStore
+) -> None:
+    await client.patch("/profile", json={"org_name": "Meridian Mutual"})
+    profile_store._docs["user-profile-1"]["email"] = "stale@old.example"
+    r = await client.get("/profile")
+    assert r.json()["email"] == "officer@example.com"
+
+
+async def test_patch_preserves_unknown_stored_fields(
+    client: httpx.AsyncClient, profile_store: InMemoryProfileStore
+) -> None:
+    # Forward-compat contract: later stories (gitlab blob, wizard fields) must
+    # survive a settings save — a whole-document overwrite would wipe them.
+    await client.patch("/profile", json={"org_name": "Meridian Mutual"})
+    profile_store._docs["user-profile-1"]["gitlab"] = {"connected_as": "officer"}
+    await client.patch("/profile", json={"onboarded": True})
+    assert profile_store._docs["user-profile-1"]["gitlab"] == {"connected_as": "officer"}
+    assert profile_store._docs["user-profile-1"]["org_name"] == "Meridian Mutual"
+
+
+async def test_patch_empty_org_name_clears_it(client: httpx.AsyncClient) -> None:
+    await client.patch("/profile", json={"org_name": "Meridian Mutual"})
+    r = await client.patch("/profile", json={"org_name": ""})
+    assert r.status_code == 200
+    assert r.json()["org_name"] is None
 
 
 async def test_profiles_are_scoped_to_the_token_uid(client: httpx.AsyncClient, auth_as) -> None:

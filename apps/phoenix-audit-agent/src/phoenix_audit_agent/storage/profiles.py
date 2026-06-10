@@ -1,15 +1,22 @@
 """User-profile store: Firestore `users/{uid}` documents + the test seam.
 
 GET /profile never materializes a document — defaults are computed, so the
-collection only ever contains profiles a user actually saved.
+collection only ever contains profiles a user actually saved. Writes are
+field-level merges: unknown stored fields (the Wave-C gitlab blob, wizard
+fields) must survive a settings save untouched.
 """
 
 from __future__ import annotations
 
 from typing import Any, Protocol
 
+import structlog
+from pydantic import ValidationError
+
 from phoenix_audit_agent.storage.firestore_client import get_firestore
 from phoenix_audit_agent.storage.models import UserProfile
+
+_log = structlog.get_logger(__name__)
 
 _COLLECTION = "users"
 
@@ -17,7 +24,9 @@ _COLLECTION = "users"
 class ProfileStore(Protocol):
     async def get(self, uid: str) -> UserProfile | None: ...
 
-    async def set(self, profile: UserProfile) -> None: ...
+    async def merge(self, uid: str, fields: dict[str, Any]) -> None:
+        """Upsert ONLY the given fields — never a whole-document overwrite."""
+        ...
 
 
 class FirestoreProfileStore:
@@ -34,12 +43,17 @@ class FirestoreProfileStore:
         doc = await self.db.collection(_COLLECTION).document(uid).get()
         if not doc.exists:
             return None
-        return UserProfile.model_validate(doc.to_dict())
+        try:
+            return UserProfile.model_validate(doc.to_dict())
+        except ValidationError:
+            # Do NOT swallow into None — a follow-up PATCH would then overwrite
+            # the corrupted doc with defaults (data destruction). Log so the
+            # 500 is debuggable, then let it surface.
+            _log.error("profile_doc_corrupted", uid=uid, exc_info=True)
+            raise
 
-    async def set(self, profile: UserProfile) -> None:
-        # Whole-document set: the API layer merges PATCH fields into the
-        # stored profile first, so set() semantics can't drop sibling fields.
-        await self.db.collection(_COLLECTION).document(profile.uid).set(profile.model_dump())
+    async def merge(self, uid: str, fields: dict[str, Any]) -> None:
+        await self.db.collection(_COLLECTION).document(uid).set(fields, merge=True)
 
 
 _STORE: ProfileStore | None = None

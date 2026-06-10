@@ -109,11 +109,13 @@ class UserProfile(BaseModel):
     uid: str = Field(min_length=1)
     email: str | None = None
     org_name: str | None = None
-    framework_default: str = "EU AI Act"
+    framework_default: str = Field(default="EU AI Act", min_length=1)
     hosting_pref: HostingPref = "default"
     onboarded: bool = False
-    created_at: str | None = None
-    updated_at: str | None = None
+    # None ⇔ never persisted (GET-computed defaults). A stored profile always
+    # carries both timestamps; empty strings are unrepresentable.
+    created_at: str | None = Field(default=None, min_length=1)
+    updated_at: str | None = Field(default=None, min_length=1)
 
 
 Cadence = Literal["hourly", "daily"]

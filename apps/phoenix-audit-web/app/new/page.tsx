@@ -51,16 +51,22 @@ function NewAuditForm() {
   const [judge, setJudge] = useState('gemini-3.5-flash (default)')
   const [starting, setStarting] = useState(false)
   const [startError, setStartError] = useState<string | null>(null)
+  const [prefsNotice, setPrefsNotice] = useState<string | null>(null)
 
   useEffect(() => {
     let cancelled = false
     // The settings page persists these on the server-side profile — honor
     // them here so the preference is real, not decorative (story-9.10/9.12).
-    // A failed load keeps the standard defaults; nothing here is destructive.
-    void fetchProfile().then(({ profile }) => {
-      if (cancelled || !profile) return
-      setHosting(profile.hosting_pref)
-      setFramework(profile.framework_default)
+    void fetchProfile().then(({ profile, error }) => {
+      if (cancelled) return
+      if (profile) {
+        setHosting(profile.hosting_pref)
+        setFramework(profile.framework_default)
+      } else {
+        // The framework framing flows into the regulator-facing report — a
+        // silently-substituted default must be disclosed, not implied saved.
+        setPrefsNotice(`could not load your saved preferences (${error}) — using defaults`)
+      }
     })
     return () => {
       cancelled = true
@@ -135,10 +141,22 @@ function NewAuditForm() {
           <h1 className="display" style={{ fontSize: 40, marginBottom: 10 }}>
             Start a new audit.
           </h1>
-          <p className="muted" style={{ marginBottom: 44, maxWidth: 560, textWrap: 'pretty' }}>
+          <p
+            className="muted"
+            style={{ marginBottom: prefsNotice ? 12 : 44, maxWidth: 560, textWrap: 'pretty' }}
+          >
             Four decisions, one button. The audit takes roughly 90 seconds and ends with a signed
             audit report you can file.
           </p>
+          {prefsNotice ? (
+            <p
+              className="mono"
+              style={{ fontSize: 11, color: 'var(--fail)', marginBottom: 32 }}
+              role="status"
+            >
+              ◌ {prefsNotice}
+            </p>
+          ) : null}
 
           <SectionHead no="§1" title="Target agent" />
           <Field

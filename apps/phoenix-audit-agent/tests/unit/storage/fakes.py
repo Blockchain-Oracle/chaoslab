@@ -121,5 +121,7 @@ class InMemoryProfileStore:
         doc = self._docs.get(uid)
         return UserProfile.model_validate(doc) if doc else None
 
-    async def set(self, profile: UserProfile) -> None:
-        self._docs[profile.uid] = profile.model_dump()
+    async def merge(self, uid: str, fields: dict[str, Any]) -> None:
+        # Field-level merge like Firestore set(merge=True): unknown stored
+        # fields survive (the contract test_patch_preserves_unknown_stored_fields pins).
+        self._docs[uid] = {**self._docs.get(uid, {}), **fields}

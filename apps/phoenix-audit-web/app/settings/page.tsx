@@ -5,7 +5,7 @@
 // localStorage), and honest states for everything not yet user-configurable.
 // Every save shows its real outcome — saving / saved / failed.
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { onAuthStateChanged, type User } from 'firebase/auth'
 import { getFirebaseAuth } from '@/lib/auth/client'
 import { fetchProfile, saveProfile, type HostingPref, type ProfileUpdate } from '@/lib/profile'
@@ -49,9 +49,14 @@ export default function SettingsPage() {
     }
   }, [])
 
+  const saveSeq = useRef(0)
   const persist = (updates: ProfileUpdate) => {
+    const seq = ++saveSeq.current
     setSave({ kind: 'saving' })
     void saveProfile(updates).then(({ profile, error }) => {
+      // Two quick clicks can resolve out of order — only the LATEST save may
+      // re-render state, or an older response would snap controls backwards.
+      if (seq !== saveSeq.current) return
       if (profile) {
         // Server truth wins — render what was actually stored.
         setHosting(profile.hosting_pref)
