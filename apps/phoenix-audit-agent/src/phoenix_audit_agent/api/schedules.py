@@ -78,9 +78,13 @@ async def patch_schedule(schedule_id: str, payload: SchedulePatch) -> ScheduleRe
     record = await store.get(schedule_id)
     if record is None:
         raise HTTPException(status_code=404, detail=f"schedule not found: {schedule_id}")
-    updated = record.model_copy(update=payload.model_dump(exclude_none=True))
-    await store.upsert(updated)
-    return updated
+    fields = payload.model_dump(exclude_none=True)
+    if fields:
+        # Partial update of ONLY the patched keys — a full upsert here raced
+        # the tick's claim and could write back a stale next_fire_at.
+        await store.patch_fields(schedule_id, fields)
+    refreshed = await store.get(schedule_id)
+    return refreshed if refreshed is not None else record.model_copy(update=fields)
 
 
 def verify_tick_oidc(authorization: str | None) -> dict[str, Any]:

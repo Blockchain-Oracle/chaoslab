@@ -10,6 +10,7 @@ from __future__ import annotations
 from typing import Any, Protocol
 
 import structlog
+from google.api_core.exceptions import FailedPrecondition
 
 from phoenix_audit_agent.storage.firestore_client import get_firestore
 from phoenix_audit_agent.storage.models import ScheduleRecord
@@ -31,6 +32,8 @@ class ScheduleStore(Protocol):
         ...
 
     async def mark_fired(self, schedule_id: str, *, run_id: str, fired_at: str) -> None: ...
+
+    async def patch_fields(self, schedule_id: str, fields: dict[str, Any]) -> None: ...
 
 
 class FirestoreScheduleStore:
@@ -73,8 +76,6 @@ class FirestoreScheduleStore:
                 continue
             new_fire_at = advance(record)
             try:
-                from google.api_core.exceptions import FailedPrecondition
-
                 await (
                     self.db.collection(_COLLECTION)
                     .document(record.schedule_id)
@@ -86,6 +87,13 @@ class FirestoreScheduleStore:
             except FailedPrecondition:
                 _log.info("schedule_claim_lost_race", schedule_id=record.schedule_id)
                 continue
+            except Exception:
+                # Contained per-document: a transient error on ONE update must
+                # not discard the claims already made — those schedules' fire
+                # times are advanced and their audits would silently vanish
+                # for a full cadence with no trace.
+                _log.error("schedule_claim_failed", schedule_id=record.schedule_id, exc_info=True)
+                continue
             claimed.append(record)
         return claimed
 
@@ -95,6 +103,12 @@ class FirestoreScheduleStore:
             .document(schedule_id)
             .update({"last_fired_at": fired_at, "last_run_id": run_id})
         )
+
+    async def patch_fields(self, schedule_id: str, fields: dict[str, Any]) -> None:
+        # update() writes ONLY the patched keys — a read-modify-write upsert
+        # here raced the tick's claim and could resurrect a stale next_fire_at
+        # (= duplicate signed audit on the next tick).
+        await self.db.collection(_COLLECTION).document(schedule_id).update(fields)
 
 
 _STORE: ScheduleStore | None = None

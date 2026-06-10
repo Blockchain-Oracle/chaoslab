@@ -96,3 +96,6 @@ class InMemoryScheduleStore:
     async def mark_fired(self, schedule_id: str, *, run_id: str, fired_at: str) -> None:
         self._docs[schedule_id]["last_fired_at"] = fired_at
         self._docs[schedule_id]["last_run_id"] = run_id
+
+    async def patch_fields(self, schedule_id: str, fields: dict[str, Any]) -> None:
+        self._docs[schedule_id].update(fields)

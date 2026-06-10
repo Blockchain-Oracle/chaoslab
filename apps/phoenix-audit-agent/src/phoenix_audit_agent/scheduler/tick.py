@@ -42,6 +42,12 @@ def advance_fire_time(record: ScheduleRecord) -> str:
     try:
         next_at = datetime.fromisoformat(record.next_fire_at.replace("Z", "+00:00"))
     except ValueError:
+        # Re-anchoring heals the schedule, but corrupted state must be VISIBLE.
+        _log.warning(
+            "schedule_fire_time_corrupted",
+            schedule_id=record.schedule_id,
+            next_fire_at=record.next_fire_at,
+        )
         next_at = now
     next_at += interval
     while next_at <= now:

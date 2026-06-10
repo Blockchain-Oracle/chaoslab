@@ -69,12 +69,20 @@ export function MonitoringClient({
   }
 
   const toggleSchedule = async (schedule: ScheduleDto) => {
-    await fetch(`/api/agent/schedules/${schedule.schedule_id}`, {
-      method: 'PATCH',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ enabled: !schedule.enabled }),
-    })
-    router.refresh()
+    setSaveError(null)
+    try {
+      const res = await fetch(`/api/agent/schedules/${schedule.schedule_id}`, {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ enabled: !schedule.enabled }),
+      })
+      if (!res.ok) throw new Error(`the audit service answered ${res.status}`)
+      router.refresh()
+    } catch (err) {
+      // A silently-snapping-back toggle would tell a compliance officer that
+      // monitoring is off when it isn't — surface the failure.
+      setSaveError(err instanceof Error ? err.message : String(err))
+    }
   }
 
   return (
