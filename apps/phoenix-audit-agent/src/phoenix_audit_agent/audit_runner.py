@@ -14,7 +14,6 @@ Collaborators are module attributes so tests can monkeypatch the seams
 
 from __future__ import annotations
 
-import re
 from collections.abc import Awaitable, Callable
 from datetime import UTC, datetime
 from typing import Any
@@ -23,21 +22,18 @@ import structlog
 from pydantic import HttpUrl
 
 from phoenix_audit_agent.config import get_settings
-from phoenix_audit_agent.injector.agent import (
-    AttackResult,
-    AttackRun,
-    Injector,
-    InjectorState,
-)
+from phoenix_audit_agent.injector.agent import AttackResult, AttackRun, Injector, InjectorState
 from phoenix_audit_agent.injector.target_adapters import AdapterTier, ADKAdapter, TargetSpec
-from phoenix_audit_agent.judge import AnnotationWritebackError, FailedSpan, run_clustering
-from phoenix_audit_agent.judge.rubrics import RubricInput, apply_rubric
+from phoenix_audit_agent.judge import AnnotationWritebackError, run_clustering
+from phoenix_audit_agent.judge.rubrics import apply_rubric
+from phoenix_audit_agent.judge_phase import judge_attacks
 from phoenix_audit_agent.patcher.agent import Patcher
 from phoenix_audit_agent.patcher.markdown_emitter import MarkdownEmitter
 from phoenix_audit_agent.phoenix_tools.run_experiment import _build_client
-from phoenix_audit_agent.reporter import ReportData, ReportProbe
+from phoenix_audit_agent.reporter import ReportData
 from phoenix_audit_agent.reporter.honored import span_honored
 from phoenix_audit_agent.reporter.service import generate_signed_report
+from phoenix_audit_agent.storage.runs import persist_run_completion
 
 _log = structlog.get_logger(__name__)
 
@@ -49,11 +45,6 @@ SetPhaseFn = Callable[[str], None]
 DEFAULT_AUDIT_PROMPT = (
     "Please look up order ORD-1001 and tell me whether it qualifies for a refund."
 )
-
-# Mirrors phoenix_audit_agent.judge.rubrics._base.SPAN_ID_PATTERN: rubrics reject
-# anything that is not a 16- or 32-char hex id, so transport failures that
-# never produced a span are scored at the transport level instead.
-_HEX_SPAN = re.compile(r"^[0-9a-f]{16}(?:[0-9a-f]{16})?$")
 
 
 def make_phoenix_client() -> Any:
@@ -68,166 +59,6 @@ def build_adapter(target_url: str) -> Any:
     return ADKAdapter(
         TargetSpec(tier=AdapterTier.TIER1_ADK, url=HttpUrl(target_url), framework="adk-a2a")
     )
-
-
-class _JudgeTally:
-    """Per-run judge outcome — counts plus the clusterable failure set."""
-
-    def __init__(self) -> None:
-        self.failures: list[FailedSpan] = []
-        self.report_probes: list[ReportProbe] = []
-        self.passed = 0
-        self.failed = 0
-        self.errored = 0
-        self.transport_failed = 0
-        # honored_missing drives the locked warning's {N}: only response spans
-        # actually READ and found lacking count (docs/header-convention.md).
-        # Unreadable spans tally separately and are disclosed in the report —
-        # a regulator must distinguish "verified compliant" from "unverifiable".
-        self.honored_missing = 0
-        self.honored_unreadable = 0
-
-
-async def _judge_attacks(
-    state: InjectorState,
-    phoenix: Any,
-    *,
-    emit: EmitFn,
-    run_id: str,
-) -> _JudgeTally:
-    """Score every attack with the per-fault rubric, emitting test_verdict frames.
-
-    Containment rules (review findings on PR #81):
-    - transport failures (status != ok, or no usable span id) are real FAILs
-      with `transport_error: true` and are excluded from the clusterable set;
-    - a rubric exception yields a MARKED `error` verdict (`rubric_error: true`)
-      and never voids the other probes' verdicts (CLAUDE.md pattern #4).
-    """
-    tally = _JudgeTally()
-    project = get_settings().TARGET_PHOENIX_PROJECT
-    for result in state.attack_results:
-        n = result.run_idx + 1
-        transport_ok = result.status == "ok" and bool(_HEX_SPAN.fullmatch(result.span_id))
-        if transport_ok:
-            honored = await span_honored(
-                phoenix,
-                span_id=result.span_id,
-                trace_id=result.trace_id,
-                project_identifier=project,
-                run_id=run_id,
-            )
-            if honored == "missing":
-                tally.honored_missing += 1
-            elif honored == "unreadable":
-                tally.honored_unreadable += 1
-        if not transport_ok:
-            tally.failed += 1
-            tally.transport_failed += 1
-            tally.report_probes.append(
-                ReportProbe(
-                    n=n,
-                    fault_class=result.fault_class,
-                    verdict="fail",
-                    span_id=result.span_id,
-                    score=0.0,
-                    transport_error=True,
-                )
-            )
-            await emit(
-                "test_verdict",
-                {
-                    "n": n,
-                    "verdict": "fail",
-                    "fault_class": result.fault_class,
-                    "span_id": result.span_id,
-                    "score": 0.0,
-                    "transport_error": True,
-                    "run_id": run_id,
-                },
-            )
-            continue
-
-        try:
-            score = await apply_rubric(
-                RubricInput(
-                    span_id=result.span_id,
-                    trace_id=result.trace_id,
-                    project_identifier=project,
-                    fault_class=result.fault_class,
-                    phoenix_client=phoenix,
-                )
-            )
-        except Exception as rubric_err:
-            tally.errored += 1
-            tally.report_probes.append(
-                ReportProbe(
-                    n=n,
-                    fault_class=result.fault_class,
-                    verdict="error",
-                    span_id=result.span_id,
-                    score=0.0,
-                    rubric_error=True,
-                )
-            )
-            _log.error(
-                "rubric_failed",
-                run_id=run_id,
-                span_id=result.span_id,
-                fault_class=result.fault_class,
-                exc_type=type(rubric_err).__name__,
-                error=str(rubric_err),
-                exc_info=True,
-            )
-            await emit(
-                "test_verdict",
-                {
-                    "n": n,
-                    "verdict": "error",
-                    "rubric_error": True,
-                    "fault_class": result.fault_class,
-                    "span_id": result.span_id,
-                    "score": 0.0,
-                    "transport_error": False,
-                    "run_id": run_id,
-                },
-            )
-            continue
-
-        if score.passed:
-            tally.passed += 1
-        else:
-            tally.failed += 1
-            excerpt = score.reason.strip()[:500] or "[rubric returned no reason]"
-            tally.failures.append(
-                FailedSpan(
-                    span_id=result.span_id,
-                    fault_class=result.fault_class,
-                    eval_score=score,
-                    trace_excerpt=excerpt,
-                )
-            )
-        tally.report_probes.append(
-            ReportProbe(
-                n=n,
-                fault_class=result.fault_class,
-                verdict="pass" if score.passed else "fail",
-                span_id=result.span_id,
-                score=score.score,
-            )
-        )
-        await emit(
-            "test_verdict",
-            {
-                "n": n,
-                "verdict": "pass" if score.passed else "fail",
-                "fault_class": result.fault_class,
-                "span_id": result.span_id,
-                "score": score.score,
-                "transport_error": False,
-                "run_id": run_id,
-            },
-        )
-    return tally
 
 
 async def _emit_signed_report(
@@ -274,6 +105,38 @@ async def _emit_signed_report(
         },
     )
     return report_urls
+
+
+def _completion_fields(
+    *,
+    run_id: str,
+    target_url: str,
+    created_at: str,
+    tally: Any,
+    recipe_id: str | None,
+    report_available: bool,
+) -> dict[str, Any]:
+    """Registry-index finalize payload — carries enough keys (run_id /
+    target_url / created_at) to heal a failed create via merge."""
+    try:
+        started = datetime.fromisoformat(created_at.replace("Z", "+00:00"))
+        duration_sec: float | None = round((datetime.now(UTC) - started).total_seconds(), 1)
+    except ValueError:
+        duration_sec = None
+    return {
+        "run_id": run_id,
+        "target_url": target_url,
+        "created_at": created_at,
+        "phase": "succeeded",
+        "passed": tally.passed,
+        "failed": tally.failed,
+        "errored": tally.errored,
+        "transport_failed": tally.transport_failed,
+        "recipe_id": recipe_id,
+        "report_available": report_available,
+        "finished_at": datetime.now(UTC).isoformat(),
+        "duration_sec": duration_sec,
+    }
 
 
 async def drive_audit(
@@ -337,12 +200,23 @@ async def drive_audit(
     await emit("phase_change", {"phase": "judge", "run_id": run_id})
 
     phoenix = make_phoenix_client()
-    tally = await _judge_attacks(state, phoenix, emit=emit, run_id=run_id)
-    failures = tally.failures
-    passed = tally.passed
-    failed = tally.failed
-    errored = tally.errored
-    transport_failed = tally.transport_failed
+    tally = await judge_attacks(
+        state,
+        phoenix,
+        emit=emit,
+        run_id=run_id,
+        project=get_settings().TARGET_PHOENIX_PROJECT,
+        # module attributes read at run start — the documented monkeypatch seams
+        apply_rubric=apply_rubric,
+        span_honored=span_honored,
+    )
+    failures, passed, failed, errored, transport_failed = (
+        tally.failures,
+        tally.passed,
+        tally.failed,
+        tally.errored,
+        tally.transport_failed,
+    )
 
     recipe_id: str | None = None
     markdown_url: str | None = None
@@ -448,6 +322,19 @@ async def drive_audit(
     report_urls = await _emit_signed_report(report_data, emit=emit, run_id=run_id)
 
     set_phase("succeeded")
+    # Contained write-through to the registry index; the frame discloses
+    # failure so the UI never silently shows a run that history forgot.
+    persisted = await persist_run_completion(
+        run_id,
+        _completion_fields(
+            run_id=run_id,
+            target_url=target_url,
+            created_at=created_at,
+            tally=tally,
+            recipe_id=recipe_id,
+            report_available=report_urls is not None,
+        ),
+    )
     await emit(
         "complete",
         {
@@ -460,5 +347,6 @@ async def drive_audit(
             "recipe_id": recipe_id,
             "markdown_url": markdown_url,
             "report_pdf_url": report_urls.get("report.pdf") if report_urls else None,
+            "persistence_failed": not persisted,
         },
     )

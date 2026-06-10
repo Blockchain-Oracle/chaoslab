@@ -151,6 +151,15 @@ for role in \
     --quiet > /dev/null
 done
 
+# Firestore (story-9.1): registry index for runs/agents/schedules/settings.
+# One-time database create + role grant; applied to the live project 2026-06-10:
+#   gcloud services enable firestore.googleapis.com
+#   gcloud firestore databases create --database="(default)" \
+#     --location=us-central1 --type=firestore-native
+#   gcloud projects add-iam-policy-binding "${PROJECT_ID}" \
+#     --member="serviceAccount:${RUNTIME_SA}@${PROJECT_ID}.iam.gserviceaccount.com" \
+#     --role="roles/datastore.user" --condition=None
+
 # GOTCHA-6: The recipes-artifact bucket must exist + the runtime SA needs
 # `storage.buckets.get` (not just `storage.objectAdmin`) because S6.5's
 # MarkdownEmitter.health_check() does `bucket.exists()` at lifespan startup.

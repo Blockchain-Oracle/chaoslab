@@ -1,0 +1,63 @@
+"""In-memory store fakes honoring the FirestoreRunStore/AgentStore contract.
+
+Used by unit tests via the storage seam (set_run_store/set_agent_store) —
+the live audit hot path never sees these; Firestore is the only prod impl.
+"""
+
+from __future__ import annotations
+
+from typing import Any
+
+from phoenix_audit_agent.storage.agents import DEMO_TARGET_SEED
+from phoenix_audit_agent.storage.models import AgentRecord, RunRecord
+
+
+class InMemoryRunStore:
+    def __init__(self) -> None:
+        self._docs: dict[str, dict[str, Any]] = {}
+
+    async def create(self, record: RunRecord) -> None:
+        self._docs[record.run_id] = record.model_dump()
+
+    async def finalize(self, run_id: str, fields: dict[str, Any]) -> None:
+        merged = {**self._docs.get(run_id, {}), **fields, "run_id": run_id}
+        self._docs[run_id] = RunRecord.model_validate(merged).model_dump()
+
+    async def list_runs(
+        self,
+        *,
+        agent_id: str | None = None,
+        source: str | None = None,
+        limit: int = 50,
+    ) -> list[RunRecord]:
+        rows = [RunRecord.model_validate(d) for d in self._docs.values()]
+        if agent_id is not None:
+            rows = [r for r in rows if r.agent_id == agent_id]
+        if source is not None:
+            rows = [r for r in rows if r.source == source]
+        rows.sort(key=lambda r: r.created_at, reverse=True)
+        return rows[:limit]
+
+    async def get(self, run_id: str) -> RunRecord | None:
+        doc = self._docs.get(run_id)
+        return RunRecord.model_validate(doc) if doc else None
+
+
+class InMemoryAgentStore:
+    def __init__(self) -> None:
+        self._docs: dict[str, dict[str, Any]] = {
+            DEMO_TARGET_SEED.agent_id: DEMO_TARGET_SEED.model_dump()
+        }
+
+    async def register(self, record: AgentRecord) -> None:
+        self._docs[record.agent_id] = record.model_dump()
+
+    async def list_agents(self) -> list[AgentRecord]:
+        return sorted(
+            (AgentRecord.model_validate(d) for d in self._docs.values()),
+            key=lambda a: a.registered_at,
+        )
+
+    async def get(self, agent_id: str) -> AgentRecord | None:
+        doc = self._docs.get(agent_id)
+        return AgentRecord.model_validate(doc) if doc else None
