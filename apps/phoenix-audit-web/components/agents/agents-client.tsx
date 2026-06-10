@@ -1,10 +1,12 @@
 'use client'
 
+import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { A } from '@/components/ui/link'
 import { PageFoot } from '@/components/ui/page-foot'
 import { TopBar } from '@/components/ui/topbar'
 import { fmtDate } from '@/lib/format'
+import { visibleRows } from '@/lib/sample-merge'
 import type { MergedAgent } from '@/lib/sample-merge'
 
 function AgentCard({ a }: { a: MergedAgent }) {
@@ -66,6 +68,12 @@ export interface AgentsClientProps {
 }
 
 export function AgentsClient({ agents, liveError }: AgentsClientProps) {
+  // Own-data-first (story-9.10): sample agents render only on request. The
+  // demo-target seed is REAL (registered + deployed), so a fresh account
+  // still has one agent it can audit immediately.
+  const [showSamples, setShowSamples] = useState(false)
+  const sampleCount = agents.filter((a) => a.sample).length
+  const visible = visibleRows(agents, showSamples)
   return (
     <div className="page-enter">
       <TopBar />
@@ -92,8 +100,19 @@ export function AgentsClient({ agents, liveError }: AgentsClientProps) {
             ⚠ LIVE REGISTRY UNAVAILABLE — showing sample data only. ({liveError})
           </div>
         ) : null}
+        {sampleCount > 0 ? (
+          <div style={{ marginBottom: 18 }}>
+            <button
+              className="btn small ghost"
+              aria-pressed={showSamples}
+              onClick={() => setShowSamples((s) => !s)}
+            >
+              {showSamples ? 'Hide sample agents' : `Explore sample agents (${sampleCount} seeded)`}
+            </button>
+          </div>
+        ) : null}
         <div style={{ display: 'grid', gap: 14, maxWidth: 760 }}>
-          {agents.map((a) => (
+          {visible.map((a) => (
             <AgentCard key={a.id} a={a} />
           ))}
           <div
@@ -107,11 +126,11 @@ export function AgentsClient({ agents, liveError }: AgentsClientProps) {
             }}
           >
             <span className="muted" style={{ fontSize: 13.5, flex: 1 }}>
-              Register another production agent — support copilots, voice agents, web-automation
+              Audit another production agent — support copilots, voice agents, web-automation
               agents…
             </span>
             <A to="new" className="btn small ghost">
-              Register target
+              New audit
             </A>
           </div>
         </div>

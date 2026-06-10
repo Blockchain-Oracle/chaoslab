@@ -50,9 +50,11 @@ describe('runToHistoryRow', () => {
     expect(row.transportFailed).toBe(2)
   })
 
-  it('null agent_id falls back to demo-target and absent mr stays absent', () => {
+  it('null agent_id stays unattributed (story-9.10) and absent mr stays absent', () => {
+    // The old 'demo-target' fallback dressed every custom-URL audit as the
+    // Demo Support Agent — rows must render their real target URL instead.
     const row = runToHistoryRow({ ...runDto, agent_id: null, mr_url: null, recipe_id: null })
-    expect(row.agentId).toBe('demo-target')
+    expect(row.agentId).toBe('')
     expect(row.mr).toBe(false)
     expect(row.mrUrl).toBeUndefined()
     expect(row.recipe).toBe(false)

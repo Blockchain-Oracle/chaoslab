@@ -97,6 +97,14 @@ class Settings(BaseSettings):
             "Empty => tick fails closed (503)."
         ),
     )
+    DEMO_TARGET_URL: str = Field(
+        default="http://localhost:8001",
+        description=(
+            "URL the demo-target seed advertises. MUST be the deployed "
+            "target-agent URL in deployed envs — localhost here means one "
+            "click on 'Run audit' reaches for a URL that doesn't exist."
+        ),
+    )
     FIREBASE_PROJECT_ID: str = Field(
         default="",
         description=(

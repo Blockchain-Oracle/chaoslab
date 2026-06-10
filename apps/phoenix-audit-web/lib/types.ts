@@ -156,6 +156,8 @@ export interface HistoryRow {
   targetUrl?: string
   /** Real runs: live MR link from the run record. */
   mrUrl?: string
+  /** Real runs: a signed report actually exists — links must be earned. */
+  reportAvailable?: boolean
 }
 
 export interface AggregateStats {

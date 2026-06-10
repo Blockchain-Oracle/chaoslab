@@ -115,6 +115,14 @@ COPY --from=build --chown=appuser:appuser /workspace/.venv /opt/venv
 RUN find /opt/venv/bin -maxdepth 1 -type f -executable -print0 \
     | xargs -0 sed -i '1s|#!/workspace/.venv|#!/opt/venv|'
 
+# Import smoke — a dependency missing from THIS image (dev env has extras the
+# image doesn't) must fail the BUILD, not crashloop the Cloud Run revision.
+# story-9.10 root cause: EmailStr needed email-validator; every staging deploy
+# since S9.3 silently parked as an unpromoted candidate while traffic stayed
+# pinned to a 4-day-old revision.
+RUN GEMINI_API_KEY=docker-import-smoke GCS_PROBE_AT_STARTUP=false ENVIRONMENT=dev \
+    python -c "import phoenix_audit_agent.main"
+
 COPY --from=build --chown=appuser:appuser /workspace/apps/phoenix-audit-agent/src /app/src
 COPY --from=build --chown=appuser:appuser /workspace/apps/phoenix-audit-agent/pyproject.toml /app/pyproject.toml
 

@@ -1,27 +1,42 @@
 'use client'
 
+// Settings tells the TRUTH (story-9.10): the real signed-in account, real
+// local preferences that other surfaces actually read, and honest states
+// for everything not yet user-configurable. No fictional operators, no
+// fake "connected" integrations, no dead Save buttons.
+
 import { useEffect, useState } from 'react'
+import { onAuthStateChanged, type User } from 'firebase/auth'
+import { getFirebaseAuth } from '@/lib/auth/client'
+import { PREF_FRAMEWORK, PREF_HOSTING } from '@/lib/prefs'
 import { Field } from '@/components/ui/field'
 import { PageFoot } from '@/components/ui/page-foot'
 import { PageShell } from '@/components/ui/page-shell'
 import { SectionHead } from '@/components/ui/section-head'
 import { TopBar } from '@/components/ui/topbar'
 
-const FRAMEWORKS = ['EU AI Act', 'NIST AI RMF', 'HIPAA', 'SOC 2 + AI', 'Custom']
+const FRAMEWORKS = ['EU AI Act', 'NIST AI RMF', 'HIPAA', 'SOC 2 + AI']
 
 type Hosting = 'default' | 'byo'
 
 export default function SettingsPage() {
   const [hosting, setHosting] = useState<Hosting>('default')
+  const [framework, setFramework] = useState('EU AI Act')
+  const [user, setUser] = useState<User | null>(null)
 
   useEffect(() => {
-    const v = (localStorage.getItem('pa_hosting') as Hosting | null) ?? 'default'
-    setHosting(v)
+    setHosting((localStorage.getItem(PREF_HOSTING) as Hosting | null) ?? 'default')
+    setFramework(localStorage.getItem(PREF_FRAMEWORK) ?? 'EU AI Act')
+    return onAuthStateChanged(getFirebaseAuth(), setUser)
   }, [])
 
   const setMode = (m: Hosting) => {
     setHosting(m)
-    localStorage.setItem('pa_hosting', m)
+    localStorage.setItem(PREF_HOSTING, m)
+  }
+  const setFw = (f: string) => {
+    setFramework(f)
+    localStorage.setItem(PREF_FRAMEWORK, f)
   }
 
   return (
@@ -36,27 +51,25 @@ export default function SettingsPage() {
             Settings.
           </h1>
 
-          <SectionHead no="§1" title="Organization" />
+          <SectionHead no="§1" title="Account" />
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
-            <Field label="Operator">
+            <Field label="Signed in as">
               <input
                 className="text-input"
-                defaultValue="Maya Okafor — Director of AI Governance"
+                value={user?.email ?? '…'}
+                readOnly
+                aria-readonly="true"
               />
             </Field>
-            <Field label="Organization">
-              <input className="text-input" defaultValue="Meridian Mutual Health" />
-            </Field>
-          </div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
             <Field
-              label="Erasure request address"
-              hint="Printed on every signed report cover in default hosting mode."
+              label="Default regulatory framework"
+              hint="Preselected when you start a new audit."
             >
-              <input className="text-input" defaultValue="erasure@phoenix-audit.example" />
-            </Field>
-            <Field label="Default regulatory framework">
-              <select className="text-input" defaultValue="EU AI Act">
+              <select
+                className="text-input"
+                value={framework}
+                onChange={(e) => setFw(e.target.value)}
+              >
                 {FRAMEWORKS.map((f) => (
                   <option key={f}>{f}</option>
                 ))}
@@ -65,35 +78,23 @@ export default function SettingsPage() {
           </div>
 
           <SectionHead no="§2" title="Signing & connections" />
-          <Field
-            label="Cloud KMS signing key"
-            hint="Signed audit reports are signed against this key. Fingerprint SHA-256 4B:9E:F1:0A."
-          >
-            <input
-              className="text-input"
-              defaultValue="kms://meridian-compliance/keys/audit-signer"
-            />
-          </Field>
-          <div
-            className="card"
-            style={{
-              padding: '16px 20px',
-              marginBottom: 26,
-              display: 'flex',
-              gap: 14,
-              alignItems: 'center',
-            }}
-          >
-            <div style={{ flex: 1 }}>
-              <div className="field-label" style={{ marginBottom: 4 }}>
-                GitLab connection
-              </div>
-              <div className="mono" style={{ fontSize: 12 }}>
-                gitlab.example/meridian — <span style={{ color: 'var(--pass)' }}>● connected</span>{' '}
-                · OAuth · merge requests enabled
-              </div>
+          <div className="card" style={{ padding: '16px 20px', marginBottom: 16 }}>
+            <div className="field-label" style={{ marginBottom: 4 }}>
+              Cloud KMS signing
             </div>
-            <button className="btn small ghost">Reconnect</button>
+            <div className="mono" style={{ fontSize: 12 }}>
+              <span style={{ color: 'var(--pass)' }}>● managed by the service</span> — every signed
+              report carries its Ed25519 verification fingerprint and signature sidecar.
+            </div>
+          </div>
+          <div className="card" style={{ padding: '16px 20px', marginBottom: 26 }}>
+            <div className="field-label" style={{ marginBottom: 4 }}>
+              GitLab merge requests
+            </div>
+            <div className="mono" style={{ fontSize: 12 }}>
+              Configured via the service environment — hardening recipes are filed as merge requests
+              by the audit pipeline. Per-account connections are not available yet.
+            </div>
           </div>
 
           <SectionHead
@@ -180,26 +181,15 @@ export default function SettingsPage() {
             </div>
           </div>
           {hosting === 'byo' ? (
-            <div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
-                <Field label="Phoenix endpoint URL">
-                  <input
-                    className="text-input"
-                    placeholder="https://phoenix.meridianmutual.internal"
-                  />
-                </Field>
-                <Field label="Project name">
-                  <input className="text-input" placeholder="agent-audits" />
-                </Field>
-              </div>
-              <Field label="API key">
-                <input className="text-input" type="password" placeholder="phx_…" />
-              </Field>
-            </div>
+            <p className="mono muted" style={{ fontSize: 11.5, lineHeight: 1.7 }}>
+              ◌ BYO endpoint configuration is provisioned with your deployment — the service reads
+              PHOENIX_COLLECTOR_ENDPOINT and PHOENIX_API_KEY from its environment. In-app
+              configuration is not available yet.
+            </p>
           ) : null}
-          <button className="btn primary" style={{ marginTop: 6 }}>
-            Save settings
-          </button>
+          <p className="mono muted" style={{ fontSize: 10.5, marginTop: 18 }}>
+            Preferences save as you change them — there is nothing else to submit.
+          </p>
         </div>
         <PageFoot />
       </div>

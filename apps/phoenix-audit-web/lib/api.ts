@@ -71,7 +71,10 @@ export function runToHistoryRow(dto: RunRecordDto): HistoryRow {
   return {
     id: dto.run_id,
     date: dto.created_at,
-    agentId: dto.agent_id ?? 'demo-target',
+    // No fallback attribution: a run without an agent_id renders its REAL
+    // target URL — defaulting to 'demo-target' dressed every custom-URL
+    // audit as the Demo Support Agent (story-9.10 review finding).
+    agentId: dto.agent_id ?? '',
     framework: frameworkChip(dto.framework_label),
     pass: dto.passed,
     fail: dto.failed,
@@ -82,6 +85,7 @@ export function runToHistoryRow(dto: RunRecordDto): HistoryRow {
     mr: Boolean(dto.mr_url),
     source: dto.source,
     targetUrl: dto.target_url,
+    reportAvailable: dto.report_available,
     ...(dto.mr_url ? { mrUrl: dto.mr_url } : {}),
   }
 }

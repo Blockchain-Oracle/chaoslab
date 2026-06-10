@@ -18,6 +18,8 @@ import { useAuditClock } from './use-audit-clock'
 
 interface AuditChamberProps {
   mode: 'replay' | 'live'
+  /** Live-mode: the REAL run id for the header label. */
+  runId?: string
   /** Live-mode only: surface the "demo pacing" disclosure (per-probe ticker
    *  derives from the timeline because the backend doesn't emit per-probe
    *  SSE events yet). Wired in via the SSE bridge. */
@@ -54,6 +56,7 @@ interface AuditChamberProps {
 
 export function AuditChamber({
   mode,
+  runId,
   demoPacing,
   livePhase,
   clockCeiling,
@@ -74,6 +77,10 @@ export function AuditChamber({
   const baseState = deriveAudit(t)
   const s = livePhase ? { ...baseState, phase: livePhase } : baseState
   const hasRealProbes = (liveProbes?.length ?? 0) > 0
+  // Live runs NEVER render the fixture canvases — before the first real
+  // probe event the live components show their own pending states. A real
+  // failed run animating fake verdicts was story-9.10's worst finding.
+  const fixtureCanvas = mode !== 'live'
 
   const arenaRef = useRef<HTMLDivElement | null>(null)
   const clusterRef = useRef<HTMLDivElement | null>(null)
@@ -96,6 +103,7 @@ export function AuditChamber({
         mode={mode}
         demoPacing={demoPacing && !hasRealProbes}
         connected={liveConnected}
+        runLabel={runId}
       />
 
       {liveError ? (
@@ -148,7 +156,7 @@ export function AuditChamber({
           zIndex: 2,
         }}
       >
-        {!hasRealProbes ? (
+        {fixtureCanvas ? (
           <CascadeOverlay s={s} arenaRef={arenaRef} failRefs={failRefs} clusterRef={clusterRef} />
         ) : null}
 
@@ -157,7 +165,7 @@ export function AuditChamber({
           <Pipeline s={s} />
           <EventFeed t={t} liveLines={liveLines} />
 
-          {s.headerWarn && !hasRealProbes ? (
+          {s.headerWarn && fixtureCanvas ? (
             <div
               style={{
                 border: '1px dashed var(--warn)',
@@ -195,7 +203,7 @@ export function AuditChamber({
         {/* right canvas: ledger + cluster + recipe.
             Real wire events take precedence over the timeline fixtures. */}
         <div style={{ display: 'grid', gap: 22, alignContent: 'start' }}>
-          {hasRealProbes ? (
+          {!fixtureCanvas ? (
             <>
               <LiveProbeLedger probes={liveProbes ?? []} summary={liveSummary ?? null} />
               <LiveReportRow report={liveReport ?? null} />
@@ -204,7 +212,7 @@ export function AuditChamber({
             <ProbeLedger s={s} failRefs={failRefs} />
           )}
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 22 }}>
-            {hasRealProbes ? (
+            {!fixtureCanvas ? (
               <>
                 <LiveClusterCard cluster={liveCluster ?? null} phase={s.phase} />
                 <LiveRecipeCard recipe={liveRecipe ?? null} phase={s.phase} />

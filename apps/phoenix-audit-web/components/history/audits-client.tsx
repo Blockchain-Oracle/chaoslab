@@ -7,8 +7,10 @@ import { EmptyState } from '@/components/ui/empty-state'
 import { A } from '@/components/ui/link'
 import { PageFoot } from '@/components/ui/page-foot'
 import { TopBar } from '@/components/ui/topbar'
-import { AGGREGATE, HERO_RUN } from '@/lib/fixtures'
+import { historyRowDest, runHasReport } from '@/lib/cta'
+import { HERO_RUN } from '@/lib/fixtures'
 import { fmtDate } from '@/lib/format'
+import { realStats, visibleRows } from '@/lib/sample-merge'
 import type { MergedAgent, MergedRun } from '@/lib/sample-merge'
 
 const FRAMEWORKS = ['All frameworks', 'EU AI Act', 'NIST AI RMF', 'HIPAA', 'SOC 2 + AI']
@@ -32,15 +34,11 @@ interface RowProps {
 
 function HistoryRow({ run, agents }: RowProps) {
   const router = useRouter()
-  const agent = agents.find((a) => a.id === run.agentId)
+  const agent = run.agentId ? agents.find((a) => a.id === run.agentId) : undefined
   const name = agent?.name ?? run.targetUrl ?? run.agentId
   const url = agent?.url ?? run.targetUrl ?? ''
-  const open = () => {
-    // Sample hero row demos the chamber via the fixture replay; everything
-    // else (incl. ALL real runs) opens its report.
-    const path = run.sample && run.id === HERO_RUN.id ? '/replay' : `/report/${run.id}`
-    router.push(path)
-  }
+  const hasReport = runHasReport(run)
+  const open = () => router.push(historyRowDest(run, HERO_RUN.id))
   const stop = (e: React.MouseEvent) => e.stopPropagation()
   return (
     <tr className="clickable" onClick={open}>
@@ -85,27 +83,30 @@ function HistoryRow({ run, agents }: RowProps) {
         {run.sample ? <SampleChip /> : null}
       </td>
       <td onClick={stop} style={{ whiteSpace: 'nowrap' }}>
-        <A to={'report/' + run.id} className="span-link" style={{ marginRight: 12 }}>
-          signed PDF
-        </A>
+        {hasReport ? (
+          <A to={'report/' + run.id} className="span-link" style={{ marginRight: 12 }}>
+            signed PDF
+          </A>
+        ) : (
+          <span className="mono muted" style={{ fontSize: 10.5, marginRight: 12 }}>
+            no report
+          </span>
+        )}
         {run.sample && run.recipe ? (
           <A to={'recipe/' + HERO_RUN.recipeId} className="span-link" style={{ marginRight: 12 }}>
             recipe
           </A>
         ) : null}
-        {!run.sample && run.recipe ? (
+        {!run.sample && run.recipe && hasReport ? (
           // Real runs: the report page exposes the recipe.md download with a
           // freshly signed URL.
           <A to={'report/' + run.id} className="span-link" style={{ marginRight: 12 }}>
             recipe
           </A>
         ) : null}
-        {run.mr && run.mrUrl ? (
+        {run.mrUrl ? (
+          // Only REAL MR urls render — a dead '#mr' anchor is a fake artifact.
           <a className="span-link" href={run.mrUrl} target="_blank" rel="noreferrer">
-            MR ↗
-          </a>
-        ) : run.mr ? (
-          <a className="span-link" href="#mr" onClick={(e) => e.preventDefault()}>
             MR ↗
           </a>
         ) : null}
@@ -123,7 +124,11 @@ export interface AuditsClientProps {
 export function AuditsClient({ rows: allRows, agents, liveError }: AuditsClientProps) {
   const [q, setQ] = useState('')
   const [fw, setFw] = useState('All frameworks')
-  const rows = allRows.filter((r) => {
+  // Own-data-first (story-9.10): samples render only on explicit request —
+  // a fresh signed-in account must never look like it has 47 audits.
+  const [showSamples, setShowSamples] = useState(false)
+  const sampleCount = allRows.filter((r) => r.sample).length
+  const rows = visibleRows(allRows, showSamples).filter((r) => {
     const agent = agents.find((a) => a.id === r.agentId)
     const haystack = (
       r.id +
@@ -133,7 +138,7 @@ export function AuditsClient({ rows: allRows, agents, liveError }: AuditsClientP
     ).toLowerCase()
     return haystack.includes(q.toLowerCase()) && (fw === 'All frameworks' || r.framework === fw)
   })
-  const realCount = allRows.filter((r) => !r.sample).length
+  const stats = realStats(allRows)
   return (
     <div className="page-enter">
       <TopBar />
@@ -141,7 +146,7 @@ export function AuditsClient({ rows: allRows, agents, liveError }: AuditsClientP
         <div style={{ display: 'flex', alignItems: 'flex-end', gap: 20, marginBottom: 38 }}>
           <div style={{ flex: 1 }}>
             <div className="kicker" style={{ marginBottom: 12 }}>
-              Audit registry · {AGGREGATE.quarter}
+              Audit registry
             </div>
             <h1 className="display" style={{ fontSize: 38 }}>
               Audit history.
@@ -176,9 +181,9 @@ export function AuditsClient({ rows: allRows, agents, liveError }: AuditsClientP
             paddingTop: 4,
           }}
         >
-          <StatBlock value={AGGREGATE.audits + realCount} label={'audits · ' + AGGREGATE.quarter} />
-          <StatBlock value={AGGREGATE.findings} label="with findings" />
-          <StatBlock value={AGGREGATE.hardened} label="hardened & re-passed" />
+          <StatBlock value={stats.audits} label="audits — your account" />
+          <StatBlock value={stats.withFindings} label="with findings" />
+          <StatBlock value={stats.passedClean} label="passed clean" />
           <div style={{ flex: 1 }}></div>
           <div style={{ alignSelf: 'center', display: 'flex', gap: 10 }}>
             <input
@@ -201,6 +206,20 @@ export function AuditsClient({ rows: allRows, agents, liveError }: AuditsClientP
           </div>
         </div>
 
+        {sampleCount > 0 ? (
+          <div style={{ marginBottom: 18 }}>
+            <button
+              className="btn small ghost"
+              aria-pressed={showSamples}
+              onClick={() => setShowSamples((s) => !s)}
+            >
+              {showSamples
+                ? 'Hide sample data'
+                : `Explore sample data (${sampleCount} seeded audits)`}
+            </button>
+          </div>
+        ) : null}
+
         {rows.length ? (
           <div className="ledger-wrap">
             <table className="ledger">
@@ -221,7 +240,7 @@ export function AuditsClient({ rows: allRows, agents, liveError }: AuditsClientP
               </tbody>
             </table>
           </div>
-        ) : (
+        ) : q || fw !== 'All frameworks' ? (
           <EmptyState
             kicker="NO MATCHES"
             title="No audits match that filter."
@@ -236,6 +255,17 @@ export function AuditsClient({ rows: allRows, agents, liveError }: AuditsClientP
               >
                 Clear filters
               </button>
+            }
+          />
+        ) : (
+          <EmptyState
+            kicker="NO AUDITS YET"
+            title="Your register is empty."
+            body="Run your first audit to establish a signed baseline — or explore the seeded sample data to see what a finished audit looks like."
+            action={
+              <A to="new" className="btn small ember">
+                Run your first audit
+              </A>
             }
           />
         )}
