@@ -98,8 +98,11 @@ async def patch_schedule(
 ) -> ScheduleRecord:
     store = get_schedule_store()
     record = await store.get(schedule_id)
-    # Foreign-owned reads as not-found — a 403 would CONFIRM the id exists.
-    if record is None or record.owner_uid not in (None, user.uid):
+    # WRITES require exact ownership — legacy ownerless records stay readable
+    # (evidence must not vanish) but immutable: sign-ups are open to the
+    # internet, so owner_uid=None must not mean world-writable. Foreign and
+    # ownerless both read as not-found (a 403 would CONFIRM the id exists).
+    if record is None or record.owner_uid != user.uid:
         raise HTTPException(status_code=404, detail=f"schedule not found: {schedule_id}")
     fields = payload.model_dump(exclude_none=True)
     merged = record.model_copy(update=fields)

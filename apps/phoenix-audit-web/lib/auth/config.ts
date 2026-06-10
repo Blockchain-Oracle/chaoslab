@@ -16,9 +16,10 @@ const MIN_SIGNATURE_KEY_BYTES = 32
 
 // Local dev has no GCP metadata server, and the library's ADC path is
 // metadata-only — so off Cloud Run we hand it a projectId-bearing credential.
-// VERIFY-ONLY: ID-token verification uses Google's public certs and token
-// refresh uses the apiKey; nothing in our middleware calls the admin APIs
-// that would need the (empty) private key. On Cloud Run, real ADC is used.
+// VERIFY-ONLY: ID-token verification needs only Google's public certs +
+// apiKey. Exception: /api/login signs a custom token and DOES need a real
+// signer — which is why the full sign-in round trip only works on Cloud Run
+// (keyless signBlob) and is the known local limitation in .env.example.
 function localVerifyOnlyCredential():
   | { projectId: string; clientEmail: string; privateKey: string }
   | undefined {

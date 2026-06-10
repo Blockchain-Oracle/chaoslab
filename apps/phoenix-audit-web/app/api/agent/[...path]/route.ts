@@ -35,9 +35,10 @@ async function proxy(req: NextRequest, pathParts: string[]): Promise<Response> {
   if (!allowed(path)) {
     return Response.json({ detail: `path not allowed: ${path}` }, { status: 404 })
   }
-  // Session check AFTER the allowlist 404 (no path disclosure to probes),
-  // BEFORE any upstream call. EventSource cannot set headers, so the cookie
-  // is the only credential the browser can present here.
+  // Session check AFTER the allowlist 404 — disallowed paths read as
+  // nonexistent even to authenticated callers and never touch auth or the
+  // upstream — and BEFORE any upstream call. EventSource cannot set headers,
+  // so the cookie is the only credential the browser can present here.
   const tokens = await getTokens(req.cookies, serverAuthConfig())
   if (!tokens) {
     return Response.json({ detail: 'sign in required' }, { status: 401 })

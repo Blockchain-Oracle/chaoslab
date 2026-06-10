@@ -31,8 +31,9 @@ FROM node:20-alpine AS runtime
 WORKDIR /app
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
-# Server-side code (proxy.ts, route handlers) reads these from RUNTIME env —
-# build-time inlining only covers the client bundle. Same values as build.
+# Redundant safety net: Next.js inlines literal NEXT_PUBLIC_* references into
+# server bundles at build time too, so these runtime ENVs are likely inert —
+# kept so a future non-literal read (process.env[name]) cannot silently miss.
 ARG NEXT_PUBLIC_FIREBASE_API_KEY
 ARG NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN
 ARG NEXT_PUBLIC_FIREBASE_PROJECT_ID

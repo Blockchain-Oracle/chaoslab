@@ -47,8 +47,11 @@ the path that must work end-to-end NOW.
    `sub`. `GET /runs`, `GET /agents`, `GET /schedules` return only the
    caller's records (`owner_uid` match; legacy records with
    `owner_uid=None` stay visible — pre-auth data must not vanish from the
-   registry). `/internal/scheduler-tick` keeps its own OIDC gate (no user);
-   scheduled runs inherit `owner_uid` from their schedule.
+   registry). **Writes require exact ownership** (PR-review amendment
+   2026-06-10): legacy ownerless records are readable but immutable via the
+   API — sign-ups are open to the internet, so `owner_uid=None` must not
+   mean world-writable. `/internal/scheduler-tick` keeps its own OIDC gate
+   (no user); scheduled runs inherit `owner_uid` from their schedule.
 6. **SSE stays alive.** `/api/agent/stream` works with the session cookie —
    EventSource cannot set headers, so gating happens at the proxy.
 7. **Config + deploy.** `NEXT_PUBLIC_FIREBASE_*` (api key, auth domain,

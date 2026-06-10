@@ -138,3 +138,24 @@ async def test_email_is_optional_in_claims(
     r = await client.get("/whoami", headers={"x-firebase-id-token": "tok"})
     assert r.status_code == 200
     assert r.json() == {"uid": "uid-noemail", "email": None}
+
+
+async def test_cert_endpoint_outage_is_503_not_401(
+    client: httpx.AsyncClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A Google cert-endpoint outage is OUR problem — answering 401 would read
+    as 'every user's token went bad' during support triage."""
+    from google.auth import exceptions as ga_exceptions
+
+    from phoenix_audit_agent.api import auth as auth_api
+
+    monkeypatch.setenv("FIREBASE_PROJECT_ID", "proj-test")
+    get_settings.cache_clear()
+
+    def transport_down(token: object, request: object, audience: object) -> dict[str, Any]:
+        raise ga_exceptions.TransportError("cert fetch failed")
+
+    monkeypatch.setattr(auth_api.id_token, "verify_firebase_token", transport_down)
+    r = await client.get("/whoami", headers={"x-firebase-id-token": "tok"})
+    assert r.status_code == 503
+    assert "temporarily unavailable" in r.json()["detail"]

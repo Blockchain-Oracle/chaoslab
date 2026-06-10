@@ -54,6 +54,12 @@ export function describeAuthError(
         scope: 'card',
         text: 'Too many attempts — wait a moment and try again.',
       }
+    case 'phx/session-mint-failed':
+      return {
+        kind: 'error',
+        scope: 'card',
+        text: "You're verified, but we couldn't start your session — try again.",
+      }
     default:
       return {
         kind: 'error',

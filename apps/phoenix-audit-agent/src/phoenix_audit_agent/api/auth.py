@@ -10,16 +10,21 @@ from __future__ import annotations
 import asyncio
 from dataclasses import dataclass
 
+import structlog
 from fastapi import HTTPException, Request
+from google.auth import exceptions as ga_exceptions
 from google.auth.transport import requests as ga_requests
 from google.oauth2 import id_token
 
 from phoenix_audit_agent.config import get_settings
 
+_log = structlog.get_logger(__name__)
+
 USER_TOKEN_HEADER = "x-firebase-id-token"  # noqa: S105 — header NAME, not a credential
 
-# Reused across requests — carries the Google cert cache; rebuilding it per
-# request re-fetches certs on every verification.
+# Reused across requests for connection pooling. NOTE: a plain Request()
+# re-fetches Google's certs per verification (caching needs a CacheControl
+# session) — acceptable because verification runs off the event loop.
 _GA_REQUEST = ga_requests.Request()
 
 
@@ -47,7 +52,17 @@ async def require_user(request: Request) -> AuthedUser:
         claims = await asyncio.to_thread(
             id_token.verify_firebase_token, token, _GA_REQUEST, project_id
         )
+    except ga_exceptions.TransportError as err:
+        # Cert-endpoint outage is OUR problem, not the caller's — a 401 here
+        # would read as "every user's token went bad" in support triage.
+        _log.warning("user_token_verification_unavailable", exc_info=True)
+        raise HTTPException(
+            status_code=503, detail="token verification temporarily unavailable"
+        ) from err
     except Exception as err:
+        # Logged at WARN so a surge of one error class (cert poisoning vs
+        # malformed tokens) stays distinguishable in Cloud Logging.
+        _log.warning("user_token_rejected", error_type=type(err).__name__, exc_info=True)
         raise HTTPException(
             status_code=401, detail=f"invalid user token: {type(err).__name__}"
         ) from err

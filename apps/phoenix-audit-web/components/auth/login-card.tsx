@@ -36,7 +36,11 @@ async function establishSession(
   const idToken = await credential.user.getIdToken()
   const res = await fetch('/api/login', { headers: { Authorization: `Bearer ${idToken}` } })
   if (!res.ok) {
-    throw new Error(`session cookie mint failed: ${res.status}`)
+    // Distinct code: Firebase auth SUCCEEDED here — only the session cookie
+    // failed to mint. The generic "something went wrong" would mislead.
+    throw Object.assign(new Error(`session cookie mint failed: ${res.status}`), {
+      code: 'phx/session-mint-failed',
+    })
   }
   // Full navigation (not router.push) so the middleware and every server
   // component see the fresh session cookie.
@@ -67,6 +71,9 @@ export function LoginCard({
   }
 
   function fail(err: unknown) {
+    // Always leave a console trail — the on-screen sentence is for the user;
+    // the raw error is for whoever debugs a report of it.
+    console.error('sign-in attempt failed:', err)
     const code =
       typeof err === 'object' && err !== null && 'code' in err ? String(err.code) : 'unknown'
     const described = describeAuthError(code, mode)

@@ -19,6 +19,7 @@ export default async function LoginPage({
   const params = await searchParams
   const redirect = typeof params.redirect === 'string' ? params.redirect : null
   const signedOut = params.signedout === '1'
+  const sessionError = params.error === 'session'
   return (
     <div className="page-enter login-stage">
       <div className="login-watermark" aria-hidden="true">
@@ -55,7 +56,11 @@ export default async function LoginPage({
         <LoginCard
           redirect={redirect}
           initialNotice={
-            signedOut ? { kind: 'info', text: 'Signed out — sign in to continue.' } : null
+            signedOut
+              ? { kind: 'info', text: 'Signed out — sign in to continue.' }
+              : sessionError
+                ? { kind: 'info', text: 'Your session hit a problem — sign in again.' }
+                : null
           }
         />
       </main>

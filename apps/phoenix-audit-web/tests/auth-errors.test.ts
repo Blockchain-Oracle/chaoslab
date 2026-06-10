@@ -61,3 +61,27 @@ describe('describeAuthError', () => {
     expect(out?.text).not.toMatch(/auth\//)
   })
 })
+
+describe('describeAuthError — review additions', () => {
+  it('invalid-email joins the wrong-credentials group', () => {
+    expect(describeAuthError('auth/invalid-email', 'signin')?.text).toMatch(/don't match/)
+  })
+
+  it('too-many-requests asks the user to wait', () => {
+    expect(describeAuthError('auth/too-many-requests', 'signin')?.text).toMatch(/Too many/)
+  })
+
+  it('configuration-not-found degrades like a disabled Google provider', () => {
+    expect(describeAuthError('auth/configuration-not-found', 'signin')).toEqual({
+      kind: 'warn',
+      scope: 'card',
+      text: "Google sign-in isn't available yet — use email for now.",
+    })
+  })
+
+  it('session-mint failure says auth succeeded but the session did not', () => {
+    const out = describeAuthError('phx/session-mint-failed', 'signin')
+    expect(out?.kind).toBe('error')
+    expect(out?.text).toMatch(/verified.*session/i)
+  })
+})

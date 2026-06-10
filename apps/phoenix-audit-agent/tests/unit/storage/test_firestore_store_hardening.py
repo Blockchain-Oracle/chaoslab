@@ -185,3 +185,46 @@ class TestRunsTruncationDisclosure:
         rows, truncated = await FirestoreRunStore(db).list_runs()
         assert len(rows) == 1
         assert truncated is False
+
+
+class TestRunsVisibleToScoping:
+    """story-9.4: the REAL Firestore impl must scope like the fake does —
+    own + ownerless-legacy rows, foreign rows invisible."""
+
+    @staticmethod
+    def _owned_doc(run_id: str, *, owner_uid: str | None, created_at: str) -> dict[str, Any]:
+        doc = _run_doc(run_id, created_at=created_at)
+        doc["owner_uid"] = owner_uid
+        return doc
+
+    async def test_visible_to_filters_foreign_keeps_legacy(self) -> None:
+        db = _FakeDb(
+            {
+                "run_mine": self._owned_doc(
+                    "run_mine", owner_uid="user-a", created_at="2026-06-10T03:00:00Z"
+                ),
+                "run_foreign": self._owned_doc(
+                    "run_foreign", owner_uid="user-b", created_at="2026-06-10T02:00:00Z"
+                ),
+                "run_legacy": self._owned_doc(
+                    "run_legacy", owner_uid=None, created_at="2026-06-10T01:00:00Z"
+                ),
+            }
+        )
+        rows, truncated = await FirestoreRunStore(db).list_runs(visible_to="user-a")
+        assert [r.run_id for r in rows] == ["run_mine", "run_legacy"]
+        assert truncated is False
+
+    async def test_visible_to_at_cap_reports_truncated(self) -> None:
+        """Every authed /runs call is now a filtered query — cap-hit must
+        disclose, because the caller's older rows may exist beyond the window."""
+        docs = {
+            f"run_{i:03d}": self._owned_doc(
+                f"run_{i:03d}", owner_uid="user-b", created_at=f"2026-06-09T{i % 24:02d}:00:00Z"
+            )
+            for i in range(200)
+        }
+        db = _FakeDb(docs)
+        rows, truncated = await FirestoreRunStore(db).list_runs(visible_to="user-a")
+        assert rows == []
+        assert truncated is True

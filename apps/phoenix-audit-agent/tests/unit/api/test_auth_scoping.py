@@ -265,3 +265,81 @@ async def test_stream_foreign_run_is_404(
     auth_as(uid="user-b")
     foreign = await client.get(f"/stream?runId={run_id}")
     assert foreign.status_code == 404
+
+
+# --- writes require exact ownership (review finding: ownerless must not be
+# --- world-writable — sign-ups are open to the internet) -------------------
+
+
+async def test_patch_legacy_unowned_schedule_is_404(
+    client: httpx.AsyncClient, auth_as: Callable[..., None]
+) -> None:
+    """Legacy owner_uid=None schedules stay READABLE but immutable via API."""
+    await schedule_storage.get_schedule_store().upsert(
+        ScheduleRecord(
+            schedule_id="sch_legacy",
+            target_url="https://t.example",
+            next_fire_at="2026-06-10T00:00:00+00:00",
+            created_at="2026-06-10T00:00:00+00:00",
+        )
+    )
+    auth_as(uid="user-a")
+    r = await client.get("/schedules")
+    assert "sch_legacy" in [s["schedule_id"] for s in r.json()["schedules"]]
+    assert (await client.patch("/schedules/sch_legacy", json={"enabled": False})).status_code == 404
+
+
+async def test_stream_legacy_unowned_run_is_visible(
+    client: httpx.AsyncClient, auth_as: Callable[..., None]
+) -> None:
+    from phoenix_audit_agent import main as _main
+
+    _main._RUN_REGISTRY["run_legacy999999"] = _main._RunState(
+        run_id="run_legacy999999",
+        request=_main.RunRequest(target_url="https://t.example"),
+        created_at="2026-06-10T00:00:00+00:00",
+    )
+    _main._RUN_QUEUES["run_legacy999999"] = __import__("asyncio").Queue()
+    auth_as(uid="user-a")
+    async with client.stream("GET", "/stream?runId=run_legacy999999") as resp:
+        assert resp.status_code == 200
+        async for chunk in resp.aiter_text():
+            if "hello" in chunk:
+                break
+
+
+# --- the wiring invariant: gated-by-default, forever -----------------------
+
+
+def test_every_route_requires_user_or_is_explicitly_public() -> None:
+    """A future endpoint added without require_user must FAIL here, not ship
+    open — mirrors the web matrix's unknown-routes-default-to-gated stance."""
+    from fastapi.routing import APIRoute
+
+    from phoenix_audit_agent.api.auth import require_user
+    from phoenix_audit_agent.main import app
+
+    public = {"/health", "/internal/scheduler-tick"}  # tick has its own OIDC gate
+    fastapi_builtins = {"/openapi.json", "/docs", "/docs/oauth2-redirect", "/redoc"}
+
+    unprotected = [
+        route.path
+        for route in app.routes
+        if isinstance(route, APIRoute)
+        and route.path not in public | fastapi_builtins
+        and require_user not in {d.call for d in route.dependant.dependencies}
+    ]
+    assert unprotected == [], f"routes without require_user: {unprotected}"
+
+
+# --- the REAL header path through the REAL app (closes the auth_as-override
+# --- vs real-dependency drift seam) ----------------------------------------
+
+
+async def test_real_app_accepts_header_token_and_scopes(
+    client: httpx.AsyncClient, as_user: Callable[..., dict[str, str]]
+) -> None:
+    await _seed_runs()
+    r = await client.get("/runs", headers=as_user("user-a"))
+    assert r.status_code == 200, r.text
+    assert {x["run_id"] for x in r.json()["runs"]} == {"run_aaaaaaaaaaaa", "run_legacy000000"}

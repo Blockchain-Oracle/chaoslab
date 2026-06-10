@@ -80,8 +80,8 @@ describe('proxy identity forwarding', () => {
   })
 
   it('401 wins over the allowlist 404 only AFTER the allowlist check', async () => {
-    // Disallowed paths 404 without touching auth — the proxy must not
-    // disclose which upstream paths exist to unauthenticated probes either.
+    // Disallowed paths 404 without touching auth — they read as nonexistent
+    // even to authenticated callers, and auth machinery never runs for them.
     getTokens.mockResolvedValue(null)
     const res = await POST(req('POST'), ctx(['internal', 'scheduler-tick']))
     expect(res.status).toBe(404)

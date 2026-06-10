@@ -11,6 +11,7 @@ import { getFirebaseAuth } from '@/lib/auth/client'
 export function UserMenu() {
   const [open, setOpen] = useState(false)
   const [user, setUser] = useState<User | null>(null)
+  const [signOutFailed, setSignOutFailed] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -33,13 +34,18 @@ export function UserMenu() {
   }, [])
 
   async function handleSignOut() {
-    // Cookie first (the actual gate), client state second; the navigation
-    // happens regardless — a half-failed sign-out must still leave the app.
+    // Cookie first (the actual gate), client state second. Navigation only
+    // happens when the cookie is actually cleared — showing "Signed out"
+    // while a 12-day session cookie survives would be a lie with a long
+    // shelf life on a shared machine.
     try {
-      await fetch('/api/logout')
+      const res = await fetch('/api/logout')
+      if (!res.ok) throw new Error(`logout endpoint answered ${res.status}`)
       await signOut(getFirebaseAuth())
-    } finally {
       window.location.assign('/login?signedout=1')
+    } catch (err) {
+      console.error('sign-out failed — session cookie may still be active:', err)
+      setSignOutFailed(true)
     }
   }
 
@@ -85,6 +91,11 @@ export function UserMenu() {
           >
             Sign out →
           </button>
+          {signOutFailed ? (
+            <div role="alert" style={{ padding: '8px 12px', fontSize: 12, color: 'var(--fail)' }}>
+              Sign-out didn’t complete — try again.
+            </div>
+          ) : null}
         </div>
       ) : null}
     </div>
