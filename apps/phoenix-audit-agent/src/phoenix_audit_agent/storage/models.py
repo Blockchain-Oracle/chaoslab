@@ -95,6 +95,29 @@ class AgentRecord(BaseModel):
     owner_uid: str | None = None
 
 
+HostingPref = Literal["default", "byo"]
+
+
+class UserProfile(BaseModel):
+    """The users/{uid} settings document. extra='ignore' so later stories
+    (gitlab connection blob, wizard fields) can land without migration.
+    Email mirrors the verified token at read/write time — display
+    convenience, not identity."""
+
+    model_config = ConfigDict(extra="ignore")
+
+    uid: str = Field(min_length=1)
+    email: str | None = None
+    org_name: str | None = None
+    framework_default: str = Field(default="EU AI Act", min_length=1)
+    hosting_pref: HostingPref = "default"
+    onboarded: bool = False
+    # None ⇔ never persisted (GET-computed defaults). A stored profile always
+    # carries both timestamps; empty strings are unrepresentable.
+    created_at: str | None = Field(default=None, min_length=1)
+    updated_at: str | None = Field(default=None, min_length=1)
+
+
 Cadence = Literal["hourly", "daily"]
 
 
@@ -124,9 +147,11 @@ __all__ = [
     "AgentRecord",
     "Cadence",
     "Framework",
+    "HostingPref",
     "RunCompletion",
     "RunPhase",
     "RunRecord",
     "RunSource",
     "ScheduleRecord",
+    "UserProfile",
 ]

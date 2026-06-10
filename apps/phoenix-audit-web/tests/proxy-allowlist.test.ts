@@ -63,7 +63,7 @@ describe('proxy allowlist', () => {
     expect(upstream).not.toHaveBeenCalled()
   })
 
-  it.each([['runs'], ['agents'], ['health'], ['schedules']])(
+  it.each([['runs'], ['agents'], ['health'], ['schedules'], ['profile']])(
     'forwards %s upstream',
     async (path) => {
       const res = await GET(req('GET'), ctx([path]))
@@ -73,6 +73,12 @@ describe('proxy allowlist', () => {
       expect(url).toBe(`http://agent.test/${path}`)
     },
   )
+
+  it('blocks profile sub-paths — /profile is the only settings surface', async () => {
+    const res = await GET(req('GET'), ctx(['profile', 'other-uid']))
+    expect(res.status).toBe(404)
+    expect(upstream).not.toHaveBeenCalled()
+  })
 
   it('forces text/event-stream accept ONLY for /stream', async () => {
     await GET(req('GET', '?runId=run_abc'), ctx(['stream']))

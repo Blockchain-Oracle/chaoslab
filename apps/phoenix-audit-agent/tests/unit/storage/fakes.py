@@ -9,7 +9,13 @@ from __future__ import annotations
 from typing import Any
 
 from phoenix_audit_agent.storage.agents import demo_target_seed
-from phoenix_audit_agent.storage.models import AgentRecord, RunCompletion, RunRecord, ScheduleRecord
+from phoenix_audit_agent.storage.models import (
+    AgentRecord,
+    RunCompletion,
+    RunRecord,
+    ScheduleRecord,
+    UserProfile,
+)
 
 
 class InMemoryRunStore:
@@ -105,3 +111,17 @@ class InMemoryScheduleStore:
 
     async def patch_fields(self, schedule_id: str, fields: dict[str, Any]) -> None:
         self._docs[schedule_id].update(fields)
+
+
+class InMemoryProfileStore:
+    def __init__(self) -> None:
+        self._docs: dict[str, dict[str, Any]] = {}
+
+    async def get(self, uid: str) -> UserProfile | None:
+        doc = self._docs.get(uid)
+        return UserProfile.model_validate(doc) if doc else None
+
+    async def merge(self, uid: str, fields: dict[str, Any]) -> None:
+        # Field-level merge like Firestore set(merge=True): unknown stored
+        # fields survive (the contract test_patch_preserves_unknown_stored_fields pins).
+        self._docs[uid] = {**self._docs.get(uid, {}), **fields}
