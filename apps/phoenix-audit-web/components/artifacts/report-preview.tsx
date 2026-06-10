@@ -39,6 +39,8 @@ interface ReportPreviewProps {
    *  falls back to downloads + disclosure (reportDocError says why). */
   view: ReportView | null
   reportDocError: string | null
+  /** Deep-link target (?page=recipe from the audits table). */
+  initialPage?: ReportPageId
 }
 
 function Notice({ tone, children }: { tone: 'warn' | 'fail'; children: React.ReactNode }) {
@@ -66,7 +68,15 @@ const DOWNLOADS: ReadonlyArray<{ name: string; label: string; primary?: boolean 
   { name: 'recipe.md', label: 'recipe.md' },
 ]
 
-function VerifyPanel({ view, live }: { view: ReportView; live: LiveReportData }) {
+function VerifyPanel({
+  view,
+  live,
+  onOpenRecipe,
+}: {
+  view: ReportView
+  live: LiveReportData
+  onOpenRecipe: () => void
+}) {
   const sig = view.signature
   return (
     <div
@@ -75,49 +85,73 @@ function VerifyPanel({ view, live }: { view: ReportView; live: LiveReportData })
         borderRadius: 'var(--r-lg)',
         padding: '16px 20px',
         marginBottom: 26,
-        display: 'flex',
-        gap: 18,
-        alignItems: 'center',
-        flexWrap: 'wrap',
       }}
     >
-      <div style={{ flex: 1, minWidth: 260 }}>
-        <div className="kicker" style={{ marginBottom: 6 }}>
-          Signature
+      <div style={{ display: 'flex', gap: 18, alignItems: 'center', flexWrap: 'wrap' }}>
+        <div style={{ flex: 1, minWidth: 260 }}>
+          <div className="kicker" style={{ marginBottom: 6 }}>
+            Signature
+          </div>
+          {sig ? (
+            <div className="mono" style={{ fontSize: 11, lineHeight: 1.8 }}>
+              <span style={{ color: 'var(--pass)' }}>●</span> Signed with{' '}
+              {sig.algorithm.includes('ED25519') ? 'Ed25519' : sig.algorithm} via Cloud KMS · key
+              fingerprint <span title={sig.fingerprint}>{sig.fingerprint.slice(0, 16)}…</span>
+            </div>
+          ) : (
+            <div className="mono" style={{ fontSize: 11, color: 'var(--warn, #8a6d1a)' }}>
+              ⚠ signature sidecar could not be loaded
+              {view.signatureError ? ` (${view.signatureError})` : ''} — download it below to verify
+              offline.
+            </div>
+          )}
         </div>
-        {sig ? (
-          <div className="mono" style={{ fontSize: 11, lineHeight: 1.8 }}>
-            <span style={{ color: 'var(--pass)' }}>●</span> Signed with{' '}
-            {sig.algorithm.includes('ED25519') ? 'Ed25519' : sig.algorithm} via Cloud KMS · key
-            fingerprint <span title={sig.fingerprint}>{sig.fingerprint.slice(0, 16)}…</span>
+        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+          {view.recipeBlocks ? (
+            <button className="btn small ghost" onClick={onOpenRecipe}>
+              View recipe
+            </button>
+          ) : null}
+          {DOWNLOADS.map(({ name, label, primary }) =>
+            live.urls[name] ? (
+              <a
+                key={name}
+                className={primary ? 'btn primary' : 'btn small ghost'}
+                href={live.urls[name]}
+                {...(primary ? { target: '_blank', rel: 'noreferrer' } : {})}
+              >
+                {primary ? label : `↓ ${label}`}
+              </a>
+            ) : null,
+          )}
+        </div>
+      </div>
+      {sig ? (
+        <details style={{ marginTop: 10 }}>
+          <summary
+            className="mono muted"
+            style={{ fontSize: 10.5, cursor: 'pointer', letterSpacing: '0.06em' }}
+          >
+            WHAT EXACTLY WAS SIGNED — verify it yourself
+          </summary>
+          <div className="mono" style={{ fontSize: 10.5, lineHeight: 1.9, paddingTop: 8 }}>
+            Key fingerprint (SHA-256 of public key): {sig.fingerprint}
             <br />
-            {sig.artifacts.length
-              ? `${sig.artifacts.length} artifact${sig.artifacts.length === 1 ? '' : 's'} SHA-256-signed (${sig.artifacts.map((a) => a.file).join(', ')}) · verifiable offline against the sidecar`
-              : 'verifiable offline against the sidecar'}
+            KMS key: {sig.kmsKeyVersion}
+            <br />
+            Signed at: {sig.signedAt}
+            {sig.artifacts.map((a) => (
+              <span key={a.file}>
+                <br />
+                {a.file} · sha256 {a.sha256.slice(0, 24)}… · Ed25519-signed
+              </span>
+            ))}
+            <br />
+            Verify offline: ed25519_verify(public_key, sha256(file_bytes), signature) using the
+            sidecar&apos;s public_key_pem.
           </div>
-        ) : (
-          <div className="mono" style={{ fontSize: 11, color: 'var(--warn, #8a6d1a)' }}>
-            ⚠ signature sidecar could not be loaded
-            {view.signatureError ? ` (${view.signatureError})` : ''} — download it below to verify
-            offline.
-          </div>
-        )}
-      </div>
-      <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-        {DOWNLOADS.map(({ name, label, primary }) =>
-          live.urls[name] ? (
-            <a
-              key={name}
-              className={primary ? 'btn primary' : 'btn small ghost'}
-              href={live.urls[name]}
-              target="_blank"
-              rel="noreferrer"
-            >
-              {primary ? label : `↓ ${label}`}
-            </a>
-          ) : null,
-        )}
-      </div>
+        </details>
+      ) : null}
     </div>
   )
 }
@@ -128,8 +162,9 @@ export function ReportPreview({
   liveError,
   view,
   reportDocError,
+  initialPage,
 }: ReportPreviewProps) {
-  const [page, setPage] = useState<ReportPageId>('cover')
+  const [page, setPage] = useState<ReportPageId>(initialPage ?? 'cover')
   const signed = Boolean(live?.reportAvailable)
 
   return (
@@ -168,31 +203,50 @@ export function ReportPreview({
           </Notice>
         ) : null}
 
-        <div style={{ marginBottom: 22 }}>
-          <h1 className="display" style={{ fontSize: 36, whiteSpace: 'nowrap' }}>
-            Signed audit report.
-            {live?.sample ? (
-              <span
-                className="tag"
-                style={{ marginLeft: 12, fontSize: 10.5, verticalAlign: 'middle' }}
-                title="Seeded sample — a real audit of the demo target, visible to every account"
-              >
-                SAMPLE
-              </span>
+        <div
+          style={{
+            marginBottom: 22,
+            display: 'flex',
+            alignItems: 'flex-end',
+            gap: 18,
+            flexWrap: 'wrap',
+          }}
+        >
+          <div style={{ flex: 1, minWidth: 320 }}>
+            <h1 className="display" style={{ fontSize: 36, whiteSpace: 'nowrap' }}>
+              Signed audit report.
+              {live?.sample ? (
+                <span
+                  className="tag"
+                  style={{ marginLeft: 12, fontSize: 10.5, verticalAlign: 'middle' }}
+                  title="Seeded sample — a real audit of the demo target, visible to every account"
+                >
+                  SAMPLE
+                </span>
+              ) : null}
+            </h1>
+            {live ? (
+              <div className="mono muted" style={{ fontSize: 11.5, marginTop: 8 }}>
+                {live.targetUrl} · {fmtDate(live.createdAt)} ·{' '}
+                <span style={{ color: 'var(--pass)' }}>{live.passed}✓</span> /{' '}
+                <span style={{ color: live.failed ? 'var(--fail)' : 'inherit' }}>
+                  {live.failed}✕
+                </span>
+                {live.errored ? ` · ${live.errored} errored` : ''}
+                {live.transportFailed ? ` · ${live.transportFailed} unreachable` : ''}
+              </div>
             ) : null}
-          </h1>
-          {live ? (
-            <div className="mono muted" style={{ fontSize: 11.5, marginTop: 8 }}>
-              {live.targetUrl} · {fmtDate(live.createdAt)} ·{' '}
-              <span style={{ color: 'var(--pass)' }}>{live.passed}✓</span> /{' '}
-              <span style={{ color: live.failed ? 'var(--fail)' : 'inherit' }}>{live.failed}✕</span>
-              {live.errored ? ` · ${live.errored} errored` : ''}
-              {live.transportFailed ? ` · ${live.transportFailed} unreachable` : ''}
-            </div>
+          </div>
+          {live?.eventsAvailable ? (
+            <A to={`run/${runId}`} className="btn ember" style={{ whiteSpace: 'nowrap' }}>
+              ▶ Replay this audit
+            </A>
           ) : null}
         </div>
 
-        {live && view ? <VerifyPanel view={view} live={live} /> : null}
+        {live && view ? (
+          <VerifyPanel view={view} live={live} onOpenRecipe={() => setPage('recipe')} />
+        ) : null}
 
         {live && !live.reportAvailable ? (
           <div
@@ -223,7 +277,7 @@ export function ReportPreview({
               alignItems: 'start',
             }}
           >
-            <div>
+            <div style={{ position: 'sticky', top: 24, alignSelf: 'start' }}>
               {REPORT_PAGES.map((p) => (
                 <PageThumb
                   key={p.id}
@@ -269,14 +323,6 @@ export function ReportPreview({
               The PDF and JSON above are the run&apos;s actual signed artifacts — Ed25519-signed via
               Cloud KMS, verifiable against the signature sidecar.
             </p>
-          </div>
-        ) : null}
-
-        {live?.eventsAvailable ? (
-          <div style={{ marginTop: 26, textAlign: 'right' }}>
-            <A to={`run/${runId}`} className="btn small ember">
-              ▶ Replay this audit
-            </A>
           </div>
         ) : null}
       </div>

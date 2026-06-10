@@ -50,11 +50,8 @@ export function RecipeMdView({ blocks }: { blocks: RecipeBlock[] }) {
       {blocks.map((b, i) => {
         if (b.kind === 'heading') {
           if (b.level === 1) {
-            return (
-              <div key={i} className="kicker" style={{ margin: '0 0 14px' }}>
-                <Inline text={b.text} />
-              </div>
-            )
+            // The artifact's own title — the surrounding page already has one.
+            return null
           }
           return (
             <h3

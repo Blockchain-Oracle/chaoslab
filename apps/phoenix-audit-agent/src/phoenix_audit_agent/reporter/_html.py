@@ -273,6 +273,7 @@ td {{ border-bottom: 0.25pt solid rgba(28,23,18,0.16); padding: 2mm; font-size: 
 .cover-foot {{ margin-top: 6mm; }}
 .pagebreak {{ page-break-before: always; }}
 .cover-head {{ position: relative; padding-right: 36mm; }}
+.stamp-foot {{ text-align: right; margin: 1mm 0 2mm; }}
 .seal-wrap {{ position: absolute; top: 0; right: 0; width: 32mm; text-align: center;
              transform: rotate(-7deg); }}
 .meta-row span:last-child {{ text-align: right; max-width: 72%; }}
@@ -308,6 +309,8 @@ td {{ border-bottom: 0.25pt solid rgba(28,23,18,0.16); padding: 2mm; font-size: 
 <div class="meta-row"><span>Signature</span>
 <span class="mono">{signature_meta_value(signing_key_fingerprint, kms_key_version)}</span></div>
 </div>
+
+<div class="stamp-foot"><span class="stamp-signed">SIGNED · ED25519 · CLOUD KMS</span></div>
 
 <div class="locked">
 <div class="locked-title">DATA RESIDENCY — DEFAULT HOSTING VARIANT · LEGALLY LOCKED ·

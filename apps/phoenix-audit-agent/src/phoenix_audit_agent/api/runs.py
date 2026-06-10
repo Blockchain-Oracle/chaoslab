@@ -35,7 +35,16 @@ async def sign_blob_url(blob_name: str) -> str:
     def _sign() -> str:
         client = get_storage_client()
         blob = client.bucket(settings.GCS_RECIPES_BUCKET).blob(blob_name)
-        return signed_get_url(blob, ttl=timedelta(days=settings.GCS_SIGNED_URL_TTL_DAYS))
+        filename = blob_name.rsplit("/", 1)[-1]
+        # Raw JSON/markdown in a browser tab is meaningless to a compliance
+        # officer — every artifact except the PDF (which renders in the
+        # viewer) downloads as a named file.
+        disposition = None if filename.endswith(".pdf") else f'attachment; filename="{filename}"'
+        return signed_get_url(
+            blob,
+            ttl=timedelta(days=settings.GCS_SIGNED_URL_TTL_DAYS),
+            disposition=disposition,
+        )
 
     return await asyncio.to_thread(_sign)
 

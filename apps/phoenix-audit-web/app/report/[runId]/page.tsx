@@ -1,6 +1,6 @@
 import { notFound } from 'next/navigation'
 import { ReportPreview } from '@/components/artifacts/report-preview'
-import type { ReportView } from '@/components/artifacts/report-pages'
+import type { ReportPageId, ReportView } from '@/components/artifacts/report-pages'
 import { PageShell } from '@/components/ui/page-shell'
 import { fetchArtifactJson, fetchArtifactText, fetchRunDetail } from '@/lib/api'
 import { parseRecipeMarkdown, parseReportDocument, parseSignatureDocument } from '@/lib/report-doc'
@@ -9,10 +9,15 @@ export const dynamic = 'force-dynamic'
 
 interface PageProps {
   params: Promise<{ runId: string }>
+  searchParams: Promise<{ page?: string }>
 }
 
-export default async function ReportPage({ params }: PageProps) {
+const PAGE_IDS = new Set(['cover', 'exec', 'tests', 'clusters', 'recipe', 'appendix'])
+
+export default async function ReportPage({ params, searchParams }: PageProps) {
   const { runId } = await params
+  const { page } = await searchParams
+  const initialPage = page && PAGE_IDS.has(page) ? (page as ReportPageId) : undefined
   const detail = await fetchRunDetail(runId)
   // Authoritative "run does not exist" → 404; a registry outage (status null
   // / 5xx) falls through and is DISCLOSED via liveError instead.
@@ -74,6 +79,7 @@ export default async function ReportPage({ params }: PageProps) {
         liveError={detail.liveError}
         view={view}
         reportDocError={reportDocError}
+        initialPage={initialPage}
       />
     </PageShell>
   )

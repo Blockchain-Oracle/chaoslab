@@ -96,9 +96,13 @@ function HistoryRow({ run, agents }: RowProps) {
           </A>
         ) : null}
         {run.recipe && run.reportAvailable ? (
-          // The report page exposes the recipe.md download with a freshly
-          // signed URL.
-          <A to={'report/' + run.id} className="span-link" style={{ marginRight: 12 }}>
+          // Deep-links straight to the recipe page of the report preview —
+          // landing on the cover every time made the link pointless.
+          <A
+            to={'report/' + run.id + '?page=recipe'}
+            className="span-link"
+            style={{ marginRight: 12 }}
+          >
             recipe
           </A>
         ) : null}
