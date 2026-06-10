@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { DepthOption } from '@/components/new-audit/depth-option'
 import { FrameworkPicker } from '@/components/new-audit/framework-picker'
 import { OverridesBlock } from '@/components/new-audit/overrides-block'
+import { PREF_FRAMEWORK, PREF_HOSTING } from '@/lib/prefs'
 import { Field } from '@/components/ui/field'
 import { A } from '@/components/ui/link'
 import { PageFoot } from '@/components/ui/page-foot'
@@ -52,10 +53,10 @@ function NewAuditForm() {
   const [startError, setStartError] = useState<string | null>(null)
 
   useEffect(() => {
-    setHosting((localStorage.getItem('pa_hosting') as 'default' | 'byo' | null) ?? 'default')
+    setHosting((localStorage.getItem(PREF_HOSTING) as 'default' | 'byo' | null) ?? 'default')
     // The settings page persists this preference — honor it here so the
     // preference is real, not decorative (story-9.10).
-    const fw = localStorage.getItem('pa_framework')
+    const fw = localStorage.getItem(PREF_FRAMEWORK)
     if (fw) setFramework(fw)
   }, [])
 

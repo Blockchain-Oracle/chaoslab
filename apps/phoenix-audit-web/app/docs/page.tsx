@@ -48,8 +48,8 @@ const SECTIONS: DocSection[] = [
     no: '§3',
     title: 'Register a target agent',
     body: [
-      'Your first audit against a URL registers it: start a New audit, point it at a reachable address — an HTTPS endpoint, or an A2A address for ADK-native agents — and the target appears in your registry. Tier 1 agents (ADK over A2A) get full trace-depth audits; HTTP black-box targets are audited from the wire only, so verdicts are correct but root-cause clustering is per-test.',
-      'The seeded “Demo Support Agent” is a real, deployed ADK agent you can audit immediately — it exists so your first audit needs zero setup.',
+      'The fastest start is the seeded “Demo Support Agent” — a real, deployed ADK agent, pre-registered so your first audit needs zero setup. Auditing any other target is one wizard run against its URL: the audit and its artifacts file under that URL in your audit history. Tier 1 agents (ADK over A2A) get full trace-depth audits; HTTP black-box targets are audited from the wire only, so verdicts are correct but root-cause clustering is per-test.',
+      'A dedicated in-app form for naming and tiering your own agents is on the roadmap — the registry API already supports it.',
     ],
     shot: 'agents.png',
     shotAlt: 'The target agents registry',
@@ -59,7 +59,7 @@ const SECTIONS: DocSection[] = [
     title: 'Run an audit',
     body: [
       'Every audit starts in the wizard (New audit) — there are no one-click live runs anywhere in the app. Pick the target, cap the probe budget if you want, and start. The live chamber streams every probe over SSE: injector battery, judge verdicts as they land, failure clustering, and the recipe being generated.',
-      'A run that fails before completing produces no signed report — the run’s event log is the evidence trail, and the registry says so plainly. Phoenix Audit never renders a report it did not sign.',
+      'A run that fails before completing produces no signed report — the registry records the outcome honestly (verdict counts, timestamps, what was not signed), and completed probes stay preserved in the Phoenix trace. Phoenix Audit never renders a report it did not sign.',
     ],
     shot: 'wizard.png',
     shotAlt: 'The new-audit wizard',
@@ -93,8 +93,10 @@ const SECTIONS: DocSection[] = [
 ]
 
 function shotPath(file: string): string | null {
-  // Screenshots are captured from the live app post-deploy; render only the
-  // ones that exist — an empty frame is worse than no frame.
+  // Renders only screenshots that exist — an empty frame is worse than no
+  // frame. NOTE: this page prerenders, so existsSync runs at BUILD time;
+  // captures must be committed (scripts/capture-docs-shots.ts) and shipped
+  // by the next build, not dropped onto a running container.
   const abs = join(process.cwd(), 'public', 'docs-shots', file)
   return existsSync(abs) ? `/docs-shots/${file}` : null
 }

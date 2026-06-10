@@ -23,7 +23,9 @@ const SHOTS: Array<{ file: string; path: string; authed: boolean; settleMs?: num
   { file: 'agents.png', path: '/agents', authed: true },
   { file: 'wizard.png', path: '/new', authed: true },
   { file: 'monitoring.png', path: '/monitoring', authed: true },
-  { file: 'report.png', path: '/audits', authed: true },
+  // The docs caption says "a signed audit report" — capture an actual report
+  // view (the labeled sample), not the history table.
+  { file: 'report.png', path: '/report/run_9f3c2ab81d4e', authed: true },
 ]
 
 async function main(): Promise<void> {
@@ -40,11 +42,22 @@ async function main(): Promise<void> {
     await page.fill("input[name='auth-email-signin']", EMAIL)
     await page.fill("input[name='auth-pw-signin']", PASSWORD)
     await page.click("button[type='submit']")
-    await page.waitForURL(/\/(audits|new|agents)/, { timeout: 30_000 })
+    try {
+      await page.waitForURL(/\/(audits|new|agents)/, { timeout: 30_000 })
+    } catch (err) {
+      throw new Error(
+        `login did not complete — check SHOT_EMAIL/SHOT_PASSWORD against ${BASE} (${String(err)})`,
+      )
+    }
   }
 
   for (const shot of SHOTS) {
     await page.goto(`${BASE}${shot.path}`, { waitUntil: 'networkidle' })
+    // A mid-loop session expiry redirects authed pages to /login — capturing
+    // that silently would ship login screenshots into /docs.
+    if (shot.authed && new URL(page.url()).pathname.startsWith('/login')) {
+      throw new Error(`session lost before ${shot.file} — ${shot.path} redirected to /login`)
+    }
     if (shot.settleMs) await page.waitForTimeout(shot.settleMs)
     await page.screenshot({ path: join(OUT, shot.file) })
     process.stdout.write(`captured ${shot.file}\n`)

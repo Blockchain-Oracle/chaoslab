@@ -126,11 +126,11 @@ export function AgentsClient({ agents, liveError }: AgentsClientProps) {
             }}
           >
             <span className="muted" style={{ fontSize: 13.5, flex: 1 }}>
-              Register another production agent — support copilots, voice agents, web-automation
+              Audit another production agent — support copilots, voice agents, web-automation
               agents…
             </span>
             <A to="new" className="btn small ghost">
-              Register target
+              New audit
             </A>
           </div>
         </div>

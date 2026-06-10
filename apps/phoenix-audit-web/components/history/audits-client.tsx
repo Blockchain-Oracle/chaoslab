@@ -7,6 +7,7 @@ import { EmptyState } from '@/components/ui/empty-state'
 import { A } from '@/components/ui/link'
 import { PageFoot } from '@/components/ui/page-foot'
 import { TopBar } from '@/components/ui/topbar'
+import { historyRowDest, runHasReport } from '@/lib/cta'
 import { HERO_RUN } from '@/lib/fixtures'
 import { fmtDate } from '@/lib/format'
 import { realStats, visibleRows } from '@/lib/sample-merge'
@@ -33,22 +34,11 @@ interface RowProps {
 
 function HistoryRow({ run, agents }: RowProps) {
   const router = useRouter()
-  const agent = agents.find((a) => a.id === run.agentId)
+  const agent = run.agentId ? agents.find((a) => a.id === run.agentId) : undefined
   const name = agent?.name ?? run.targetUrl ?? run.agentId
   const url = agent?.url ?? run.targetUrl ?? ''
-  // Sample rows view their labeled sample report (hero demos the replay).
-  // Real rows open the report only when one EXISTS — otherwise the live
-  // run view, never the sample preview (story-9.10).
-  const hasReport = run.sample ? true : !!run.reportAvailable
-  const open = () => {
-    const path =
-      run.sample && run.id === HERO_RUN.id
-        ? '/replay'
-        : hasReport
-          ? `/report/${run.id}`
-          : `/run/${run.id}`
-    router.push(path)
-  }
+  const hasReport = runHasReport(run)
+  const open = () => router.push(historyRowDest(run, HERO_RUN.id))
   const stop = (e: React.MouseEvent) => e.stopPropagation()
   return (
     <tr className="clickable" onClick={open}>

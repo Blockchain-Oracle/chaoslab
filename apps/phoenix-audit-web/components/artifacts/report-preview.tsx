@@ -205,11 +205,11 @@ export function ReportPreview({ runId, live, liveError }: ReportPreviewProps) {
           >
             <p className="muted" style={{ fontSize: 13.5, maxWidth: 480, margin: '0 auto 14px' }}>
               This run produced no signed report — generation was skipped (most often because the
-              audit failed before the battery completed). The run&apos;s event log carries the
-              evidence trail.
+              audit failed before the battery completed). The registry record carries the outcome;
+              completed probes stay preserved in the Phoenix trace.
             </p>
             <A to={`run/${runId ?? ''}`} className="btn small ghost">
-              Open the run&apos;s event log →
+              Open the run summary →
             </A>
           </div>
         ) : (

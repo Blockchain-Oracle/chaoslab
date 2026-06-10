@@ -8,6 +8,7 @@
 import { useEffect, useState } from 'react'
 import { onAuthStateChanged, type User } from 'firebase/auth'
 import { getFirebaseAuth } from '@/lib/auth/client'
+import { PREF_FRAMEWORK, PREF_HOSTING } from '@/lib/prefs'
 import { Field } from '@/components/ui/field'
 import { PageFoot } from '@/components/ui/page-foot'
 import { PageShell } from '@/components/ui/page-shell'
@@ -24,18 +25,18 @@ export default function SettingsPage() {
   const [user, setUser] = useState<User | null>(null)
 
   useEffect(() => {
-    setHosting((localStorage.getItem('pa_hosting') as Hosting | null) ?? 'default')
-    setFramework(localStorage.getItem('pa_framework') ?? 'EU AI Act')
+    setHosting((localStorage.getItem(PREF_HOSTING) as Hosting | null) ?? 'default')
+    setFramework(localStorage.getItem(PREF_FRAMEWORK) ?? 'EU AI Act')
     return onAuthStateChanged(getFirebaseAuth(), setUser)
   }, [])
 
   const setMode = (m: Hosting) => {
     setHosting(m)
-    localStorage.setItem('pa_hosting', m)
+    localStorage.setItem(PREF_HOSTING, m)
   }
   const setFw = (f: string) => {
     setFramework(f)
-    localStorage.setItem('pa_framework', f)
+    localStorage.setItem(PREF_FRAMEWORK, f)
   }
 
   return (
