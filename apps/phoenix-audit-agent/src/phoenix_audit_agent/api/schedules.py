@@ -5,16 +5,17 @@ from __future__ import annotations
 import asyncio
 import secrets
 from collections.abc import Awaitable, Callable
-from typing import Any
+from typing import Annotated, Any
 
 import structlog
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Request
 from google.auth.transport import requests as ga_requests
 from google.oauth2 import id_token
 from pydantic import BaseModel, EmailStr, Field, field_validator, model_validator
 
 from phoenix_audit_agent._time import utc_now_iso
 from phoenix_audit_agent.api._url_guard import validate_target_url
+from phoenix_audit_agent.api.auth import AuthedUser, require_user
 from phoenix_audit_agent.config import get_settings
 from phoenix_audit_agent.scheduler.tick import TickResult, run_tick
 from phoenix_audit_agent.storage.models import Cadence, ScheduleRecord
@@ -67,12 +68,15 @@ class ScheduleListResponse(BaseModel):
 
 
 @router.post("/schedules", response_model=ScheduleRecord, status_code=201)
-async def create_schedule(payload: ScheduleCreate) -> ScheduleRecord:
+async def create_schedule(
+    payload: ScheduleCreate, user: Annotated[AuthedUser, Depends(require_user)]
+) -> ScheduleRecord:
     record = ScheduleRecord(
         schedule_id="sch_" + secrets.token_hex(6),
         # next_fire_at = now → the schedule fires on the next tick.
         next_fire_at=utc_now_iso(),
         created_at=utc_now_iso(),
+        owner_uid=user.uid,
         **payload.model_dump(),
     )
     await get_schedule_store().upsert(record)
@@ -80,15 +84,25 @@ async def create_schedule(payload: ScheduleCreate) -> ScheduleRecord:
 
 
 @router.get("/schedules", response_model=ScheduleListResponse)
-async def list_schedules() -> ScheduleListResponse:
-    return ScheduleListResponse(schedules=await get_schedule_store().list_schedules())
+async def list_schedules(
+    user: Annotated[AuthedUser, Depends(require_user)],
+) -> ScheduleListResponse:
+    rows = await get_schedule_store().list_schedules()
+    # Own + ownerless (pre-auth records) stay visible.
+    return ScheduleListResponse(schedules=[s for s in rows if s.owner_uid in (None, user.uid)])
 
 
 @router.patch("/schedules/{schedule_id}", response_model=ScheduleRecord)
-async def patch_schedule(schedule_id: str, payload: SchedulePatch) -> ScheduleRecord:
+async def patch_schedule(
+    schedule_id: str, payload: SchedulePatch, user: Annotated[AuthedUser, Depends(require_user)]
+) -> ScheduleRecord:
     store = get_schedule_store()
     record = await store.get(schedule_id)
-    if record is None:
+    # WRITES require exact ownership — legacy ownerless records stay readable
+    # (evidence must not vanish) but immutable: sign-ups are open to the
+    # internet, so owner_uid=None must not mean world-writable. Foreign and
+    # ownerless both read as not-found (a 403 would CONFIRM the id exists).
+    if record is None or record.owner_uid != user.uid:
         raise HTTPException(status_code=404, detail=f"schedule not found: {schedule_id}")
     fields = payload.model_dump(exclude_none=True)
     merged = record.model_copy(update=fields)

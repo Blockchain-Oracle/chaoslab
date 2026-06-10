@@ -20,7 +20,9 @@ from ..storage.fakes import InMemoryAgentStore, InMemoryRunStore
 @pytest.fixture(autouse=True)
 def _env(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
     for key in list(os.environ):
-        if key.startswith(("PHOENIX_", "GEMINI_", "JUDGE_", "TARGET_", "GITLAB_", "GCS_")):
+        if key.startswith(
+            ("PHOENIX_", "GEMINI_", "JUDGE_", "TARGET_", "GITLAB_", "GCS_", "FIREBASE_")
+        ):
             monkeypatch.delenv(key, raising=False)
     monkeypatch.setenv("GEMINI_API_KEY", "test-gemini")
     get_settings.cache_clear()
@@ -30,6 +32,14 @@ def _env(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
     run_storage.set_run_store(None)
     agent_storage.set_agent_store(None)
     get_settings.cache_clear()
+
+
+@pytest.fixture(autouse=True)
+def _authed(
+    _env: None, auth_as
+) -> None:  # _env first: settings env must exist before auth_as imports main
+    """This module's subject is the registry read API, not auth — requests
+    arrive pre-authenticated as `user-test` (auth wiring: test_auth_scoping)."""
 
 
 @pytest.fixture

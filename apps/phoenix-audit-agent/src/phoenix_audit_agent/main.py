@@ -20,15 +20,16 @@ import os
 import secrets
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
-from typing import Any, Literal, cast
+from typing import Annotated, Any, Literal, cast
 
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import Depends, FastAPI, HTTPException, Request
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 from sse_starlette.sse import EventSourceResponse
 
 from phoenix_audit_agent._time import utc_now_iso
 from phoenix_audit_agent.api._url_guard import validate_target_url
 from phoenix_audit_agent.api.agents import router as agents_router
+from phoenix_audit_agent.api.auth import AuthedUser, require_user
 from phoenix_audit_agent.api.runs import router as runs_router
 from phoenix_audit_agent.api.schedules import router as schedules_router
 from phoenix_audit_agent.api.schedules import set_run_launcher
@@ -107,6 +108,7 @@ class _RunState(BaseModel):
     request: RunRequest
     created_at: str
     phase: RunPhase = "queued"
+    owner_uid: str | None = None
 
 
 # In-process registries. The current Cloud Run config (story-4.6) sets
@@ -278,15 +280,19 @@ async def health() -> HealthResponse:
 
 
 @app.post("/run", response_model=RunResponse, status_code=201)
-async def start_run(payload: RunRequest) -> RunResponse:
-    return await launch_run(payload)
+async def start_run(
+    payload: RunRequest, user: Annotated[AuthedUser, Depends(require_user)]
+) -> RunResponse:
+    return await launch_run(payload, owner_uid=user.uid)
 
 
-async def launch_run(payload: RunRequest) -> RunResponse:
+async def launch_run(payload: RunRequest, *, owner_uid: str | None = None) -> RunResponse:
     """Shared run launcher — POST /run and the scheduler tick both land here."""
     run_id = _new_run_id()
     created = utc_now_iso()
-    _RUN_REGISTRY[run_id] = _RunState(run_id=run_id, request=payload, created_at=created)
+    _RUN_REGISTRY[run_id] = _RunState(
+        run_id=run_id, request=payload, created_at=created, owner_uid=owner_uid
+    )
     _RUN_QUEUES[run_id] = asyncio.Queue()
     # Write-through to the registry index (contained — a Firestore outage must
     # never block an audit; finalize at run end heals a failed create).
@@ -297,6 +303,7 @@ async def launch_run(payload: RunRequest) -> RunResponse:
             target_url=payload.target_url,
             source=payload.source,
             created_at=created,
+            owner_uid=owner_uid,
         )
     )
     task = asyncio.create_task(_drive_orchestrator(run_id))
@@ -309,8 +316,11 @@ async def launch_run(payload: RunRequest) -> RunResponse:
 async def stream(
     runId: str,  # noqa: N803 — camelCase preserved by frontend SSE/EventSource contract
     request: Request,
+    user: Annotated[AuthedUser, Depends(require_user)],
 ) -> EventSourceResponse:
-    if runId not in _RUN_REGISTRY:
+    run_state = _RUN_REGISTRY.get(runId)
+    # Foreign-owned reads as not-found — a 403 would CONFIRM the id exists.
+    if run_state is None or run_state.owner_uid not in (None, user.uid):
         logger.warning("stream_404 run_id=%s known_runs=%d", runId, len(_RUN_REGISTRY))
         raise HTTPException(status_code=404, detail=f"run_id not found: {runId}")
 
@@ -375,7 +385,9 @@ async def _launch_scheduled_run(schedule: Any) -> str:
             target_url=schedule.target_url,
             agent_id=schedule.agent_id,
             source="scheduled",
-        )
+        ),
+        # A scheduled run must appear in ITS OWNER's registry, not nobody's.
+        owner_uid=schedule.owner_uid,
     )
     return response.run_id
 

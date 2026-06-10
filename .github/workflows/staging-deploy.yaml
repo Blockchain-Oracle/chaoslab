@@ -69,7 +69,7 @@ jobs:
             # and CI invoke it. SELF URL + invoker email resolve at deploy time
             # (scheduler-tick OIDC verification; fail-closed when unset).
             auth_flag: --no-allow-unauthenticated
-            extra_env: ",SERVICE_BASE_URL=__RESOLVE_SELF_URL__,SCHEDULER_INVOKER_EMAIL=__DEPLOY_SA__"
+            extra_env: ",SERVICE_BASE_URL=__RESOLVE_SELF_URL__,SCHEDULER_INVOKER_EMAIL=__DEPLOY_SA__,FIREBASE_PROJECT_ID=__PROJECT_ID__"
             # The run registry + SSE queues are in-process (main.py): a second
             # instance means POST /run and GET /stream can land on different
             # pods → 404 mid-demo. One instance trivially handles the audit.
@@ -99,6 +99,17 @@ jobs:
             # the live service at deploy time (see the deploy step).
             auth_flag: --allow-unauthenticated
             extra_env: ",AGENT_URL=__RESOLVE_AGENT_URL__"
+            # Session-cookie signing keys (story-9.4) — web only.
+            extra_secrets: ",AUTH_COOKIE_SIGNATURE_KEYS=cookie-signature-keys:latest"
+            # NEXT_PUBLIC_* are inlined into the client bundle at BUILD time.
+            # Values live in GitHub repo VARIABLES (public client config, not
+            # secrets — the apiKey identifies the Firebase project; security
+            # lives in token verification — but gitleaks rightly refuses
+            # anything key-shaped in the tree).
+            build_args: |
+              NEXT_PUBLIC_FIREBASE_API_KEY=${{ vars.NEXT_PUBLIC_FIREBASE_API_KEY }}
+              NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=${{ vars.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN }}
+              NEXT_PUBLIC_FIREBASE_PROJECT_ID=${{ vars.NEXT_PUBLIC_FIREBASE_PROJECT_ID }}
             max_instances: 10
     steps:
       - name: Determine if this service changed
@@ -156,6 +167,7 @@ jobs:
           file: ${{ matrix.dockerfile }}
           push: true
           tags: ${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/phoenix-audit/${{ matrix.service }}:${{ github.sha }}
+          build-args: ${{ matrix.build_args || '' }}
           cache-from: type=gha,scope=${{ matrix.service }}
           cache-to: type=gha,scope=${{ matrix.service }},mode=max
 
@@ -192,6 +204,7 @@ jobs:
           # would silently mis-wire web->agent on a recreated service or a
           # forked project. Fails loud if the agent has never been deployed.
           EXTRA_ENV='${{ matrix.extra_env }}'
+          EXTRA_ENV="${EXTRA_ENV/__PROJECT_ID__/${PROJECT_ID}}"
           if [ "${EXTRA_ENV#*__RESOLVE_AGENT_URL__}" != "${EXTRA_ENV}" ]; then
             AGENT_URL=$(gcloud run services describe phoenix-audit-agent \
               --region="${REGION}" --format='value(status.url)')
@@ -220,7 +233,7 @@ jobs:
             --cpu-boost \
             ${{ matrix.auth_flag }} \
             --set-env-vars=ENVIRONMENT=staging,JUDGE_LLM=gemini-3.5-flash,SERVICE_VERSION="${GITHUB_SHA}",PHOENIX_PROVIDER=${PHOENIX_PROVIDER},PHOENIX_COLLECTOR_ENDPOINT=${PHOENIX_COLLECTOR_ENDPOINT},GOOGLE_GENAI_USE_VERTEXAI=true,GOOGLE_CLOUD_PROJECT=${PROJECT_ID},GOOGLE_CLOUD_LOCATION=us-central1${EXTRA_ENV} \
-            --set-secrets=PHOENIX_API_KEY=phoenix-api-key:latest \
+            --set-secrets=PHOENIX_API_KEY=phoenix-api-key:latest${{ matrix.extra_secrets || '' }} \
             ${CANDIDATE_FLAGS}
 
       - name: Smoke-test candidate revision

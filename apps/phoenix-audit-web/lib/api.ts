@@ -3,6 +3,7 @@
 // render the sample world WITH a visible notice — never silently.
 
 import { agentFetch } from './server/agent-fetch'
+import { userIdentityHeaders } from './server/user-fetch'
 import type { AgentSpec, HistoryRow } from './types'
 
 export interface RunRecordDto {
@@ -104,7 +105,7 @@ async function getJson<T>(
   path: string,
 ): Promise<{ body: T | null; error: string | null; status: number | null }> {
   try {
-    const res = await agentFetch(path)
+    const res = await agentFetch(path, { headers: await userIdentityHeaders() })
     if (!res.ok)
       return { body: null, error: `agent API ${res.status} on ${path}`, status: res.status }
     return { body: (await res.json()) as T, error: null, status: res.status }

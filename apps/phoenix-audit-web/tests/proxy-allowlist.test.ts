@@ -10,6 +10,20 @@ vi.mock('@/lib/server/agent-fetch', () => ({
   agentBaseUrl: () => 'http://agent.test',
 }))
 
+// This file's subject is the allowlist — requests arrive with a valid
+// session (auth enforcement: proxy-identity.test.ts).
+vi.mock('next-firebase-auth-edge', () => ({
+  getTokens: async () => ({ token: 'verified-id-token' }),
+}))
+
+vi.mock('@/lib/auth/config', () => ({
+  serverAuthConfig: () => ({
+    apiKey: 'test-api-key',
+    cookieName: 'AuthToken',
+    cookieSignatureKeys: ['k'.repeat(32)],
+  }),
+}))
+
 import { GET, POST } from '@/app/api/agent/[...path]/route'
 
 function req(method: string, search = ''): NextRequest {
@@ -17,6 +31,7 @@ function req(method: string, search = ''): NextRequest {
     method,
     nextUrl: { search },
     headers: new Headers(),
+    cookies: { get: () => undefined },
     body: null,
   } as unknown as NextRequest
 }

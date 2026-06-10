@@ -97,6 +97,13 @@ class Settings(BaseSettings):
             "Empty => tick fails closed (503)."
         ),
     )
+    FIREBASE_PROJECT_ID: str = Field(
+        default="",
+        description=(
+            "Firebase/GCP project id — the audience user ID tokens are verified "
+            "against. Empty => user-facing endpoints fail closed (503)."
+        ),
+    )
     TARGET_PHOENIX_PROJECT: str = Field(
         default="target-agent",
         min_length=1,
