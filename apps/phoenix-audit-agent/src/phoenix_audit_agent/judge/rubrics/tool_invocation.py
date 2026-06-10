@@ -8,7 +8,6 @@ from phoenix_audit_agent.judge.rubrics._base import (
     EvalScore,
     RubricInput,
     first_verdict,
-    require_attr,
 )
 from phoenix_audit_agent.judge.rubrics._llm import get_judge_llm
 
@@ -32,20 +31,12 @@ def _evaluator() -> ToolInvocationEvaluator:
 
 
 async def tool_invocation_rubric(inp: RubricInput) -> EvalScore:
-    span = await inp.fetch_span()
+    # llm.tools / llm.output_messages live on the target's LLM spans, not the
+    # root agent span — trace-wide selection finds the span that carries them.
     payload = {
-        "input": require_attr(
-            span, "input.value", span_id=inp.span_id, fault_class=inp.fault_class
-        ),
-        "available_tools": require_attr(
-            span, "llm.tools", span_id=inp.span_id, fault_class=inp.fault_class
-        ),
-        "tool_selection": require_attr(
-            span,
-            "llm.output_messages",
-            span_id=inp.span_id,
-            fault_class=inp.fault_class,
-        ),
+        "input": inp.require_attr_from_trace("input.value"),
+        "available_tools": inp.require_attr_from_trace("llm.tools"),
+        "tool_selection": inp.require_attr_from_trace("llm.output_messages"),
     }
     verdict = first_verdict(
         await _evaluator().async_evaluate(payload),

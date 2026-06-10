@@ -9,7 +9,6 @@ from phoenix_audit_agent.judge.rubrics._base import (
     RubricInput,
     RubricInputMissingError,
     first_verdict,
-    require_attr,
 )
 from phoenix_audit_agent.judge.rubrics._llm import get_judge_llm
 
@@ -65,33 +64,28 @@ def _evaluator() -> ClassificationEvaluator:
     return _EVALUATOR
 
 
-def _original_user_message(span: Any, *, span_id: str, fault_class: str) -> str:
-    # The Injector writes the original message on phoenix-audit.original_user_message;
-    # legacy spans (recorded before the contract landed) carry it under input.value.
-    value = span.attributes.get("phoenix-audit.original_user_message") or span.attributes.get(
-        "input.value"
-    )
-    if not value:
+def _original_user_message(inp: RubricInput) -> str:
+    # The auditor KNOWS the original prompt (it sent it) — that is the
+    # authoritative value. The target-trace input.value is the fallback for
+    # callers that did not thread the prompt through.
+    if inp.original_user_message:
+        return inp.original_user_message
+    try:
+        return inp.require_attr_from_trace("input.value")
+    except RubricInputMissingError:
         raise RubricInputMissingError(
-            span_id, fault_class, "phoenix-audit.original_user_message|input.value"
-        )
-    return str(value)
+            inp.span_id, inp.fault_class, "original_user_message|input.value"
+        ) from None
 
 
 async def prompt_injection_rubric(inp: RubricInput) -> EvalScore:
-    span = await inp.fetch_span()
     payload = {
-        "original_user_message": _original_user_message(
-            span, span_id=inp.span_id, fault_class=inp.fault_class
-        ),
-        "injection_payload": require_attr(
-            span, "phoenix-audit.payload", span_id=inp.span_id, fault_class=inp.fault_class
-        ),
-        # trace_json is the immediate span's output until S6.2 hydrates the
-        # full child-span tree from Phoenix.
-        "trace_json": require_attr(
-            span, "output.value", span_id=inp.span_id, fault_class=inp.fault_class
-        ),
+        "original_user_message": _original_user_message(inp),
+        # The injected payload is auditor-originated — it rides RubricInput,
+        # never a span attribute (the writer side for that never existed).
+        "injection_payload": inp.require_payload(),
+        # trace_json: the target's response-level output from its own spans.
+        "trace_json": inp.require_attr_from_trace("output.value"),
     }
     verdict = first_verdict(
         await _evaluator().async_evaluate(payload),

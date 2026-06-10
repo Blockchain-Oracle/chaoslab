@@ -80,8 +80,10 @@ jobs:
             smoke_path: /.well-known/agent.json
             # Sacrificial demo bot — public so the (IAM-gated) audit agent can
             # probe it without service-to-service token plumbing in adapters.
+            # FAULT_HOOKS_ENABLED opts this target into Phoenix Audit's remote
+            # fault delivery (/hooks/adk) — the surface every real probe needs.
             auth_flag: --allow-unauthenticated
-            extra_env: ""
+            extra_env: ",FAULT_HOOKS_ENABLED=true"
           - service: phoenix-audit-web
             path: apps/phoenix-audit-web
             changed_key: web

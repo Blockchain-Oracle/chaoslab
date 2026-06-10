@@ -21,7 +21,12 @@ from __future__ import annotations
 
 from google.adk.agents import LlmAgent
 
-from target_agent.tools import escalate_tool, lookup_order_tool, refund_tool
+from target_agent.tools import (
+    escalate_tool,
+    kb_retrieval_tool,
+    lookup_order_tool,
+    refund_tool,
+)
 
 # Weak prompt — the point of the naivety. Real production agents would
 # include policy text, refusal patterns, schema constraints, retry
@@ -38,5 +43,5 @@ root_agent = LlmAgent(
     model="gemini-3.5-flash",
     description="Deliberately-naive customer-support agent — Phoenix Audit's demo target.",
     instruction=_INSTRUCTION,
-    tools=[lookup_order_tool, refund_tool, escalate_tool],
+    tools=[lookup_order_tool, refund_tool, escalate_tool, kb_retrieval_tool],
 )

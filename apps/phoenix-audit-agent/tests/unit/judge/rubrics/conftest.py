@@ -1,15 +1,20 @@
-"""Shared fixtures for Judge rubric tests."""
+"""Shared fixtures for Judge rubric tests.
+
+Evidence-chain repair (2026-06-10): rubrics no longer fetch from Phoenix —
+judge_phase prefetches the probe's whole trace once and hands the spans in
+via ``RubricInput.spans``. These helpers build that prefetched shape.
+"""
 
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import UTC, datetime
 from typing import Any
 
 import pytest
 
 from phoenix_audit_agent.config import get_settings
-from phoenix_audit_agent.judge.rubrics._base import PhoenixClient, _SpansNamespace
+from phoenix_audit_agent.judge.rubrics._base import RubricInput
+from phoenix_audit_agent.phoenix_tools.span_fetch import FetchedSpan
 
 # Canonical 16-hex-char span id; satisfies RubricInput's pattern check.
 SPAN_ID = "0123456789abcdef"
@@ -30,45 +35,49 @@ def _vertex_env(monkeypatch: pytest.MonkeyPatch) -> None:
 
 @dataclass
 class FakeSpan:
+    """Attribute holder for one span of the prefetched trace."""
+
     attributes: dict[str, Any] = field(default_factory=dict)
     start_time_ns: int = 0
     end_time_ns: int = 0
+    parent_id: str = ""  # "" => root
 
 
-def _iso(ns: int) -> str:
-    return "" if not ns else datetime.fromtimestamp(ns / 1e9, tz=UTC).isoformat()
+def to_fetched(span: FakeSpan, *, span_id: str = SPAN_ID) -> FetchedSpan:
+    return FetchedSpan(
+        span_id=span_id,
+        trace_id=TRACE_ID,
+        parent_id=span.parent_id,
+        attributes=dict(span.attributes),
+        start_time_ns=span.start_time_ns,
+        end_time_ns=span.end_time_ns,
+    )
 
 
-class FakeSpansClient(_SpansNamespace):
-    """Mirrors the REAL arize-phoenix-client 2.x AsyncSpans: only get_spans,
-    returning dict-shaped v1.Span objects scoped to a trace."""
+def make_input(
+    fault_class: str,
+    *spans: FakeSpan,
+    attack_payload: str | None = None,
+    original_user_message: str | None = None,
+    client_duration_ms: float | None = None,
+) -> RubricInput:
+    """RubricInput over a prefetched trace (first span is the root)."""
+    fetched = [
+        to_fetched(s, span_id=SPAN_ID if i == 0 else f"{i:016x}") for i, s in enumerate(spans)
+    ]
+    return RubricInput(
+        span_id=SPAN_ID,
+        trace_id=TRACE_ID,
+        fault_class=fault_class,  # ty: ignore[invalid-argument-type]
+        spans=fetched,
+        attack_payload=attack_payload,
+        original_user_message=original_user_message,
+        client_duration_ms=client_duration_ms,
+    )
 
-    def __init__(self, span: FakeSpan, *, span_id: str = SPAN_ID) -> None:
-        self._span = span
-        self._span_id = span_id
 
-    async def get_spans(self, **kwargs: Any) -> list[dict[str, Any]]:
-        return [
-            {
-                "name": "fake-span",
-                "context": {"trace_id": TRACE_ID, "span_id": self._span_id},
-                "span_kind": "AGENT",
-                "start_time": _iso(self._span.start_time_ns),
-                "end_time": _iso(self._span.end_time_ns),
-                "status_code": "OK",
-                "parent_id": "aaaabbbbccccdddd",
-                "attributes": dict(self._span.attributes),
-            }
-        ]
-
-
-class FakePhoenixClient(PhoenixClient):
-    # Explicit Protocol inheritance so ty accepts the fake at every
-    # RubricInput construction site.
-    spans: _SpansNamespace
-
-    def __init__(self, span: FakeSpan) -> None:
-        self.spans = FakeSpansClient(span)
+def child(attributes: dict[str, Any], **kw: Any) -> FakeSpan:
+    return FakeSpan(attributes=attributes, parent_id=SPAN_ID, **kw)
 
 
 @dataclass
@@ -97,9 +106,10 @@ __all__ = [
     "PROJECT_ID",
     "SPAN_ID",
     "TRACE_ID",
-    "FakePhoenixClient",
     "FakeSpan",
-    "FakeSpansClient",
     "StubVerdict",
+    "child",
+    "make_input",
     "stub_evaluator",
+    "to_fetched",
 ]
