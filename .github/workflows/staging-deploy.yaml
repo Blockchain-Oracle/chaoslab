@@ -40,11 +40,11 @@ jobs:
         with:
           filters: |
             agent:
-              - 'apps/chaoslab-agent/**'
+              - 'apps/phoenix-audit-agent/**'
               - 'pyproject.toml'
               - 'uv.lock'
             web:
-              - 'apps/chaoslab-web/**'
+              - 'apps/phoenix-audit-web/**'
               - 'package.json'
               - 'pnpm-lock.yaml'
             target_agent:
@@ -60,10 +60,10 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - service: chaoslab-agent
-            path: apps/chaoslab-agent
+          - service: phoenix-audit-agent
+            path: apps/phoenix-audit-agent
             changed_key: agent
-            dockerfile: apps/chaoslab-agent/Dockerfile
+            dockerfile: apps/phoenix-audit-agent/Dockerfile
             smoke_path: /health
           - service: target-agent
             path: apps/target-agent
@@ -72,10 +72,10 @@ jobs:
             # A2A agent — no FastAPI /health; the agent-card endpoint is the
             # standard "is the container alive" probe.
             smoke_path: /.well-known/agent.json
-          - service: chaoslab-web
-            path: apps/chaoslab-web
+          - service: phoenix-audit-web
+            path: apps/phoenix-audit-web
             changed_key: web
-            dockerfile: apps/chaoslab-web/Dockerfile
+            dockerfile: apps/phoenix-audit-web/Dockerfile
             smoke_path: /
     steps:
       - name: Determine if this service changed
@@ -132,7 +132,7 @@ jobs:
           context: .
           file: ${{ matrix.dockerfile }}
           push: true
-          tags: ${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/chaoslab/${{ matrix.service }}:${{ github.sha }}
+          tags: ${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/phoenix-audit/${{ matrix.service }}:${{ github.sha }}
           cache-from: type=gha,scope=${{ matrix.service }}
           cache-to: type=gha,scope=${{ matrix.service }},mode=max
 
@@ -156,7 +156,7 @@ jobs:
           # as the demo backend (track-partner-aligned, free-tier covers
           # judging window). Self-hosted Docker stays documented in
           # infra/phoenix-self-host/ as the OSS distribution alternative.
-          # chaoslab-web ignores these — its stub doesn't emit traces.
+          # phoenix-audit-web ignores these — its stub doesn't emit traces.
           PHOENIX_PROVIDER: customer
           PHOENIX_COLLECTOR_ENDPOINT: https://app.phoenix.arize.com/v1/traces
         run: |
@@ -167,7 +167,7 @@ jobs:
           fi
           # shellcheck disable=SC2086  # CANDIDATE_FLAGS is a controlled flag string
           gcloud run deploy ${{ matrix.service }} \
-            --image="${REGION}-docker.pkg.dev/${PROJECT_ID}/chaoslab/${{ matrix.service }}:${GITHUB_SHA}" \
+            --image="${REGION}-docker.pkg.dev/${PROJECT_ID}/phoenix-audit/${{ matrix.service }}:${GITHUB_SHA}" \
             --region="${REGION}" \
             --platform=managed \
             --service-account="${RUNTIME_SA}" \

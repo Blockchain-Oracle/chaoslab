@@ -1,5 +1,7 @@
 # Epics — Phoenix Audit
 
+> **Rename note (PR #83, 2026-06-10):** any `chaoslab-agent` / `chaoslab-web` / `chaoslab_agent` reference in this document refers to the renamed `apps/phoenix-audit-agent` / `apps/phoenix-audit-web` / `phoenix_audit_agent`. GCP identities (SAs `chaoslab-deploy` / `chaoslab-runtime`, bucket `chaoslab-recipes`) intentionally keep their legacy names — see CLAUDE.md.
+
 **Hackathon:** Google Cloud Rapid Agent Hackathon
 **Status:** DRAFT — pending Abu approval
 **Total epics:** 8

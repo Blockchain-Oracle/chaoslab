@@ -1,5 +1,7 @@
 # Architecture — Phoenix Audit
 
+> **Rename note (PR #83, 2026-06-10):** any `chaoslab-agent` / `chaoslab-web` / `chaoslab_agent` reference in this document refers to the renamed `apps/phoenix-audit-agent` / `apps/phoenix-audit-web` / `phoenix_audit_agent`. GCP identities (SAs `chaoslab-deploy` / `chaoslab-runtime`, bucket `chaoslab-recipes`) intentionally keep their legacy names — see CLAUDE.md.
+
 **Status:** DRAFT — pending Abu approval (LOCKS upon approval; no post-approval changes)
 **Last updated:** 2026-06-04 (rebranded from "ChaosLab" / "Trust Auditor" working names to **Phoenix Audit**; same closed-loop technical engine, reframed product for the compliance-officer persona — see `research/google-cloud-rapid-agent/PLAN-AI-TRUST-AUDITOR.md`)
 

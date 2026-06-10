@@ -369,14 +369,14 @@ pass "400-line guard clean"
 # discipline as run_silent. Missing dirs fail loud; permission errors
 # surface; only the "zero matches" exit code is allowed to pass.
 #
-# Coverage note (M3 stale-comment fix): apps/chaoslab-agent/src EXISTS as
+# Coverage note (M3 stale-comment fix): apps/phoenix-audit-agent/src EXISTS as
 # an empty package tree (created via S1.1 monorepo init, before Epic 4
 # has populated it with real modules). The §14 grep scans it today and
 # correctly reports zero matches because there's no .py code there yet.
 # Once Epic 4 ships its first module, the same grep starts enforcing on
 # real source. The unconditional include guarantees: deletion of the dir
 # fails the test loud rather than silently dropping coverage.
-SCAN_DIRS=(apps/target-agent/src apps/chaoslab-agent/src)
+SCAN_DIRS=(apps/target-agent/src apps/phoenix-audit-agent/src)
 # Visibility: print file count per scanned dir so an "empty scan" PASS is
 # transparent (round-2 silent-failure F10). Round-3 R3-F6: empty dirs
 # get a louder WARN marker so the no-coverage state can't masquerade as

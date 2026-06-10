@@ -219,7 +219,7 @@ run_silent python3 scripts/check_max_lines.py --strict
 pass "400-line guard clean"
 
 # -- §14: no mocks introduced (spec-only patch) ------------------------------
-SCAN_DIRS=(apps/target-agent/src apps/chaoslab-agent/src)
+SCAN_DIRS=(apps/target-agent/src apps/phoenix-audit-agent/src)
 for d in "${SCAN_DIRS[@]}"; do
   file_count=$(find "$d" -name '*.py' -type f | wc -l | tr -d ' ')
   if [ "$file_count" -eq 0 ]; then

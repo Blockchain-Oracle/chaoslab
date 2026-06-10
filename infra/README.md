@@ -1,6 +1,6 @@
 # Infra — one-time setup
 
-This directory carries the bash scripts that bootstrap GCP for ChaosLab's CI/CD pipeline. Run them once per GCP project; the CI workflows in `.github/workflows/` assume these scripts have already run.
+This directory carries the bash scripts that bootstrap GCP for PhoenixAudit's CI/CD pipeline. Run them once per GCP project; the CI workflows in `.github/workflows/` assume these scripts have already run.
 
 The scripts are **idempotent** — re-running them is safe (existing resources surface as "already exists" warnings).
 
@@ -10,10 +10,10 @@ Set all of these before running the scripts:
 
 | Var                     | Example                      | Purpose                                                                                             |
 | ----------------------- | ---------------------------- | --------------------------------------------------------------------------------------------------- |
-| `PROJECT`               | `chaoslab-cicd`              | GCP project ID                                                                                      |
+| `PROJECT`               | `phoenix-audit-cicd`         | GCP project ID                                                                                      |
 | `PROJECT_NUMBER`        | `123456789012`               | Numeric ID. Get via `gcloud projects describe $PROJECT --format='value(projectNumber)'`             |
 | `GITHUB_OWNER`          | `Blockchain-Oracle`          | GitHub org / user that owns the repo (case-sensitive — see GOTCHA-1)                                |
-| `GITHUB_REPO`           | `chaoslab`                   | GitHub repo name                                                                                    |
+| `GITHUB_REPO`           | `phoenix-audit`              | GitHub repo name                                                                                    |
 | `PHOENIX_API_KEY_VALUE` | `(from Arize Phoenix Cloud)` | Phoenix runtime auth (Secret Manager)                                                               |
 | `GITLAB_TOKEN_VALUE`    | `(GitLab PAT, scope: api)`   | GitLab MR emission (Secret Manager)                                                                 |
 | `GEMINI_API_KEY_VALUE`  | `(optional — BYO only)`      | AI Studio key. Skip on the hosted Vertex path; the runtime SA gets `roles/aiplatform.user` instead. |
@@ -26,10 +26,10 @@ gcloud auth login
 gcloud config set project "$PROJECT"
 
 # 1. Enable APIs and bootstrap WIF + service accounts
-export PROJECT="chaoslab-cicd"  # or whichever
+export PROJECT="phoenix-audit-cicd"  # or whichever
 export PROJECT_NUMBER="$(gcloud projects describe "$PROJECT" --format='value(projectNumber)')"
 export GITHUB_OWNER="Blockchain-Oracle"
-export GITHUB_REPO="chaoslab"
+export GITHUB_REPO="phoenix-audit"
 bash infra/workload-identity-federation.sh
 # → records WIF provider name + SA emails on stdout. Save them.
 
@@ -65,7 +65,7 @@ The WIF script prints the exact values to paste at the end of its run.
 
 These are the bugs that took hours to debug across multiple WIF setups. Inline as `# GOTCHA-N:` comments in `workload-identity-federation.sh` at the relevant step.
 
-1. **`attribute-condition` is case-sensitive literal match.** `Blockchain-Oracle/chaoslab` ≠ `blockchain-oracle/chaoslab`. Typoed case → OIDC succeeds, principalSet matches no token, "permission denied" with no hint at the cause.
+1. **`attribute-condition` is case-sensitive literal match.** `Blockchain-Oracle/phoenix-audit` ≠ `blockchain-oracle/phoenix-audit`. Typoed case → OIDC succeeds, principalSet matches no token, "permission denied" with no hint at the cause.
 
 2. **`principalSet` binding must use the FULL `attribute.repository == OWNER/REPO` path**, not just `REPO`. The OIDC token's `repository` claim is the full path; matching on just the repo name silently matches no token.
 
