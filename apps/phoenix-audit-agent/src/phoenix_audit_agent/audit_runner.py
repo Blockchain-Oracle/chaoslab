@@ -8,8 +8,9 @@ against a live target, emitting per-probe SSE frames the chamber UI renders:
     -> phase_change -> recipe -> complete
 
 Collaborators are module attributes so tests can monkeypatch the seams
-(`Injector`, `apply_rubric`, `run_clustering`, `Patcher`, `MarkdownEmitter`,
-`make_phoenix_client`) without touching the wire protocol.
+(`Injector`, `apply_rubric`, `span_honored`, `run_clustering`, `Patcher`,
+`MarkdownEmitter`, `make_phoenix_client`, `generate_signed_report`,
+`persist_run_completion`) without touching the wire protocol.
 """
 
 from __future__ import annotations
@@ -33,6 +34,7 @@ from phoenix_audit_agent.phoenix_tools.run_experiment import _build_client
 from phoenix_audit_agent.reporter import ReportData
 from phoenix_audit_agent.reporter.honored import span_honored
 from phoenix_audit_agent.reporter.service import generate_signed_report
+from phoenix_audit_agent.storage.models import RunCompletion
 from phoenix_audit_agent.storage.runs import persist_run_completion
 
 _log = structlog.get_logger(__name__)
@@ -115,28 +117,28 @@ def _completion_fields(
     tally: Any,
     recipe_id: str | None,
     report_available: bool,
-) -> dict[str, Any]:
-    """Registry-index finalize payload — carries enough keys (run_id /
-    target_url / created_at) to heal a failed create via merge."""
+) -> RunCompletion:
+    """Registry-index finalize payload — typed; extra='forbid' on the model
+    makes a typo'd field a constructor error, never a silent drop."""
     try:
         started = datetime.fromisoformat(created_at.replace("Z", "+00:00"))
         duration_sec: float | None = round((datetime.now(UTC) - started).total_seconds(), 1)
     except ValueError:
         duration_sec = None
-    return {
-        "run_id": run_id,
-        "target_url": target_url,
-        "created_at": created_at,
-        "phase": "succeeded",
-        "passed": tally.passed,
-        "failed": tally.failed,
-        "errored": tally.errored,
-        "transport_failed": tally.transport_failed,
-        "recipe_id": recipe_id,
-        "report_available": report_available,
-        "finished_at": datetime.now(UTC).isoformat(),
-        "duration_sec": duration_sec,
-    }
+    return RunCompletion(
+        run_id=run_id,
+        target_url=target_url,
+        created_at=created_at,
+        phase="succeeded",
+        passed=tally.passed,
+        failed=tally.failed,
+        errored=tally.errored,
+        transport_failed=tally.transport_failed,
+        recipe_id=recipe_id,
+        report_available=report_available,
+        finished_at=datetime.now(UTC).isoformat(),
+        duration_sec=duration_sec,
+    )
 
 
 async def drive_audit(
