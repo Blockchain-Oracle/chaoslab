@@ -67,7 +67,7 @@ assert_first_nonblank_contains LICENSE "Apache License"
 pass "LICENSE is Apache-2.0 (compat precondition)"
 
 # -- BDD-5: faults/__init__.py marker + attribution --------------------------
-faults_dir="apps/chaoslab-agent/src/chaoslab_agent/injector/faults"
+faults_dir="apps/phoenix-audit-agent/src/phoenix_audit_agent/injector/faults"
 assert_dir "$faults_dir"
 assert_file "${faults_dir}/__init__.py"
 assert_grep "deepankarm/agent-chaos" "${faults_dir}/__init__.py"

@@ -6,13 +6,15 @@
 set -euo pipefail
 
 # Required env vars — fail loud if any are missing.
-: "${PROJECT:?must set PROJECT (GCP project id, e.g. chaoslab-cicd)}"
+: "${PROJECT:?must set PROJECT (GCP project id, e.g. phoenix-audit-cicd)}"
 : "${PROJECT_NUMBER:?must set PROJECT_NUMBER (numeric, gcloud projects describe \$PROJECT --format='value(projectNumber)')}"
 : "${GITHUB_OWNER:?must set GITHUB_OWNER (e.g. Blockchain-Oracle)}"
-: "${GITHUB_REPO:?must set GITHUB_REPO (e.g. chaoslab)}"
+: "${GITHUB_REPO:?must set GITHUB_REPO (e.g. phoenix-audit)}"
 
 POOL_ID="${POOL_ID:-github-actions-pool}"
 PROVIDER_ID="${PROVIDER_ID:-github-actions-provider}"
+# Legacy identity names — see CLAUDE.md: live IAM/storage rename to phoenix-audit
+# was judged churn-without-benefit (rename PR #83, 2026-06-10).
 DEPLOY_SA="${DEPLOY_SA:-chaoslab-deploy}"
 RUNTIME_SA="${RUNTIME_SA:-chaoslab-runtime}"
 
@@ -32,20 +34,20 @@ gcloud services enable \
 
 # Artifact Registry repository — Cloud Run pulls images from here. The
 # repo is per-region; staging-deploy.yaml's image tag bakes in
-# `us-central1-docker.pkg.dev/${PROJECT}/chaoslab/<service>:<sha>`.
+# `us-central1-docker.pkg.dev/${PROJECT}/phoenix-audit/<service>:<sha>`.
 REGION="${REGION:-us-central1}"
-REPO_NAME="${REPO_NAME:-chaoslab}"
+REPO_NAME="${REPO_NAME:-phoenix-audit}"
 echo "==> Creating Artifact Registry repository: ${REPO_NAME} (${REGION})"
 gcloud artifacts repositories create "${REPO_NAME}" \
   --repository-format=docker \
   --location="${REGION}" \
-  --description="ChaosLab service images" \
+  --description="PhoenixAudit service images" \
   --project="${PROJECT}" 2>/dev/null || \
   echo "  -> repository already exists, continuing"
 
 # GOTCHA-1: attribute-condition is a CASE-SENSITIVE LITERAL match against
-# the GITHUB_OWNER/GITHUB_REPO string. "Blockchain-Oracle/chaoslab" !=
-# "blockchain-oracle/chaoslab". If you typo the case, OIDC succeeds but no
+# the GITHUB_OWNER/GITHUB_REPO string. "Blockchain-Oracle/phoenix-audit" !=
+# "blockchain-oracle/phoenix-audit". If you typo the case, OIDC succeeds but no
 # principalSet matches and the deploy SA impersonation fails with a
 # misleading "permission denied" error.
 
@@ -73,13 +75,13 @@ gcloud iam workload-identity-pools providers create-oidc "${PROVIDER_ID}" \
 echo "==> Creating deploy service account: ${DEPLOY_SA}"
 gcloud iam service-accounts create "${DEPLOY_SA}" \
   --project="${PROJECT}" \
-  --display-name="ChaosLab CI/CD deploy account" \
+  --display-name="PhoenixAudit CI/CD deploy account" \
   --description="Used by GitHub Actions via WIF to deploy Cloud Run services" || true
 
 echo "==> Creating runtime service account: ${RUNTIME_SA}"
 gcloud iam service-accounts create "${RUNTIME_SA}" \
   --project="${PROJECT}" \
-  --display-name="ChaosLab runtime identity" \
+  --display-name="PhoenixAudit runtime identity" \
   --description="Identity Cloud Run services assume at request time" || true
 
 DEPLOY_SA_EMAIL="${DEPLOY_SA}@${PROJECT}.iam.gserviceaccount.com"
@@ -89,7 +91,7 @@ RUNTIME_SA_EMAIL="${RUNTIME_SA}@${PROJECT}.iam.gserviceaccount.com"
 # OWNER/REPO` (full owner/repo path), NOT just `REPO`. If you bind on
 # `REPO` alone it silently matches no token and the deploy SA is
 # uninstantiable from any workflow. The `attribute.repository` mapping
-# above produces `Blockchain-Oracle/chaoslab` (full path) per OIDC spec.
+# above produces `Blockchain-Oracle/phoenix-audit` (full path) per OIDC spec.
 
 echo "==> Binding principalSet to ${DEPLOY_SA_EMAIL} (workloadIdentityUser)"
 gcloud iam service-accounts add-iam-policy-binding "${DEPLOY_SA_EMAIL}" \
@@ -156,6 +158,7 @@ done
 # role. Discovered during round-3+4 staging deploy: with only objectAdmin
 # bound, Cloud Run boots fail with 403 storage.buckets.get on the SA. Bind
 # `roles/storage.admin` on JUST this bucket (bucket-scoped, still least-privilege).
+# Legacy bucket name — kept through the phoenix-audit rename (see CLAUDE.md).
 GCS_RECIPES_BUCKET="${GCS_RECIPES_BUCKET:-chaoslab-recipes}"
 GCS_RECIPES_REGION="${GCS_RECIPES_REGION:-us-central1}"
 echo "==> Ensuring GCS bucket: gs://${GCS_RECIPES_BUCKET}"

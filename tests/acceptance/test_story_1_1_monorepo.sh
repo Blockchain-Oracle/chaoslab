@@ -23,9 +23,9 @@ pass "all 5 top-level dirs present"
 
 # -- BDD: workspace members declared (TOML-aware; portable across grep flavors)
 assert_toml_key pyproject.toml tool.uv.workspace.members
-assert_toml_value_contains pyproject.toml tool.uv.workspace.members chaoslab-agent
+assert_toml_value_contains pyproject.toml tool.uv.workspace.members phoenix-audit-agent
 assert_toml_value_contains pyproject.toml tool.uv.workspace.members target-agent
-pass "uv workspace members declared (chaoslab-agent + target-agent)"
+pass "uv workspace members declared (phoenix-audit-agent + target-agent)"
 
 # -- BDD: pnpm workspace declares apps/* --------------------------------------
 assert_grep "apps/\*" pnpm-workspace.yaml
@@ -45,9 +45,9 @@ assert_grep_at_least "(\.venv|node_modules|\.next)" .gitignore 3
 pass ".gitignore covers required patterns"
 
 # -- BDD: all 3 app workspace member files present ----------------------------
-assert_file apps/chaoslab-agent/pyproject.toml
+assert_file apps/phoenix-audit-agent/pyproject.toml
 assert_file apps/target-agent/pyproject.toml
-assert_file apps/chaoslab-web/package.json
+assert_file apps/phoenix-audit-web/package.json
 pass "all 3 app workspace member files present"
 
 # -- BDD: uv sync exits 0; .venv/ exists --------------------------------------
@@ -73,8 +73,8 @@ if grep -qE "^\[project\]" pyproject.toml; then
 fi
 pass "workspace-root pyproject.toml has no [project] table"
 
-# -- BDD: NOTICE has ChaosLab header ------------------------------------------
-assert_grep "ChaosLab" NOTICE
+# -- BDD: NOTICE has PhoenixAudit header ------------------------------------------
+assert_grep "PhoenixAudit" NOTICE
 pass "NOTICE has project header"
 
 # -- BDD: ruff config blocks present ------------------------------------------

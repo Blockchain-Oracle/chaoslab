@@ -41,9 +41,9 @@ venv
 docs
 research
 *.md
-!apps/chaoslab-agent/README.md
+!apps/phoenix-audit-agent/README.md
 !apps/target-agent/README.md
-!apps/chaoslab-web/README.md
+!apps/phoenix-audit-web/README.md
 !README.md
 
 # Tests (image runs code, not tests)

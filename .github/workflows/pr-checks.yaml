@@ -30,12 +30,12 @@ jobs:
         with:
           filters: |
             python:
-              - 'apps/chaoslab-agent/**'
+              - 'apps/phoenix-audit-agent/**'
               - 'apps/target-agent/**'
               - 'pyproject.toml'
               - 'uv.lock'
             ts:
-              - 'apps/chaoslab-web/**'
+              - 'apps/phoenix-audit-web/**'
               - 'package.json'
               - 'pnpm-lock.yaml'
             infra:
@@ -64,7 +64,7 @@ jobs:
       - name: ruff format --check
         run: uv run ruff format --check .
       - name: ty check
-        run: uv run ty check apps/chaoslab-agent apps/target-agent
+        run: uv run ty check apps/phoenix-audit-agent apps/target-agent
 
   ts-quality:
     needs: detect-changes
@@ -134,8 +134,8 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y --no-install-recommends libpango-1.0-0 libpangoft2-1.0-0 libharfbuzz-subset0
       - name: uv sync
         run: uv sync --frozen --all-extras
-      - name: pytest (chaoslab-agent)
-        working-directory: apps/chaoslab-agent
+      - name: pytest (phoenix-audit-agent)
+        working-directory: apps/phoenix-audit-agent
         run: uv run pytest tests/unit -v -m "not online"
       - name: pytest (target-agent)
         working-directory: apps/target-agent

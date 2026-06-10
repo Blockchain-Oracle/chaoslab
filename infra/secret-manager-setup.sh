@@ -11,6 +11,7 @@ set -euo pipefail
 # Set GEMINI_API_KEY_VALUE only when shipping an AI Studio BYO build.
 GEMINI_API_KEY_VALUE="${GEMINI_API_KEY_VALUE:-}"
 
+# Legacy identity name — kept through the phoenix-audit rename (see CLAUDE.md).
 RUNTIME_SA="${RUNTIME_SA:-chaoslab-runtime}"
 RUNTIME_SA_EMAIL="${RUNTIME_SA}@${PROJECT}.iam.gserviceaccount.com"
 

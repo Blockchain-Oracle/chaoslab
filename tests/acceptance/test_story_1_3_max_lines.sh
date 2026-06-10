@@ -25,7 +25,7 @@ run_silent python3 scripts/check_max_lines.py --strict
 pass "python3 scripts/check_max_lines.py --strict exits 0 on clean state"
 
 # -- BDD: a 401-significant-line dummy under apps/ triggers exit 1 ------------
-PROBE="apps/chaoslab-agent/src/__chaoslab_lint_probe__.py"
+PROBE="apps/phoenix-audit-agent/src/__phoenix_audit_lint_probe__.py"
 mkdir -p "$(dirname "$PROBE")"
 # Trap ensures cleanup even on test failure mid-way through this block.
 trap 'rm -f "$PROBE"' EXIT
@@ -61,32 +61,32 @@ trap - EXIT
 pass "exact 400-line file passes (boundary inclusive)"
 
 # -- BDD: vendored files are skipped ------------------------------------------
-VENDORED="apps/chaoslab-agent/src/chaoslab_agent/injector/faults/_vendored/__lint_probe__.py"
+VENDORED="apps/phoenix-audit-agent/src/phoenix_audit_agent/injector/faults/_vendored/__lint_probe__.py"
 mkdir -p "$(dirname "$VENDORED")"
-trap 'rm -rf "apps/chaoslab-agent/src/chaoslab_agent/injector/faults/_vendored"' EXIT
+trap 'rm -rf "apps/phoenix-audit-agent/src/phoenix_audit_agent/injector/faults/_vendored"' EXIT
 printf 'z = 1\n%.0s' $(seq 1 500) > "$VENDORED"
 run_silent python3 scripts/check_max_lines.py --strict
-rm -rf "apps/chaoslab-agent/src/chaoslab_agent/injector/faults/_vendored"
+rm -rf "apps/phoenix-audit-agent/src/phoenix_audit_agent/injector/faults/_vendored"
 trap - EXIT
 pass "500-line file under _vendored/ is correctly excluded"
 
 # -- Adversarial (PR #3 review GAP-1 / F3): substring match must NOT exclude
 #    a directory whose name merely CONTAINS an exclusion pattern.
 #    e.g., `apps/foo/rebuild/x.py` is NOT under `build/` — it's `rebuild/`.
-REBUILD="apps/chaoslab-agent/src/rebuild/__lint_probe__.py"
+REBUILD="apps/phoenix-audit-agent/src/rebuild/__lint_probe__.py"
 mkdir -p "$(dirname "$REBUILD")"
-trap 'rm -rf "apps/chaoslab-agent/src/rebuild"' EXIT
+trap 'rm -rf "apps/phoenix-audit-agent/src/rebuild"' EXIT
 printf 'q = 1\n%.0s' $(seq 1 401) > "$REBUILD"
 set +e
 python3 scripts/check_max_lines.py --strict >/dev/null 2>&1
 rc=$?
 set -e
 if [ "$rc" -ne 1 ]; then
-  rm -rf "apps/chaoslab-agent/src/rebuild"
+  rm -rf "apps/phoenix-audit-agent/src/rebuild"
   trap - EXIT
   fail "401-line file under rebuild/ MUST trigger the rule (substring guard broken: got rc=$rc)"
 fi
-rm -rf "apps/chaoslab-agent/src/rebuild"
+rm -rf "apps/phoenix-audit-agent/src/rebuild"
 trap - EXIT
 pass "rebuild/ correctly NOT excluded (path-component match, not substring)"
 
@@ -113,7 +113,7 @@ fi
 pass "missing ROOTS from cwd fails loud with exit 2 (not silent green)"
 
 # -- Adversarial (PR #3 review Q6): [FAIL] output goes to stderr, not stdout --
-PROBE_STDERR="apps/chaoslab-agent/src/__chaoslab_stderr_probe__.py"
+PROBE_STDERR="apps/phoenix-audit-agent/src/__phoenix_audit_stderr_probe__.py"
 mkdir -p "$(dirname "$PROBE_STDERR")"
 trap 'rm -f "$PROBE_STDERR"' EXIT
 printf 'r = 1\n%.0s' $(seq 1 401) > "$PROBE_STDERR"

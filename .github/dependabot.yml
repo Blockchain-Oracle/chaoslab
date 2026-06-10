@@ -53,7 +53,7 @@ updates:
       - dependency-name: "google-adk"
         update-types: ["version-update:semver-major"]
 
-  # pnpm workspace at repo root (chaoslab-web)
+  # pnpm workspace at repo root (phoenix-audit-web)
   - package-ecosystem: npm
     directory: /
     schedule:
@@ -66,7 +66,7 @@ updates:
       - dependencies
       - typescript
 
-  # Dockerfile-based dependencies (target-agent + chaoslab-agent images)
+  # Dockerfile-based dependencies (target-agent + phoenix-audit-agent images)
   - package-ecosystem: docker
     directory: /apps/target-agent
     schedule:
@@ -79,7 +79,7 @@ updates:
       - dependencies
       - docker
   - package-ecosystem: docker
-    directory: /apps/chaoslab-agent
+    directory: /apps/phoenix-audit-agent
     schedule:
       interval: weekly
       day: monday

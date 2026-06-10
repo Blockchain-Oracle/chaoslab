@@ -10,7 +10,7 @@ set -euo pipefail
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$REPO_ROOT"
 
-PROBE="apps/chaoslab-agent/src/__chaoslab_lint_probe__.py"
+PROBE="apps/phoenix-audit-agent/src/__phoenix_audit_lint_probe__.py"
 mkdir -p "$(dirname "$PROBE")"
 trap 'rm -f "$PROBE"' EXIT
 

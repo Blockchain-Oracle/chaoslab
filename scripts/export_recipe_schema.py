@@ -11,9 +11,9 @@ import sys
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(REPO_ROOT / "apps/chaoslab-agent/src"))
+sys.path.insert(0, str(REPO_ROOT / "apps/phoenix-audit-agent/src"))
 
-from chaoslab_agent.patcher.recipe import HardeningRecipe  # noqa: E402
+from phoenix_audit_agent.patcher.recipe import HardeningRecipe  # noqa: E402
 
 
 def main() -> int:

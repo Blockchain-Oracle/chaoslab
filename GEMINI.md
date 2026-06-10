@@ -1,6 +1,6 @@
 # Phoenix Audit — Gemini CLI Project Operating Manual
 
-**Project:** Phoenix Audit — an AI agent that audits other AI agents for safety and EU AI Act compliance (Google Cloud Rapid Agent Hackathon, Arize track). Production AI agent (customer-support bot, prior-auth bot, coding agent) gets pointed to Phoenix Audit; agent runs adversarial test battery; produces a cryptographically signed regulator-ready audit report in 90 seconds. Same closed-loop engine as the prior ChaosLab working name, reframed: from "chaos engineer's testing tool" to "compliance officer's audit machine." Day-1 user: Director of AI Governance at a 5K+ employee company.
+**Project:** Phoenix Audit — an AI agent that audits other AI agents for safety and EU AI Act compliance (Google Cloud Rapid Agent Hackathon, Arize track). Production AI agent (customer-support bot, prior-auth bot, coding agent) gets pointed to Phoenix Audit; agent runs adversarial test battery; produces a cryptographically signed regulator-ready audit report in 90 seconds. Same closed-loop engine as the prior ChaosLab working name (renamed repo-wide 2026-06-10), reframed: from "chaos engineer's testing tool" to "compliance officer's audit machine." Day-1 user: Director of AI Governance at a 5K+ employee company.
 
 **Deadline:** 2026-06-11 14:00 PT. **Judging window:** 2026-06-22 → 2026-07-06.
 
@@ -32,7 +32,7 @@ For domain depth: `research/google-cloud-rapid-agent/READING-ORDER.md`.
    - Address any findings (type-design, trace structure, test coverage, max lines) to ensure zero silent failures.
 8. **Commit changes** (if explicitly requested by the user, or as part of completing a story):
    - Always run `git status` first to stage only specific files.
-   - Use conventional commit messages following the project's style (e.g. `feat(chaoslab-agent): S5.2 — F1 MalformedToolOutputFault via ADK callback`).
+   - Use conventional commit messages following the project's style (e.g. `feat(phoenix-audit-agent): S5.2 — F1 MalformedToolOutputFault via ADK callback`).
    - Run pre-commit checks locally via git hooks or pre-commit command.
 9. **Update sprint-status** — edit `docs/sprint-status.yaml` flipping story to `COMPLETE` and commit.
 
@@ -50,7 +50,7 @@ One story at a time. Focus entirely on the active story to guarantee depth and v
 - **No mocks in submitted hot path** (§14). Real Phoenix, real Gemini, real target.
 - **Conventional commits:** `feat(scope): subject` / `fix(scope): …` / `chore(scope): …`.
 - **Pin model IDs:** `gemini-3.5-flash` (JUDGE_LLM, mandatory), `gemini-3.1-pro-preview` (if used). Never `gemini-pro` / `gemini-3.1-pro`.
-- **Don't import `google.adk.*` outside `chaoslab_agent.adk_types`** (quarantine module — note: internal package directory still uses `chaoslab_agent` as codename pending S1.6 deploy refactor; product name is Phoenix Audit).
+- **Don't import `google.adk.*` outside `phoenix_audit_agent.adk_types`** (quarantine module; keeps the dynamic-typing boundary controlled).
 - **`gemini-2.0-flash` is deprecated** — never use it.
 
 ---
@@ -62,7 +62,7 @@ One story at a time. Focus entirely on the active story to guarantee depth and v
 - **Tests:** pytest + pytest-asyncio + respx + hypothesis (BE); vitest + RTL + `@playwright/test` (FE)
 - **Agent:** `google-adk>=2.1.0,<3.0.0` (pin major — uses deprecated `SequentialAgent`/`LoopAgent`/`ParallelAgent` per ADR-012)
 - **Observability:** `arize-phoenix-otel` + `arize-phoenix-client` + `openinference-instrumentation-google-adk` (Tier 1) + `-langchain` / `-crewai` / `-openai-agents` (Tier 2)
-- **Deploy:** 3 Cloud Run services. Internal package names `chaoslab-web` / `chaoslab-agent` / `target-agent` (codenames pending S1.6 rename to `phoenix-audit-web` / `phoenix-audit-agent`); deployed via GitHub Actions @v3 + Workload Identity Federation.
+- **Deploy:** 3 Cloud Run services. Services `phoenix-audit-web` / `phoenix-audit-agent` / `target-agent` (renamed from chaoslab-\* 2026-06-10; GCP identities keep legacy names: SAs `chaoslab-deploy`/`chaoslab-runtime`, bucket `chaoslab-recipes` — live IAM/storage rename judged churn-without-benefit); deployed via GitHub Actions @v3 + Workload Identity Federation.
 
 ---
 
@@ -90,9 +90,9 @@ uv run ty check apps/
 
 # TypeScript
 pnpm install
-pnpm --filter chaoslab-web dev                     # local Next.js
-pnpm --filter chaoslab-web test                    # vitest
-pnpm --filter chaoslab-web test:e2e                # playwright
+pnpm --filter phoenix-audit-web dev                     # local Next.js
+pnpm --filter phoenix-audit-web test                    # vitest
+pnpm --filter phoenix-audit-web test:e2e                # playwright
 pnpm lint && pnpm typecheck
 
 # Cross-language
@@ -110,7 +110,7 @@ pre-commit run --all-files
 
 - `JUDGE_LLM=gemini-3.5-flash` is the env var. Pro is ~1.33× cost. Flash-Lite (`gemini-3.1-flash-lite`) is 8-11× cheaper — fallback if budget overruns appear (untested for our eval rubrics, default Flash).
 - `@pytest.mark.online` tests cost money — run on nightly schedule, not every PR.
-- Cloud Run `min-instances=1` on `chaoslab-web` + `chaoslab-agent` ONLY during judging window (Jun 22 → Jul 6). Bring to 0 outside.
+- Cloud Run `min-instances=1` on `phoenix-audit-web` + `phoenix-audit-agent` ONLY during judging window (Jun 22 → Jul 6). Bring to 0 outside.
 
 ---
 

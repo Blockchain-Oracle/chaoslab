@@ -1,4 +1,4 @@
-Phoenix Audit (internal package codename: ChaosLab; rebranded 2026-06-04)
+Phoenix Audit (internal package codename: PhoenixAudit; rebranded 2026-06-04)
 Copyright 2026 Abu Mostofa (Blockchain-Oracle)
 
 Licensed under the Apache License, Version 2.0 (the "License").
@@ -14,7 +14,7 @@ This project draws architectural inspiration from `deepankarm/agent-chaos`
 (https://github.com/deepankarm/agent-chaos), Apache-2.0 licensed.
 Reference commit: 32beff46a28ca043e252095e6cc62ffe2010e645 (2026-01-02).
 No source code is copied; the fault primitives under
-apps/chaoslab-agent/src/chaoslab_agent/injector/faults/ are implemented
+apps/phoenix-audit-agent/src/phoenix_audit_agent/injector/faults/ are implemented
 natively against the Google ADK callback system per docs/architecture.md
 ADR-006 (amended 2026-06-03).
 

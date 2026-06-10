@@ -39,12 +39,12 @@ COPY --from=ghcr.io/astral-sh/uv:0.11.18 /uv /uvx /usr/local/bin/
 
 WORKDIR /workspace
 
-# Workspace metadata. Bringing in chaoslab-agent's pyproject is necessary
+# Workspace metadata. Bringing in phoenix-audit-agent's pyproject is necessary
 # for uv to resolve the workspace graph, even though we only install
 # target-agent. The .dockerignore prevents that app's source from coming.
 COPY pyproject.toml uv.lock ./
 COPY apps/target-agent/pyproject.toml apps/target-agent/
-COPY apps/chaoslab-agent/pyproject.toml apps/chaoslab-agent/
+COPY apps/phoenix-audit-agent/pyproject.toml apps/phoenix-audit-agent/
 
 # --frozen: fail loud if uv.lock disagrees with pyproject.toml.
 # --no-install-project: just resolve dependencies; project source comes next stage.
@@ -68,7 +68,7 @@ WORKDIR /workspace
 COPY --from=deps /workspace/.venv /workspace/.venv
 COPY pyproject.toml uv.lock ./
 COPY apps/target-agent/pyproject.toml apps/target-agent/
-COPY apps/chaoslab-agent/pyproject.toml apps/chaoslab-agent/
+COPY apps/phoenix-audit-agent/pyproject.toml apps/phoenix-audit-agent/
 COPY apps/target-agent/src/ apps/target-agent/src/
 COPY apps/target-agent/README.md apps/target-agent/README.md
 

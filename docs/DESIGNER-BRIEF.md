@@ -1,5 +1,7 @@
 # Phoenix Audit — Designer Brief
 
+> **Rename note (PR #83, 2026-06-10):** any `chaoslab-agent` / `chaoslab-web` / `chaoslab_agent` reference in this document refers to the renamed `apps/phoenix-audit-agent` / `apps/phoenix-audit-web` / `phoenix_audit_agent`. GCP identities (SAs `chaoslab-deploy` / `chaoslab-runtime`, bucket `chaoslab-recipes`) intentionally keep their legacy names — see CLAUDE.md.
+
 A complete domain-knowledge handoff for the designer. **No visual direction inside this doc** — no colors, fonts, layout, components, libraries, or animation suggestions. The brief surfaces the product, the user, the artifacts, and every screen + data field that has to exist so you have full creative freedom on the visual answer.
 
 If anything below is unclear, ambiguous, or under-specified for what you need, ask. Don't infer — invent.

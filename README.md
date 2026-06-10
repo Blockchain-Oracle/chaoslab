@@ -67,10 +67,10 @@ See `docs/architecture.md` ADR-002 + `docs/stories/story-3.*` for the adapter la
 
 ## Repo layout
 
-> Internal package directories still use the `chaoslab-*` codename pending S1.6 deploy refactor. The product is Phoenix Audit; the package names are an artifact of where the build started and will be renamed before the final Cloud Run deploy.
+> Internal package directories still use the `phoenix-audit-*` codename pending S1.6 deploy refactor. The product is Phoenix Audit; the package names are an artifact of where the build started and will be renamed before the final Cloud Run deploy.
 
-- `apps/chaoslab-agent/` — Phoenix Audit orchestrator (ADK; SequentialAgent w/ Inspector, Tester, Judge, Reporter sub-agents)
-- `apps/chaoslab-web/` — Frontend (Next.js 16 + Tailwind 4 + visx + Framer Motion)
+- `apps/phoenix-audit-agent/` — Phoenix Audit orchestrator (ADK; SequentialAgent w/ Inspector, Tester, Judge, Reporter sub-agents)
+- `apps/phoenix-audit-web/` — Frontend (Next.js 16 + Tailwind 4 + visx + Framer Motion)
 - `apps/target-agent/` — A deliberately naive customer-support agent used as the "agent under audit" for the demo
 - `docs/` — Full spec (PRD, architecture w/ 12 ADRs, cicd, coding-standards, ux-spec, 52 stories)
 - `research/google-cloud-rapid-agent/` — 60K+ lines of context (brainstorm, audit, RAT-results, hackathon primer, plan)

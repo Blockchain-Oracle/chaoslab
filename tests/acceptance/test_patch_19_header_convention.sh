@@ -299,7 +299,7 @@ pass "400-line guard clean"
 # Round-1 silent-failure HIGH-2: drop the `test -d ... &&` conditional that
 # silently skipped coverage. Mirror Patch #20: unconditional SCAN_DIRS so
 # deletion of either dir fails the test loud via assert_dir inside the helper.
-SCAN_DIRS=(apps/target-agent/src apps/chaoslab-agent/src)
+SCAN_DIRS=(apps/target-agent/src apps/phoenix-audit-agent/src)
 for d in "${SCAN_DIRS[@]}"; do
   file_count=$(find "$d" -name '*.py' -type f | wc -l | tr -d ' ')
   if [ "$file_count" -eq 0 ]; then

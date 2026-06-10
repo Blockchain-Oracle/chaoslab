@@ -1,6 +1,6 @@
 # Phoenix Audit — Project Operating Manual
 
-**Project:** Phoenix Audit — an AI agent that audits other AI agents for safety and EU AI Act compliance (Google Cloud Rapid Agent Hackathon, Arize track). Production AI agent (customer-support bot, prior-auth bot, coding agent) gets pointed to Phoenix Audit; agent runs adversarial test battery; produces a cryptographically signed regulator-ready audit report in 90 seconds. Same closed-loop engine as the prior ChaosLab working name, reframed: from "chaos engineer's testing tool" to "compliance officer's audit machine." Day-1 user: Director of AI Governance at a 5K+ employee company.
+**Project:** Phoenix Audit — an AI agent that audits other AI agents for safety and EU AI Act compliance (Google Cloud Rapid Agent Hackathon, Arize track). Production AI agent (customer-support bot, prior-auth bot, coding agent) gets pointed to Phoenix Audit; agent runs adversarial test battery; produces a cryptographically signed regulator-ready audit report in 90 seconds. Same closed-loop engine as the prior ChaosLab working name (renamed repo-wide 2026-06-10), reframed: from "chaos engineer's testing tool" to "compliance officer's audit machine." Day-1 user: Director of AI Governance at a 5K+ employee company.
 
 **Deadline:** 2026-06-11 14:00 PT. **Judging window:** 2026-06-22 → 2026-07-06.
 
@@ -47,7 +47,7 @@ One PR per story. No parallel implementation. Eggs in one basket — your focus 
 - **No mocks in submitted hot path** (§14). Real Phoenix, real Gemini, real target.
 - **Conventional commits:** `feat(scope): subject` / `fix(scope): …` / `chore(scope): …`. PR title regex-checked in CI.
 - **Pin model IDs:** `gemini-3.5-flash` (JUDGE_LLM, mandatory), `gemini-3.1-pro-preview` (if used). Never `gemini-pro` / `gemini-3.1-pro`.
-- **Don't import `google.adk.*` outside `chaoslab_agent.adk_types`** (quarantine module — note: internal package directory still uses `chaoslab_agent` as codename pending S1.6 deploy refactor; product name is Phoenix Audit).
+- **Don't import `google.adk.*` outside `phoenix_audit_agent.adk_types`** (quarantine module; keeps the dynamic-typing boundary controlled).
 - **`gemini-2.0-flash` is deprecated** — never use it.
 
 ---
@@ -59,7 +59,7 @@ One PR per story. No parallel implementation. Eggs in one basket — your focus 
 - **Tests:** pytest + pytest-asyncio + respx + hypothesis (BE); vitest + RTL + `@playwright/test` (FE)
 - **Agent:** `google-adk>=2.1.0,<3.0.0` (pin major — uses deprecated `SequentialAgent`/`LoopAgent`/`ParallelAgent` per ADR-012)
 - **Observability:** `arize-phoenix-otel` + `arize-phoenix-client` + `openinference-instrumentation-google-adk` (Tier 1) + `-langchain` / `-crewai` / `-openai-agents` (Tier 2)
-- **Deploy:** 3 Cloud Run services. Internal package names `chaoslab-web` / `chaoslab-agent` / `target-agent` (codenames pending S1.6 rename to `phoenix-audit-web` / `phoenix-audit-agent`); deployed via GitHub Actions @v3 + Workload Identity Federation.
+- **Deploy:** 3 Cloud Run services. Services `phoenix-audit-web` / `phoenix-audit-agent` / `target-agent` (renamed from chaoslab-\* 2026-06-10; GCP identities keep legacy names: SAs `chaoslab-deploy`/`chaoslab-runtime`, bucket `chaoslab-recipes` — live IAM/storage rename judged churn-without-benefit); deployed via GitHub Actions @v3 + Workload Identity Federation.
 
 ---
 
@@ -106,16 +106,16 @@ These shapes look correct in review but silently corrupt the regulator-facing au
 ```bash
 # Python (run from repo root)
 uv sync                                            # install
-uv run pytest                                      # unit + integration (no online)
+uv run pytest apps/phoenix-audit-agent/tests/unit apps/target-agent/tests/unit  # per-app, like CI (combined-tree root run has a known tests-package collision)
 uv run pytest -m online                            # cost-incurring; skip on PR
 uv run ruff check . && uv run ruff format --check .
 uv run ty check apps/
 
 # TypeScript
 pnpm install
-pnpm --filter chaoslab-web dev                     # local Next.js
-pnpm --filter chaoslab-web test                    # vitest
-pnpm --filter chaoslab-web test:e2e                # playwright
+pnpm --filter phoenix-audit-web dev                     # local Next.js
+pnpm --filter phoenix-audit-web test                    # vitest
+pnpm --filter phoenix-audit-web test:e2e                # playwright
 pnpm lint && pnpm typecheck
 
 # Cross-language
@@ -131,7 +131,7 @@ pre-commit run --all-files
 
 **GCP IAM bootstrap** (S1.4) is a MANUAL ONE-TIME step. Run via `bash infra/workload-identity-federation.sh && bash infra/secret-manager-setup.sh` after setting the env vars listed in `infra/README.md`. CI workflows in `.github/workflows/*.yaml` assume this has happened (WIF pool + service accounts + Secret Manager secrets are all live).
 
-**Staging deploys** (S1.6) fire on every push to `main` via `.github/workflows/staging-deploy.yaml`. The "build once, promote everywhere" invariant (ADR-008) means the `:${{ github.sha }}` image tag is the unit of promotion — prod (S1.7) uses the SAME image hash via `prod-promote.yaml`. The workflow uses a matrix over 3 services (chaoslab-agent, target-agent, chaoslab-web) with `paths-filter` skipping unchanged services. WIF auth via S1.4's `chaoslab-deploy` SA; runtime SA is `chaoslab-runtime`. Blue/green: deploy with `--no-traffic --tag=candidate`, smoke-test the candidate URL, then `update-traffic --to-latest=100` on success.
+**Staging deploys** (S1.6) fire on every push to `main` via `.github/workflows/staging-deploy.yaml`. The "build once, promote everywhere" invariant (ADR-008) means the `:${{ github.sha }}` image tag is the unit of promotion — prod (S1.7) uses the SAME image hash via `prod-promote.yaml`. The workflow uses a matrix over 3 services (phoenix-audit-agent, target-agent, phoenix-audit-web) with `paths-filter` skipping unchanged services. WIF auth via S1.4's `chaoslab-deploy` SA; runtime SA is `chaoslab-runtime`. Blue/green: deploy with `--no-traffic --tag=candidate`, smoke-test the candidate URL, then `update-traffic --to-latest=100` on success.
 
 ---
 
@@ -150,7 +150,7 @@ If a spec claim doesn't match reality (and `docs/audit-notes.md` hasn't already 
 
 - `JUDGE_LLM=gemini-3.5-flash` is the env var. Pro is ~1.33× cost. Flash-Lite (`gemini-3.1-flash-lite`) is 8-11× cheaper — fallback if budget overruns appear (untested for our eval rubrics, default Flash).
 - `@pytest.mark.online` tests cost money — run on nightly schedule, not every PR.
-- Cloud Run `min-instances=1` on `chaoslab-web` + `chaoslab-agent` ONLY during judging window (Jun 22 → Jul 6). Bring to 0 outside.
+- Cloud Run `min-instances=1` on `phoenix-audit-web` + `phoenix-audit-agent` ONLY during judging window (Jun 22 → Jul 6). Bring to 0 outside.
 
 ---
 

@@ -63,3 +63,6 @@ scratch/
 
 # Build outputs (Cloud Run artifacts produced by gcloud locally)
 .build/
+
+# Claude Code local state (untracked agent settings, plans, review snapshots)
+.claude/
