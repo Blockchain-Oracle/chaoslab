@@ -166,6 +166,47 @@ class _NoCrcKms(_RealEd25519Kms):
         return response
 
 
+class _UnverifiedRequestCrcKms(_RealEd25519Kms):
+    def asymmetric_sign(self, request: dict[str, Any]) -> Any:
+        response = super().asymmetric_sign(request)
+        response.verified_data_crc32c = False
+        return response
+
+
+class _WrongKeyKms(_RealEd25519Kms):
+    def asymmetric_sign(self, request: dict[str, Any]) -> Any:
+        response = super().asymmetric_sign(request)
+        response.name = request["name"] + "-other-key"
+        return response
+
+
+class _CorruptSignatureCrcKms(_RealEd25519Kms):
+    def asymmetric_sign(self, request: dict[str, Any]) -> Any:
+        response = super().asymmetric_sign(request)
+        response.signature_crc32c = (int(response.signature_crc32c) + 1) % 2**32
+        return response
+
+
+def test_signer_refuses_unverified_request_crc() -> None:
+    """KMS didn't confirm request integrity — a signature could cover corrupted input."""
+    signer = KmsReportSigner(key_version=_KEY_VERSION, client=_UnverifiedRequestCrcKms())
+    with pytest.raises(RuntimeError, match="did not verify the request CRC32C"):
+        signer.sign_artifacts({"report.pdf": b"%PDF"})
+
+
+def test_signer_refuses_signature_from_wrong_key() -> None:
+    """The path a real KMS mis-wiring hits: signed, but by the WRONG key version."""
+    signer = KmsReportSigner(key_version=_KEY_VERSION, client=_WrongKeyKms())
+    with pytest.raises(RuntimeError, match="unexpected key"):
+        signer.sign_artifacts({"report.pdf": b"%PDF"})
+
+
+def test_signer_refuses_signature_corrupted_in_transit() -> None:
+    signer = KmsReportSigner(key_version=_KEY_VERSION, client=_CorruptSignatureCrcKms())
+    with pytest.raises(RuntimeError, match="failed CRC32C verification"):
+        signer.sign_artifacts({"report.pdf": b"%PDF"})
+
+
 def test_signer_refuses_response_without_key_name() -> None:
     signer = KmsReportSigner(key_version=_KEY_VERSION, client=_NoNameKms())
     with pytest.raises(RuntimeError, match="no key name"):

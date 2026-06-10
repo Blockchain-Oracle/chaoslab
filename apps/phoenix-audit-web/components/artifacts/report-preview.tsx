@@ -37,6 +37,10 @@ type SignState = 'idle' | 'signing' | 'signed'
 export function ReportPreview({ runId, live, liveError }: ReportPreviewProps) {
   const r = HERO_RUN
   const isLive = Boolean(live)
+  // True for any REAL run id — even when the registry was unreachable. Every
+  // fixture surface below must be labeled SAMPLE for these, and the signing
+  // theater is never offered.
+  const isRealRun = isLive || Boolean(liveError)
   const [page, setPage] = useState<ReportPageId>('cover')
   const [signState, setSignState] = useState<SignState>(isLive ? 'signed' : 'idle')
   const schedule = useSafeTimeout()
@@ -113,9 +117,19 @@ export function ReportPreview({ runId, live, liveError }: ReportPreviewProps) {
             <h1 className="display" style={{ fontSize: 36 }}>
               Signed audit report.
             </h1>
-            <div className="mono muted" style={{ fontSize: 11.5, marginTop: 8 }}>
-              {r.signingKey}
-            </div>
+            {isLive && live ? (
+              <div className="mono muted" style={{ fontSize: 11.5, marginTop: 8 }}>
+                {live.targetUrl} · {new Date(live.createdAt).toUTCString()} ·{' '}
+                <span style={{ color: 'var(--pass)' }}>{live.passed}✓</span> /{' '}
+                <span style={{ color: live.failed ? 'var(--fail)' : 'inherit' }}>
+                  {live.failed}✕
+                </span>
+              </div>
+            ) : isRealRun ? null : (
+              <div className="mono muted" style={{ fontSize: 11.5, marginTop: 8 }}>
+                {r.signingKey}
+              </div>
+            )}
           </div>
           {isLive && live ? (
             <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
@@ -160,7 +174,7 @@ export function ReportPreview({ runId, live, liveError }: ReportPreviewProps) {
                 </a>
               ) : null}
             </div>
-          ) : signState === 'signed' ? (
+          ) : isRealRun ? null : signState === 'signed' ? (
             <div style={{ display: 'flex', gap: 10 }}>
               <button className="btn primary">Download PDF</button>
               <button className="btn ghost">Download signed JSON</button>
@@ -177,6 +191,25 @@ export function ReportPreview({ runId, live, liveError }: ReportPreviewProps) {
           )}
         </div>
 
+        {isRealRun ? (
+          <div
+            className="mono"
+            style={{
+              fontSize: 11,
+              letterSpacing: '0.08em',
+              color: 'var(--ink-3)',
+              border: '1px dashed var(--hairline)',
+              borderRadius: 4,
+              padding: '10px 14px',
+              marginBottom: 18,
+            }}
+          >
+            ◌ SAMPLE PREVIEW BELOW — illustrative report layout only.{' '}
+            {isLive
+              ? "This run's actual data is in the signed artifacts above."
+              : "This run's artifacts will be downloadable when the registry is reachable again."}
+          </div>
+        ) : null}
         <div
           style={{
             display: 'grid',
@@ -212,6 +245,34 @@ export function ReportPreview({ runId, live, liveError }: ReportPreviewProps) {
               }}
             >
               <ReportPage page={page} signed={signState === 'signed'} />
+              {isRealRun ? (
+                <div
+                  aria-hidden
+                  className="mono"
+                  style={{
+                    position: 'absolute',
+                    inset: 0,
+                    display: 'grid',
+                    placeItems: 'center',
+                    pointerEvents: 'none',
+                    zIndex: 4,
+                  }}
+                >
+                  <span
+                    style={{
+                      transform: 'rotate(-24deg)',
+                      fontSize: 34,
+                      letterSpacing: '0.28em',
+                      color: 'rgba(28,23,18,0.10)',
+                      border: '2px solid rgba(28,23,18,0.10)',
+                      borderRadius: 6,
+                      padding: '10px 26px',
+                    }}
+                  >
+                    SAMPLE
+                  </span>
+                </div>
+              ) : null}
             </div>
 
             {signState === 'signing' ? (

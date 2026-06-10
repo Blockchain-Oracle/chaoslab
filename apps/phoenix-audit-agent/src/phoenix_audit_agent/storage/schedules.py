@@ -11,7 +11,12 @@ from typing import Any, Protocol
 
 import structlog
 from google.api_core.exceptions import FailedPrecondition
+from pydantic import ValidationError
 
+# Both 'Z' and '+00:00' forms exist in stored documents (pre-canonicalization
+# writers). A lexicographic compare reads a DUE Z-form timestamp as future
+# ('Z' > '+'), silently skipping it every tick — always compare via parse.
+from phoenix_audit_agent._time import parse_iso as _parse_iso
 from phoenix_audit_agent.storage.firestore_client import get_firestore
 from phoenix_audit_agent.storage.models import ScheduleRecord
 
@@ -27,8 +32,12 @@ class ScheduleStore(Protocol):
 
     async def get(self, schedule_id: str) -> ScheduleRecord | None: ...
 
-    async def claim_due(self, *, now_iso: str, advance: Any) -> list[ScheduleRecord]:
-        """advance: Callable[[ScheduleRecord], str] -> the new next_fire_at."""
+    async def claim_due(self, *, now_iso: str, advance: Any) -> tuple[list[ScheduleRecord], int]:
+        """advance: Callable[[ScheduleRecord], str] -> the new next_fire_at.
+
+        Returns (claimed, corrupted_doc_count) — corruption is DISCLOSED to
+        the tick response, never a stream-aborting crash.
+        """
         ...
 
     async def mark_fired(self, schedule_id: str, *, run_id: str, fired_at: str) -> None: ...
@@ -52,7 +61,11 @@ class FirestoreScheduleStore:
     async def list_schedules(self) -> list[ScheduleRecord]:
         rows: list[ScheduleRecord] = []
         async for doc in self.db.collection(_COLLECTION).stream():
-            rows.append(ScheduleRecord.model_validate(doc.to_dict()))
+            try:
+                rows.append(ScheduleRecord.model_validate(doc.to_dict()))
+            except ValidationError:
+                # One corrupted doc must not 500 the whole monitoring page.
+                _log.error("schedule_doc_corrupted", doc_id=doc.id, exc_info=True)
         rows.sort(key=lambda s: s.created_at)
         return rows
 
@@ -62,17 +75,27 @@ class FirestoreScheduleStore:
             return None
         return ScheduleRecord.model_validate(doc.to_dict())
 
-    async def claim_due(self, *, now_iso: str, advance: Any) -> list[ScheduleRecord]:
+    async def claim_due(self, *, now_iso: str, advance: Any) -> tuple[list[ScheduleRecord], int]:
         """Atomically claim every enabled schedule with next_fire_at <= now.
 
         The advance callback maps the claimed record -> its new
         next_fire_at. The update carries a last-update-time precondition;
         losing a concurrent race skips the schedule (the winner fired it).
+        Corrupted documents are counted + logged, never stream-aborting —
+        one bad doc must not halt the entire monitoring fleet forever.
         """
         claimed: list[ScheduleRecord] = []
+        corrupted = 0
+        now_dt = _parse_iso(now_iso)
         async for snapshot in self.db.collection(_COLLECTION).stream():
-            record = ScheduleRecord.model_validate(snapshot.to_dict())
-            if not record.enabled or record.next_fire_at > now_iso:
+            try:
+                record = ScheduleRecord.model_validate(snapshot.to_dict())
+                due = record.enabled and _parse_iso(record.next_fire_at) <= now_dt
+            except (ValidationError, ValueError):
+                corrupted += 1
+                _log.error("schedule_doc_corrupted", doc_id=snapshot.id, exc_info=True)
+                continue
+            if not due:
                 continue
             new_fire_at = advance(record)
             try:
@@ -95,7 +118,7 @@ class FirestoreScheduleStore:
                 _log.error("schedule_claim_failed", schedule_id=record.schedule_id, exc_info=True)
                 continue
             claimed.append(record)
-        return claimed
+        return claimed, corrupted
 
     async def mark_fired(self, schedule_id: str, *, run_id: str, fired_at: str) -> None:
         await (

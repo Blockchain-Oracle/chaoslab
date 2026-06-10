@@ -21,8 +21,8 @@ class _HangingStore:
     async def finalize(self, run_id: str, completion: RunCompletion) -> None:
         await asyncio.Event().wait()
 
-    async def list_runs(self, **kw: Any) -> list[RunRecord]:
-        return []
+    async def list_runs(self, **kw: Any) -> tuple[list[RunRecord], bool]:
+        return [], False
 
     async def get(self, run_id: str) -> RunRecord | None:
         return None

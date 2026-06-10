@@ -4,10 +4,11 @@ from __future__ import annotations
 
 from typing import Any
 
+from phoenix_audit_agent.errors import PhoenixAuditError
 from phoenix_audit_agent.patcher.recipe import FailureCluster, PromptPatch
 
 
-class PatcherEmptyResponseError(RuntimeError):
+class PatcherEmptyResponseError(PhoenixAuditError, RuntimeError):
     """Gemini returned an empty or whitespace-only response — likely
     safety-block or quota exhaustion. Non-retriable; surfaces a fallback."""
 

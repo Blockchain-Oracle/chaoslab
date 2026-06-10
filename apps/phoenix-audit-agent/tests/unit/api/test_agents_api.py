@@ -85,6 +85,40 @@ async def test_get_unknown_agent_404(client: httpx.AsyncClient) -> None:
     assert r.status_code == 404
 
 
+async def test_register_existing_agent_id_is_409(client: httpx.AsyncClient) -> None:
+    """Re-registering an existing agent_id must 409, not silently overwrite
+    the regulator-facing registry record."""
+    payload = {
+        "agent_id": "agt_dup",
+        "name": "Original",
+        "url": "https://agents.example/original",
+        "framework": "adk-a2a",
+        "tier": 1,
+    }
+    first = await client.post("/agents", json=payload)
+    assert first.status_code == 201
+
+    second = await client.post("/agents", json={**payload, "name": "Overwriter"})
+    assert second.status_code == 409
+
+    got = await client.get("/agents/agt_dup")
+    assert got.json()["name"] == "Original"
+
+
+async def test_register_rejects_ssrf_url(client: httpx.AsyncClient) -> None:
+    r = await client.post(
+        "/agents",
+        json={
+            "agent_id": "agt_ssrf",
+            "name": "Metadata Grabber",
+            "url": "http://metadata.google.internal/computeMetadata/v1/",
+            "framework": "adk-a2a",
+            "tier": 1,
+        },
+    )
+    assert r.status_code == 422
+
+
 async def test_register_demo_target_is_rejected(client: httpx.AsyncClient) -> None:
     """The seed shadows reads of this id — a 201 would write an unreadable record."""
     r = await client.post(

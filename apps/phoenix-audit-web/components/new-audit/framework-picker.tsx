@@ -20,9 +20,7 @@ export function FrameworkPicker({ framework, setFramework }: FrameworkPickerProp
         no="§3"
         title="Regulatory framework"
         right={
-          <span className="mono muted" style={{ fontSize: 10.5 }}>
-            drives the articles cited in the report
-          </span>
+          <span className="tag">EU AI Act applied to every report — selection coming soon</span>
         }
       />
       <div
@@ -40,6 +38,12 @@ export function FrameworkPicker({ framework, setFramework }: FrameworkPickerProp
           <div
             key={f}
             onClick={() => setFramework(f)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault()
+                setFramework(f)
+              }
+            }}
             role="radio"
             aria-checked={framework === f}
             tabIndex={0}

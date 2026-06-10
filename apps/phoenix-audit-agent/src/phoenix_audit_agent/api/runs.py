@@ -27,12 +27,12 @@ router = APIRouter()
 
 async def sign_blob_url(blob_name: str) -> str:
     """v4 signed GET URL for an existing blob (module attribute = test seam)."""
-    from phoenix_audit_agent.patcher.markdown_emitter import _build_default_client
+    from phoenix_audit_agent.storage.gcs import get_storage_client
 
     settings = get_settings()
 
     def _sign() -> str:
-        client = _build_default_client()
+        client = get_storage_client()
         blob = client.bucket(settings.GCS_RECIPES_BUCKET).blob(blob_name)
         return blob.generate_signed_url(
             version="v4",
@@ -45,6 +45,9 @@ async def sign_blob_url(blob_name: str) -> str:
 
 class RunListResponse(BaseModel):
     runs: list[RunRecord]
+    # True when the filtered query hit the index-free window's cap — older
+    # matching runs may exist beyond it (disclosed, never silent).
+    truncated: bool = False
 
 
 class RunDetailResponse(BaseModel):
@@ -61,8 +64,8 @@ async def list_runs(
     source: RunSource | None = None,
     limit: int = Query(default=50, ge=1, le=200),
 ) -> RunListResponse:
-    rows = await get_run_store().list_runs(agent_id=agent_id, source=source, limit=limit)
-    return RunListResponse(runs=rows)
+    rows, truncated = await get_run_store().list_runs(agent_id=agent_id, source=source, limit=limit)
+    return RunListResponse(runs=rows, truncated=truncated)
 
 
 @router.get("/runs/{run_id}", response_model=RunDetailResponse)

@@ -39,6 +39,9 @@ async def test_due_schedule_fires_and_advances() -> None:
         launched.append(schedule.schedule_id)
         return "run_scheduled001"
 
+    # Captured BEFORE the tick — comparing against a FRESH now() after the
+    # advance races the helper's internal clock by microseconds (flake).
+    before = datetime.now(UTC)
     result = await run_tick(store=store, launch=launch)
 
     assert result.claimed == 1
@@ -46,7 +49,7 @@ async def test_due_schedule_fires_and_advances() -> None:
     assert launched == ["sch_due"]
     after = await store.get("sch_due")
     assert after is not None
-    assert after.next_fire_at > _iso(datetime.now(UTC))  # advanced into the future
+    assert after.next_fire_at > _iso(before)  # advanced into the future
     assert after.last_run_id == "run_scheduled001"
     assert after.last_fired_at is not None
 
@@ -108,9 +111,33 @@ async def test_launch_failure_contained_and_counted() -> None:
     assert bad.next_fire_at > _iso(datetime.now(UTC))  # but claimed — no storm
 
 
+@pytest.mark.asyncio
+async def test_mark_fired_failure_is_contained_and_disclosed() -> None:
+    """A bookkeeping failure after a successful launch must be counted in the
+    tick response — the run happened; operators must see the lag."""
+    store = InMemoryScheduleStore()
+    past = _iso(datetime.now(UTC) - timedelta(minutes=5))
+    await store.upsert(_schedule("sch_due", next_fire_at=past))
+
+    async def boom_mark_fired(schedule_id: str, *, run_id: str, fired_at: str) -> None:
+        msg = "synthetic firestore outage"
+        raise RuntimeError(msg)
+
+    store.mark_fired = boom_mark_fired  # ty: ignore[invalid-assignment]
+
+    async def launch(schedule: ScheduleRecord) -> str:
+        return "run_scheduled001"
+
+    result = await run_tick(store=store, launch=launch)
+    assert result.launched == ["run_scheduled001"]  # the audit DID run
+    assert result.launch_failures == 0
+    assert result.bookkeeping_failures == 1
+
+
 def test_advance_anchors_to_schedule_not_tick_time() -> None:
     """+1 interval from the OLD fire time — no drift accumulation."""
-    recent = datetime.now(UTC) - timedelta(minutes=10)
+    # Second precision — the canonical timestamp format truncates microseconds.
+    recent = (datetime.now(UTC) - timedelta(minutes=10)).replace(microsecond=0)
     record = _schedule("sch_x", next_fire_at=_iso(recent)).model_copy(update={"cadence": "hourly"})
     advanced = datetime.fromisoformat(advance_fire_time(record))
     assert advanced == recent + timedelta(hours=1)
@@ -123,6 +150,9 @@ def test_advance_fast_forwards_after_outage_no_backlog() -> None:
     record = _schedule("sch_x", next_fire_at=_iso(week_ago)).model_copy(
         update={"cadence": "hourly"}
     )
+    # Captured BEFORE the call — advance_fire_time fast-forwards past its OWN
+    # now(); asserting against a fresh later now() is a microsecond flake.
+    before = datetime.now(UTC)
     advanced = datetime.fromisoformat(advance_fire_time(record))
-    assert advanced > datetime.now(UTC)
+    assert advanced > before
     assert advanced <= datetime.now(UTC) + timedelta(hours=1)

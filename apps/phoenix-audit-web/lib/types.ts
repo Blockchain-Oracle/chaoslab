@@ -55,7 +55,9 @@ export interface HardeningRecipe {
   targetAgentId: string
   generatedAt: string
   generationSec?: number
-  clusterSet?: FailureClusterSet
+  // Required — mirrors the JSON Schema (cluster_set is in `required`); the
+  // drift guard in tests/schema-drift.test.ts pins both sides.
+  clusterSet: FailureClusterSet
   promptPatches: PromptPatch[]
   toolValidationDiffs: ToolValidationDiff[]
   regressionTestCases: RegressionTestCase[]
@@ -142,6 +144,10 @@ export interface HistoryRow {
   framework: string
   pass: number
   fail: number
+  /** Real runs: probes whose rubric errored (not a clean pass/fail). */
+  errored?: number
+  /** Real runs: probes that never reached the target. */
+  transportFailed?: number
   recipe: boolean
   mr: boolean
   source: HistorySource

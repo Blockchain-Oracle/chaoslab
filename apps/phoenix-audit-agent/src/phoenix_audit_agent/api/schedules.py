@@ -2,15 +2,19 @@
 
 from __future__ import annotations
 
+import asyncio
 import secrets
-import time
 from collections.abc import Awaitable, Callable
 from typing import Any
 
 import structlog
 from fastapi import APIRouter, HTTPException, Request
-from pydantic import BaseModel, EmailStr, Field
+from google.auth.transport import requests as ga_requests
+from google.oauth2 import id_token
+from pydantic import BaseModel, EmailStr, Field, field_validator, model_validator
 
+from phoenix_audit_agent._time import utc_now_iso
+from phoenix_audit_agent.api._url_guard import validate_target_url
 from phoenix_audit_agent.config import get_settings
 from phoenix_audit_agent.scheduler.tick import TickResult, run_tick
 from phoenix_audit_agent.storage.models import Cadence, ScheduleRecord
@@ -38,6 +42,18 @@ class ScheduleCreate(BaseModel):
     deliver_email: bool = False
     email_recipient: EmailStr | None = None
 
+    @field_validator("target_url")
+    @classmethod
+    def _guard_target_url(cls, v: str) -> str:
+        return validate_target_url(v)
+
+    @model_validator(mode="after")
+    def _email_contract(self) -> ScheduleCreate:
+        if self.deliver_email and self.email_recipient is None:
+            msg = "deliver_email=true requires email_recipient"
+            raise ValueError(msg)
+        return self
+
 
 class SchedulePatch(BaseModel):
     enabled: bool | None = None
@@ -50,17 +66,13 @@ class ScheduleListResponse(BaseModel):
     schedules: list[ScheduleRecord]
 
 
-def _iso_now() -> str:
-    return time.strftime("%Y-%m-%dT%H:%M:%S+00:00", time.gmtime())
-
-
 @router.post("/schedules", response_model=ScheduleRecord, status_code=201)
 async def create_schedule(payload: ScheduleCreate) -> ScheduleRecord:
     record = ScheduleRecord(
         schedule_id="sch_" + secrets.token_hex(6),
         # next_fire_at = now → the schedule fires on the next tick.
-        next_fire_at=_iso_now(),
-        created_at=_iso_now(),
+        next_fire_at=utc_now_iso(),
+        created_at=utc_now_iso(),
         **payload.model_dump(),
     )
     await get_schedule_store().upsert(record)
@@ -79,15 +91,30 @@ async def patch_schedule(schedule_id: str, payload: SchedulePatch) -> ScheduleRe
     if record is None:
         raise HTTPException(status_code=404, detail=f"schedule not found: {schedule_id}")
     fields = payload.model_dump(exclude_none=True)
+    merged = record.model_copy(update=fields)
+    if merged.deliver_email and merged.email_recipient is None:
+        # Same contract as ScheduleCreate — PATCH must not be a side door into
+        # a delivery promise with no recipient.
+        raise HTTPException(status_code=422, detail="deliver_email=true requires email_recipient")
     if fields:
         # Partial update of ONLY the patched keys — a full upsert here raced
         # the tick's claim and could write back a stale next_fire_at.
         await store.patch_fields(schedule_id, fields)
     refreshed = await store.get(schedule_id)
-    return refreshed if refreshed is not None else record.model_copy(update=fields)
+    if refreshed is None:
+        # Deleted between the existence check and the refresh — fabricating a
+        # response from the stale copy would confirm a patch on a record that
+        # no longer exists.
+        raise HTTPException(status_code=404, detail=f"schedule not found: {schedule_id}")
+    return refreshed
 
 
-def verify_tick_oidc(authorization: str | None) -> dict[str, Any]:
+# Reused across ticks — carries the Google cert cache; rebuilding it per
+# request re-fetches certs on every verification.
+_GA_REQUEST = ga_requests.Request()
+
+
+async def verify_tick_oidc(authorization: str | None) -> dict[str, Any]:
     """Verify the Cloud Scheduler OIDC token. Fails CLOSED on misconfiguration
     — an open tick endpoint would let anyone burn the GCP budget with runs."""
     settings = get_settings()
@@ -105,10 +132,9 @@ def verify_tick_oidc(authorization: str | None) -> dict[str, Any]:
         raise HTTPException(status_code=401, detail="missing bearer token")
     token = authorization.removeprefix("Bearer ")
     try:
-        from google.auth.transport import requests as ga_requests
-        from google.oauth2 import id_token
-
-        claims = id_token.verify_oauth2_token(token, ga_requests.Request(), audience=audience)
+        # verify_oauth2_token does blocking I/O (Google cert fetch) — keep it
+        # off the event loop so a slow cert endpoint can't stall SSE streams.
+        claims = await asyncio.to_thread(id_token.verify_oauth2_token, token, _GA_REQUEST, audience)
     except Exception as err:
         raise HTTPException(status_code=401, detail=f"invalid token: {type(err).__name__}") from err
     if claims.get("email") != allowed_email or claims.get("email_verified") is not True:
@@ -118,7 +144,7 @@ def verify_tick_oidc(authorization: str | None) -> dict[str, Any]:
 
 @router.post("/internal/scheduler-tick", response_model=TickResult)
 async def scheduler_tick(request: Request) -> TickResult:
-    verify_tick_oidc(request.headers.get("authorization"))
+    await verify_tick_oidc(request.headers.get("authorization"))
     if _LAUNCHER is None:  # pragma: no cover — wired at app assembly
         raise HTTPException(status_code=503, detail="run launcher not wired")
     result = await run_tick(store=get_schedule_store(), launch=_LAUNCHER)

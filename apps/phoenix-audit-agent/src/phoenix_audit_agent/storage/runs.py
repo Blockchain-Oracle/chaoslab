@@ -13,6 +13,7 @@ import asyncio
 from typing import Any, Protocol
 
 import structlog
+from pydantic import ValidationError
 
 from phoenix_audit_agent.storage.firestore_client import get_firestore
 from phoenix_audit_agent.storage.models import RunCompletion, RunRecord
@@ -20,6 +21,9 @@ from phoenix_audit_agent.storage.models import RunCompletion, RunRecord
 _log = structlog.get_logger(__name__)
 
 _COLLECTION = "runs"
+
+# Window for the index-free registry query (filtering happens in memory).
+_QUERY_CAP = 200
 
 # Outage bound for contained writes: Firestore's default retry deadline is
 # ~60s; POST /run must never hang that long on the registry index.
@@ -33,7 +37,11 @@ class RunStore(Protocol):
 
     async def list_runs(
         self, *, agent_id: str | None = None, source: str | None = None, limit: int = 50
-    ) -> list[RunRecord]: ...
+    ) -> tuple[list[RunRecord], bool]:
+        """Returns (rows, truncated). truncated=True means the inner query hit
+        its cap while a filter was applied — older matching runs may exist and
+        a registry whose point is completeness must say so."""
+        ...
 
     async def get(self, run_id: str) -> RunRecord | None: ...
 
@@ -64,20 +72,31 @@ class FirestoreRunStore:
 
     async def list_runs(
         self, *, agent_id: str | None = None, source: str | None = None, limit: int = 50
-    ) -> list[RunRecord]:
+    ) -> tuple[list[RunRecord], bool]:
         # order_by only (no where): a where+order_by combo needs a composite
         # index per filter field. Registry volume is small — filter in memory
         # and keep Firestore index admin at zero.
         collection = self.db.collection(_COLLECTION)
-        query = collection.order_by("created_at", direction="DESCENDING").limit(200)
+        query = collection.order_by("created_at", direction="DESCENDING").limit(_QUERY_CAP)
         rows: list[RunRecord] = []
+        fetched = 0
         async for doc in query.stream():
-            rows.append(RunRecord.model_validate(doc.to_dict()))
+            fetched += 1
+            try:
+                rows.append(RunRecord.model_validate(doc.to_dict()))
+            except ValidationError:
+                # One corrupted doc must not 500 the registry for everyone.
+                _log.error("run_doc_corrupted", doc_id=doc.id, exc_info=True)
+        filtered = agent_id is not None or source is not None
         if agent_id is not None:
             rows = [r for r in rows if r.agent_id == agent_id]
         if source is not None:
             rows = [r for r in rows if r.source == source]
-        return rows[:limit]
+        # Cap hit + in-memory filter => older matching rows may exist beyond
+        # the window. Unfiltered lists also truncate at `limit`, but that cut
+        # is the newest-N contract the caller asked for — not silent loss.
+        truncated = filtered and fetched >= _QUERY_CAP
+        return rows[:limit], truncated
 
     async def get(self, run_id: str) -> RunRecord | None:
         doc = await self.db.collection(_COLLECTION).document(run_id).get()

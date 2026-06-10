@@ -80,14 +80,17 @@ async def test_list_newest_first_with_filters() -> None:
         _run("run_333333333333", created_at="2026-06-10T03:00:00Z", agent_id="agt_x")
     )
 
-    rows = await store.list_runs()
+    rows, truncated = await store.list_runs()
+    assert truncated is False
     assert [r.run_id for r in rows] == [
         "run_333333333333",
         "run_222222222222",
         "run_111111111111",
     ]
-    assert [r.run_id for r in await store.list_runs(source="scheduled")] == ["run_222222222222"]
-    assert [r.run_id for r in await store.list_runs(agent_id="agt_x")] == ["run_333333333333"]
+    by_source, _ = await store.list_runs(source="scheduled")
+    assert [r.run_id for r in by_source] == ["run_222222222222"]
+    by_agent, _ = await store.list_runs(agent_id="agt_x")
+    assert [r.run_id for r in by_agent] == ["run_333333333333"]
 
 
 @pytest.mark.asyncio

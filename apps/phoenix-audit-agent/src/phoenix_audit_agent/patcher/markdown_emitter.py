@@ -5,16 +5,15 @@ from __future__ import annotations
 import asyncio
 import logging
 from datetime import timedelta
-from typing import TYPE_CHECKING, Protocol, cast, runtime_checkable
+from typing import Protocol, cast, runtime_checkable
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from phoenix_audit_agent.config import get_settings
+from phoenix_audit_agent.errors import PhoenixAuditError
 from phoenix_audit_agent.patcher._markdown_renderer import render_recipe
 from phoenix_audit_agent.patcher.recipe import HardeningRecipe
-
-if TYPE_CHECKING:
-    from google.cloud import storage
+from phoenix_audit_agent.storage.gcs import get_storage_client
 
 logger = logging.getLogger(__name__)
 
@@ -25,7 +24,7 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 
 
-class MarkdownEmitterError(RuntimeError):
+class MarkdownEmitterError(PhoenixAuditError, RuntimeError):
     """Base class for Markdown-emitter failures."""
 
 
@@ -118,7 +117,7 @@ class MarkdownEmitter:
         self._ttl = timedelta(days=settings.GCS_SIGNED_URL_TTL_DAYS)
         # Defaults are deferred to construction time (not module import),
         # so unit tests that inject a stub don't trigger the GCS auth probe.
-        self._client: StorageClient = storage_client or cast(StorageClient, _build_default_client())
+        self._client: StorageClient = storage_client or cast(StorageClient, get_storage_client())
 
     async def health_check(self) -> None:
         """Fail fast if the bucket is missing or the runtime SA can't reach it.
@@ -242,14 +241,6 @@ def _is_already_exists_error(exc: BaseException) -> bool:
         if isinstance(name, str) and name in _ALREADY_EXISTS_GRPC_NAMES:
             return True
     return False
-
-
-def _build_default_client() -> storage.Client:
-    # Deferred-import so test stubs avoid google-cloud-storage's auth
-    # probe entirely; the import only runs when a real client is needed.
-    from google.cloud import storage
-
-    return storage.Client()
 
 
 __all__ = [

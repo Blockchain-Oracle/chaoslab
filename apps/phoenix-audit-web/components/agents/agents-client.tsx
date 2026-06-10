@@ -4,7 +4,7 @@ import { useRouter } from 'next/navigation'
 import { A } from '@/components/ui/link'
 import { PageFoot } from '@/components/ui/page-foot'
 import { TopBar } from '@/components/ui/topbar'
-import { fmtDate } from '@/lib/fixtures'
+import { fmtDate } from '@/lib/format'
 import type { MergedAgent } from '@/lib/sample-merge'
 
 function AgentCard({ a }: { a: MergedAgent }) {

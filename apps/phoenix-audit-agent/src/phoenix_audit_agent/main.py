@@ -18,22 +18,28 @@ import json
 import logging
 import os
 import secrets
-import time
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from typing import Any, Literal, cast
 
 from fastapi import FastAPI, HTTPException, Request
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 from sse_starlette.sse import EventSourceResponse
 
+from phoenix_audit_agent._time import utc_now_iso
+from phoenix_audit_agent.api._url_guard import validate_target_url
 from phoenix_audit_agent.api.agents import router as agents_router
 from phoenix_audit_agent.api.runs import router as runs_router
 from phoenix_audit_agent.api.schedules import router as schedules_router
 from phoenix_audit_agent.api.schedules import set_run_launcher
 from phoenix_audit_agent.audit_runner import drive_audit
 from phoenix_audit_agent.config import GCS_PROBE_ENV_NAME, get_settings
-from phoenix_audit_agent.storage.models import RunCompletion, RunRecord, RunSource
+from phoenix_audit_agent.storage.models import (
+    RunCompletion,
+    RunPhase,
+    RunRecord,
+    RunSource,
+)
 from phoenix_audit_agent.storage.runs import create_run_record, persist_run_completion
 
 logger = logging.getLogger(__name__)
@@ -48,8 +54,6 @@ _QUEUE_SENTINEL: None = None
 # Reconnects after the queue is drained get a terminal `stream_end` frame
 # (within this window; after the sweep, /stream 404s).
 _RUN_CLEANUP_DELAY_SEC = 300.0
-
-RunPhase = Literal["queued", "injector", "judge", "patcher", "succeeded", "failed"]
 
 
 class RunRequest(BaseModel):
@@ -73,6 +77,11 @@ class RunRequest(BaseModel):
         default="manual",
         description="manual (operator-initiated) or scheduled (monitoring tick).",
     )
+
+    @field_validator("target_url")
+    @classmethod
+    def _guard_target_url(cls, v: str) -> str:
+        return validate_target_url(v)
 
 
 class RunResponse(BaseModel):
@@ -108,11 +117,11 @@ class _RunState(BaseModel):
 _RUN_REGISTRY: dict[str, _RunState] = {}
 _RUN_QUEUES: dict[str, asyncio.Queue[dict[str, Any] | None]] = {}
 _RUN_TASKS: dict[str, asyncio.Task[None]] = {}
-
-
-def _iso_now() -> str:
-    """RFC-3339 UTC timestamp."""
-    return time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+# Strong refs to fire-and-forget persistence tasks — asyncio only keeps a weak
+# reference to tasks, so without this set a GC pass could collect the
+# _persist_failed_phase task mid-flight and the registry would show "queued"
+# forever for a cancelled run.
+_PERSIST_TASKS: set[asyncio.Task[None]] = set()
 
 
 def _new_run_id() -> str:
@@ -164,7 +173,9 @@ async def _drive_orchestrator(run_id: str) -> None:
         # Fire-and-forget: awaiting inside a CANCELLING task would re-raise at
         # the await and lose the write — the registry would show "queued"
         # forever for a cancelled run. The helper contains its own failures.
-        asyncio.get_running_loop().create_task(_persist_failed_phase(run_id, state))
+        persist_task = asyncio.get_running_loop().create_task(_persist_failed_phase(run_id, state))
+        _PERSIST_TASKS.add(persist_task)
+        persist_task.add_done_callback(_PERSIST_TASKS.discard)
         raise
     except Exception as e:
         state.phase = "failed"
@@ -191,7 +202,7 @@ async def _persist_failed_phase(run_id: str, state: _RunState) -> None:
             target_url=state.request.target_url,
             created_at=state.created_at,
             phase="failed",
-            finished_at=_iso_now(),
+            finished_at=utc_now_iso(),
         ),
     )
 
@@ -274,7 +285,7 @@ async def start_run(payload: RunRequest) -> RunResponse:
 async def launch_run(payload: RunRequest) -> RunResponse:
     """Shared run launcher — POST /run and the scheduler tick both land here."""
     run_id = _new_run_id()
-    created = _iso_now()
+    created = utc_now_iso()
     _RUN_REGISTRY[run_id] = _RunState(run_id=run_id, request=payload, created_at=created)
     _RUN_QUEUES[run_id] = asyncio.Queue()
     # Write-through to the registry index (contained — a Firestore outage must

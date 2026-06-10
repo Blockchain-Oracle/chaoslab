@@ -12,6 +12,12 @@ export function DepthOption({ selected, onSelect, sub, title, body, link }: Dept
     <div
       className={'opt-card ' + (selected ? 'selected' : '')}
       onClick={onSelect}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault()
+          onSelect()
+        }
+      }}
       role="radio"
       aria-checked={selected}
       tabIndex={0}

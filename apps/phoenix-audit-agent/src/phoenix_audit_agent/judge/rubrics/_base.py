@@ -6,6 +6,8 @@ from typing import TYPE_CHECKING, Any, Literal, Protocol, assert_never, runtime_
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
+from phoenix_audit_agent.errors import PhoenixAuditError
+
 if TYPE_CHECKING:
     from collections.abc import Awaitable, Callable
 
@@ -17,7 +19,7 @@ FaultClass = Literal[
 ]
 
 
-class RubricInputMissingError(ValueError):
+class RubricInputMissingError(PhoenixAuditError, ValueError):
     """A required Phoenix span attribute was absent or empty."""
 
     def __init__(self, span_id: str, fault_class: str, attribute: str) -> None:
@@ -30,7 +32,7 @@ class RubricInputMissingError(ValueError):
         )
 
 
-class PhoenixEvalEmptyError(RuntimeError):
+class PhoenixEvalEmptyError(PhoenixAuditError, RuntimeError):
     """Phoenix's async_evaluate returned an empty list (rate-limit/safety/parse)."""
 
     def __init__(self, span_id: str, fault_class: str) -> None:

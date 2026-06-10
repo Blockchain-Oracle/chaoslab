@@ -95,11 +95,29 @@ async def test_post_run_returns_201_with_run_id_format(client: httpx.AsyncClient
     body = r.json()
     assert re.fullmatch(r"^run_[a-z0-9]{12}$", body["run_id"]), body["run_id"]
     assert body["run_id"] in body["sse_url"]
-    assert body["created_at"].endswith("Z")
+    assert body["created_at"].endswith("+00:00")
 
 
 async def test_post_run_missing_target_url_returns_422(client: httpx.AsyncClient) -> None:
     r = await client.post("/run", json={})
+    assert r.status_code == 422
+
+
+async def test_post_run_rejects_garbage_url_at_post_time(client: httpx.AsyncClient) -> None:
+    """A bad URL must 422 at POST — not 201 then die mid-run as an SSE error."""
+    r = await client.post("/run", json={"target_url": "not-a-url"})
+    assert r.status_code == 422
+
+
+@pytest.mark.parametrize(
+    "ssrf_url",
+    [
+        "http://metadata.google.internal/computeMetadata/v1/",
+        "http://169.254.169.254/latest/meta-data/",
+    ],
+)
+async def test_post_run_rejects_ssrf_targets(client: httpx.AsyncClient, ssrf_url: str) -> None:
+    r = await client.post("/run", json={"target_url": ssrf_url})
     assert r.status_code == 422
 
 

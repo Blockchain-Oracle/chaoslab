@@ -572,7 +572,7 @@ stories:
     status: COMPLETE
     estimate_hours: 0.0
     tags: [backend, p0, persistence]
-    depends_on: [story-5.8-real-audit-pipeline]
+    depends_on: [story-5.8-run-real-pipeline]
     issue_url: ""
     pr_url: "https://github.com/Blockchain-Oracle/phoenix-audit/pull/92"
     merged_at: "2026-06-10"

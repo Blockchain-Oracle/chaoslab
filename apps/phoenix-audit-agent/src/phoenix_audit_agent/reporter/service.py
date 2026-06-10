@@ -9,6 +9,7 @@ report: it looks like evidence but proves nothing.
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 
@@ -41,11 +42,17 @@ async def generate_signed_report(data: ReportData) -> dict[str, str] | None:
         return None
 
     html = build_report_html(data)
-    pdf_bytes = render_pdf(html)
+    # WeasyPrint is CPU-bound sync work (0.5-3s) and KMS signing is 3 blocking
+    # gRPC round-trips — on the event loop they'd freeze every live SSE stream
+    # right at the demo's climax (report delivery). Thread both off.
+    pdf_bytes = await asyncio.to_thread(render_pdf, html)
     json_bytes = json.dumps(data.model_dump(), indent=2, sort_keys=True).encode("utf-8")
 
-    signer = KmsReportSigner(key_version=key_version)
-    sidecar = signer.sign_artifacts({"report.pdf": pdf_bytes, "report.json": json_bytes})
+    def _sign() -> dict[str, object]:
+        signer = KmsReportSigner(key_version=key_version)
+        return signer.sign_artifacts({"report.pdf": pdf_bytes, "report.json": json_bytes})
+
+    sidecar = await asyncio.to_thread(_sign)
     sidecar_bytes = json.dumps(sidecar, indent=2, sort_keys=True).encode("utf-8")
 
     emitter = ReportEmitter()

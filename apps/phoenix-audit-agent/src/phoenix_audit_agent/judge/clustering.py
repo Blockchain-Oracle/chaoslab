@@ -10,6 +10,7 @@ from typing import Any, Literal
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from phoenix_audit_agent.config import get_settings
+from phoenix_audit_agent.errors import PhoenixAuditError
 from phoenix_audit_agent.judge._models import FailedSpan
 from phoenix_audit_agent.judge.clustering_prompt import CLUSTER_PROMPT, RETRY_PROMPT
 from phoenix_audit_agent.judge.clustering_writeback import (
@@ -88,8 +89,12 @@ class FailureClusterSet(BaseModel):
 # ---------------------------------------------------------------------------
 
 
-class ClusteringError(RuntimeError):
-    """LLM clusterer produced unrecoverable output (after retries)."""
+class ClusteringError(PhoenixAuditError, RuntimeError):
+    """LLM clusterer produced unrecoverable output (after retries).
+
+    Dual-based: PhoenixAuditError for the unified domain hierarchy,
+    RuntimeError preserved for existing call sites.
+    """
 
 
 # ---------------------------------------------------------------------------
@@ -207,7 +212,23 @@ async def _attempt_clustering(
     last_decode_err: json.JSONDecodeError | None = None
     last_raw: str = ""
     for attempt in range(max_retries + 1):
-        raw = await _call_clusterer(prompt)
+        try:
+            raw = await _call_clusterer(prompt)
+        except json.JSONDecodeError as exc:
+            # _call_clusterer re-raises body-decode failures as the retriable
+            # marker — without this catcher they'd escape run_clustering as a
+            # naked stdlib exception, outside the ClusteringError contract.
+            last_decode_err = exc
+            logger.warning(
+                "clusterer call raised decode failure on attempt %d/%d: %s",
+                attempt + 1,
+                max_retries + 1,
+                exc,
+            )
+            if attempt == max_retries:
+                break
+            prompt = f"{RETRY_PROMPT}\n\n{initial_prompt}"
+            continue
         last_raw = raw
         try:
             body = json.loads(raw)
