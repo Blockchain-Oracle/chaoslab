@@ -13,16 +13,21 @@ Two surfaces in this module:
    fault classes and capturing each ``AttackResult`` into the shared
    ``InjectorState`` the Judge sub-agent reads.
 
-Per-fault installation surfaces (architecture/04 §8):
+Fault delivery is REMOTE (evidence-chain repair, 2026-06-10): each fault
+exports a wire descriptor (``faults/descriptors.py``) that rides
+``AdapterInvocation.fault_config``; the adapter registers it on the target's
+``/hooks/adk`` surface (``target_agent.fault_hooks``), which installs the
+equivalent ADK callback INSIDE the target process for that one probe:
 
-- F1 ``MalformedToolOutputFault``  → ``agent.before_tool_callback``
-- F2 ``PromptInjectionFault``      → ``agent.before_model_callback``
-- F3 ``ContextPoisoningFault``     → ``fault.install(agent)`` (covers both
-  retriever_insert and history_insert via S5.4's install() entry point)
-- F4 ``LatencySpikeFault``         → ``agent.before_tool_callback``
+- F1 ``malformed_tool_output`` → target's ``before_tool_callback``
+- F2 ``prompt_injection``      → target's ``before_model_callback``
+- F3 ``context_poisoning``     → model callback (history_insert) or
+  retrieval-tool patch (retriever_insert)
+- F4 ``latency_spike``         → target's ``before_tool_callback``
 
-Attacks run SEQUENTIALLY (not ``asyncio.gather``) because fault installations
-mutate target state; parallel installs would race on the callback slots.
+Attacks run SEQUENTIALLY (not ``asyncio.gather``) because the target's hook
+slot is single-occupancy (409 on concurrent registration) — parallel attacks
+would race the shared callback surface.
 
 Resource lifecycle: ``Injector.run()`` does ONE ``target.connect()`` at the
 top of the attack phase (BaselineCheck owns its own connect/disconnect
@@ -34,6 +39,7 @@ may not be, so we don't rely on per-call idempotency.
 from __future__ import annotations
 
 import asyncio
+import re
 from collections.abc import Awaitable, Callable
 from datetime import UTC, datetime
 from typing import Any, Literal, assert_never
@@ -50,6 +56,7 @@ from phoenix_audit_agent.injector.faults import (
     MalformedToolOutputFault,
     PromptInjectionFault,
 )
+from phoenix_audit_agent.injector.faults.descriptors import as_descriptor
 from phoenix_audit_agent.injector.preflight import BaselineCheck
 from phoenix_audit_agent.injector.target_adapters import (
     AdapterInvocation,
@@ -57,6 +64,11 @@ from phoenix_audit_agent.injector.target_adapters import (
 )
 
 _log = structlog.get_logger(__name__)
+
+# The Judge fetches the target's spans by this id — anything that is not a
+# real W3C trace id is evidence-chain breakage and must score as transport
+# error, not silently pass through to a Phoenix query that returns nothing.
+_HEX32 = re.compile(r"^[0-9a-f]{32}$")
 
 INJECTOR_NAME = "Injector"
 INJECTOR_OUTPUT_KEY = "injector_result"
@@ -116,6 +128,10 @@ class AttackResult(BaseModel):
     trace_id: str = Field(min_length=1)
     status: Literal["ok", "error", "timeout"]
     duration_ms: float = Field(ge=0.0)
+    # The exact payload text delivered to the target (F2/F3). The Judge's
+    # rubrics need it for the eval prompt; the auditor ORIGINATED it, so it
+    # rides here rather than round-tripping through span attributes.
+    attack_payload: str | None = None
     span_attributes: dict[str, Any] = Field(default_factory=dict)
     captured_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
 
@@ -200,38 +216,6 @@ def _build_f4(variant_idx: int) -> LatencySpikeFault:
     return LatencySpikeFault(delay_ms=delay_ms, timeout_ms=timeout_ms)
 
 
-def _install_callback_tool(agent: Any, fault: Any) -> None:
-    agent.before_tool_callback = fault.as_callback()
-
-
-def _uninstall_callback_tool(agent: Any) -> None:
-    agent.before_tool_callback = None
-
-
-def _install_callback_model(agent: Any, fault: Any) -> None:
-    agent.before_model_callback = fault.as_callback()
-
-
-def _uninstall_callback_model(agent: Any) -> None:
-    agent.before_model_callback = None
-
-
-def _install_f3(agent: Any, fault: ContextPoisoningFault) -> None:
-    """F3 has two installation surfaces depending on mode."""
-    fault.install(agent)
-
-
-def _uninstall_f3(agent: Any) -> None:
-    # Sentinel removal is enough — the patched run_async closure is idempotent
-    # on re-install via context_poisoning's own _PATCHED_SENTINEL guard.
-    if hasattr(agent, "__dict__") and "_phoenix_audit_f3_installed" in agent.__dict__:
-        del agent.__dict__["_phoenix_audit_f3_installed"]
-    agent.before_model_callback = None
-    for tool in getattr(agent, "tools", []):
-        if hasattr(tool, "__dict__") and "_phoenix_audit_f3_patched" in tool.__dict__:
-            del tool.__dict__["_phoenix_audit_f3_patched"]
-
-
 class Injector(BaseModel):
     """Orchestrator over the 4 fault classes + BaselineCheck.
 
@@ -241,7 +225,8 @@ class Injector(BaseModel):
        on the state before re-raising so the audit report carries real data,
        not the default 0.0.
     2. Build a 4 x runs_per_fault plan (default 24 AttackRuns).
-    3. For each attack: build fault → install → invoke → uninstall →
+    3. For each attack: build fault → export descriptor → invoke with
+       ``fault_config`` (the adapter handles remote registration/teardown) →
        capture AttackResult. Sequential. Per-attack exceptions are caught
        so one bad attack doesn't kill the whole 24-attack audit — the
        failure surfaces as an error-status AttackResult, not a silent drop.
@@ -347,17 +332,18 @@ class Injector(BaseModel):
         return plan
 
     async def _run_one_attack(self, attack: AttackRun) -> None:
-        # target.agent is Tier-1-in-process-specific; Tier 3 HTTP black-box
-        # adapters install faults differently and won't satisfy this access.
-        agent = self.target.agent  # ty: ignore[unresolved-attribute]
+        # Faults are delivered REMOTELY: the descriptor rides the invocation
+        # and the adapter registers it on the target's /hooks/adk surface
+        # (or applies it through the framework's own hook proxy). The old
+        # in-process `target.agent` install path could never work against a
+        # deployed target — see PR "evidence-chain repair".
         try:
             fault = self._build_fault(attack)
-            self._install(attack.fault_class, agent, fault)
-            try:
-                response = await self.target.invoke(AdapterInvocation(prompt=self.prompt))
-            finally:
-                self._uninstall(attack.fault_class, agent)
-            self._record(attack, response)
+            descriptor = as_descriptor(fault)
+            response = await self.target.invoke(
+                AdapterInvocation(prompt=self.prompt, fault_config=descriptor)
+            )
+            self._record(attack, response, descriptor)
         except asyncio.CancelledError:
             raise
         except Exception as exc:
@@ -398,59 +384,53 @@ class Injector(BaseModel):
             return _build_f4(attack.variant_idx)
         assert_never(attack.fault_class)
 
-    @staticmethod
-    def _install(fault_class: FaultClass, agent: Any, fault: Any) -> None:
-        if fault_class in ("malformed_tool_output", "latency_spike"):
-            _install_callback_tool(agent, fault)
-        elif fault_class == "prompt_injection":
-            _install_callback_model(agent, fault)
-        elif fault_class == "context_poisoning":
-            _install_f3(agent, fault)
-        else:
-            assert_never(fault_class)
+    def _record(self, attack: AttackRun, response: Any, descriptor: dict[str, Any]) -> None:
+        """Record an AttackResult — never silently drop on missing evidence.
 
-    @staticmethod
-    def _uninstall(fault_class: FaultClass, agent: Any) -> None:
-        if fault_class in ("malformed_tool_output", "latency_spike"):
-            _uninstall_callback_tool(agent)
-        elif fault_class == "prompt_injection":
-            _uninstall_callback_model(agent)
-        elif fault_class == "context_poisoning":
-            _uninstall_f3(agent)
-        else:
-            assert_never(fault_class)
-
-    def _record(self, attack: AttackRun, response: Any) -> None:
-        """Record an AttackResult — never silently drop on missing span info.
-
-        Adapter regressions that drop ``span_ids`` or ``trace_id`` were
-        silently invisible to the audit verdict. Surface them as
-        error-status AttackResults with sentinel IDs + a structured log.
+        Three independent legs of the evidence chain are REQUIRED before a
+        probe may count as transport-ok:
+        - a 32-hex ``trace_id`` in metadata (the Judge fetches the target's
+          spans from Phoenix by this id);
+        - an adapter client span id (proof the invoke was traced at all);
+        - ``fault_delivered=True`` (proof the fault was registered on the
+          target — a healthy no-fault response must never score the attack).
+        Anything less surfaces as an error-status AttackResult with sentinel
+        ids + a structured log, never a silent drop.
         """
-        span_id = response.span_ids[0] if response.span_ids else ""
-        trace_id = response.metadata.get("trace_id", "") if response.metadata else ""
+        adapter_span_id = response.span_ids[0] if response.span_ids else ""
+        raw_trace = response.metadata.get("trace_id", "") if response.metadata else ""
+        trace_id = raw_trace if _HEX32.fullmatch(str(raw_trace) or "") else ""
+        delivered = bool(response.metadata.get("fault_delivered")) if response.metadata else False
+        payload = descriptor.get("payload")
+        # F1's payload is a dict (the malformed tool return) and is not
+        # consumed by its rubric — only F2/F3's text payloads ride along.
+        attack_payload = payload if isinstance(payload, str) else None
 
-        if not span_id or not trace_id:
+        if not adapter_span_id or not trace_id or not delivered:
             _log.warning(
-                "injector_attack_span_missing",
+                "injector_attack_evidence_missing",
                 run_idx=attack.run_idx,
                 fault_class=attack.fault_class,
-                span_id_present=bool(span_id),
+                adapter_span_present=bool(adapter_span_id),
                 trace_id_present=bool(trace_id),
+                fault_delivered=delivered,
                 response_error=getattr(response, "error", None),
             )
             self.state.record_attack(
                 AttackResult(
                     run_idx=attack.run_idx,
                     fault_class=attack.fault_class,
-                    span_id=span_id or "missing:no-span-emitted",
+                    span_id=trace_id or "missing:no-trace-emitted",
                     trace_id=trace_id or "missing:no-trace-emitted",
                     status="error",
                     duration_ms=response.duration_ms,
+                    attack_payload=attack_payload,
                     span_attributes={
                         "phoenix_audit.fault.type": attack.fault_class,
                         "phoenix_audit.fault.variant_idx": attack.variant_idx,
                         "phoenix_audit.attack.span_missing": True,
+                        "phoenix_audit.attack.fault_delivered": delivered,
+                        "phoenix_audit.adapter_span_id": adapter_span_id or "missing",
                     },
                 )
             )
@@ -465,13 +445,18 @@ class Injector(BaseModel):
             AttackResult(
                 run_idx=attack.run_idx,
                 fault_class=attack.fault_class,
-                span_id=span_id,
+                # 32-hex trace-indexed form: span_fetch resolves it to the
+                # TARGET's root span — the span that actually carries the
+                # evidence, unlike the auditor-side client span.
+                span_id=trace_id,
                 trace_id=trace_id,
                 status=status,
                 duration_ms=response.duration_ms,
+                attack_payload=attack_payload,
                 span_attributes={
                     "phoenix_audit.fault.type": attack.fault_class,
                     "phoenix_audit.fault.variant_idx": attack.variant_idx,
+                    "phoenix_audit.adapter_span_id": adapter_span_id,
                 },
             )
         )

@@ -86,6 +86,24 @@ def _v1_span(span_id: str, *, attributes: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def _fault_marker_children(trace_id: str) -> list[dict[str, Any]]:
+    """One child span per fault class carrying the fault-fired marker —
+    the judge refuses to score a probe whose registered fault never
+    executed (PR #95 review M3), so the fake trace must prove firing."""
+    classes = (
+        "malformed_tool_output",
+        "prompt_injection",
+        "context_poisoning",
+        "latency_spike",
+    )
+    children = []
+    for i, fc in enumerate(classes):
+        child = _v1_span(f"{i:016x}", attributes={"phoenix_audit.fault.type": fc})
+        child["parent_id"] = trace_id[:16]
+        children.append(child)
+    return children
+
+
 @dataclass
 class _Emitted:
     frames: list[tuple[str, dict[str, Any]]] = field(default_factory=list)
@@ -205,7 +223,7 @@ def wired(monkeypatch: pytest.MonkeyPatch) -> _Emitted:
         # so the matching span id is recoverable from the queried trace.
         async def get_spans(self, **kwargs: Any) -> list[dict[str, Any]]:
             trace_id = kwargs["trace_ids"][0]
-            return [_v1_span(trace_id[:16], attributes={})]
+            return [_v1_span(trace_id[:16], attributes={}), *_fault_marker_children(trace_id)]
 
     class _FakePhoenix:
         spans = _FakeSpans()
@@ -362,7 +380,10 @@ async def test_honored_span_attribute_excludes_compliant_target(
     class _HonoredSpans:
         async def get_spans(self, **kwargs: Any) -> list[dict[str, Any]]:
             trace_id = kwargs["trace_ids"][0]
-            return [_v1_span(trace_id[:16], attributes={"phoenix_audit.honored": True})]
+            return [
+                _v1_span(trace_id[:16], attributes={"phoenix_audit.honored": True}),
+                *_fault_marker_children(trace_id),
+            ]
 
     class _HonoredPhoenix:
         spans = _HonoredSpans()

@@ -47,20 +47,20 @@ def test_mode_literal_enumerates_two_values() -> None:
 
 
 def test_poison_idx_accepts_in_range_values() -> None:
-    from phoenix_audit_agent.injector.faults.context_poisoning import _POISONS
+    from phoenix_audit_agent.injector.faults.context_poisoning import POISONS
 
-    for idx in range(len(_POISONS)):
+    for idx in range(len(POISONS)):
         f = ContextPoisoningFault(mode="history_insert", poison_idx=idx)
         assert f.poison_idx == idx
 
 
 def test_poison_idx_rejects_out_of_range_value() -> None:
-    """Stale-bound regression: the upper bound must derive from len(_POISONS)
+    """Stale-bound regression: the upper bound must derive from len(POISONS)
     so the constraint doesn't rot when payloads are added (type-design-analyzer)."""
-    from phoenix_audit_agent.injector.faults.context_poisoning import _POISONS
+    from phoenix_audit_agent.injector.faults.context_poisoning import POISONS
 
     with pytest.raises(ValidationError):
-        ContextPoisoningFault(mode="history_insert", poison_idx=len(_POISONS))
+        ContextPoisoningFault(mode="history_insert", poison_idx=len(POISONS))
 
 
 def test_poison_idx_rejects_negative() -> None:

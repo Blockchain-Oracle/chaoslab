@@ -105,11 +105,34 @@ def _build_a2a_app() -> object:
     )
 
 
+def _assemble_app() -> object:
+    """Wrap the A2A app with the fault-hook routes + trace-context extraction.
+
+    Mount("") keeps every A2A path (incl. /.well-known/agent-card.json) at the
+    root, while /hooks/adk is matched first. TraceContextMiddleware joins this
+    process's spans to the auditor's trace — the evidence chain Phoenix
+    Audit's Judge reads (see target_agent.trace_context).
+    """
+    from starlette.applications import Starlette
+    from starlette.routing import Mount
+
+    from target_agent.agent import root_agent as _agent
+    from target_agent.fault_hooks import build_hook_routes
+    from target_agent.trace_context import TraceContextMiddleware
+
+    inner = _build_a2a_app()
+    app = Starlette(
+        routes=[*build_hook_routes(_agent), Mount("", app=inner)]  # ty: ignore[invalid-argument-type]
+    )
+    app.add_middleware(TraceContextMiddleware)
+    return app
+
+
 # to_a2a() returns a Starlette ASGI app. Phoenix Audit's RemoteA2aAgent
 # client speaks to this by passing the card URL:
 #   RemoteA2aAgent(agent_card='https://target-xxx.run.app/.well-known/agent-card.json')
 # See research/google-cloud-rapid-agent/architecture/03-multi-agent-patterns.md §2.2.
-a2a_app = _build_a2a_app()
+a2a_app = _assemble_app()
 
 
 def main() -> None:

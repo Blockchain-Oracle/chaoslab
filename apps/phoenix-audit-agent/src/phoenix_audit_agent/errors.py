@@ -61,6 +61,17 @@ class AdapterInvocationError(AdapterError):
     """
 
 
+class FaultDeliveryError(AdapterError):
+    """Raised when a fault descriptor could not be registered on the target.
+
+    The remote target either does not expose the fault-hook surface
+    (`/hooks/adk` gated off or absent) or refused the registration (409 busy,
+    422 uninstallable descriptor). The probe must NOT proceed: invoking the
+    target without the fault active would record a healthy response as if
+    the attack ran — silently inflating the pass rate in a signed audit.
+    """
+
+
 class BaselineAbortError(PhoenixAuditError):
     """Raised by `BaselineCheck.validate()` when the target's pre-flight pass
     rate is below the configured threshold.

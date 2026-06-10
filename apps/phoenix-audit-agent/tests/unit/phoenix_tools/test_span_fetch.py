@@ -1,9 +1,10 @@
-"""fetch_span — single-span retrieval over the REAL phoenix-client API.
+"""fetch_trace_spans — trace retrieval over the REAL phoenix-client API.
 
 arize-phoenix-client 2.x exposes ONLY `spans.get_spans(project_identifier=...,
-trace_ids=...)`; there is no `get_span`. These tests pin the helper that every
-rubric and the honored-check use to read one span, including the dict-shaped
-v1.Span normalization (attributes mapping + ns timestamps).
+trace_ids=...)`; there is no `get_span`. These tests pin the helper the judge
+phase uses to prefetch a probe's whole trace (one round-trip, shared between
+the honored-check and the rubric), including the dict-shaped v1.Span
+normalization (attributes mapping + parent/root detection + ns timestamps).
 """
 
 from __future__ import annotations
@@ -14,8 +15,7 @@ import pytest
 
 from phoenix_audit_agent.phoenix_tools.span_fetch import (
     FetchedSpan,
-    SpanNotFoundError,
-    fetch_span,
+    fetch_trace_spans,
 )
 
 SPAN_ID = "0123456789abcdef"
@@ -62,15 +62,19 @@ class _FakePhoenix:
         self.spans = _FakeSpansNamespace(spans)
 
 
+async def _fetch(phoenix: _FakePhoenix) -> list[FetchedSpan]:
+    return await fetch_trace_spans(phoenix, trace_id=TRACE_ID, project_identifier=PROJECT)
+
+
 @pytest.mark.asyncio
-async def test_fetches_matching_span_by_id() -> None:
+async def test_fetches_every_span_of_the_trace_in_one_call() -> None:
     phoenix = _FakePhoenix([_v1_span(OTHER_SPAN_ID), _v1_span(SPAN_ID)])
 
-    span = await fetch_span(phoenix, span_id=SPAN_ID, trace_id=TRACE_ID, project_identifier=PROJECT)
+    spans = await _fetch(phoenix)
 
-    assert isinstance(span, FetchedSpan)
-    assert span.span_id == SPAN_ID
-    assert span.attributes.get("input.value") == "hi"
+    assert [s.span_id for s in spans] == [OTHER_SPAN_ID, SPAN_ID]
+    assert all(isinstance(s, FetchedSpan) for s in spans)
+    assert spans[1].attributes.get("input.value") == "hi"
     # the real client was queried by trace, scoped to the target's project
     (call,) = phoenix.spans.calls
     assert call["project_identifier"] == PROJECT
@@ -78,57 +82,39 @@ async def test_fetches_matching_span_by_id() -> None:
 
 
 @pytest.mark.asyncio
-async def test_missing_span_raises_loudly() -> None:
-    phoenix = _FakePhoenix([_v1_span(OTHER_SPAN_ID)])
-
-    with pytest.raises(SpanNotFoundError) as exc:
-        await fetch_span(phoenix, span_id=SPAN_ID, trace_id=TRACE_ID, project_identifier=PROJECT)
-    assert SPAN_ID in str(exc.value)
-    assert TRACE_ID in str(exc.value)
+async def test_empty_trace_returns_empty_list_for_caller_disclosure() -> None:
+    # judge_phase maps an empty trace to a DISCLOSED error verdict +
+    # honored=unreadable; the fetch layer itself stays a plain read.
+    assert await _fetch(_FakePhoenix([])) == []
 
 
 @pytest.mark.asyncio
-async def test_empty_trace_raises_loudly() -> None:
-    phoenix = _FakePhoenix([])
-
-    with pytest.raises(SpanNotFoundError):
-        await fetch_span(phoenix, span_id=SPAN_ID, trace_id=TRACE_ID, project_identifier=PROJECT)
-
-
-@pytest.mark.asyncio
-async def test_32_hex_id_resolves_to_root_span() -> None:
-    """The Injector may index by trace id (32 hex); resolve to the trace root."""
+async def test_root_span_detected_by_absent_parent_id() -> None:
     root = _v1_span(SPAN_ID, parent_id=None, attributes={"output.value": "root"})
     child = _v1_span(OTHER_SPAN_ID)
-    phoenix = _FakePhoenix([child, root])
+    spans = await _fetch(_FakePhoenix([child, root]))
 
-    span = await fetch_span(
-        phoenix, span_id=TRACE_ID, trace_id=TRACE_ID, project_identifier=PROJECT
-    )
-
-    assert span.span_id == SPAN_ID
-    assert span.attributes.get("output.value") == "root"
+    roots = [s for s in spans if s.is_root]
+    assert [s.span_id for s in roots] == [SPAN_ID]
+    assert roots[0].attributes.get("output.value") == "root"
+    assert spans[0].is_root is False
 
 
 @pytest.mark.asyncio
 async def test_timestamps_normalized_to_ns() -> None:
-    phoenix = _FakePhoenix([_v1_span(SPAN_ID)])
+    (span,) = await _fetch(_FakePhoenix([_v1_span(SPAN_ID)]))
 
-    span = await fetch_span(phoenix, span_id=SPAN_ID, trace_id=TRACE_ID, project_identifier=PROJECT)
-
-    # 1.5s duration — rubrics derive duration from these when the explicit
-    # phoenix-audit.duration_ms attribute is absent.
+    # 1.5s duration — the latency rubric derives server-side duration from
+    # these when the auditor's client-side measurement is absent.
     assert span.end_time_ns - span.start_time_ns == 1_500_000_000
 
 
 @pytest.mark.asyncio
 async def test_unparseable_timestamps_are_zero_not_crash() -> None:
     raw = _v1_span(SPAN_ID, start_time="not-a-date", end_time="")
-    phoenix = _FakePhoenix([raw])
+    (span,) = await _fetch(_FakePhoenix([raw]))
 
-    span = await fetch_span(phoenix, span_id=SPAN_ID, trace_id=TRACE_ID, project_identifier=PROJECT)
-
-    # zeros — latency rubric treats missing timestamps as malformed and raises
-    # RubricInputMissingError; fetch_span itself must not mask the span data.
+    # zeros — the latency rubric treats missing timestamps as malformed and
+    # raises RubricInputMissingError; the fetch must not mask the span data.
     assert span.start_time_ns == 0
     assert span.end_time_ns == 0

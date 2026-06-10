@@ -42,26 +42,6 @@ class PhoenixEvalEmptyError(RuntimeError):
         )
 
 
-def require_attr(
-    span: Any,
-    key: str,
-    *,
-    span_id: str,
-    fault_class: str,
-) -> str:
-    """Read a non-empty string attr from a Phoenix span or raise.
-
-    Eliminates the empty-string default that would silently produce a
-    `passed=True` verdict from Phoenix when the underlying attribute was
-    actually absent — a regulator-facing audit must distinguish
-    "agent passed the attack" from "the test never recorded data".
-    """
-    value = span.attributes.get(key)
-    if value is None or (isinstance(value, str) and not value):
-        raise RubricInputMissingError(span_id, fault_class, key)
-    return str(value)
-
-
 def first_verdict(
     verdicts: list[Any] | tuple[Any, ...],
     *,
@@ -97,13 +77,13 @@ class EvalScore(BaseModel):
 @runtime_checkable
 class _SpansNamespace(Protocol):
     # Mirrors arize-phoenix-client 2.x AsyncSpans — there is NO get_span;
-    # single-span reads go through phoenix_tools.span_fetch.fetch_span.
+    # trace reads go through phoenix_tools.span_fetch.fetch_trace_spans.
     async def get_spans(self, **kwargs: Any) -> list[Any]: ...
 
 
 @runtime_checkable
 class PhoenixClient(Protocol):
-    """Narrow Protocol of phoenix.client.AsyncClient the rubrics actually use."""
+    """Narrow Protocol of phoenix.client.AsyncClient the judge phase uses."""
 
     spans: _SpansNamespace
 
@@ -119,23 +99,78 @@ _SPAN_ID_PATTERN = SPAN_ID_PATTERN  # backward-compat alias
 
 
 class RubricInput(BaseModel):
+    """Everything a rubric needs to score one probe.
+
+    Evidence model (evidence-chain repair, 2026-06-10):
+    - ``spans`` is the probe's WHOLE target-side trace, prefetched once by
+      judge_phase (no per-rubric Phoenix round-trips). Rubrics select the
+      span(s) carrying their evidence via the helpers below.
+    - Auditor-ORIGINATED data (the attack payload, the original prompt, the
+      client-measured duration) rides here directly — round-tripping it
+      through span attributes added no evidence value and the writer side
+      never existed.
+    """
+
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
     span_id: str = Field(pattern=_SPAN_ID_PATTERN)
     trace_id: str = Field(min_length=1)
-    project_identifier: str = Field(min_length=1)
     fault_class: FaultClass
-    phoenix_client: PhoenixClient
+    spans: list[Any]
+    attack_payload: str | None = None
+    original_user_message: str | None = None
+    client_duration_ms: float | None = None
 
-    async def fetch_span(self) -> Any:
-        from phoenix_audit_agent.phoenix_tools.span_fetch import fetch_span
+    def root_span(self) -> Any:
+        root = next((s for s in self.spans if getattr(s, "is_root", False)), None)
+        if root is None:
+            raise RubricInputMissingError(self.span_id, self.fault_class, "trace root span")
+        return root
 
-        return await fetch_span(
-            self.phoenix_client,
-            span_id=self.span_id,
-            trace_id=self.trace_id,
-            project_identifier=self.project_identifier,
-        )
+    def require_attr_from_trace(self, key: str) -> str:
+        """Non-empty ``key`` from the FIRST span carrying it (root searched
+        first — its values are the response-level evidence) or raise."""
+        ordered = sorted(self.spans, key=lambda s: not getattr(s, "is_root", False))
+        for span in ordered:
+            value = span.attributes.get(key)
+            if value is not None and not (isinstance(value, str) and not value):
+                return str(value)
+        raise RubricInputMissingError(self.span_id, self.fault_class, key)
+
+    def collect_retrieval_documents(self) -> str:
+        """The trace's retrieval evidence: ``retrieval.documents`` where the
+        backend returns it whole, else the OpenInference flattened form
+        (``retrieval.documents.{i}.document.content``); raise when neither
+        exists — scoring F3 without the retrieved context would be guesswork."""
+        for span in self.spans:
+            whole = span.attributes.get("retrieval.documents")
+            if whole:
+                return str(whole)
+
+        def _doc_index(key: str) -> int:
+            # retrieval.documents.<i>.document.content — NUMERIC order, not
+            # string order (a lexicographic sort puts index 10 before 2).
+            try:
+                return int(key.split(".")[2])
+            except (IndexError, ValueError):
+                return 1 << 30
+
+        docs: list[str] = []
+        for span in self.spans:
+            flattened = [
+                (k, v)
+                for k, v in span.attributes.items()
+                if k.startswith("retrieval.documents.") and k.endswith(".document.content") and v
+            ]
+            docs.extend(str(v) for k, v in sorted(flattened, key=lambda kv: _doc_index(kv[0])))
+        if docs:
+            return "\n\n".join(docs)
+        raise RubricInputMissingError(self.span_id, self.fault_class, "retrieval.documents")
+
+    def require_payload(self) -> str:
+        if not self.attack_payload:
+            raise RubricInputMissingError(self.span_id, self.fault_class, "attack_payload")
+        return self.attack_payload
 
 
 def _import_tool_invocation_rubric() -> Callable[[RubricInput], Awaitable[EvalScore]]:
@@ -191,5 +226,4 @@ __all__ = [
     "RubricInputMissingError",
     "apply_rubric",
     "first_verdict",
-    "require_attr",
 ]

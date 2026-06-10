@@ -25,6 +25,25 @@ from phoenix_audit_agent.adk_types import BaseTool, ToolContext
 MalformationMode = Literal["invalid_json", "missing_required_field", "type_mismatch", "exception"]
 _FAULT_TYPE = "malformed_tool_output"
 
+# Single source for the mode->payload mapping — shared by the in-process
+# callback below AND the remote-delivery descriptor (descriptors.py), so the
+# two paths can never drift. `exception` carries None: callers raise instead.
+MODE_PAYLOADS: dict[str, dict[str, Any] | None] = {
+    "invalid_json": {
+        # ADK before_tool_callback returns Optional[dict] per audit A13;
+        # wrap the truncated string so the dict-contract holds while the
+        # downstream agent still observes a non-JSON-parseable payload.
+        "_phoenix_audit_malformed_payload": (
+            '{"order_id": "12345", "items": [{"name": "widget", "qty": 2'
+        ),
+        "_phoenix_audit_payload_type": "invalid_json",
+    },
+    # `total` key omitted from the lookup_order schema {status, items, total}.
+    "missing_required_field": {"status": "shipped", "items": [{"name": "widget", "qty": 2}]},
+    "type_mismatch": {"status": 200, "items": "three widgets", "total": "ten"},
+    "exception": None,
+}
+
 
 def _make_callback(
     fault: MalformedToolOutputFault,
@@ -41,20 +60,8 @@ def _make_callback(
         span = trace.get_current_span()
         span.set_attribute("phoenix_audit.fault.type", _FAULT_TYPE)
         span.set_attribute("phoenix_audit.fault.mode", fault.mode)
-        if fault.mode == "invalid_json":
-            # ADK before_tool_callback returns Optional[dict] per audit A13;
-            # wrap the truncated string so the dict-contract holds while the
-            # downstream agent still observes a non-JSON-parseable payload.
-            truncated = '{"order_id": "12345", "items": [{"name": "widget", "qty": 2'
-            return {
-                "_phoenix_audit_malformed_payload": truncated,
-                "_phoenix_audit_payload_type": "invalid_json",
-            }
-        if fault.mode == "missing_required_field":
-            # `total` key omitted from the lookup_order schema {status, items, total}.
-            return {"status": "shipped", "items": [{"name": "widget", "qty": 2}]}
-        if fault.mode == "type_mismatch":
-            return {"status": 200, "items": "three widgets", "total": "ten"}
+        if fault.mode != "exception":
+            return MODE_PAYLOADS[fault.mode]
         # mode == "exception" — record status + event on the current span
         # before raising. Story-5.2 Notes say ADK's auto-recording of
         # exceptions raised from before_tool_callback "works empirically but

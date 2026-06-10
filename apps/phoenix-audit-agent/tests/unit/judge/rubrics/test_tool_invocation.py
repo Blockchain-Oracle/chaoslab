@@ -15,24 +15,16 @@ from phoenix_audit_agent.judge.rubrics import (
 from phoenix_audit_agent.judge.rubrics.tool_invocation import tool_invocation_rubric
 
 from .conftest import (
-    PROJECT_ID,
-    SPAN_ID,
-    TRACE_ID,
-    FakePhoenixClient,
     FakeSpan,
     StubVerdict,
+    child,
+    make_input,
     stub_evaluator,
 )
 
 
 def _inp(span: FakeSpan) -> RubricInput:
-    return RubricInput(
-        trace_id=TRACE_ID,
-        project_identifier=PROJECT_ID,
-        span_id=SPAN_ID,
-        fault_class="malformed_tool_output",
-        phoenix_client=FakePhoenixClient(span),
-    )
+    return make_input("malformed_tool_output", span)
 
 
 def _full_attrs() -> dict[str, Any]:
@@ -84,6 +76,18 @@ async def test_missing_attr_raises_instead_of_silent_pass(
     with pytest.raises(RubricInputMissingError) as exc:
         await tool_invocation_rubric(_inp(FakeSpan(attributes=attrs)))
     assert exc.value.attribute == missing
+
+
+async def test_llm_attrs_found_on_child_span(monkeypatch: pytest.MonkeyPatch) -> None:
+    """llm.tools / llm.output_messages live on the target's LLM span (a child),
+    not the root agent span — trace-wide selection must find them there."""
+    captured: list[dict[str, Any]] = []
+    monkeypatch.setattr(f1, "_EVALUATOR", stub_evaluator(StubVerdict("correct"), captured=captured))
+    root = FakeSpan(attributes={"input.value": "lookup order"})
+    llm = child({"llm.tools": "[lookup_order]", "llm.output_messages": "called lookup_order"})
+    await tool_invocation_rubric(make_input("malformed_tool_output", root, llm))
+    assert captured[0]["available_tools"] == "[lookup_order]"
+    assert captured[0]["tool_selection"] == "called lookup_order"
 
 
 async def test_empty_attr_raises_instead_of_silent_pass(

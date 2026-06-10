@@ -75,7 +75,16 @@ async def webhook_fault_session(
             except ValueError:
                 logger.warning("webhook_fault_registration_non_json_body hook_path=%s", hook_path)
                 payload = {}
-            registration_id = payload.get("registration_id")
+            raw_id = payload.get("registration_id")
+            # Shape check, not just None check: an empty/typed-wrong id would
+            # mark the fault "delivered" while teardown DELETEs a bogus path.
+            registration_id = raw_id if isinstance(raw_id, str) and raw_id else None
+            if registration_id is None and raw_id is not None:
+                logger.warning(
+                    "webhook_fault_registration_malformed_id hook_path=%s raw=%r",
+                    hook_path,
+                    raw_id,
+                )
             if registration_id is not None:
                 logger.info(
                     "webhook_fault_session_active hook_path=%s fault_kind=%s registration_id=%s",
