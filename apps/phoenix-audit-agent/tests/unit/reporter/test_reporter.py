@@ -155,6 +155,66 @@ def test_html_marks_rubric_errors_distinctly() -> None:
 
 
 # ---------------------------------------------------------------------------
+# Designed presentation on the durable PDF (story-9.13)
+
+
+_FPR = "a1b2" * 16  # obviously-fake fingerprint — keeps gitleaks quiet
+_KEY_VERSION = "projects/p/locations/l/keyRings/k/cryptoKeys/c/cryptoKeyVersions/1"
+
+
+def test_cover_carries_real_signing_key_fingerprint_when_provided() -> None:
+    html = build_report_html(_data(), signing_key_fingerprint=_FPR, kms_key_version=_KEY_VERSION)
+    assert _FPR[:16] in html
+    assert "cryptoKeyVersions/1" in html
+
+
+def test_cover_renders_seal_stamp() -> None:
+    html = build_report_html(_data(), signing_key_fingerprint=_FPR)
+    # The designed seal mark — an SVG ring with the SIGNED stamp, not text-only.
+    assert "<svg" in html
+    assert "SIGNED" in html
+
+
+def test_expiring_signed_url_never_renders_into_durable_pdf() -> None:
+    # A 7-day signed URL inside a regulator-facing durable artifact is a dead
+    # link by filing time — the recipe section must reference the recipe id,
+    # never embed the URL.
+    html = build_report_html(_data())
+    assert "gcs.example" not in html
+    assert "recipe_7c0d51e2a9b4" in html
+
+
+def test_recipe_markdown_renders_with_diff_styling() -> None:
+    md = (
+        "## Prompt Patches\n\n**Section:** `system_prompt`\n\n"
+        "```diff\n+Always validate input.\n-Trust the caller.\n@@ -1 +1 @@\n```\n"
+    )
+    html = build_report_html(_data(), recipe_markdown=md)
+    assert "Prompt Patches" in html
+    assert "diff-add" in html
+    assert "+Always validate input." in html
+    assert "diff-del" in html
+    assert "diff-hunk" in html
+
+
+def test_recipe_markdown_is_html_escaped() -> None:
+    html = build_report_html(
+        _data(), recipe_markdown="## X\n\n```diff\n+<script>alert(1)</script>\n```\n"
+    )
+    assert "<script>" not in html
+    assert "&lt;script&gt;" in html
+
+
+def test_regulatory_mapping_table_carries_real_finding_count() -> None:
+    html = build_report_html(_data())
+    assert "Article 9" in html
+    assert "Article 12" in html
+    assert "Article 15" in html
+    assert "Article 72" in html
+    assert "1 finding" in html  # failed=1 in _data()
+
+
+# ---------------------------------------------------------------------------
 # PDF renderer
 
 

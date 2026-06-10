@@ -14,6 +14,13 @@ from pathlib import Path
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from phoenix_audit_agent.reporter._html_sections import (
+    cover_seal_block,
+    recipe_markdown_html,
+    regulatory_mapping_html,
+    signature_meta_value,
+)
+
 _FONT_DIR = Path(__file__).parent / "fonts"
 
 # docs/run-config-schema.md §"Canonical fixture (default mode)" — VERBATIM.
@@ -145,8 +152,20 @@ def _cluster_summary_sentence(data: ReportData) -> str:
 _SAFE_RUN_ID = re.compile(r"^[a-zA-Z0-9_\-]+$")
 
 
-def build_report_html(data: ReportData) -> str:
-    """The full report document. Verbatim-locked paragraphs render as-is."""
+def build_report_html(
+    data: ReportData,
+    *,
+    signing_key_fingerprint: str | None = None,
+    kms_key_version: str | None = None,
+    recipe_markdown: str | None = None,
+) -> str:
+    """The full report document. Verbatim-locked paragraphs render as-is.
+
+    signing_key_fingerprint/kms_key_version put the REAL key identity on the
+    cover (the PDF renders before the sidecar is signed, so only the key —
+    not signed_at — is known here). recipe_markdown renders the recipe's
+    actual content; the expiring signed URL never enters the durable PDF.
+    """
     # run_id interpolates into the @page CSS content string where html.escape
     # is the wrong escaper (entities aren't decoded in CSS; backslashes pass
     # through). Server-generated ids are hex today — this guard keeps a future
@@ -173,18 +192,18 @@ def build_report_html(data: ReportData) -> str:
             "they are excluded from the warning count above.</p>"
         )
 
-    recipe_block = (
-        f"<p>Hardening recipe <span class='mono'>{_esc(data.recipe_id)}</span> was generated "
-        f"and delivered as a Markdown artifact"
-        + (
-            f" (<span class='mono small'>{_esc(data.markdown_url)}</span>)"
-            if data.markdown_url
-            else ""
+    # The expiring signed URL must NEVER enter the durable PDF — it is a dead
+    # link by filing time. The recipe id is the durable reference; the content
+    # renders inline when provided.
+    if data.recipe_id:
+        recipe_block = (
+            f"<p>Hardening recipe <span class='mono'>{_esc(data.recipe_id)}</span> was "
+            "generated and delivered as a Markdown artifact alongside this report.</p>"
         )
-        + ".</p>"
-        if data.recipe_id
-        else "<p>No hardening recipe was generated for this run.</p>"
-    )
+        if recipe_markdown:
+            recipe_block += recipe_markdown_html(recipe_markdown)
+    else:
+        recipe_block = "<p>No hardening recipe was generated for this run.</p>"
 
     return f"""<!DOCTYPE html>
 <html lang="en">
@@ -253,11 +272,33 @@ td {{ border-bottom: 0.25pt solid rgba(28,23,18,0.16); padding: 2mm; font-size: 
            background: rgba(255,255,255,0.5); page-break-inside: avoid; }}
 .cover-foot {{ margin-top: 6mm; }}
 .pagebreak {{ page-break-before: always; }}
+.cover-head {{ position: relative; padding-right: 36mm; }}
+.seal-wrap {{ position: absolute; top: 0; right: 0; width: 32mm; text-align: center;
+             transform: rotate(-7deg); }}
+.meta-row span:last-child {{ text-align: right; max-width: 72%; }}
+.stamp-signed {{ font-family: "IBM Plex Mono"; font-size: 6.5pt; font-weight: 600;
+               letter-spacing: 0.18em; color: #2e6b4f; border: 1pt solid #2e6b4f;
+               border-radius: 1pt; padding: 1mm 1.5mm; margin-top: 1.5mm;
+               display: inline-block; }}
+.recipe-h2 {{ font-family: "Newsreader", serif; font-size: 11.5pt; font-weight: 500;
+             margin: 4mm 0 1.5mm; page-break-after: avoid; }}
+.recipe-h3 {{ font-family: "IBM Plex Mono"; font-size: 7.5pt; letter-spacing: 0.1em;
+             color: #8a4a1e; margin: 3mm 0 1mm; page-break-after: avoid; }}
+.recipe-text {{ font-size: 9pt; margin: 0 0 2mm; }}
+.recipe-code {{ font-family: "IBM Plex Mono"; font-size: 7.5pt; line-height: 1.6;
+              background: #f2ede1; border: 0.5pt solid rgba(28,23,18,0.16);
+              border-radius: 1pt; padding: 2mm 3mm; margin: 0 0 3mm;
+              white-space: pre-wrap; page-break-inside: avoid; }}
+.recipe-code .diff-add {{ color: #2e6b4f; background: rgba(46,107,79,0.08); }}
+.recipe-code .diff-del {{ color: #9c3a22; background: rgba(156,58,34,0.07); }}
+.recipe-code .diff-hunk {{ color: #8f8674; }}
 </style>
 </head>
 <body>
 
 <!-- §1 cover & attestation -->
+<div class="cover-head">
+{cover_seal_block()}
 <div class="kicker">Signed audit report · Phoenix Audit</div>
 <h1>{_esc(data.framework_label)}</h1>
 <div class="meta-row"><span>Audit run</span><span class="mono">{_esc(data.run_id)}</span></div>
@@ -265,7 +306,8 @@ td {{ border-bottom: 0.25pt solid rgba(28,23,18,0.16); padding: 2mm; font-size: 
 <span class="mono">{_esc(data.target_url)}</span></div>
 <div class="meta-row"><span>Filed</span><span class="mono">{_esc(data.created_at)}</span></div>
 <div class="meta-row"><span>Signature</span>
-<span class="mono">Cloud KMS · Ed25519 · detached sidecar</span></div>
+<span class="mono">{signature_meta_value(signing_key_fingerprint, kms_key_version)}</span></div>
+</div>
 
 <div class="locked">
 <div class="locked-title">DATA RESIDENCY — DEFAULT HOSTING VARIANT · LEGALLY LOCKED ·
@@ -311,10 +353,7 @@ coverage of any attack category.</p>
 
 <!-- §6 regulatory mapping -->
 <h2>Regulatory mapping</h2>
-<p>Findings in this report map to the regulatory frame selected at run time
-({_esc(data.framework_label)}). Phoenix trace spans referenced per probe provide the
-record-keeping evidence trail; the signed artifact set provides the chain-of-custody
-anchor required for filing.</p>
+{regulatory_mapping_html(data.framework_label, data.failed)}
 
 </body>
 </html>"""

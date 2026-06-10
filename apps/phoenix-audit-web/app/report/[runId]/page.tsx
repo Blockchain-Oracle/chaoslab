@@ -1,7 +1,9 @@
 import { notFound } from 'next/navigation'
 import { ReportPreview } from '@/components/artifacts/report-preview'
+import type { ReportView } from '@/components/artifacts/report-pages'
 import { PageShell } from '@/components/ui/page-shell'
-import { fetchRunDetail } from '@/lib/api'
+import { fetchArtifactJson, fetchArtifactText, fetchRunDetail } from '@/lib/api'
+import { parseRecipeMarkdown, parseReportDocument, parseSignatureDocument } from '@/lib/report-doc'
 
 export const dynamic = 'force-dynamic'
 
@@ -30,9 +32,49 @@ export default async function ReportPage({ params }: PageProps) {
         targetUrl: detail.data.run.target_url,
       }
     : null
+
+  // The preview renders REAL artifacts, fetched server-side from their
+  // fresh-signed URLs. Each failure is carried independently so the page
+  // can disclose exactly what is missing.
+  let view: ReportView | null = null
+  let reportDocError: string | null = null
+  const reportUrl = live?.urls['report.json']
+  if (live?.reportAvailable && reportUrl) {
+    const [reportRes, signatureRes, recipeRes] = await Promise.all([
+      fetchArtifactJson(reportUrl),
+      live.urls['signature.json']
+        ? fetchArtifactJson(live.urls['signature.json'])
+        : Promise.resolve({ json: null, error: 'signature.json not in artifact set' }),
+      live.urls['recipe.md']
+        ? fetchArtifactText(live.urls['recipe.md'])
+        : Promise.resolve({ text: null, error: null }),
+    ])
+    const report = reportRes.json === null ? null : parseReportDocument(reportRes.json)
+    if (report === null) {
+      reportDocError = reportRes.error ?? 'report.json failed validation'
+    } else {
+      const signature =
+        signatureRes.json === null ? null : parseSignatureDocument(signatureRes.json)
+      view = {
+        report,
+        signature,
+        signatureError:
+          signature === null ? (signatureRes.error ?? 'signature.json failed validation') : null,
+        recipeBlocks: recipeRes.text === null ? null : parseRecipeMarkdown(recipeRes.text),
+        recipeError: recipeRes.error,
+      }
+    }
+  }
+
   return (
     <PageShell label="report">
-      <ReportPreview runId={runId} live={live} liveError={detail.liveError} />
+      <ReportPreview
+        runId={runId}
+        live={live}
+        liveError={detail.liveError}
+        view={view}
+        reportDocError={reportDocError}
+      />
     </PageShell>
   )
 }
