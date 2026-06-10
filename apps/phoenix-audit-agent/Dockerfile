@@ -21,7 +21,7 @@ FROM ghcr.io/astral-sh/uv:0.11.18 AS uv-source
 # -----------------------------------------------------------------------------
 # Stage 1: deps — install workspace dependencies into a virtualenv
 # -----------------------------------------------------------------------------
-FROM python:3.12-slim AS deps
+FROM python:3.14-slim AS deps
 
 ENV UV_LINK_MODE=copy \
     UV_COMPILE_BYTECODE=1 \
@@ -55,7 +55,7 @@ RUN uv sync --frozen --no-install-project --no-dev --package phoenix-audit-agent
 # -----------------------------------------------------------------------------
 # Stage 2: build — copy project source + install the project itself
 # -----------------------------------------------------------------------------
-FROM python:3.12-slim AS build
+FROM python:3.14-slim AS build
 
 ENV UV_LINK_MODE=copy \
     UV_COMPILE_BYTECODE=1 \
@@ -80,7 +80,7 @@ RUN uv sync --frozen --no-dev --package phoenix-audit-agent --no-editable
 # -----------------------------------------------------------------------------
 # Stage 3: runtime — slim, non-root, signal-safe
 # -----------------------------------------------------------------------------
-FROM python:3.12-slim AS runtime
+FROM python:3.14-slim AS runtime
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
