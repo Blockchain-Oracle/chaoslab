@@ -48,7 +48,7 @@ const SECTIONS: DocSection[] = [
     no: '§3',
     title: 'Register a target agent',
     body: [
-      'Target agents → Register. Give the agent an id, a name, and its reachable URL — an HTTPS endpoint, or an A2A address for ADK-native agents. Tier 1 agents (ADK over A2A) get full trace-depth audits; HTTP black-box targets are audited from the wire only, so verdicts are correct but root-cause clustering is per-test.',
+      'Your first audit against a URL registers it: start a New audit, point it at a reachable address — an HTTPS endpoint, or an A2A address for ADK-native agents — and the target appears in your registry. Tier 1 agents (ADK over A2A) get full trace-depth audits; HTTP black-box targets are audited from the wire only, so verdicts are correct but root-cause clustering is per-test.',
       'The seeded “Demo Support Agent” is a real, deployed ADK agent you can audit immediately — it exists so your first audit needs zero setup.',
     ],
     shot: 'agents.png',
