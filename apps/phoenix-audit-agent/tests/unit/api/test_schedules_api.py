@@ -62,7 +62,9 @@ def _reset_run_registries() -> None:
 
 
 @pytest.fixture(autouse=True)
-def _authed(auth_as) -> None:
+def _authed(
+    _env: None, auth_as
+) -> None:  # _env first: settings env must exist before auth_as imports main
     """This module's subject is schedules CRUD + the tick, not auth — requests
     arrive pre-authenticated as `user-test` (auth wiring: test_auth_scoping)."""
 
