@@ -20,15 +20,31 @@ no Gemini, no Phoenix, no network.
 
 from __future__ import annotations
 
+from collections.abc import Iterator
 from dataclasses import dataclass, field
 from typing import Any, ClassVar, Literal
 
 import pytest
 
+from phoenix_audit_agent.config import get_settings
 from phoenix_audit_agent.injector.agent import AttackResult, AttackRun, InjectorState
 from phoenix_audit_agent.judge.clustering import FailureCluster, FailureClusterSet
 from phoenix_audit_agent.judge.rubrics import EvalScore
 from phoenix_audit_agent.patcher.recipe import HardeningRecipe
+
+
+@pytest.fixture(autouse=True)
+def _settings_env(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
+    # _judge_attacks reads TARGET_PHOENIX_PROJECT via get_settings(); wire the
+    # Vertex path so Settings() construction is deterministic regardless of the
+    # developer's shell env (CI runs clean — local .env must not mask this).
+    monkeypatch.setenv("GOOGLE_GENAI_USE_VERTEXAI", "true")
+    monkeypatch.setenv("GOOGLE_CLOUD_PROJECT", "test-project")
+    monkeypatch.setenv("GOOGLE_CLOUD_LOCATION", "us-central1")
+    get_settings.cache_clear()
+    yield
+    get_settings.cache_clear()
+
 
 SPAN_OK_PASS = "a" * 16
 SPAN_OK_FAIL = "b" * 16
