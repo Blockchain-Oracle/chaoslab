@@ -9,8 +9,7 @@ from __future__ import annotations
 from typing import Any
 
 from phoenix_audit_agent.storage.agents import DEMO_TARGET_SEED
-from phoenix_audit_agent.storage.models import AgentRecord, RunRecord
-from phoenix_audit_agent.storage.runs import assert_known_run_fields
+from phoenix_audit_agent.storage.models import AgentRecord, RunCompletion, RunRecord
 
 
 class InMemoryRunStore:
@@ -20,10 +19,8 @@ class InMemoryRunStore:
     async def create(self, record: RunRecord) -> None:
         self._docs[record.run_id] = record.model_dump()
 
-    async def finalize(self, run_id: str, fields: dict[str, Any]) -> None:
-        # Same guard as FirestoreRunStore — fake/prod contract symmetry.
-        assert_known_run_fields(fields)
-        merged = {**self._docs.get(run_id, {}), **fields, "run_id": run_id}
+    async def finalize(self, run_id: str, completion: RunCompletion) -> None:
+        merged = {**self._docs.get(run_id, {}), **completion.merge_fields(), "run_id": run_id}
         self._docs[run_id] = RunRecord.model_validate(merged).model_dump()
 
     async def list_runs(
@@ -33,6 +30,9 @@ class InMemoryRunStore:
         source: str | None = None,
         limit: int = 50,
     ) -> list[RunRecord]:
+        # NOTE: Firestore filters within the newest 200 docs only (index-free
+        # query); this fake filters across ALL docs. Divergence is irrelevant
+        # below 200 runs but documented for honesty.
         rows = [RunRecord.model_validate(d) for d in self._docs.values()]
         if agent_id is not None:
             rows = [r for r in rows if r.agent_id == agent_id]

@@ -111,9 +111,12 @@ function ceilingForPhase(phase: Phase): number {
 }
 
 function getAgentUrl(): string {
+  // Default: the same-origin proxy (works locally AND against the IAM-gated
+  // deployed agent — EventSource cannot attach Authorization headers itself).
+  // NEXT_PUBLIC_AGENT_URL overrides for direct-to-agent local debugging.
   const fromEnv = process.env.NEXT_PUBLIC_AGENT_URL
   if (fromEnv && fromEnv.length > 0) return fromEnv
-  return 'http://localhost:8001'
+  return '/api/agent'
 }
 
 interface PhaseChangeData {

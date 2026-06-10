@@ -172,13 +172,28 @@ async def test_sign_failure_disclosed_distinct_from_absent(
     assert body["artifact_url_errors"] == {"recipe.md": "RuntimeError"}
 
 
-async def test_finalize_with_unknown_field_is_rejected(client: httpx.AsyncClient) -> None:
+async def test_completion_with_unknown_field_is_rejected() -> None:
     """extra='ignore' on read would silently drop a typo'd finalize key —
-    the store must raise instead (containment turns it into a DISCLOSED
-    persistence_failed)."""
-    store = run_storage.get_run_store()
-    with pytest.raises(ValueError, match="report_avaliable"):
-        await store.finalize(
-            "run_666666666666",
-            {"run_id": "run_666666666666", "report_avaliable": True},
-        )
+    RunCompletion (extra='forbid') makes the typo a constructor error
+    (containment turns it into a DISCLOSED persistence_failed)."""
+    from pydantic import ValidationError
+
+    from phoenix_audit_agent.storage.models import RunCompletion
+
+    payload: dict[str, Any] = {
+        "run_id": "run_666666666666",
+        "target_url": "https://target.example",
+        "created_at": "2026-06-10T01:00:00Z",
+        "phase": "succeeded",
+        "report_avaliable": True,  # the typo IS the test
+    }
+    with pytest.raises(ValidationError, match="report_avaliable"):
+        RunCompletion(**payload)
+
+
+async def test_list_runs_rejects_nonpositive_limit(client: httpx.AsyncClient) -> None:
+    """limit=-5 would slice rows[:-5] and silently drop the NEWEST runs."""
+    r = await client.get("/runs?limit=-5")
+    assert r.status_code == 422
+    r = await client.get("/runs?limit=0")
+    assert r.status_code == 422

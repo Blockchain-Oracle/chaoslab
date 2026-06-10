@@ -1,6 +1,7 @@
 """FastAPI entrypoint for phoenix-audit-agent (Phoenix Audit orchestrator).
 
-Endpoints: `/health`, `/run`, `/stream` (SSE), `/agents/{id}`.
+Endpoints here: `/health`, `POST /run`, `/stream` (SSE). The registry read
+API (`/runs`, `/runs/{id}`, `/agents...`) lives in `phoenix_audit_agent.api`.
 
 `POST /run` spawns a background `asyncio.Task` that drives the REAL audit
 pipeline (`phoenix_audit_agent.audit_runner.drive_audit`: Injector -> Judge ->
@@ -30,7 +31,7 @@ from phoenix_audit_agent.api.agents import router as agents_router
 from phoenix_audit_agent.api.runs import router as runs_router
 from phoenix_audit_agent.audit_runner import drive_audit
 from phoenix_audit_agent.config import GCS_PROBE_ENV_NAME, get_settings
-from phoenix_audit_agent.storage.models import RunRecord, RunSource
+from phoenix_audit_agent.storage.models import RunCompletion, RunRecord, RunSource
 from phoenix_audit_agent.storage.runs import create_run_record, persist_run_completion
 
 logger = logging.getLogger(__name__)
@@ -42,7 +43,8 @@ _QUEUE_SENTINEL: None = None
 # How long to keep finished run state in the registries before sweeping it out
 # (in seconds). Queues are consumed-once (no replay): the window lets a client
 # that hasn't connected yet drain the buffered frames of a just-finished run.
-# Reconnects after the queue is drained get a terminal `stream_end` frame.
+# Reconnects after the queue is drained get a terminal `stream_end` frame
+# (within this window; after the sweep, /stream 404s).
 _RUN_CLEANUP_DELAY_SEC = 300.0
 
 RunPhase = Literal["queued", "injector", "judge", "patcher", "succeeded", "failed"]
@@ -157,7 +159,10 @@ async def _drive_orchestrator(run_id: str) -> None:
         # the cancelled frame or sentinel; queue is unbounded so put_nowait is safe.
         queue.put_nowait({"event": "cancelled", "data": json.dumps({"run_id": run_id})})
         queue.put_nowait(_QUEUE_SENTINEL)
-        await _persist_failed_phase(run_id, state)
+        # Fire-and-forget: awaiting inside a CANCELLING task would re-raise at
+        # the await and lose the write — the registry would show "queued"
+        # forever for a cancelled run. The helper contains its own failures.
+        asyncio.get_running_loop().create_task(_persist_failed_phase(run_id, state))
         raise
     except Exception as e:
         state.phase = "failed"
@@ -179,13 +184,13 @@ async def _persist_failed_phase(run_id: str, state: _RunState) -> None:
     in the regulator-facing registry forever."""
     await persist_run_completion(
         run_id,
-        {
-            "run_id": run_id,
-            "target_url": state.request.target_url,
-            "created_at": state.created_at,
-            "phase": "failed",
-            "finished_at": _iso_now(),
-        },
+        RunCompletion(
+            run_id=run_id,
+            target_url=state.request.target_url,
+            created_at=state.created_at,
+            phase="failed",
+            finished_at=_iso_now(),
+        ),
     )
 
 

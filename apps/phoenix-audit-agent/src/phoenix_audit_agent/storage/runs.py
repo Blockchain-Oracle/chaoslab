@@ -2,8 +2,9 @@
 
 Persistence failure must never kill an audit — the signed artifact set is the
 durable evidence; this collection is the registry index. Both write helpers
-contain ALL exceptions, log at CRITICAL, and return False so the caller can
-mark the run (`persistence_failed`) instead of dying.
+contain all `Exception`s (CancelledError still propagates), log at CRITICAL,
+and return False. The happy path additionally discloses `persistence_failed`
+on the complete frame; the failed/cancelled path is CRITICAL-log only.
 """
 
 from __future__ import annotations
@@ -14,7 +15,7 @@ from typing import Any, Protocol
 import structlog
 
 from phoenix_audit_agent.storage.firestore_client import get_firestore
-from phoenix_audit_agent.storage.models import RunRecord
+from phoenix_audit_agent.storage.models import RunCompletion, RunRecord
 
 _log = structlog.get_logger(__name__)
 
@@ -25,21 +26,10 @@ _COLLECTION = "runs"
 _WRITE_TIMEOUT_SEC = 5.0
 
 
-def assert_known_run_fields(fields: dict[str, Any]) -> None:
-    """finalize() writes raw dicts and RunRecord reads with extra='ignore' — a
-    typo'd key would write cleanly and silently read back as the field default.
-    Raise instead; the containment above converts the raise into a DISCLOSED
-    persistence_failed (drift-guard discipline)."""
-    unknown = set(fields) - set(RunRecord.model_fields)
-    if unknown:
-        msg = f"unknown RunRecord fields in finalize payload: {sorted(unknown)}"
-        raise ValueError(msg)
-
-
 class RunStore(Protocol):
     async def create(self, record: RunRecord) -> None: ...
 
-    async def finalize(self, run_id: str, fields: dict[str, Any]) -> None: ...
+    async def finalize(self, run_id: str, completion: RunCompletion) -> None: ...
 
     async def list_runs(
         self, *, agent_id: str | None = None, source: str | None = None, limit: int = 50
@@ -61,11 +51,16 @@ class FirestoreRunStore:
     async def create(self, record: RunRecord) -> None:
         await self.db.collection(_COLLECTION).document(record.run_id).set(record.model_dump())
 
-    async def finalize(self, run_id: str, fields: dict[str, Any]) -> None:
-        # merge=True heals a failed create: the completion write carries enough
-        # keys (run_id/target_url/created_at) to stand alone as a valid record.
-        assert_known_run_fields(fields)
-        await self.db.collection(_COLLECTION).document(run_id).set(fields, merge=True)
+    async def finalize(self, run_id: str, completion: RunCompletion) -> None:
+        # merge=True heals a failed create: RunCompletion carries enough keys
+        # (run_id/target_url/created_at) to stand alone as a valid record, and
+        # extra='forbid' on the model makes a typo'd field a constructor error
+        # instead of a silently-dropped write.
+        await (
+            self.db.collection(_COLLECTION)
+            .document(run_id)
+            .set(completion.merge_fields(), merge=True)
+        )
 
     async def list_runs(
         self, *, agent_id: str | None = None, source: str | None = None, limit: int = 50
@@ -121,10 +116,12 @@ async def create_run_record(record: RunRecord) -> bool:
     return True
 
 
-async def persist_run_completion(run_id: str, fields: dict[str, Any]) -> bool:
+async def persist_run_completion(run_id: str, completion: RunCompletion) -> bool:
     """Contained finalize — CRITICAL log on failure, never raises."""
     try:
-        await asyncio.wait_for(get_run_store().finalize(run_id, fields), timeout=_WRITE_TIMEOUT_SEC)
+        await asyncio.wait_for(
+            get_run_store().finalize(run_id, completion), timeout=_WRITE_TIMEOUT_SEC
+        )
     except Exception:
         _log.critical(
             "run_record_finalize_failed — run is NOT in the registry index; "
@@ -139,7 +136,6 @@ async def persist_run_completion(run_id: str, fields: dict[str, Any]) -> bool:
 __all__ = [
     "FirestoreRunStore",
     "RunStore",
-    "assert_known_run_fields",
     "create_run_record",
     "get_run_store",
     "persist_run_completion",

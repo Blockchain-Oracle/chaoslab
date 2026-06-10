@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import pytest
 
-from phoenix_audit_agent.storage.models import AgentRecord, RunRecord, RunSource
+from phoenix_audit_agent.storage.models import AgentRecord, RunCompletion, RunRecord, RunSource
 
 from .fakes import InMemoryAgentStore, InMemoryRunStore
 
@@ -52,15 +52,15 @@ async def test_finalize_merges_even_without_create() -> None:
     store = InMemoryRunStore()
     await store.finalize(
         "run_bbbbbbbbbbbb",
-        {
-            "run_id": "run_bbbbbbbbbbbb",
-            "target_url": "https://target.example",
-            "created_at": "2026-06-10T01:00:00Z",
-            "phase": "succeeded",
-            "passed": 5,
-            "failed": 1,
-            "finished_at": "2026-06-10T01:02:00Z",
-        },
+        RunCompletion(
+            run_id="run_bbbbbbbbbbbb",
+            target_url="https://target.example",
+            created_at="2026-06-10T01:00:00Z",
+            phase="succeeded",
+            passed=5,
+            failed=1,
+            finished_at="2026-06-10T01:02:00Z",
+        ),
     )
 
     record = await store.get("run_bbbbbbbbbbbb")

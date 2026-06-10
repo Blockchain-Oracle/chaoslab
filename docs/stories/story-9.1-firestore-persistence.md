@@ -1,7 +1,7 @@
 # Story 9.1 — Firestore persistence + runs/agents API
 
 **Epic:** Epic 9 — product surfaces go real
-**Status:** IN PROGRESS
+**Status:** COMPLETE (PR #92, 2026-06-10)
 **Depends on:** PR #91 (span-fetch fix), story-5.8 (real pipeline), story-6.7 (signed report)
 
 ## Why
@@ -41,8 +41,8 @@ auth scoping (story-9.4) is a filter, not a migration.
    artifact set is the durable evidence; history is an index). The `complete`
    SSE frame carries `persistence_failed: true` so the UI/registry can disclose.
 7. **Unit tests use the store seam** (in-memory fake of the same interface);
-   one `@pytest.mark.online` test exercises the real Firestore emulator when
-   `FIRESTORE_EMULATOR_HOST` is set.
+   one `@pytest.mark.online` test exercises real Firestore via ADC (or the
+   emulator when `FIRESTORE_EMULATOR_HOST` is set).
 
 ## File modification map
 
@@ -58,7 +58,7 @@ auth scoping (story-9.4) is a filter, not a migration.
 - `src/phoenix_audit_agent/main.py` — include routers; write-through on
   `POST /run`; `RunRequest.source`
 - `src/phoenix_audit_agent/audit_runner.py` — `persist_run_completion` seam
-  invoked after `complete`
+  invoked BEFORE the `complete` frame (so the frame can disclose `persistence_failed`)
 - `infra/workload-identity-federation.sh` — document `roles/datastore.user`
   grant (already applied to the live project 2026-06-10)
 - `tests/unit/storage/`, `tests/unit/api/` (new), `tests/unit/test_main.py`,

@@ -359,6 +359,72 @@ async def test_orchestrator_failure_persists_failed_phase(
     assert record.finished_at is not None
 
 
+async def test_cancelled_run_persists_failed_phase(
+    client: httpx.AsyncClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Cancellation must not leave the registry showing 'queued' forever —
+    the persist is fired as a SEPARATE task so cancelling the orchestrator
+    cannot kill the write."""
+    from phoenix_audit_agent import main as _main
+    from phoenix_audit_agent.storage import runs as run_storage
+
+    started = asyncio.Event()
+
+    async def hang(**_kw) -> None:
+        started.set()
+        await asyncio.sleep(30)
+
+    monkeypatch.setattr(_main, "drive_audit", hang)
+
+    r = await client.post("/run", json={"target_url": "http://localhost:8001"})
+    run_id = r.json()["run_id"]
+    await asyncio.wait_for(started.wait(), timeout=5)
+    _main._cancel_task(run_id)
+    task = _main._RUN_TASKS[run_id]
+    with pytest.raises(asyncio.CancelledError):
+        await task
+    # the fire-and-forget persist task needs a tick to run
+    for _ in range(20):
+        record = await run_storage.get_run_store().get(run_id)
+        if record is not None and record.phase == "failed":
+            break
+        await asyncio.sleep(0.05)
+    assert record is not None
+    assert record.phase == "failed"
+
+
+async def test_post_run_survives_store_create_failure(
+    client: httpx.AsyncClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A Firestore outage at create must not block starting an audit."""
+    from phoenix_audit_agent import main as _main
+    from phoenix_audit_agent.storage import runs as run_storage
+
+    class _DownStore:
+        async def create(self, record) -> None:
+            raise RuntimeError("firestore down")
+
+        async def finalize(self, run_id, completion) -> None:
+            raise RuntimeError("firestore down")
+
+        async def list_runs(self, **kw):
+            return []
+
+        async def get(self, run_id):
+            return None
+
+    run_storage.set_run_store(_DownStore())
+
+    async def noop_drive(run_id: str) -> None:
+        _main._RUN_QUEUES[run_id].put_nowait(None)
+
+    monkeypatch.setattr(_main, "_drive_orchestrator", noop_drive)
+
+    r = await client.post("/run", json={"target_url": "http://localhost:8001"})
+    assert r.status_code == 201
+    assert r.json()["run_id"].startswith("run_")
+
+
 async def test_post_run_writes_run_record_with_source(client: httpx.AsyncClient) -> None:
     """POST /run write-through: the registry index gets a queued record."""
     from phoenix_audit_agent.storage import runs as run_storage
