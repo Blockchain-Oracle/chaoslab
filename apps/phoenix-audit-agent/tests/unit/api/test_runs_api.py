@@ -223,3 +223,61 @@ async def test_list_runs_rejects_nonpositive_limit(client: httpx.AsyncClient) ->
     assert r.status_code == 422
     r = await client.get("/runs?limit=0")
     assert r.status_code == 422
+
+
+async def test_get_run_includes_events_url_when_available(
+    client: httpx.AsyncClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """events_available=True signs a fresh events.json URL — the replay
+    timeline rides the same deterministic-path signing as report artifacts
+    (story-9.11)."""
+    from phoenix_audit_agent.api import runs as runs_api
+
+    async def fake_sign(blob_name: str) -> str:
+        return f"https://storage.googleapis.com/signed/{blob_name}"
+
+    monkeypatch.setattr(runs_api, "sign_blob_url", fake_sign)
+
+    store = run_storage.get_run_store()
+    await store.create(
+        _record(
+            "run_666666666666",
+            created_at="2026-06-10T06:00:00Z",
+            phase="succeeded",
+            events_available=True,
+        )
+    )
+
+    r = await client.get("/runs/run_666666666666")
+    body = r.json()
+    assert body["run"]["events_available"] is True
+    urls = body["artifact_urls"]
+    assert urls["events.json"].endswith("reports/run_666666666666/events.json")
+    # report_available=False: no report artifacts may be implied by events
+    assert "report.pdf" not in urls
+
+
+async def test_get_run_without_events_has_no_events_url(
+    client: httpx.AsyncClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from phoenix_audit_agent.api import runs as runs_api
+
+    async def fake_sign(blob_name: str) -> str:
+        return f"https://storage.googleapis.com/signed/{blob_name}"
+
+    monkeypatch.setattr(runs_api, "sign_blob_url", fake_sign)
+
+    store = run_storage.get_run_store()
+    await store.create(
+        _record(
+            "run_777777777777",
+            created_at="2026-06-10T07:00:00Z",
+            phase="succeeded",
+            report_available=True,
+        )
+    )
+
+    r = await client.get("/runs/run_777777777777")
+    body = r.json()
+    assert body["run"]["events_available"] is False
+    assert "events.json" not in body["artifact_urls"]

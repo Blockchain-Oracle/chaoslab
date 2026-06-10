@@ -72,19 +72,14 @@ async def list_runs(
     return RunListResponse(runs=rows, truncated=truncated)
 
 
-@router.get("/runs/{run_id}", response_model=RunDetailResponse)
-async def get_run(
-    run_id: str, user: Annotated[AuthedUser, Depends(require_user)]
-) -> RunDetailResponse:
-    record = await get_run_store().get(run_id)
-    # Foreign-owned reads as not-found — a 403 would CONFIRM the id exists.
-    if record is None or record.owner_uid not in (None, user.uid):
-        raise HTTPException(status_code=404, detail=f"run_id not found: {run_id}")
-
+async def _detail_response(record: RunRecord) -> RunDetailResponse:
+    """Fresh-sign every artifact URL the record has earned."""
     blob_names: dict[str, str] = {}
     if record.report_available:
         for name in REPORT_ARTIFACT_NAMES:
             blob_names[name] = f"reports/{record.run_id}/{name}"
+    if record.events_available:
+        blob_names["events.json"] = f"reports/{record.run_id}/events.json"
     if record.recipe_id:
         blob_names["recipe.md"] = f"{record.recipe_id}.md"
 
@@ -98,11 +93,40 @@ async def get_run(
             if isinstance(result, BaseException):
                 # A signing failure must not 500 the whole record view — but it
                 # must stay DISTINGUISHABLE from "artifact does not exist".
-                _log.error("artifact_url_sign_failed", run_id=run_id, blob=blob, error=str(result))
+                _log.error(
+                    "artifact_url_sign_failed", run_id=record.run_id, blob=blob, error=str(result)
+                )
                 errors[name] = type(result).__name__
                 continue
             urls[name] = result
     return RunDetailResponse(run=record, artifact_urls=urls, artifact_url_errors=errors)
+
+
+@router.get("/runs/{run_id}", response_model=RunDetailResponse)
+async def get_run(
+    run_id: str, user: Annotated[AuthedUser, Depends(require_user)]
+) -> RunDetailResponse:
+    record = await get_run_store().get(run_id)
+    # Foreign-owned reads as not-found — a 403 would CONFIRM the id exists.
+    if record is None or record.owner_uid not in (None, user.uid):
+        raise HTTPException(status_code=404, detail=f"run_id not found: {run_id}")
+    return await _detail_response(record)
+
+
+@router.get("/featured-run", response_model=RunDetailResponse)
+async def featured_run() -> RunDetailResponse:
+    """Public (deliberately unauthenticated) — the newest ownerless finished
+    run with a replay timeline. Backs the landing /replay showcase; owned
+    runs can never surface here."""
+    rows, truncated = await get_run_store().list_runs(limit=200, visible_to=None)
+    for record in rows:
+        if record.owner_uid is None and record.phase == "succeeded" and record.events_available:
+            return await _detail_response(record)
+    if truncated:
+        # Samples may exist beyond the newest-200 window — disclosed, so the
+        # public showcase going dark under growth is greppable, not silent.
+        _log.warning("featured_run_404_window_truncated", scanned=len(rows))
+    raise HTTPException(status_code=404, detail="no featured run available")
 
 
 __all__ = ["router", "sign_blob_url"]
