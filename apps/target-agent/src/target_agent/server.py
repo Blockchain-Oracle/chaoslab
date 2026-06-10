@@ -24,6 +24,7 @@ Cloud Run:    Dockerfile sets PORT=8080; Cloud Run injects it at runtime.
 from __future__ import annotations
 
 import os
+from collections.abc import AsyncIterator
 from urllib.parse import urlparse
 
 # (1) Phoenix instrumentation FIRST. setup_observability() resolves
@@ -113,6 +114,8 @@ def _assemble_app() -> object:
     process's spans to the auditor's trace — the evidence chain Phoenix
     Audit's Judge reads (see target_agent.trace_context).
     """
+    from contextlib import asynccontextmanager
+
     from starlette.applications import Starlette
     from starlette.routing import Mount
 
@@ -121,8 +124,19 @@ def _assemble_app() -> object:
     from target_agent.trace_context import TraceContextMiddleware
 
     inner = _build_a2a_app()
+
+    @asynccontextmanager
+    async def _delegate_inner_lifespan(app: Starlette) -> AsyncIterator[None]:
+        # Starlette never runs a mounted sub-app's lifespan, and google-adk's
+        # to_a2a() registers ALL A2A routes (incl. the agent card) inside its
+        # lifespan — without this delegation every A2A path 404s in the
+        # container while unit tests with eager-routed fakes stay green.
+        async with inner.router.lifespan_context(inner):  # ty: ignore[unresolved-attribute]
+            yield
+
     app = Starlette(
-        routes=[*build_hook_routes(_agent), Mount("", app=inner)]  # ty: ignore[invalid-argument-type]
+        routes=[*build_hook_routes(_agent), Mount("", app=inner)],  # ty: ignore[invalid-argument-type]
+        lifespan=_delegate_inner_lifespan,
     )
     app.add_middleware(TraceContextMiddleware)
     return app
