@@ -158,6 +158,7 @@ async def _drive_orchestrator(run_id: str) -> None:
             runs_per_fault=state.request.runs_per_fault,
             emit=emit,
             set_phase=set_phase,
+            created_at=state.created_at,
         )
     except asyncio.CancelledError:
         state.phase = "failed"

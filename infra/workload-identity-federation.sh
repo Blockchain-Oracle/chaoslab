@@ -181,6 +181,44 @@ for role in \
     --quiet > /dev/null
 done
 
+# Story-6.7: Ed25519 report-signing key (ADR-014). Cloud KMS Ed25519 is
+# PureEdDSA — it signs RAW data, so the reporter signs sha256(file) as the
+# 32-byte message (KMS payload limits are KiB-scale; a font-embedded PDF
+# is not). Runtime SA needs roles/cloudkms.signerVerifier (asymmetric_sign
+# + get_public_key), key-scoped for least privilege.
+KMS_KEYRING="${KMS_KEYRING:-phoenix-audit}"
+KMS_KEY="${KMS_KEY:-report-signer}"
+KMS_LOCATION="${KMS_LOCATION:-us-central1}"
+echo "==> Ensuring KMS keyring + Ed25519 signing key (${KMS_KEYRING}/${KMS_KEY})"
+if ! gcloud kms keyrings describe "${KMS_KEYRING}" \
+  --project="${PROJECT}" --location="${KMS_LOCATION}" --quiet > /dev/null 2>&1; then
+  gcloud kms keyrings create "${KMS_KEYRING}" \
+    --project="${PROJECT}" --location="${KMS_LOCATION}" --quiet > /dev/null
+  echo "  -> keyring created"
+fi
+if gcloud kms keys describe "${KMS_KEY}" \
+  --project="${PROJECT}" --location="${KMS_LOCATION}" \
+  --keyring="${KMS_KEYRING}" --quiet > /dev/null 2>&1; then
+  echo "  -> key already exists"
+else
+  gcloud kms keys create "${KMS_KEY}" \
+    --project="${PROJECT}" --location="${KMS_LOCATION}" \
+    --keyring="${KMS_KEYRING}" \
+    --purpose=asymmetric-signing \
+    --default-algorithm=ec-sign-ed25519 \
+    --quiet > /dev/null
+  echo "  -> Ed25519 key created"
+fi
+echo "==> Binding roles/cloudkms.signerVerifier on the key for ${RUNTIME_SA_EMAIL}"
+gcloud kms keys add-iam-policy-binding "${KMS_KEY}" \
+  --project="${PROJECT}" --location="${KMS_LOCATION}" \
+  --keyring="${KMS_KEYRING}" \
+  --member="serviceAccount:${RUNTIME_SA_EMAIL}" \
+  --role="roles/cloudkms.signerVerifier" \
+  --quiet > /dev/null
+KMS_SIGNING_KEY_VERSION="projects/${PROJECT}/locations/${KMS_LOCATION}/keyRings/${KMS_KEYRING}/cryptoKeys/${KMS_KEY}/cryptoKeyVersions/1"
+echo "  -> set on Cloud Run: KMS_SIGNING_KEY_VERSION=${KMS_SIGNING_KEY_VERSION}"
+
 # GOTCHA-5: Every GitHub Actions JOB that needs GCP auth must declare
 # `permissions: id-token: write` at the JOB level. Workflow-level
 # permissions don't reliably inherit to all jobs across GitHub Actions

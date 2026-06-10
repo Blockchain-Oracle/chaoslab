@@ -1,14 +1,14 @@
 'use client'
 
 import { useRef } from 'react'
-import type { LiveCluster, LiveProbe, LiveRecipe } from '@/lib/sse-bridge'
+import type { LiveCluster, LiveProbe, LiveRecipe, LiveReport } from '@/lib/sse-bridge'
 import type { Phase } from '@/lib/types'
 import { deriveAudit } from '@/lib/timeline'
 import { CascadeOverlay } from './cascade-overlay'
 import { ChamberHeader } from './chamber-header'
 import { ClusterCard } from './cluster-card'
 import { EventFeed } from './event-feed'
-import { LiveClusterCard, LiveProbeLedger, LiveRecipeCard } from './live-probe-panel'
+import { LiveClusterCard, LiveProbeLedger, LiveRecipeCard, LiveReportRow } from './live-probe-panel'
 import { Pipeline } from './pipeline'
 import { ProbeLedger } from './probe-ledger'
 import { Receipt } from './receipt'
@@ -48,6 +48,8 @@ interface AuditChamberProps {
   liveRecipe?: LiveRecipe | null
   /** Live-mode only: authoritative tally from the complete frame. */
   liveSummary?: { passed: number; failed: number; errored: number } | null
+  /** Live-mode only: signed-report artifact URLs (or the loud skip reason). */
+  liveReport?: LiveReport | null
 }
 
 export function AuditChamber({
@@ -62,6 +64,7 @@ export function AuditChamber({
   liveCluster,
   liveRecipe,
   liveSummary,
+  liveReport,
 }: AuditChamberProps) {
   const ceiling = clockCeiling
   const { t, playing, setPlaying, seek, restart } = useAuditClock(
@@ -193,7 +196,10 @@ export function AuditChamber({
             Real wire events take precedence over the timeline fixtures. */}
         <div style={{ display: 'grid', gap: 22, alignContent: 'start' }}>
           {hasRealProbes ? (
-            <LiveProbeLedger probes={liveProbes ?? []} summary={liveSummary ?? null} />
+            <>
+              <LiveProbeLedger probes={liveProbes ?? []} summary={liveSummary ?? null} />
+              <LiveReportRow report={liveReport ?? null} />
+            </>
           ) : (
             <ProbeLedger s={s} failRefs={failRefs} />
           )}
