@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import re
 from collections.abc import Awaitable, Callable
+from datetime import UTC, datetime
 from typing import Any
 
 import structlog
@@ -34,6 +35,8 @@ from chaoslab_agent.judge.rubrics import RubricInput, apply_rubric
 from chaoslab_agent.patcher.agent import Patcher
 from chaoslab_agent.patcher.markdown_emitter import MarkdownEmitter
 from chaoslab_agent.phoenix_tools.run_experiment import _build_client
+from chaoslab_agent.reporter import ReportData, ReportProbe
+from chaoslab_agent.reporter.service import generate_signed_report
 
 _log = structlog.get_logger(__name__)
 
@@ -74,10 +77,14 @@ class _JudgeTally:
 
     def __init__(self) -> None:
         self.failures: list[FailedSpan] = []
+        self.report_probes: list[ReportProbe] = []
         self.passed = 0
         self.failed = 0
         self.errored = 0
         self.transport_failed = 0
+        # Probes whose response span did NOT carry phoenix_audit.honored=true
+        # (docs/header-convention.md). Drives the locked warning's {N}.
+        self.honored_missing = 0
 
 
 async def _judge_attacks(
@@ -98,10 +105,22 @@ async def _judge_attacks(
     tally = _JudgeTally()
     for result in state.attack_results:
         n = result.run_idx + 1
+        if result.span_attributes.get("phoenix_audit.honored") is not True:
+            tally.honored_missing += 1
         transport_ok = result.status == "ok" and bool(_HEX_SPAN.fullmatch(result.span_id))
         if not transport_ok:
             tally.failed += 1
             tally.transport_failed += 1
+            tally.report_probes.append(
+                ReportProbe(
+                    n=n,
+                    fault_class=result.fault_class,
+                    verdict="fail",
+                    span_id=result.span_id,
+                    score=0.0,
+                    transport_error=True,
+                )
+            )
             await emit(
                 "test_verdict",
                 {
@@ -126,6 +145,16 @@ async def _judge_attacks(
             )
         except Exception as rubric_err:
             tally.errored += 1
+            tally.report_probes.append(
+                ReportProbe(
+                    n=n,
+                    fault_class=result.fault_class,
+                    verdict="error",
+                    span_id=result.span_id,
+                    score=0.0,
+                    rubric_error=True,
+                )
+            )
             _log.error(
                 "rubric_failed",
                 run_id=run_id,
@@ -163,6 +192,15 @@ async def _judge_attacks(
                     trace_excerpt=excerpt,
                 )
             )
+        tally.report_probes.append(
+            ReportProbe(
+                n=n,
+                fault_class=result.fault_class,
+                verdict="pass" if score.passed else "fail",
+                span_id=result.span_id,
+                score=score.score,
+            )
+        )
         await emit(
             "test_verdict",
             {
@@ -178,6 +216,29 @@ async def _judge_attacks(
     return tally
 
 
+async def _emit_signed_report(
+    report_data: ReportData, *, emit: EmitFn, run_id: str
+) -> dict[str, str] | None:
+    """Generate + deliver the signed report; emit `report` or the loud skip."""
+    report_urls = await generate_signed_report(report_data)
+    if report_urls is None:
+        await emit(
+            "report_skipped",
+            {"reason": "signing_key_not_configured", "run_id": run_id},
+        )
+        return None
+    await emit(
+        "report",
+        {
+            "pdf_url": report_urls.get("report.pdf"),
+            "json_url": report_urls.get("report.json"),
+            "signature_url": report_urls.get("signature.json"),
+            "run_id": run_id,
+        },
+    )
+    return report_urls
+
+
 async def drive_audit(
     *,
     run_id: str,
@@ -186,12 +247,14 @@ async def drive_audit(
     emit: EmitFn,
     set_phase: SetPhaseFn,
     prompt: str = DEFAULT_AUDIT_PROMPT,
+    created_at: str | None = None,
 ) -> None:
     """Run one full audit and emit the SSE event stream.
 
     Raises on pipeline failure — the caller (main._drive_orchestrator) owns
     the error/cancelled framing and the queue sentinel.
     """
+    created_at = created_at or datetime.now(UTC).isoformat()
     # ---- injector ---------------------------------------------------------
     set_phase("injector")
     await emit("phase_change", {"phase": "injector", "run_id": run_id})
@@ -322,6 +385,30 @@ async def drive_audit(
             {"recipe_id": recipe_id, "markdown_url": markdown_url, "run_id": run_id},
         )
 
+    # Every audit run yields a signed report — including the clean bill.
+    report_data = ReportData(
+        run_id=run_id,
+        target_url=target_url,
+        framework_label="EU AI Act · high-risk system",
+        created_at=created_at,
+        probes=tally.report_probes,
+        passed=passed,
+        failed=failed,
+        errored=errored,
+        transport_failed=transport_failed,
+        cluster_ids=[c.cluster_id for c in cluster_set.clusters] if cluster_set else [],
+        root_causes=[c.root_cause for c in cluster_set.clusters] if cluster_set else [],
+        excluded_transport_failures=transport_failed,
+        annotation_writeback_failed=writeback_failed,
+        clustering_skipped=(
+            "no_clusterable_failures" if cluster_set is None and failed > 0 else None
+        ),
+        recipe_id=recipe_id,
+        markdown_url=markdown_url,
+        honored_missing_count=tally.honored_missing,
+    )
+    report_urls = await _emit_signed_report(report_data, emit=emit, run_id=run_id)
+
     set_phase("succeeded")
     await emit(
         "complete",
@@ -334,5 +421,6 @@ async def drive_audit(
             "transport_failed": transport_failed,
             "recipe_id": recipe_id,
             "markdown_url": markdown_url,
+            "report_pdf_url": report_urls.get("report.pdf") if report_urls else None,
         },
     )

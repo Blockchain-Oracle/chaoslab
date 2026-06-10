@@ -45,6 +45,15 @@ export interface LiveRecipe {
   markdownUrl: string | null
 }
 
+export interface LiveReport {
+  pdfUrl: string | null
+  jsonUrl: string | null
+  signatureUrl: string | null
+  /** Set when the backend skipped report generation (e.g. signing key
+   *  not configured) — surfaced, never silent. */
+  skippedReason: string | null
+}
+
 export interface AuditStreamState {
   connected: boolean
   phase: Phase
@@ -60,6 +69,7 @@ export interface AuditStreamState {
   probes: LiveProbe[]
   cluster: LiveCluster | null
   recipe: LiveRecipe | null
+  report: LiveReport | null
   /** Final tally from the complete frame, when provided — the backend's
    *  authoritative counts, preferred over frontend-derived tallies. */
   summary: { passed: number; failed: number; errored: number } | null
@@ -139,6 +149,7 @@ export function useAuditStream(runId: string): AuditStreamState {
     probes: [],
     cluster: null,
     recipe: null,
+    report: null,
     summary: null,
     error: null,
   })
@@ -304,6 +315,41 @@ export function useAuditStream(runId: string): AuditStreamState {
       setState((s) => ({
         ...s,
         recipe: { recipeId: p.recipe_id ?? '', markdownUrl: p.markdown_url ?? null },
+      }))
+    })
+
+    source.addEventListener('report', (e) => {
+      const raw = data(e)
+      append(`report ${raw}`)
+      const p = parseJson<{
+        pdf_url?: string
+        json_url?: string
+        signature_url?: string
+      }>(raw)
+      if (!p) return
+      setState((s) => ({
+        ...s,
+        report: {
+          pdfUrl: p.pdf_url ?? null,
+          jsonUrl: p.json_url ?? null,
+          signatureUrl: p.signature_url ?? null,
+          skippedReason: null,
+        },
+      }))
+    })
+
+    source.addEventListener('report_skipped', (e) => {
+      const raw = data(e)
+      append(`report_skipped ${raw}`)
+      const p = parseJson<{ reason?: string }>(raw)
+      setState((s) => ({
+        ...s,
+        report: {
+          pdfUrl: null,
+          jsonUrl: null,
+          signatureUrl: null,
+          skippedReason: p?.reason ?? 'unknown',
+        },
       }))
     })
 

@@ -1,5 +1,5 @@
 import { FaultClass, SpanLink, Verdict } from '@/components/ui/stamps'
-import type { LiveCluster, LiveProbe, LiveRecipe } from '@/lib/sse-bridge'
+import type { LiveCluster, LiveProbe, LiveRecipe, LiveReport } from '@/lib/sse-bridge'
 
 // Renders REAL backend per-probe events. Deliberately leaner than the
 // fixture-driven ProbeLedger: no citations / session-mode / honored chips,
@@ -123,6 +123,69 @@ export function LiveProbeLedger({ probes, summary }: LiveProbeLedgerProps) {
       {probes.map((p) => (
         <LiveProbeRow key={p.n} probe={p} />
       ))}
+    </div>
+  )
+}
+
+export function LiveReportRow({ report }: { report: LiveReport | null }) {
+  if (!report) return null
+  if (report.skippedReason) {
+    return (
+      <div
+        style={{
+          border: '1px dashed var(--warn)',
+          borderRadius: 4,
+          padding: '12px 16px',
+          background: 'rgba(190,150,40,0.07)',
+        }}
+      >
+        <span className="mono" style={{ fontSize: 10.5, color: 'var(--warn)' }}>
+          ⚠ SIGNED REPORT NOT GENERATED — {report.skippedReason.replace(/_/g, ' ')}. The audit ran;
+          nothing was signed or filed.
+        </span>
+      </div>
+    )
+  }
+  return (
+    <div
+      style={{
+        border: '1px solid var(--pass-glow)',
+        borderRadius: 4,
+        padding: '12px 16px',
+        background: 'rgba(76,175,125,0.06)',
+        display: 'flex',
+        gap: 18,
+        alignItems: 'baseline',
+        flexWrap: 'wrap',
+      }}
+    >
+      <span
+        className="mono"
+        style={{ fontSize: 10, letterSpacing: '0.16em', color: 'var(--pass-glow)' }}
+      >
+        SIGNED AUDIT REPORT · ED25519 · CLOUD KMS
+      </span>
+      <span style={{ flex: 1 }}></span>
+      {report.pdfUrl ? (
+        <a className="span-link" href={report.pdfUrl} target="_blank" rel="noreferrer noopener">
+          report.pdf ↗
+        </a>
+      ) : null}
+      {report.jsonUrl ? (
+        <a className="span-link" href={report.jsonUrl} target="_blank" rel="noreferrer noopener">
+          report.json ↗
+        </a>
+      ) : null}
+      {report.signatureUrl ? (
+        <a
+          className="span-link"
+          href={report.signatureUrl}
+          target="_blank"
+          rel="noreferrer noopener"
+        >
+          signature.json ↗
+        </a>
+      ) : null}
     </div>
   )
 }

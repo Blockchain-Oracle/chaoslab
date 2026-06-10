@@ -53,6 +53,7 @@ def _attack_result(
 class _Emitted:
     frames: list[tuple[str, dict[str, Any]]] = field(default_factory=list)
     clusterer_calls: list[list[Any]] = field(default_factory=list)
+    report_data: list[Any] = field(default_factory=list)
 
     async def emit(self, event: str, payload: dict[str, Any]) -> None:
         self.frames.append((event, payload))
@@ -152,6 +153,14 @@ def wired(monkeypatch: pytest.MonkeyPatch) -> _Emitted:
         async def emit(self, recipe: Any) -> _FakeEmitResult:
             return _FakeEmitResult()
 
+    async def fake_generate_signed_report(data: Any) -> dict[str, str]:
+        emitted.report_data.append(data)
+        return {
+            "report.pdf": "https://gcs.example/reports/r/report.pdf",
+            "report.json": "https://gcs.example/reports/r/report.json",
+            "signature.json": "https://gcs.example/reports/r/signature.json",
+        }
+
     class _FakeSpans:
         async def get_span(self, span_id: str) -> Any:  # pragma: no cover
             raise NotImplementedError
@@ -165,6 +174,7 @@ def wired(monkeypatch: pytest.MonkeyPatch) -> _Emitted:
     monkeypatch.setattr(ar, "Patcher", _FakePatcher)
     monkeypatch.setattr(ar, "MarkdownEmitter", _FakeMarkdownEmitter)
     monkeypatch.setattr(ar, "make_phoenix_client", _FakePhoenix)
+    monkeypatch.setattr(ar, "generate_signed_report", fake_generate_signed_report)
 
     return emitted
 
@@ -229,13 +239,45 @@ async def test_event_order_with_failures(wired: _Emitted) -> None:
     assert recipe_payload["recipe_id"] == "recipe_deadbeefcafe"
     assert recipe_payload["markdown_url"].startswith("https://")
 
+    # every run emits a signed report; ReportData carries the real probe rows
+    report_payload = wired.first("report")
+    assert report_payload["pdf_url"].endswith("report.pdf")
+    (rd,) = wired.report_data
+    assert len(rd.probes) == 3
+    assert [p.verdict for p in rd.probes] == ["fail", "pass", "fail"] or [
+        p.verdict for p in sorted(rd.probes, key=lambda p: p.n)
+    ] == ["pass", "fail", "fail"]
+
     complete = wired.first("complete")
     assert complete["passed"] == 1
     assert complete["failed"] == 2
     assert complete["errored"] == 0
     assert complete["transport_failed"] == 1
+    assert complete["report_pdf_url"].endswith("report.pdf")
 
     assert phases == ["injector", "judge", "patcher", "succeeded"]
+
+
+@pytest.mark.asyncio
+async def test_report_skipped_loudly_when_signing_key_missing(
+    wired: _Emitted, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """No signing key => report_skipped event, never a silent unsigned artifact."""
+    import chaoslab_agent.audit_runner as ar
+
+    async def no_key(_data: Any) -> None:
+        return None
+
+    monkeypatch.setattr(ar, "generate_signed_report", no_key)
+    _FakeInjector.results = [_attack_result(0, SPAN_OK_PASS, "ok")]
+    phases: list[str] = []
+
+    await drive_audit_for_test(wired, phases)
+
+    skipped = wired.first("report_skipped")
+    assert skipped["reason"] == "signing_key_not_configured"
+    assert "report" not in wired.names()
+    assert wired.first("complete")["report_pdf_url"] is None
 
 
 @pytest.mark.asyncio

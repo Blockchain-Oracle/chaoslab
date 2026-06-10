@@ -93,6 +93,15 @@ class Settings(BaseSettings):
         ge=1,
         description="Signed URL validity for recipe Markdown — covers a typical judging cadence.",
     )
+    KMS_SIGNING_KEY_VERSION: str = Field(
+        default="",
+        description=(
+            "Full Cloud KMS key-version resource name for Ed25519 report signing "
+            "(projects/<p>/locations/<l>/keyRings/<r>/cryptoKeys/<k>/cryptoKeyVersions/<v>). "
+            "Empty => report generation is SKIPPED LOUDLY (CRITICAL log + "
+            "report_skipped SSE event); never silently unsigned (ADR-014)."
+        ),
+    )
     GCS_PROBE_AT_STARTUP: bool = Field(
         default=True,
         description=(

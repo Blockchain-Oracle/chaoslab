@@ -130,6 +130,8 @@ jobs:
           cache-dependency-glob: "**/uv.lock"
       - name: Install Python via uv
         run: uv python install 3.12
+      - name: Install Pango (WeasyPrint PDF renderer, story-6.7)
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends libpango-1.0-0 libpangoft2-1.0-0 libharfbuzz-subset0
       - name: uv sync
         run: uv sync --frozen --all-extras
       - name: pytest (chaoslab-agent)

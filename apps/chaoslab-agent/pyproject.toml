@@ -39,6 +39,9 @@ dependencies = [
   # `create_branch` / `create_or_update_file` (ADR-011). The MCP path is used only
   # for `create_merge_request` — see patcher/_gitlab_mcp_client.py.
   "python-gitlab>=4.0,<6.0",
+  "weasyprint>=69.0",
+  "google-cloud-kms>=3.13.0",
+  "google-crc32c>=1.8.0",
 ]
 
 [dependency-groups]
