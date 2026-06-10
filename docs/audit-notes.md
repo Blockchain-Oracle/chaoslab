@@ -107,6 +107,22 @@ B1-B13 listed in `spec-audit/00-audit-summary.md` §"Minor amendments." Doc-hygi
 
 Discoveries made while implementing stories that contradict spec text. Each one updates this section so the next story doesn't re-hit the same wall.
 
+### IF-16 — Staging had five stacked silent misconfigurations; no deployed audit had ever produced a real verdict (A1 seeding, 2026-06-10)
+
+**Discovered in:** story-9.11 verification (seeding staging with real sample runs). Five independent faults, each silently degrading the deployed pipeline while local tests stayed green:
+
+1. **`PUBLIC_URL` was never set on the deployed target-agent** — the agent card advertised `http://localhost:8001`, so every A2A `message/send` dispatched to localhost and audit baselines failed 0/5. The server code's PUBLIC_URL branch (issue #22 fix) existed since S2.4 but the deploy workflow never injected the env var. Fixed: `PUBLIC_URL=__RESOLVE_SELF_URL__` in staging-deploy.yaml.
+2. **Starlette never runs a mounted sub-app's lifespan, and current google-adk's `to_a2a()` registers ALL A2A routes inside its lifespan** — rebuilding target-agent from a post-#98 lockfile 404'd every A2A path (incl. the agent card; caught by deploy smoke). Old images worked only because pre-#98 adk registered routes eagerly. Fixed: `_assemble_app` delegates to `inner.router.lifespan_context(inner)` (PR #102).
+3. **Phoenix Cloud REQUIRES the space-scoped URL** (`https://app.phoenix.arize.com/s/blockchainoracle-dev`, per RAT-results C1) — the deployed bare `https://app.phoenix.arize.com/v1/traces` 401'd every span export AND every judge rubric read, silently, since deploy day. The stored API key was always valid.
+4. **`gemini-3.5-flash` is not served from `us-central1` on Vertex AI — only from `global`** — after the Vertex switch (2026-06-10 16:48), every target-agent LLM call 404'd. `GOOGLE_CLOUD_LOCATION=global` is required (Cloud Run region stays us-central1 — these are independent).
+5. **Cloud KMS was never provisioned** (API disabled; no keyring) — every deployed run logged CRITICAL and skipped the signed report; `report_available` was false product-wide. Fixed: keyring `phoenix-audit`, Ed25519 key `report-signer`, `roles/cloudkms.signerVerifier` to chaoslab-runtime, `KMS_SIGNING_KEY_VERSION` env in the workflow.
+
+**Plus one routing discovery:** when the auditor joins W3C trace context onto probes, Phoenix routes the TARGET's spans into the **auditor's** project (`phoenix-audit`), NOT the target's own resource project (`target-agent`) — context/baggage wins over the exporter's resource attribute. Un-joined requests land in `target-agent`. The judge must therefore read evidence with `TARGET_PHOENIX_PROJECT=phoenix-audit`. Empirically verified both ways (bare curl → target-agent project; traceparent-carrying curl → joined project). Side benefit: the full probe→agent→LLM→tool waterfall renders as ONE trace in ONE Phoenix project.
+
+**Local-seeding gotchas:** user ADC cannot mint v4 signed URLs or KMS-sign (no private key, no `sign_bytes`) — run seeds with an impersonated-SA ADC file (`type: impersonated_service_account` wrapping the user ADC; requires `roles/iam.serviceAccountTokenCreator` on chaoslab-runtime, the B8 self-grant).
+
+**Rule this memorializes:** a deploy workflow env-var omission fails EXACTLY like pattern #4 in CLAUDE.md (fallback indistinguishable from real output) but at infra level — the service boots, smokes green, and silently produces degraded output. Every env var a service reads must appear in the deploy workflow or fail loud at boot (the module-load guard pattern).
+
 ### IF-15 — Fault injection was specced in-process; the deployed topology is remote (evidence-chain repair, 2026-06-10)
 
 **Discovered in:** full-codebase review sweep. Story-5.7 / architecture/04 §8 specified fault installation via in-process ADK callbacks (`agent.before_tool_callback = ...`), and the Injector accessed `target.agent` — but S2.4 deployed the target as a REMOTE Cloud Run service reached over A2A, where no `.agent` object exists. Compounding: no adapter wrote `metadata["trace_id"]`, and the judge's rubrics read span attributes (`phoenix-audit.payload` etc.) that no code ever wrote. The suite stayed green because integration fakes hand-fed exactly the contract production never fulfilled (the `get_span()` incident class, at pipeline scale). **The shipped pipeline had never completed a genuine end-to-end audit.**
