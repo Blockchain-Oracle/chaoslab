@@ -111,6 +111,29 @@ async def test_launch_failure_contained_and_counted() -> None:
     assert bad.next_fire_at > _iso(datetime.now(UTC))  # but claimed — no storm
 
 
+@pytest.mark.asyncio
+async def test_mark_fired_failure_is_contained_and_disclosed() -> None:
+    """A bookkeeping failure after a successful launch must be counted in the
+    tick response — the run happened; operators must see the lag."""
+    store = InMemoryScheduleStore()
+    past = _iso(datetime.now(UTC) - timedelta(minutes=5))
+    await store.upsert(_schedule("sch_due", next_fire_at=past))
+
+    async def boom_mark_fired(schedule_id: str, *, run_id: str, fired_at: str) -> None:
+        msg = "synthetic firestore outage"
+        raise RuntimeError(msg)
+
+    store.mark_fired = boom_mark_fired  # ty: ignore[invalid-assignment]
+
+    async def launch(schedule: ScheduleRecord) -> str:
+        return "run_scheduled001"
+
+    result = await run_tick(store=store, launch=launch)
+    assert result.launched == ["run_scheduled001"]  # the audit DID run
+    assert result.launch_failures == 0
+    assert result.bookkeeping_failures == 1
+
+
 def test_advance_anchors_to_schedule_not_tick_time() -> None:
     """+1 interval from the OLD fire time — no drift accumulation."""
     # Second precision — the canonical timestamp format truncates microseconds.

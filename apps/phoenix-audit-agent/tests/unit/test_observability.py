@@ -88,6 +88,15 @@ def test_setup_logging_configures_stdlib_root_logger() -> None:
         setup_logging(env="prod")
         assert root.handlers, "setup_logging must attach a root stdlib handler"
         assert root.getEffectiveLevel() <= logging.INFO
+        # End-to-end: an actual stdlib INFO line must reach the handler — the
+        # original bug was INFO vanishing via the lastResort handler.
+        import io
+
+        capture = io.StringIO()
+        probe_handler = logging.StreamHandler(capture)
+        root.addHandler(probe_handler)
+        logging.getLogger("phoenix_audit_agent.obs_probe").info("stdlib_info_visible")
+        assert "stdlib_info_visible" in capture.getvalue()
     finally:
         for h in list(root.handlers):
             root.removeHandler(h)

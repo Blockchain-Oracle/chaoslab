@@ -29,11 +29,25 @@ describe('runToHistoryRow', () => {
     expect(row.framework).toBe('EU AI Act') // chip text, not the full label
     expect(row.pass).toBe(5)
     expect(row.fail).toBe(1)
+    expect(row.errored).toBe(0)
+    expect(row.transportFailed).toBe(0)
     expect(row.recipe).toBe(true)
     expect(row.mr).toBe(true)
     expect(row.mrUrl).toContain('gitlab.com')
     expect(row.targetUrl).toBe('https://target-agent.example.app')
     expect(row.source).toBe('manual')
+  })
+
+  it('surfaces errored/transport_failed — an all-errored run must not look clean', () => {
+    const row = runToHistoryRow({
+      ...runDto,
+      passed: 0,
+      failed: 0,
+      errored: 6,
+      transport_failed: 2,
+    })
+    expect(row.errored).toBe(6)
+    expect(row.transportFailed).toBe(2)
   })
 
   it('null agent_id falls back to demo-target and absent mr stays absent', () => {

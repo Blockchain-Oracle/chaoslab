@@ -71,7 +71,9 @@ def test_loopback_allowed_in_dev(local: str) -> None:
     assert validate_target_url(local) == local
 
 
-@pytest.mark.parametrize("local", ["http://localhost:8001", "http://127.0.0.1:8001"])
+@pytest.mark.parametrize(
+    "local", ["http://localhost:8001", "http://127.0.0.1:8001", "http://[::1]:8001"]
+)
 def test_loopback_blocked_in_prod(local: str, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("ENVIRONMENT", "prod")
     get_settings.cache_clear()
