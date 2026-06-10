@@ -96,9 +96,10 @@ function HistoryRow({ run, agents }: RowProps) {
           </A>
         ) : null}
         {run.recipe && run.reportAvailable ? (
-          // The report page exposes the recipe.md download with a freshly
-          // signed URL.
-          <A to={'report/' + run.id} className="span-link" style={{ marginRight: 12 }}>
+          // The recipe lives on its own surface (Surface G) per the
+          // prototype — clicking goes straight to /recipe/[runId], not back
+          // to the report cover.
+          <A to={'recipe/' + run.id} className="span-link" style={{ marginRight: 12 }}>
             recipe
           </A>
         ) : null}

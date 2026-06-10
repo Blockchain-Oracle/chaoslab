@@ -109,6 +109,7 @@ class _Emitted:
     frames: list[tuple[str, dict[str, Any]]] = field(default_factory=list)
     clusterer_calls: list[list[Any]] = field(default_factory=list)
     report_data: list[Any] = field(default_factory=list)
+    recipe_markdowns: list[str | None] = field(default_factory=list)
     events_calls: list[dict[str, Any]] = field(default_factory=list)
 
     async def emit(self, event: str, payload: dict[str, Any]) -> None:
@@ -209,8 +210,11 @@ def wired(monkeypatch: pytest.MonkeyPatch) -> _Emitted:
         async def emit(self, recipe: Any) -> _FakeEmitResult:
             return _FakeEmitResult()
 
-    async def fake_generate_signed_report(data: Any) -> dict[str, str]:
+    async def fake_generate_signed_report(
+        data: Any, *, recipe_markdown: str | None = None
+    ) -> dict[str, str]:
         emitted.report_data.append(data)
+        emitted.recipe_markdowns.append(recipe_markdown)
         return {
             "report.pdf": "https://gcs.example/reports/r/report.pdf",
             "report.json": "https://gcs.example/reports/r/report.json",
@@ -331,6 +335,12 @@ async def test_event_order_with_failures(wired: _Emitted) -> None:
     assert complete["transport_failed"] == 1
     assert complete["report_pdf_url"].endswith("report.pdf")
 
+    # The durable PDF renders the recipe CONTENT (story-9.13): the rendered
+    # markdown threads into report generation whenever a recipe was produced.
+    (recipe_md,) = wired.recipe_markdowns
+    assert recipe_md is not None
+    assert "Hardening Recipe" in recipe_md
+
     assert phases == ["injector", "judge", "patcher", "succeeded"]
 
 
@@ -341,7 +351,7 @@ async def test_report_skipped_loudly_when_signing_key_missing(
     """No signing key => report_skipped event, never a silent unsigned artifact."""
     import phoenix_audit_agent.audit_runner as ar
 
-    async def no_key(_data: Any) -> None:
+    async def no_key(_data: Any, *, recipe_markdown: str | None = None) -> None:
         return None
 
     monkeypatch.setattr(ar, "generate_signed_report", no_key)
@@ -364,7 +374,7 @@ async def test_report_generation_exception_is_contained(
     completes with a MARKED report_skipped, never an error frame."""
     import phoenix_audit_agent.audit_runner as ar
 
-    async def boom(_data: Any) -> None:
+    async def boom(_data: Any, *, recipe_markdown: str | None = None) -> None:
         msg = "synthetic-kms-outage"
         raise RuntimeError(msg)
 

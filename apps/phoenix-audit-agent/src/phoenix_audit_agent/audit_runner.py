@@ -30,6 +30,7 @@ from phoenix_audit_agent.injector.target_adapters import AdapterTier, ADKAdapter
 from phoenix_audit_agent.judge import AnnotationWritebackError, run_clustering
 from phoenix_audit_agent.judge.rubrics import apply_rubric
 from phoenix_audit_agent.judge_phase import judge_attacks
+from phoenix_audit_agent.patcher._markdown_renderer import render_recipe
 from phoenix_audit_agent.patcher.agent import Patcher
 from phoenix_audit_agent.patcher.markdown_emitter import MarkdownEmitter
 from phoenix_audit_agent.phoenix_tools.run_experiment import _build_client
@@ -82,7 +83,11 @@ def build_adapter(target_url: str) -> Any:
 
 
 async def _emit_signed_report(
-    report_data: ReportData, *, emit: EmitFn, run_id: str
+    report_data: ReportData,
+    *,
+    emit: EmitFn,
+    run_id: str,
+    recipe_markdown: str | None = None,
 ) -> dict[str, str] | None:
     """Generate + deliver the signed report; emit `report` or the loud skip.
 
@@ -92,7 +97,7 @@ async def _emit_signed_report(
     marked with the exception type — never silent (CLAUDE.md pattern #4).
     """
     try:
-        report_urls = await generate_signed_report(report_data)
+        report_urls = await generate_signed_report(report_data, recipe_markdown=recipe_markdown)
     except Exception as report_err:
         _log.error(
             "report_generation_failed",
@@ -259,6 +264,7 @@ async def drive_audit(
 
         recipe_id: str | None = None
         markdown_url: str | None = None
+        recipe_markdown: str | None = None
         cluster_set = None
         writeback_failed = False
 
@@ -330,6 +336,10 @@ async def drive_audit(
             emit_result = await MarkdownEmitter().emit(recipe)
             recipe_id = recipe.recipe_id
             markdown_url = emit_result.signed_url
+            # The durable PDF renders the recipe CONTENT — never the expiring
+            # signed URL (story-9.13). render_recipe is pure; same bytes as
+            # the uploaded artifact.
+            recipe_markdown = render_recipe(recipe)
             await emit(
                 "recipe",
                 {"recipe_id": recipe_id, "markdown_url": markdown_url, "run_id": run_id},
@@ -363,7 +373,9 @@ async def drive_audit(
             honored_missing_count=tally.honored_missing,
             honored_unreadable_count=tally.honored_unreadable,
         )
-        report_urls = await _emit_signed_report(report_data, emit=emit, run_id=run_id)
+        report_urls = await _emit_signed_report(
+            report_data, emit=emit, run_id=run_id, recipe_markdown=recipe_markdown
+        )
 
         set_phase("succeeded")
         await _finalize_run(

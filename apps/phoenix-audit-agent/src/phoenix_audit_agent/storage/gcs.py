@@ -39,7 +39,7 @@ def _iam_signing_credentials() -> Any:
     return _IAM_SIGNING_CREDS
 
 
-def signed_get_url(blob: Any, *, ttl: timedelta) -> str:
+def signed_get_url(blob: Any, *, ttl: timedelta, disposition: str | None = None) -> str:
     """v4 signed GET URL that also works on token-only credentials.
 
     Cloud Run's metadata-server credentials carry NO private key — a bare
@@ -64,6 +64,10 @@ def signed_get_url(blob: Any, *, ttl: timedelta) -> str:
             ),
             "access_token": iam_creds.token,
         }
+    if disposition:
+        # Baked into the v4 signature: the browser downloads instead of
+        # rendering raw JSON/markdown in a tab (server-side fetches ignore it).
+        kwargs["response_disposition"] = disposition
     return str(blob.generate_signed_url(version="v4", expiration=ttl, method="GET", **kwargs))
 
 
