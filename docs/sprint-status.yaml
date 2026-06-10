@@ -369,6 +369,16 @@ stories:
     pr_url: "https://github.com/Blockchain-Oracle/chaoslab/pull/74"
     merged_at: "2026-06-09T19:00:00Z"
 
+  - id: story-6.7-signed-pdf-report
+    epic: "Epic 6 — Judge + Patcher"
+    status: COMPLETE
+    estimate_hours: 0.0
+    tags: [backend, p0, reporter, kms, pdf]
+    depends_on: [story-5.8-run-real-pipeline, story-6.5-markdown-emitter]
+    issue_url: ""
+    pr_url: "https://github.com/Blockchain-Oracle/chaoslab/pull/82"
+    merged_at: "2026-06-10T01:35:00Z"
+
   # ---------- Epic 7 — chaoslab-web frontend ----------
   - id: story-7.1-nextjs-scaffold
     epic: "Epic 7 — chaoslab-web frontend"
