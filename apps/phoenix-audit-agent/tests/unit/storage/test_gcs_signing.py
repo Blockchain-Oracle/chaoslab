@@ -12,6 +12,9 @@ from __future__ import annotations
 from datetime import timedelta
 from typing import Any
 
+import pytest
+
+from phoenix_audit_agent.storage import gcs
 from phoenix_audit_agent.storage.gcs import signed_get_url
 
 _TTL = timedelta(days=2)
@@ -65,24 +68,33 @@ def test_signer_credentials_sign_directly() -> None:
     assert blob.kwargs["expiration"] == _TTL
 
 
-def test_token_only_credentials_route_through_iam_signing() -> None:
-    creds = _TokenOnlyCreds()
-    blob = _StubBlob(client=_StubClient(creds))
+def test_token_only_credentials_route_through_iam_signing(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # The signBlob auth token must come from SEPARATE cloud-platform-scoped
+    # credentials — the storage client's devstorage-scoped token gets 403
+    # "insufficient authentication scopes" from the IAM credentials API.
+    iam_creds = _TokenOnlyCreds()
+    monkeypatch.setattr(gcs, "_iam_signing_credentials", lambda: iam_creds)
+    storage_creds = _TokenOnlyCreds()
+    blob = _StubBlob(client=_StubClient(storage_creds))
     url = signed_get_url(blob, ttl=_TTL)
     assert url == "https://signed.example/blob"
-    assert creds.refreshed == 1
+    assert iam_creds.refreshed == 1
+    assert storage_creds.refreshed == 0  # never refreshed, never used as token
     assert blob.kwargs is not None
-    assert blob.kwargs["service_account_email"] == creds.service_account_email
+    assert blob.kwargs["service_account_email"] == iam_creds.service_account_email
     assert blob.kwargs["access_token"] == "ya29.token"
 
 
-def test_valid_token_is_not_refreshed_again() -> None:
-    creds = _TokenOnlyCreds()
-    creds.token = "ya29.cached"
-    creds.valid = True
-    blob = _StubBlob(client=_StubClient(creds))
+def test_valid_iam_token_is_not_refreshed_again(monkeypatch: pytest.MonkeyPatch) -> None:
+    iam_creds = _TokenOnlyCreds()
+    iam_creds.token = "ya29.cached"
+    iam_creds.valid = True
+    monkeypatch.setattr(gcs, "_iam_signing_credentials", lambda: iam_creds)
+    blob = _StubBlob(client=_StubClient(_TokenOnlyCreds()))
     signed_get_url(blob, ttl=_TTL)
-    assert creds.refreshed == 0
+    assert iam_creds.refreshed == 0
     assert blob.kwargs is not None
     assert blob.kwargs["access_token"] == "ya29.cached"
 
