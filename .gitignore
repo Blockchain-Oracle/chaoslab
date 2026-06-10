@@ -68,3 +68,8 @@ scratch/
 .claude/
 .playwright-mcp/
 instrusctions.md
+
+# Local Playwright walk screenshots
+walk*.png
+round*.png
+restored*.png

@@ -166,6 +166,49 @@ export async function fetchFeaturedRun(): Promise<Live<RunDetailDto | null>> {
   }
 }
 
+export interface ArtifactJsonResult {
+  json: unknown
+  /** Why the artifact could not be loaded — pages must DISCLOSE this. */
+  error: string | null
+}
+
+/** Server-side fetch of a JSON artifact from its signed GCS URL. Failures are
+ *  returned AND logged — never silently swallowed into a fake default. */
+export async function fetchArtifactJson(signedUrl: string): Promise<ArtifactJsonResult> {
+  try {
+    const res = await fetch(signedUrl, { cache: 'no-store' })
+    if (!res.ok) {
+      console.error(`artifact fetch failed: HTTP ${res.status}`)
+      return { json: null, error: `artifact fetch failed (HTTP ${res.status})` }
+    }
+    return { json: (await res.json()) as unknown, error: null }
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err)
+    console.error('artifact fetch error:', msg)
+    return { json: null, error: `artifact fetch error (${msg})` }
+  }
+}
+
+export interface ArtifactTextResult {
+  text: string | null
+  error: string | null
+}
+
+export async function fetchArtifactText(signedUrl: string): Promise<ArtifactTextResult> {
+  try {
+    const res = await fetch(signedUrl, { cache: 'no-store' })
+    if (!res.ok) {
+      console.error(`artifact fetch failed: HTTP ${res.status}`)
+      return { text: null, error: `artifact fetch failed (HTTP ${res.status})` }
+    }
+    return { text: await res.text(), error: null }
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err)
+    console.error('artifact fetch error:', msg)
+    return { text: null, error: `artifact fetch error (${msg})` }
+  }
+}
+
 export interface EventsFetchResult {
   doc: RunEventsDocument | null
   /** Why the timeline could not be loaded — pages must DISCLOSE this

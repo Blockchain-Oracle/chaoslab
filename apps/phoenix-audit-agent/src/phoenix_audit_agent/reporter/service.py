@@ -10,6 +10,7 @@ report: it looks like evidence but proves nothing.
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import json
 import logging
 
@@ -24,7 +25,9 @@ from phoenix_audit_agent.reporter.signer import KmsReportSigner
 _logger = logging.getLogger(__name__)
 
 
-async def generate_signed_report(data: ReportData) -> dict[str, str] | None:
+async def generate_signed_report(
+    data: ReportData, *, recipe_markdown: str | None = None
+) -> dict[str, str] | None:
     """Render the PDF + JSON, sign both, upload all three artifacts.
 
     Returns {"report.pdf": url, "report.json": url, "signature.json": url},
@@ -41,7 +44,30 @@ async def generate_signed_report(data: ReportData) -> dict[str, str] | None:
         )
         return None
 
-    html = build_report_html(data)
+    signer = KmsReportSigner(key_version=key_version)
+
+    def _cover_fingerprint() -> str | None:
+        # The key identity for the cover. CONTAINED: a fetch failure falls
+        # back to the generic signature line — the sidecar (signed below)
+        # remains the authoritative fingerprint carrier either way.
+        try:
+            pem = signer.public_key_pem()
+        except Exception:
+            _logger.warning(
+                "public key fetch for cover fingerprint failed — cover renders "
+                "the generic signature line",
+                exc_info=True,
+            )
+            return None
+        return hashlib.sha256(pem.encode("utf-8")).hexdigest()
+
+    fingerprint = await asyncio.to_thread(_cover_fingerprint)
+    html = build_report_html(
+        data,
+        signing_key_fingerprint=fingerprint,
+        kms_key_version=key_version,
+        recipe_markdown=recipe_markdown,
+    )
     # WeasyPrint is CPU-bound sync work (0.5-3s) and KMS signing is 3 blocking
     # gRPC round-trips — on the event loop they'd freeze every live SSE stream
     # right at the demo's climax (report delivery). Thread both off.
@@ -49,7 +75,6 @@ async def generate_signed_report(data: ReportData) -> dict[str, str] | None:
     json_bytes = json.dumps(data.model_dump(), indent=2, sort_keys=True).encode("utf-8")
 
     def _sign() -> dict[str, object]:
-        signer = KmsReportSigner(key_version=key_version)
         return signer.sign_artifacts({"report.pdf": pdf_bytes, "report.json": json_bytes})
 
     sidecar = await asyncio.to_thread(_sign)

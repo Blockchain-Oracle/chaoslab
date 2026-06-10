@@ -35,6 +35,10 @@ async def sign_blob_url(blob_name: str) -> str:
     def _sign() -> str:
         client = get_storage_client()
         blob = client.bucket(settings.GCS_RECIPES_BUCKET).blob(blob_name)
+        # No content-disposition: each artifact has a dedicated in-app viewer
+        # (/report/[id]/json, /signature, /recipe/[id]) that fetches it
+        # server-side; the signed URL only feeds those viewers + the
+        # explicit "Download report.json" buttons inside each viewer.
         return signed_get_url(blob, ttl=timedelta(days=settings.GCS_SIGNED_URL_TTL_DAYS))
 
     return await asyncio.to_thread(_sign)

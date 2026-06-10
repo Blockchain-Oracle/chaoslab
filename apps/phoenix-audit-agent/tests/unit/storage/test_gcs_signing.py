@@ -99,6 +99,20 @@ def test_valid_iam_token_is_not_refreshed_again(monkeypatch: pytest.MonkeyPatch)
     assert blob.kwargs["access_token"] == "ya29.cached"
 
 
+def test_disposition_is_baked_into_the_signed_url() -> None:
+    blob = _StubBlob(client=_StubClient(_SignerCreds()))
+    signed_get_url(blob, ttl=_TTL, disposition='attachment; filename="report.json"')
+    assert blob.kwargs is not None
+    assert blob.kwargs["response_disposition"] == 'attachment; filename="report.json"'
+
+
+def test_no_disposition_param_when_not_requested() -> None:
+    blob = _StubBlob(client=_StubClient(_SignerCreds()))
+    signed_get_url(blob, ttl=_TTL)
+    assert blob.kwargs is not None
+    assert "response_disposition" not in blob.kwargs
+
+
 def test_blob_without_client_signs_directly() -> None:
     # Test seams hand in bare stub blobs — no credential introspection possible.
     blob = _StubBlob(client=None)

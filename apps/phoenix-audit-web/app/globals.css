@@ -784,6 +784,26 @@ textarea {
   color: var(--ember-glow);
 }
 
+/* Light unified-diff styling for the hardening-recipe view (Surface G).
+   Mirrors the prototype: paper background, ink text, green/red highlights
+   on added/removed lines, dimmed hunk headers. */
+.codeblock.light {
+  background: var(--paper-2);
+  color: var(--ink);
+  border: 1px solid var(--hairline);
+}
+.codeblock.light .add {
+  color: var(--pass);
+  background: rgba(46, 139, 87, 0.08);
+}
+.codeblock.light .del {
+  color: var(--fail);
+  background: rgba(177, 60, 40, 0.08);
+}
+.codeblock.light .dim {
+  color: var(--ink-3);
+}
+
 /* fallback marker */
 .fallback-flag {
   display: inline-flex;
