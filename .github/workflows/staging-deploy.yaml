@@ -87,7 +87,10 @@ jobs:
             # FAULT_HOOKS_ENABLED opts this target into Phoenix Audit's remote
             # fault delivery (/hooks/adk) — the surface every real probe needs.
             auth_flag: --allow-unauthenticated
-            extra_env: ",FAULT_HOOKS_ENABLED=true"
+            # PUBLIC_URL fixes issue #22: without it the agent card advertises
+            # http://localhost:8001 and every A2A message/send dispatches to
+            # localhost — baseline fails 0/5 on any audit against this target.
+            extra_env: ",FAULT_HOOKS_ENABLED=true,PUBLIC_URL=__RESOLVE_SELF_URL__"
             max_instances: 10
           - service: phoenix-audit-web
             path: apps/phoenix-audit-web
