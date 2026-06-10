@@ -73,3 +73,11 @@ describe('runToHistoryRow report availability', () => {
     expect(runToHistoryRow(dto).reportAvailable).toBe(false)
   })
 })
+
+describe('fmtDate', () => {
+  it('formats in UTC regardless of host timezone — the label says UTC', async () => {
+    const { fmtDate } = await import('@/lib/format')
+    // 23:30 UTC would read as next-day 00:30 in GMT+1 if the tz leaked.
+    expect(fmtDate('2026-06-09T23:30:00Z')).toBe('09 Jun 2026 · 23:30 UTC')
+  })
+})
