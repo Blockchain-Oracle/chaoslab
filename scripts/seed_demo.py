@@ -24,6 +24,7 @@ import sys
 from phoenix_audit_agent._time import utc_now_iso
 from phoenix_audit_agent.audit_runner import drive_audit
 from phoenix_audit_agent.config import get_settings
+from phoenix_audit_agent.storage.agents import DEMO_TARGET_ID
 from phoenix_audit_agent.storage.models import RunCompletion, RunRecord
 from phoenix_audit_agent.storage.runs import (
     create_run_record,
@@ -43,7 +44,13 @@ async def seed_one(target_url: str, runs_per_fault: int) -> str:
     run_id = "run_" + secrets.token_hex(6)
     created = utc_now_iso()
     await create_run_record(
-        RunRecord(run_id=run_id, target_url=target_url, created_at=created, owner_uid=None)
+        RunRecord(
+            run_id=run_id,
+            agent_id=DEMO_TARGET_ID,
+            target_url=target_url,
+            created_at=created,
+            owner_uid=None,
+        )
     )
 
     async def emit(event: str, payload: dict) -> None:

@@ -26,7 +26,7 @@ describe('isPublicPath', () => {
     ['/new'],
     ['/run/run_abc'],
     ['/report/run_abc'],
-    ['/recipe/rcp_abc'],
+    ['/run/run_abc123def456'],
     ['/states'],
     ['/api/agent/runs'],
   ])('gated: %s', (path) => {

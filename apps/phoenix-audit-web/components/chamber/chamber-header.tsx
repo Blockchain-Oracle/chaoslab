@@ -1,41 +1,31 @@
 import { Fragment } from 'react'
 import { A } from '@/components/ui/link'
 import { Wordmark } from '@/components/ui/wordmark'
-import type { DerivedAuditState } from '@/lib/types'
+import type { Phase } from '@/lib/types'
 
 interface ChamberHeaderProps {
-  s: DerivedAuditState
-  /** displayed elapsed seconds; replay multiplies t by ~3.36 to match the projected 87s wall-clock */
+  phase: Phase
+  /** Displayed elapsed seconds — live wall-clock or the replay scrub time. */
   elapsedDisplay: number
   mode: 'replay' | 'live'
-  /** Live-mode only: surfaced when the chamber is pacing from the timeline backfill */
-  demoPacing?: boolean
   /** Live-mode only: actual EventSource open-state from the SSE bridge.
    *  The LIVE indicator must reflect reality, never assert "CONNECTED"
    *  unconditionally (review finding #5). */
   connected?: boolean
-  /** Live-mode: the REAL run id — the sample label must never headline a
-   *  real run (story-9.10). */
-  runLabel?: string
+  /** The REAL run's header line — there is no fixture default (story-9.11). */
+  runLabel: string
 }
 
-const PHASE_SEQ: DerivedAuditState['phase'][] = [
-  'queued',
-  'injector',
-  'judge',
-  'patcher',
-  'succeeded',
-]
+const PHASE_SEQ: Phase[] = ['queued', 'injector', 'judge', 'patcher', 'succeeded']
 
 export function ChamberHeader({
-  s,
+  phase,
   elapsedDisplay,
   mode,
-  demoPacing,
   connected,
   runLabel,
 }: ChamberHeaderProps) {
-  const phaseIdx = PHASE_SEQ.indexOf(s.phase)
+  const phaseIdx = PHASE_SEQ.indexOf(phase)
   return (
     <header
       style={{
@@ -70,26 +60,9 @@ export function ChamberHeader({
             textOverflow: 'ellipsis',
           }}
         >
-          {runLabel ?? 'run_9f3c2ab81d4e · prior-auth · EU AI Act (sample replay)'}
+          {runLabel}
         </span>
         <span style={{ flex: 1 }}></span>
-        {demoPacing ? (
-          <span
-            className="mono"
-            title="Per-probe pacing comes from the deterministic timeline until the backend ships per-probe SSE events. Phase changes ARE live."
-            style={{
-              fontSize: 10,
-              letterSpacing: '0.14em',
-              color: 'var(--warn)',
-              border: '1px dashed var(--warn)',
-              padding: '4px 10px',
-              borderRadius: 2,
-              whiteSpace: 'nowrap',
-            }}
-          >
-            DEMO PACING
-          </span>
-        ) : null}
         {mode === 'replay' ? (
           <span
             className="mono"
@@ -184,9 +157,9 @@ export function ChamberHeader({
             <span
               className={
                 'phase-node ' +
-                (p === s.phase && p !== 'succeeded'
+                (p === phase && p !== 'succeeded'
                   ? 'active'
-                  : i < phaseIdx || s.phase === 'succeeded'
+                  : i < phaseIdx || phase === 'succeeded'
                     ? 'done'
                     : '')
               }

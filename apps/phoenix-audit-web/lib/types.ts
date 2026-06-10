@@ -1,5 +1,5 @@
 // Types aligned with packages/shared-types/hardening-recipe.json (the backend schema).
-// Frontend-only types (Test, AgentSpec, RunRecord, Phase, Timeline) added below.
+// Frontend-only types (AgentSpec, HistoryRow, Phase) added below.
 
 export type FaultClass =
   | 'malformed_tool_output'
@@ -69,29 +69,6 @@ export interface HardeningRecipe {
 
 export type Phase = 'queued' | 'injector' | 'judge' | 'patcher' | 'succeeded' | 'failed'
 
-export type TestVerdict = 'pass' | 'fail'
-export type TestMode = 'single-turn' | 'two-turn'
-
-export interface Test {
-  /** 1-indexed probe number within the battery. */
-  n: number
-  name: string
-  /** Short citation chip text, e.g. "OWASP LLM01". */
-  citation: string
-  /** Long-form citation for tooltips. */
-  citationLong: string
-  category: FaultClass
-  mode: TestMode
-  verdict: TestVerdict
-  /** Whether the target acknowledged the audit-mode headers convention. */
-  honored: boolean
-  spanId: string
-  /** Regulatory article violated, if any. */
-  article: string | null
-  prompt: string
-  response: string
-}
-
 export interface AgentMonitoring {
   enabled: boolean
   cadence?: string
@@ -114,25 +91,8 @@ export interface AgentSpec {
   monitoring: AgentMonitoring
   lastAudit: string
   status: AgentStatus
-}
-
-export interface HeroRun {
-  id: string
-  createdAt: string
-  agentId: string
-  targetUrl: string
-  commitSha: string
-  framework: string
-  frameworkDetail: string
-  phase: Phase
-  passCount: number
-  failCount: number
-  costUsd: number
-  durationSec: number
-  pdfUrl: string
-  recipeId: string
-  mrUrl: string
-  signingKey: string
+  /** Ownerless seeded demo target — real and runnable, labeled. */
+  sample: boolean
 }
 
 export type HistorySource = 'manual' | 'scheduled'
@@ -158,59 +118,8 @@ export interface HistoryRow {
   mrUrl?: string
   /** Real runs: a signed report actually exists — links must be earned. */
   reportAvailable?: boolean
-}
-
-export interface AggregateStats {
-  audits: number
-  findings: number
-  hardened: number
-  quarter: string
-}
-
-// ---------- timeline ----------
-
-export interface TimelinePhaseEvent {
-  phase: Phase
-  at: number
-}
-
-export interface TimelineTestEvent {
-  n: number
-  start: number
-  end: number
-}
-
-export interface Timeline {
-  duration: number
-  phases: TimelinePhaseEvent[]
-  testEvents: TimelineTestEvent[]
-  clusterAt: number
-  recipeAt: number
-  receiptAt: number
-}
-
-export interface DerivedTestState extends Test {
-  state: 'pending' | 'running' | 'done'
-  ev: TimelineTestEvent
-}
-
-export interface DerivedAuditState {
-  t: number
-  phase: Phase
-  tests: DerivedTestState[]
-  doneCount: number
-  passDone: number
-  failDone: number
-  /** 0–1, drives the cascade-flip overlay. */
-  flipProgress: number
-  /** Whether at least one probe has finished without confirming audit-mode headers. */
-  headerWarn: boolean
-  /** 0–1, drives the recipe-line streaming. */
-  recipeProgress: number
-  receipt: boolean
-}
-
-export interface SseEvent {
-  at: number
-  line: string
+  /** A persisted replay timeline exists for this run. */
+  eventsAvailable?: boolean
+  /** Ownerless seeded REAL audit — visible to all accounts, labeled. */
+  sample?: boolean
 }

@@ -4,13 +4,11 @@
 
 import { describe, expect, it } from 'vitest'
 import {
-  ceilingForPhase,
   initialStreamState,
   reduceWireEvent,
   upsertProbe,
   type AuditStreamState,
 } from '@/lib/sse-reducer'
-import { TIMELINE } from '@/lib/fixtures'
 
 function play(events: Array<[string, string]>, from?: AuditStreamState): AuditStreamState {
   let s = from ?? initialStreamState()
@@ -21,33 +19,28 @@ function play(events: Array<[string, string]>, from?: AuditStreamState): AuditSt
 }
 
 describe('phase_change', () => {
-  it('advances phase and clock ceiling for valid phases', () => {
+  it('advances phase for valid phases', () => {
     const s = play([['phase_change', '{"phase":"judge"}']])
     expect(s.phase).toBe('judge')
-    expect(s.clockCeiling).toBe(ceilingForPhase('judge'))
   })
 
   it('rejects malformed JSON without mutating phase, appending an error line', () => {
     const s = play([['phase_change', '{not json']])
     expect(s.phase).toBe('queued')
-    expect(s.clockCeiling).toBe(0)
     expect(s.wireLines.some((l) => l.includes('unrecognized phase value'))).toBe(true)
   })
 
-  it('rejects unknown phase values — never an unbounded clock ceiling', () => {
+  it('rejects unknown phase values — never an invented phase', () => {
     const s = play([['phase_change', '{"phase":"exploded"}']])
     expect(s.phase).toBe('queued')
-    expect(s.clockCeiling).toBe(0)
   })
 
-  it("'failed' freezes the ceiling instead of releasing the success choreography", () => {
+  it("'failed' sticks — no success choreography over a failed run", () => {
     const s = play([
       ['phase_change', '{"phase":"judge"}'],
       ['phase_change', '{"phase":"failed"}'],
     ])
     expect(s.phase).toBe('failed')
-    expect(s.clockCeiling).toBe(ceilingForPhase('judge'))
-    expect(s.clockCeiling).toBeLessThan(TIMELINE.duration)
   })
 })
 
