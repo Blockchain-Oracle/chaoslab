@@ -191,121 +191,146 @@ export function ReportPreview({ runId, live, liveError }: ReportPreviewProps) {
           )}
         </div>
 
-        {isRealRun ? (
+        {isLive && live && !live.reportAvailable ? (
+          // A run with NO report gets NO preview — rendering the sample
+          // layout under a "no signed report" banner read as a fake report
+          // with a Signed badge (story-9.10). The event log is the evidence.
           <div
-            className="mono"
             style={{
-              fontSize: 11,
-              letterSpacing: '0.08em',
-              color: 'var(--ink-3)',
-              border: '1px dashed var(--hairline)',
-              borderRadius: 4,
-              padding: '10px 14px',
-              marginBottom: 18,
+              border: '1px solid var(--hairline)',
+              borderRadius: 'var(--r-lg)',
+              padding: '34px 30px',
+              textAlign: 'center',
             }}
           >
-            ◌ SAMPLE PREVIEW BELOW — illustrative report layout only.{' '}
-            {isLive
-              ? "This run's actual data is in the signed artifacts above."
-              : "This run's artifacts will be downloadable when the registry is reachable again."}
+            <p className="muted" style={{ fontSize: 13.5, maxWidth: 480, margin: '0 auto 14px' }}>
+              This run produced no signed report — generation was skipped (most often because the
+              audit failed before the battery completed). The run&apos;s event log carries the
+              evidence trail.
+            </p>
+            <A to={`run/${runId ?? ''}`} className="btn small ghost">
+              Open the run&apos;s event log →
+            </A>
           </div>
-        ) : null}
-        <div
-          style={{
-            display: 'grid',
-            gridTemplateColumns: '150px 1fr',
-            gap: 36,
-            alignItems: 'start',
-          }}
-        >
-          <div>
-            {REPORT_PAGES.map((p) => (
-              <PageThumb
-                key={p.id}
-                p={p}
-                active={page === p.id}
-                signed={signState === 'signed'}
-                onClick={() => setPage(p.id)}
-              />
-            ))}
-          </div>
-
-          <div style={{ position: 'relative' }}>
-            <div
-              style={{
-                background: '#fff',
-                border: '1px solid var(--hairline)',
-                boxShadow: '0 18px 50px rgba(28,23,18,0.10)',
-                borderRadius: 2,
-                maxWidth: 660,
-                margin: '0 auto',
-                padding: '54px 58px',
-                minHeight: 760,
-                position: 'relative',
-              }}
-            >
-              <ReportPage page={page} signed={signState === 'signed'} />
-              {isRealRun ? (
-                <div
-                  aria-hidden
-                  className="mono"
-                  style={{
-                    position: 'absolute',
-                    inset: 0,
-                    display: 'grid',
-                    placeItems: 'center',
-                    pointerEvents: 'none',
-                    zIndex: 4,
-                  }}
-                >
-                  <span
-                    style={{
-                      transform: 'rotate(-24deg)',
-                      fontSize: 34,
-                      letterSpacing: '0.28em',
-                      color: 'rgba(28,23,18,0.10)',
-                      border: '2px solid rgba(28,23,18,0.10)',
-                      borderRadius: 6,
-                      padding: '10px 26px',
-                    }}
-                  >
-                    SAMPLE
-                  </span>
-                </div>
-              ) : null}
-            </div>
-
-            {signState === 'signing' ? (
+        ) : (
+          <>
+            {isRealRun ? (
               <div
+                className="mono"
                 style={{
-                  position: 'absolute',
-                  inset: 0,
-                  display: 'grid',
-                  placeItems: 'center',
-                  background: 'rgba(250,247,240,0.82)',
-                  backdropFilter: 'blur(2px)',
-                  zIndex: 5,
+                  fontSize: 11,
+                  letterSpacing: '0.08em',
+                  color: 'var(--ink-3)',
+                  border: '1px dashed var(--hairline)',
+                  borderRadius: 4,
+                  padding: '10px 14px',
+                  marginBottom: 18,
                 }}
               >
-                <div style={{ textAlign: 'center' }}>
-                  <Seal size={130} />
-                  <div
-                    className="mono"
-                    style={{
-                      fontSize: 11,
-                      letterSpacing: '0.14em',
-                      color: 'var(--ember-deep)',
-                      marginTop: 16,
-                    }}
-                  >
-                    CLOUD KMS · SIGNING DIGEST SHA-256
-                    <span className="blink-caret">▌</span>
-                  </div>
-                </div>
+                ◌ SAMPLE PREVIEW BELOW — illustrative report layout only.{' '}
+                {isLive
+                  ? "This run's actual data is in the signed artifacts above."
+                  : "This run's artifacts will be downloadable when the registry is reachable again."}
               </div>
             ) : null}
-          </div>
-        </div>
+            <div
+              style={{
+                display: 'grid',
+                gridTemplateColumns: '150px 1fr',
+                gap: 36,
+                alignItems: 'start',
+              }}
+            >
+              <div>
+                {REPORT_PAGES.map((p) => (
+                  <PageThumb
+                    key={p.id}
+                    p={p}
+                    active={page === p.id}
+                    signed={signState === 'signed'}
+                    onClick={() => setPage(p.id)}
+                  />
+                ))}
+              </div>
+
+              <div style={{ position: 'relative' }}>
+                <div
+                  style={{
+                    background: '#fff',
+                    border: '1px solid var(--hairline)',
+                    boxShadow: '0 18px 50px rgba(28,23,18,0.10)',
+                    borderRadius: 2,
+                    maxWidth: 660,
+                    margin: '0 auto',
+                    padding: '54px 58px',
+                    minHeight: 760,
+                    position: 'relative',
+                  }}
+                >
+                  <ReportPage page={page} signed={signState === 'signed'} />
+                  {isRealRun ? (
+                    <div
+                      aria-hidden
+                      className="mono"
+                      style={{
+                        position: 'absolute',
+                        inset: 0,
+                        display: 'grid',
+                        placeItems: 'center',
+                        pointerEvents: 'none',
+                        zIndex: 4,
+                      }}
+                    >
+                      <span
+                        style={{
+                          transform: 'rotate(-24deg)',
+                          fontSize: 34,
+                          letterSpacing: '0.28em',
+                          color: 'rgba(28,23,18,0.10)',
+                          border: '2px solid rgba(28,23,18,0.10)',
+                          borderRadius: 6,
+                          padding: '10px 26px',
+                        }}
+                      >
+                        SAMPLE
+                      </span>
+                    </div>
+                  ) : null}
+                </div>
+
+                {signState === 'signing' ? (
+                  <div
+                    style={{
+                      position: 'absolute',
+                      inset: 0,
+                      display: 'grid',
+                      placeItems: 'center',
+                      background: 'rgba(250,247,240,0.82)',
+                      backdropFilter: 'blur(2px)',
+                      zIndex: 5,
+                    }}
+                  >
+                    <div style={{ textAlign: 'center' }}>
+                      <Seal size={130} />
+                      <div
+                        className="mono"
+                        style={{
+                          fontSize: 11,
+                          letterSpacing: '0.14em',
+                          color: 'var(--ember-deep)',
+                          marginTop: 16,
+                        }}
+                      >
+                        CLOUD KMS · SIGNING DIGEST SHA-256
+                        <span className="blink-caret">▌</span>
+                      </div>
+                    </div>
+                  </div>
+                ) : null}
+              </div>
+            </div>
+          </>
+        )}
       </div>
       <PageFoot />
     </div>

@@ -69,7 +69,7 @@ jobs:
             # and CI invoke it. SELF URL + invoker email resolve at deploy time
             # (scheduler-tick OIDC verification; fail-closed when unset).
             auth_flag: --no-allow-unauthenticated
-            extra_env: ",SERVICE_BASE_URL=__RESOLVE_SELF_URL__,SCHEDULER_INVOKER_EMAIL=__DEPLOY_SA__,FIREBASE_PROJECT_ID=__PROJECT_ID__"
+            extra_env: ",SERVICE_BASE_URL=__RESOLVE_SELF_URL__,SCHEDULER_INVOKER_EMAIL=__DEPLOY_SA__,FIREBASE_PROJECT_ID=__PROJECT_ID__,DEMO_TARGET_URL=__RESOLVE_TARGET_AGENT_URL__"
             # The run registry + SSE queues are in-process (main.py): a second
             # instance means POST /run and GET /stream can land on different
             # pods → 404 mid-demo. One instance trivially handles the audit.
@@ -210,6 +210,13 @@ jobs:
               --region="${REGION}" --format='value(status.url)')
             [ -n "${AGENT_URL}" ] || { echo "::error::phoenix-audit-agent service not found — deploy the agent before the web"; exit 1; }
             EXTRA_ENV="${EXTRA_ENV/__RESOLVE_AGENT_URL__/${AGENT_URL}}"
+          fi
+          if [ "${EXTRA_ENV#*__RESOLVE_TARGET_AGENT_URL__}" != "${EXTRA_ENV}" ]; then
+            TARGET_URL=$(gcloud run services describe target-agent \
+              --region="${REGION}" --format='value(status.url)' 2>/dev/null || true)
+            # First-ever deploy: seed keeps the localhost default until the
+            # target exists; the next deploy fills it in.
+            EXTRA_ENV="${EXTRA_ENV/__RESOLVE_TARGET_AGENT_URL__/${TARGET_URL:-http://localhost:8001}}"
           fi
           if [ "${EXTRA_ENV#*__RESOLVE_SELF_URL__}" != "${EXTRA_ENV}" ]; then
             SELF_URL=$(gcloud run services describe ${{ matrix.service }} \

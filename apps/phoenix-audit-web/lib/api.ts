@@ -82,6 +82,7 @@ export function runToHistoryRow(dto: RunRecordDto): HistoryRow {
     mr: Boolean(dto.mr_url),
     source: dto.source,
     targetUrl: dto.target_url,
+    reportAvailable: dto.report_available,
     ...(dto.mr_url ? { mrUrl: dto.mr_url } : {}),
   }
 }
