@@ -78,3 +78,29 @@ async def test_registration_failure_yields_none(
         ):
             assert reg is None
     assert any("registration_failed" in r.message for r in caplog.records)
+
+
+@respx.mock
+async def test_malformed_registration_id_yields_none_not_truthy() -> None:
+    """An empty/typed-wrong registration_id must not count as delivered —
+    the adapter would mark fault_delivered=True while teardown DELETEs a
+    bogus path (PR #95 review L1)."""
+    register = respx.post("http://x/hooks/custom").mock(
+        return_value=httpx.Response(200, json={"registration_id": ""})
+    )
+    delete = respx.delete(url__regex=r"http://x/hooks/custom/.*").mock(
+        return_value=httpx.Response(204)
+    )
+    async with (
+        httpx.AsyncClient() as http,
+        webhook_fault_session(
+            {"kind": "custom_fault"},
+            http=http,
+            target_url="http://x",
+            hook_path="/hooks/custom",
+            fault_kind="custom_fault",
+        ) as reg,
+    ):
+        assert reg is None
+    assert register.call_count == 1
+    assert delete.call_count == 0, "no teardown for a registration that never happened"

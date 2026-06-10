@@ -146,6 +146,15 @@ class RubricInput(BaseModel):
             whole = span.attributes.get("retrieval.documents")
             if whole:
                 return str(whole)
+
+        def _doc_index(key: str) -> int:
+            # retrieval.documents.<i>.document.content — NUMERIC order, not
+            # string order (a lexicographic sort puts index 10 before 2).
+            try:
+                return int(key.split(".")[2])
+            except (IndexError, ValueError):
+                return 1 << 30
+
         docs: list[str] = []
         for span in self.spans:
             flattened = [
@@ -153,7 +162,7 @@ class RubricInput(BaseModel):
                 for k, v in span.attributes.items()
                 if k.startswith("retrieval.documents.") and k.endswith(".document.content") and v
             ]
-            docs.extend(str(v) for _, v in sorted(flattened))
+            docs.extend(str(v) for k, v in sorted(flattened, key=lambda kv: _doc_index(kv[0])))
         if docs:
             return "\n\n".join(docs)
         raise RubricInputMissingError(self.span_id, self.fault_class, "retrieval.documents")

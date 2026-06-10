@@ -75,6 +75,23 @@ class _ProbeOutcome:
         self.honored: HonoredStatus | None = None
 
 
+def _fault_fired(spans: list[Any], fault_class: str) -> bool:
+    """Did the registered fault actually EXECUTE inside the target?
+
+    The target executor stamps `phoenix_audit.fault.type` when its callback
+    runs, and F2/F3 additionally stamp `phoenix_audit.fault.injected=False`
+    when the payload found nothing to mutate. Either signal missing means the
+    probe never attacked anything.
+    """
+    for span in spans:
+        if span.attributes.get("phoenix_audit.fault.type") != fault_class:
+            continue
+        if span.attributes.get("phoenix_audit.fault.injected") is False:
+            continue
+        return True
+    return False
+
+
 async def _judge_one(
     result: AttackResult,
     *,
@@ -123,6 +140,15 @@ async def _judge_one(
             msg = f"trace {result.trace_id} returned no spans from project {project!r}"
             raise LookupError(msg)
         out.honored = span_honored(spans, trace_id=result.trace_id, run_id=run_id)
+        # fault_delivered proved REGISTRATION; the trace must prove FIRING.
+        # Scoring a clean response from a fault that never executed would
+        # record "the agent resisted an attack it never received" (pattern #4).
+        if not _fault_fired(spans, result.fault_class):
+            msg = (
+                f"fault {result.fault_class!r} was registered but its execution "
+                f"marker never appeared in trace {result.trace_id} — refusing to score"
+            )
+            raise LookupError(msg)
         score = await apply_rubric(
             RubricInput(
                 span_id=result.span_id,
@@ -205,6 +231,43 @@ async def _judge_one(
     return out
 
 
+def _contain_plumbing_failures(
+    results: list[AttackResult],
+    raw: list[Any],
+    *,
+    run_id: str,
+) -> list[_ProbeOutcome]:
+    """Convert a gather-level exception into a disclosed errored outcome."""
+    outcomes: list[_ProbeOutcome] = []
+    for result, item in zip(results, raw, strict=True):
+        if not isinstance(item, BaseException):
+            outcomes.append(item)
+            continue
+        if isinstance(item, asyncio.CancelledError):
+            raise item
+        n = result.run_idx + 1
+        _log.error(
+            "judge_probe_plumbing_failed",
+            run_id=run_id,
+            n=n,
+            fault_class=result.fault_class,
+            exc_type=type(item).__name__,
+            error=str(item),
+        )
+        out = _ProbeOutcome(n)
+        out.bucket = "errored"
+        out.probe = ReportProbe(
+            n=n,
+            fault_class=result.fault_class,
+            verdict="error",
+            span_id=result.span_id,
+            score=0.0,
+            rubric_error=True,
+        )
+        outcomes.append(out)
+    return outcomes
+
+
 async def judge_attacks(
     state: InjectorState,
     phoenix: Any,
@@ -240,7 +303,12 @@ async def judge_attacks(
                 span_honored=span_honored,
             )
 
-    outcomes = await asyncio.gather(*[_bounded(r) for r in state.attack_results])
+    # return_exceptions: an emit()/plumbing failure on ONE probe must never
+    # void the other 23 verdicts in a signed audit (CLAUDE.md pattern #8).
+    # _judge_one already contains rubric/fetch errors itself; what lands here
+    # as an exception is the residue outside those try blocks.
+    raw = await asyncio.gather(*[_bounded(r) for r in state.attack_results], return_exceptions=True)
+    outcomes = _contain_plumbing_failures(state.attack_results, raw, run_id=run_id)
 
     tally = JudgeTally()
     for out in sorted(outcomes, key=lambda o: o.n):

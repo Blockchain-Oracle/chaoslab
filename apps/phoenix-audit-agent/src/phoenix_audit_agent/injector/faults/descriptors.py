@@ -15,7 +15,7 @@ from __future__ import annotations
 from typing import Any
 
 from phoenix_audit_agent.injector.faults.context_poisoning import (
-    _POISONS,
+    POISONS,
     ContextPoisoningFault,
 )
 from phoenix_audit_agent.injector.faults.latency_spike import LatencySpikeFault
@@ -24,7 +24,7 @@ from phoenix_audit_agent.injector.faults.malformed_tool_output import (
     MalformedToolOutputFault,
 )
 from phoenix_audit_agent.injector.faults.prompt_injection import (
-    _PAYLOADS,
+    PAYLOADS,
     PromptInjectionFault,
 )
 
@@ -43,14 +43,14 @@ def as_descriptor(fault: object) -> dict[str, Any]:
         return {
             "kind": "prompt_injection",
             "attack": fault.attack,
-            "payload": fault.payload_override or _PAYLOADS[fault.attack],
+            "payload": fault.payload_override or PAYLOADS[fault.attack],
         }
     if isinstance(fault, ContextPoisoningFault):
         return {
             "kind": "context_poisoning",
             "mode": fault.mode,
             "target_retriever_name": fault.target_retriever_name,
-            "payload": fault.payload_override or _POISONS[fault.poison_idx],
+            "payload": fault.payload_override or POISONS[fault.poison_idx],
         }
     if isinstance(fault, LatencySpikeFault):
         return {

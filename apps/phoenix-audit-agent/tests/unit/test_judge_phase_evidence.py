@@ -39,13 +39,16 @@ def _result(
     )
 
 
-def _spans() -> list[FetchedSpan]:
+def _spans(*, fault_fired: bool = True) -> list[FetchedSpan]:
+    attrs: dict[str, object] = {"phoenix_audit.honored": True, "output.value": "out"}
+    if fault_fired:
+        attrs["phoenix_audit.fault.type"] = "prompt_injection"
     return [
         FetchedSpan(
             span_id="a" * 16,
             trace_id=_TRACE,
             parent_id="",
-            attributes={"phoenix_audit.honored": True, "output.value": "out"},
+            attributes=attrs,
         )
     ]
 
@@ -196,3 +199,92 @@ async def test_report_probes_are_ordered_by_n_despite_concurrency(
         prompt="q",
     )
     assert [p.n for p in tally.report_probes] == list(range(1, 9))
+
+
+async def test_registered_but_unfired_fault_is_disclosed_error_not_pass(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """fault_delivered proves REGISTRATION; the trace must prove FIRING.
+    A clean response from a fault that never executed must never score PASS."""
+
+    async def fetch_no_fault_marker(*a: Any, **k: Any) -> list[Any]:
+        return _spans(fault_fired=False)
+
+    monkeypatch.setattr(jp, "fetch_trace_spans", fetch_no_fault_marker)
+    state = InjectorState(attack_results=[_result(1)])
+    emit = _Emit()
+    tally = await jp.judge_attacks(
+        state,
+        phoenix=object(),
+        emit=emit,
+        run_id="r",
+        project="target-agent",
+        apply_rubric=_passing_rubric,
+        span_honored=_honored,
+        prompt="q",
+    )
+    assert tally.passed == 0
+    assert tally.errored == 1
+    verdicts = [d for e, d in emit.frames if e == "test_verdict"]
+    assert verdicts[0]["verdict"] == "error"
+
+
+async def test_injected_false_marker_is_disclosed_error_not_pass(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    async def fetch_injected_false(*a: Any, **k: Any) -> list[Any]:
+        spans = _spans()
+        attrs = dict(spans[0].attributes)
+        attrs["phoenix_audit.fault.injected"] = False
+        return [FetchedSpan(span_id="a" * 16, trace_id=_TRACE, parent_id="", attributes=attrs)]
+
+    monkeypatch.setattr(jp, "fetch_trace_spans", fetch_injected_false)
+    state = InjectorState(attack_results=[_result(1)])
+    tally = await jp.judge_attacks(
+        state,
+        phoenix=object(),
+        emit=_Emit(),
+        run_id="r",
+        project="target-agent",
+        apply_rubric=_passing_rubric,
+        span_honored=_honored,
+        prompt="q",
+    )
+    assert tally.passed == 0
+    assert tally.errored == 1
+
+
+async def test_one_probes_emit_failure_does_not_void_the_others(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """CLAUDE.md pattern #8: plumbing failure on one probe must not torpedo
+    the batch — the failing probe becomes a disclosed error verdict."""
+
+    async def fake_fetch(*a: Any, **k: Any) -> list[Any]:
+        return _spans()
+
+    monkeypatch.setattr(jp, "fetch_trace_spans", fake_fetch)
+
+    class _ExplodingEmit(_Emit):
+        async def __call__(self, event: str, data: dict[str, Any]) -> None:
+            if event == "test_verdict" and data["n"] == 2:
+                msg = "SSE plumbing blew up"
+                raise RuntimeError(msg)
+            await super().__call__(event, data)
+
+    state = InjectorState(attack_results=[_result(1), _result(2), _result(3)])
+    emit = _ExplodingEmit()
+    tally = await jp.judge_attacks(
+        state,
+        phoenix=object(),
+        emit=emit,
+        run_id="r",
+        project="target-agent",
+        apply_rubric=_passing_rubric,
+        span_honored=_honored,
+        prompt="q",
+    )
+    assert tally.passed == 2
+    assert tally.errored == 1
+    assert [p.n for p in tally.report_probes] == [1, 2, 3]
+    assert tally.report_probes[1].verdict == "error"

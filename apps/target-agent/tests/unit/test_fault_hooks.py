@@ -282,3 +282,48 @@ class TestExecutorBehavior:
         assert slept == [0.25]
         attrs = in_memory_spans.get_finished_spans()[0].attributes
         assert attrs["phoenix_audit.fault.type"] == "latency_spike"
+
+
+class TestTtlEviction:
+    async def test_expired_registration_evicted_on_next_register(self) -> None:
+        agent = LlmAgent(
+            name="ttl", model="gemini-3.5-flash", description="d", instruction="i", tools=[]
+        )
+        state = fault_hooks.HookState(agent)
+        rid_a = await state.register({"kind": "latency_spike", "delay_ms": 1, "timeout_ms": 100})
+        assert state._active is not None
+        state._active.created_at -= fault_hooks.TTL_SECONDS + 1
+        rid_b = await state.register(
+            {"kind": "prompt_injection", "attack": "role_hijacking", "payload": "X"}
+        )
+        assert rid_b != rid_a
+        assert agent.before_model_callback is not None
+        # the evicted latency callback was restored away
+        assert agent.before_tool_callback is None
+
+    async def test_expired_but_inflight_registration_still_conflicts(self) -> None:
+        """Eviction must NOT swap the callback slot while a previous probe's
+        invocation is mid-flight — the slow probe would execute the NEXT
+        probe's fault and stamp wrong evidence onto its spans."""
+        import asyncio as aio
+
+        agent = LlmAgent(
+            name="ttl2", model="gemini-3.5-flash", description="d", instruction="i", tools=[]
+        )
+        state = fault_hooks.HookState(agent)
+        await state.register({"kind": "latency_spike", "delay_ms": 50, "timeout_ms": 100})
+        assert state._active is not None
+        state._active.created_at -= fault_hooks.TTL_SECONDS + 1
+
+        class _Tool:
+            name = "t"
+
+        cb = agent.before_tool_callback
+        assert cb is not None
+        inflight = aio.create_task(cb(_Tool(), {}, None))  # ty: ignore[call-non-callable, invalid-argument-type]
+        await aio.sleep(0.01)  # let the callback enter its sleep (in flight)
+        with pytest.raises(RuntimeError, match="already active"):
+            await state.register(
+                {"kind": "prompt_injection", "attack": "role_hijacking", "payload": "X"}
+            )
+        await inflight

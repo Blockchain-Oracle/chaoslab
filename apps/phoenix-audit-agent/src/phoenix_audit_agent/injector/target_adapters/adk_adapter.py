@@ -202,6 +202,10 @@ class ADKAdapter(TargetAdapter):
         )
 
         base = str(self.spec.url).rstrip("/")
+        # webhook_fault_session filters by kind for Tier-2 adapters that own
+        # ONE fault surface each; this adapter routes every kind through
+        # /hooks/adk, so passing the config's own kind makes the filter a
+        # deliberate no-op.
         fault_kind = (invocation.fault_config or {}).get("kind", "")
 
         with _TRACER.start_as_current_span("phoenix-audit.adapter.adk.invoke") as span:

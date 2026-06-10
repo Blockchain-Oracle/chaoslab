@@ -17,9 +17,9 @@ from phoenix_audit_agent.injector.faults import (
     MalformedToolOutputFault,
     PromptInjectionFault,
 )
-from phoenix_audit_agent.injector.faults.context_poisoning import _POISONS, POISON_MARKER
+from phoenix_audit_agent.injector.faults.context_poisoning import POISON_MARKER, POISONS
 from phoenix_audit_agent.injector.faults.descriptors import as_descriptor
-from phoenix_audit_agent.injector.faults.prompt_injection import _PAYLOADS
+from phoenix_audit_agent.injector.faults.prompt_injection import PAYLOADS
 
 
 class TestMalformedToolOutputDescriptor:
@@ -54,7 +54,7 @@ class TestPromptInjectionDescriptor:
         d = as_descriptor(PromptInjectionFault(attack="instruction_override"))
         assert d["kind"] == "prompt_injection"
         assert d["attack"] == "instruction_override"
-        assert d["payload"] == _PAYLOADS["instruction_override"]
+        assert d["payload"] == PAYLOADS["instruction_override"]
 
     def test_payload_override_wins(self) -> None:
         d = as_descriptor(
@@ -68,7 +68,7 @@ class TestContextPoisoningDescriptor:
         d = as_descriptor(ContextPoisoningFault(mode="history_insert", poison_idx=1))
         assert d["kind"] == "context_poisoning"
         assert d["mode"] == "history_insert"
-        assert d["payload"] == _POISONS[1]
+        assert d["payload"] == POISONS[1]
         assert POISON_MARKER in d["payload"]
 
     def test_retriever_mode_forwards_name_filter(self) -> None:

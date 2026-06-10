@@ -402,6 +402,8 @@ class Injector(BaseModel):
         trace_id = raw_trace if _HEX32.fullmatch(str(raw_trace) or "") else ""
         delivered = bool(response.metadata.get("fault_delivered")) if response.metadata else False
         payload = descriptor.get("payload")
+        # F1's payload is a dict (the malformed tool return) and is not
+        # consumed by its rubric — only F2/F3's text payloads ride along.
         attack_payload = payload if isinstance(payload, str) else None
 
         if not adapter_span_id or not trace_id or not delivered:

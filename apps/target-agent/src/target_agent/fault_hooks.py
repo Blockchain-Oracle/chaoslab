@@ -208,6 +208,22 @@ class HookState:
         self._agent = agent
         self._lock = asyncio.Lock()
         self._active: _Registration | None = None
+        self._inflight = 0
+
+    def _track(self, fn: Any) -> Any:
+        """Count in-flight callback executions — TTL eviction must never swap
+        the callback slot while a previous probe's invocation is still running
+        (the slow probe would execute the NEXT probe's fault and stamp the
+        wrong evidence onto its spans)."""
+
+        async def wrapped(*args: Any, **kwargs: Any) -> Any:
+            self._inflight += 1
+            try:
+                return await fn(*args, **kwargs)
+            finally:
+                self._inflight -= 1
+
+        return wrapped
 
     def _patch_retrieval_tools(self, reg: _Registration, config: dict[str, Any]) -> None:
         from google.adk.tools.retrieval import BaseRetrievalTool
@@ -220,7 +236,7 @@ class HookState:
             if wanted and getattr(tool, "name", None) != wanted:
                 continue
             original = tool.run_async
-            tool.run_async = _make_poisoned_run_async(original, poison)
+            tool.run_async = self._track(_make_poisoned_run_async(original, poison))
             reg.patched_tools.append((tool, original))
         if not reg.patched_tools:
             msg = (
@@ -239,9 +255,9 @@ class HookState:
         if callbacks.config.get("mode") == "retriever_insert":
             self._patch_retrieval_tools(reg, callbacks.config)
         if callbacks.before_tool is not None:
-            self._agent.before_tool_callback = callbacks.before_tool
+            self._agent.before_tool_callback = self._track(callbacks.before_tool)
         if callbacks.before_model is not None:
-            self._agent.before_model_callback = callbacks.before_model
+            self._agent.before_model_callback = self._track(callbacks.before_model)
         return reg
 
     def _uninstall(self, reg: _Registration) -> None:
@@ -253,7 +269,9 @@ class HookState:
     async def register(self, config: dict[str, Any]) -> str:
         callbacks = build_callback(config)  # ValueError propagates -> 422
         async with self._lock:
-            if self._active is not None and self._active.expired:
+            # TTL eviction recovers from an auditor that crashed before its
+            # DELETE — but only when no callback execution is in flight.
+            if self._active is not None and self._active.expired and self._inflight == 0:
                 self._uninstall(self._active)
                 self._active = None
             if self._active is not None:
