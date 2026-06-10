@@ -20,6 +20,10 @@ interface JsonViewProps {
   /** Parsed/validated report doc — drives the header summary card. */
   report: ReportDoc | null
   jsonError: string | null
+  /** Set when fetch succeeded but parser rejected the doc — drives a
+   *  disclosure notice so the missing RECORD SUMMARY isn't an unexplained
+   *  blank space. */
+  reportParseError: string | null
   downloadUrl: string | null
   sample: boolean
 }
@@ -41,15 +45,32 @@ export function JsonView({
   jsonText,
   report,
   jsonError,
+  reportParseError,
   downloadUrl,
   sample,
 }: JsonViewProps) {
   const [copied, setCopied] = useState(false)
+  const [copyError, setCopyError] = useState<string | null>(null)
   const copy = async () => {
     if (!jsonText) return
-    await navigator.clipboard.writeText(jsonText)
-    setCopied(true)
-    setTimeout(() => setCopied(false), 1400)
+    setCopyError(null)
+    // navigator.clipboard is undefined on insecure origins (http://) and
+    // writeText throws on permission denial / private mode. NEVER show
+    // "Copied ✓" if nothing reached the clipboard — that would have the
+    // user paste stale text into a regulator ticket.
+    if (!navigator.clipboard?.writeText) {
+      setCopyError('clipboard API unavailable in this context')
+      return
+    }
+    try {
+      await navigator.clipboard.writeText(jsonText)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 1400)
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err)
+      console.error('clipboard write failed:', err)
+      setCopyError(msg)
+    }
   }
   const lines = jsonText?.split('\n') ?? []
 
@@ -105,6 +126,36 @@ export function JsonView({
             </button>
           </div>
         </div>
+        {copyError ? (
+          <div
+            className="mono"
+            style={{
+              fontSize: 11,
+              color: 'var(--warn, #8a6d1a)',
+              border: '1px dashed currentColor',
+              borderRadius: 4,
+              padding: '8px 12px',
+              marginBottom: 18,
+            }}
+          >
+            ⚠ copy failed — {copyError}. Use the Download button instead.
+          </div>
+        ) : null}
+        {reportParseError ? (
+          <div
+            className="mono"
+            style={{
+              fontSize: 11,
+              color: 'var(--warn, #8a6d1a)',
+              border: '1px dashed currentColor',
+              borderRadius: 4,
+              padding: '10px 14px',
+              marginBottom: 18,
+            }}
+          >
+            ⚠ {reportParseError}
+          </div>
+        ) : null}
 
         {report ? (
           <div

@@ -45,14 +45,31 @@ export default async function ReportPage({ params, searchParams }: PageProps) {
   let reportDocError: string | null = null
   const reportUrl = live?.urls['report.json']
   if (live?.reportAvailable && reportUrl) {
+    // Tell "URL signing failed for THIS artifact" apart from "the artifact
+    // set never included it" — the agent surfaces the distinction in
+    // artifact_url_errors. Without this thread, "Recipe markdown
+    // unavailable" reads the same as "no recipe was generated" — Abu would
+    // never know which (silent-failure pattern #4).
+    const sigSignErr = live.errors['signature.json']
+    const recipeSignErr = live.errors['recipe.md']
     const [reportRes, signatureRes, recipeRes] = await Promise.all([
       fetchArtifactJson(reportUrl),
       live.urls['signature.json']
         ? fetchArtifactJson(live.urls['signature.json'])
-        : Promise.resolve({ json: null, error: 'signature.json not in artifact set' }),
+        : Promise.resolve({
+            json: null,
+            error: sigSignErr
+              ? `signature.json URL signing failed (${sigSignErr}) — reload to retry`
+              : 'signature.json not in artifact set',
+          }),
       live.urls['recipe.md']
         ? fetchArtifactText(live.urls['recipe.md'])
-        : Promise.resolve({ text: null, error: null }),
+        : Promise.resolve({
+            text: null,
+            error: recipeSignErr
+              ? `recipe.md URL signing failed (${recipeSignErr}) — reload to retry`
+              : null,
+          }),
     ])
     const report = reportRes.json === null ? null : parseReportDocument(reportRes.json)
     if (report === null) {

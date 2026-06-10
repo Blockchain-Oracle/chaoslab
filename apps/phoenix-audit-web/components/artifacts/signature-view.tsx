@@ -60,12 +60,24 @@ export function SignatureView({
   sample,
 }: SignatureViewProps) {
   const [copied, setCopied] = useState(false)
+  const [copyError, setCopyError] = useState<string | null>(null)
   const [showPem, setShowPem] = useState(false)
   const copyRaw = async () => {
     if (!rawJson) return
-    await navigator.clipboard.writeText(rawJson)
-    setCopied(true)
-    setTimeout(() => setCopied(false), 1400)
+    setCopyError(null)
+    if (!navigator.clipboard?.writeText) {
+      setCopyError('clipboard API unavailable in this context')
+      return
+    }
+    try {
+      await navigator.clipboard.writeText(rawJson)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 1400)
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err)
+      console.error('clipboard write failed:', err)
+      setCopyError(msg)
+    }
   }
 
   return (
@@ -120,6 +132,21 @@ export function SignatureView({
             </button>
           </div>
         </div>
+        {copyError ? (
+          <div
+            className="mono"
+            style={{
+              fontSize: 11,
+              color: 'var(--warn, #8a6d1a)',
+              border: '1px dashed currentColor',
+              borderRadius: 4,
+              padding: '8px 12px',
+              marginBottom: 18,
+            }}
+          >
+            ⚠ copy failed — {copyError}. Use the Download button instead.
+          </div>
+        ) : null}
 
         {signature ? (
           <>

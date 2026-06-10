@@ -17,15 +17,27 @@ export default async function SignaturePage({ params }: PageProps) {
   const run = detail.data?.run
 
   const downloadUrl = detail.data?.artifact_urls['signature.json'] ?? null
+  const signErr = detail.data?.artifact_url_errors['signature.json']
   const res = downloadUrl
     ? await fetchArtifactJson(downloadUrl)
-    : { json: null, error: 'signature.json not in the artifact set' }
+    : {
+        json: null,
+        error: signErr
+          ? `signature.json URL signing failed (${signErr}) — reload to retry`
+          : 'signature.json not in the artifact set',
+      }
   const signature = res.json === null ? null : parseSignatureDocument(res.json)
   const rawJson = res.json === null ? null : JSON.stringify(res.json, null, 2)
-  const publicKeyPem =
-    res.json && typeof res.json === 'object' && 'public_key_pem' in res.json
-      ? String((res.json as { public_key_pem: unknown }).public_key_pem)
-      : null
+  // Stringifying `undefined` / a non-string yields the literal text
+  // "undefined" — a regulator pasting it into a verifier sees a confusing
+  // "invalid PEM" failure. Shape-check the value first.
+  let publicKeyPem: string | null = null
+  if (res.json && typeof res.json === 'object' && 'public_key_pem' in res.json) {
+    const candidate = (res.json as { public_key_pem: unknown }).public_key_pem
+    if (typeof candidate === 'string' && candidate.includes('BEGIN PUBLIC KEY')) {
+      publicKeyPem = candidate
+    }
+  }
 
   return (
     <PageShell label="signature">
@@ -38,7 +50,9 @@ export default async function SignaturePage({ params }: PageProps) {
         }
         downloadUrl={downloadUrl}
         publicKeyPem={publicKeyPem}
-        sample={run?.owner_uid === null}
+        // Loose `== null` catches OMITTED owner_uid (deploy skew) — mirrors
+        // lib/api.ts `runToHistoryRow`.
+        sample={run?.owner_uid == null && Boolean(run)}
       />
     </PageShell>
   )

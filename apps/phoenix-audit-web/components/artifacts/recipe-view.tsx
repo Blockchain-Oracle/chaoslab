@@ -43,14 +43,28 @@ export function RecipeView({
   sample,
 }: RecipeViewProps) {
   const [copied, setCopied] = useState(false)
+  const [copyError, setCopyError] = useState<string | null>(null)
 
   const copyAsJson = async () => {
     if (!recipeMd) return
+    setCopyError(null)
+    if (!navigator.clipboard?.writeText) {
+      setCopyError('clipboard API unavailable in this context')
+      return
+    }
     // The signed artifact is markdown; expose it as JSON-quoted text for
     // pasting into a regulator ticket or audit log without escaping by hand.
-    await navigator.clipboard.writeText(JSON.stringify({ recipe_id: recipeId, markdown: recipeMd }))
-    setCopied(true)
-    setTimeout(() => setCopied(false), 1400)
+    try {
+      await navigator.clipboard.writeText(
+        JSON.stringify({ recipe_id: recipeId, markdown: recipeMd }),
+      )
+      setCopied(true)
+      setTimeout(() => setCopied(false), 1400)
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err)
+      console.error('clipboard write failed:', err)
+      setCopyError(msg)
+    }
   }
 
   return (
@@ -114,6 +128,21 @@ export function RecipeView({
             </button>
           </div>
         </div>
+        {copyError ? (
+          <div
+            className="mono"
+            style={{
+              fontSize: 11,
+              color: 'var(--warn, #8a6d1a)',
+              border: '1px dashed currentColor',
+              borderRadius: 4,
+              padding: '8px 12px',
+              margin: '0 0 14px',
+            }}
+          >
+            ⚠ copy failed — {copyError}. Use Download markdown instead.
+          </div>
+        ) : null}
 
         <div
           style={{

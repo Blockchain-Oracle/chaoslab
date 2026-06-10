@@ -21,9 +21,15 @@ export default async function RecipePage({ params }: PageProps) {
   if (run && !run.recipe_id) notFound()
 
   const downloadUrl = detail.data?.artifact_urls['recipe.md'] ?? null
+  const signErr = detail.data?.artifact_url_errors['recipe.md']
   const recipeRes = downloadUrl
     ? await fetchArtifactText(downloadUrl)
-    : { text: null, error: 'recipe.md not in the artifact set' }
+    : {
+        text: null,
+        error: signErr
+          ? `recipe.md URL signing failed (${signErr}) — reload to retry`
+          : 'recipe.md not in the artifact set',
+      }
 
   return (
     <PageShell label="recipe">
@@ -36,7 +42,9 @@ export default async function RecipePage({ params }: PageProps) {
         downloadUrl={downloadUrl}
         mrUrl={run?.mr_url ?? null}
         createdAt={run?.created_at ?? null}
-        sample={run?.owner_uid === null}
+        // Loose `== null` catches OMITTED owner_uid (deploy skew) — mirrors
+        // lib/api.ts `runToHistoryRow`.
+        sample={run?.owner_uid == null && Boolean(run)}
       />
     </PageShell>
   )
