@@ -95,6 +95,27 @@ class AgentRecord(BaseModel):
     owner_uid: str | None = None
 
 
+HostingPref = Literal["default", "byo"]
+
+
+class UserProfile(BaseModel):
+    """The users/{uid} settings document. extra='ignore' so later stories
+    (gitlab connection blob, wizard fields) can land without migration.
+    Email mirrors the verified token at read/write time — display
+    convenience, not identity."""
+
+    model_config = ConfigDict(extra="ignore")
+
+    uid: str = Field(min_length=1)
+    email: str | None = None
+    org_name: str | None = None
+    framework_default: str = "EU AI Act"
+    hosting_pref: HostingPref = "default"
+    onboarded: bool = False
+    created_at: str | None = None
+    updated_at: str | None = None
+
+
 Cadence = Literal["hourly", "daily"]
 
 
@@ -124,9 +145,11 @@ __all__ = [
     "AgentRecord",
     "Cadence",
     "Framework",
+    "HostingPref",
     "RunCompletion",
     "RunPhase",
     "RunRecord",
     "RunSource",
     "ScheduleRecord",
+    "UserProfile",
 ]

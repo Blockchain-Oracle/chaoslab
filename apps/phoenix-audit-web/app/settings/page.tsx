@@ -1,14 +1,14 @@
 'use client'
 
-// Settings tells the TRUTH (story-9.10): the real signed-in account, real
-// local preferences that other surfaces actually read, and honest states
-// for everything not yet user-configurable. No fictional operators, no
-// fake "connected" integrations, no dead Save buttons.
+// Settings tells the TRUTH (story-9.10 → 9.12): the real signed-in account,
+// preferences persisted server-side on the users/{uid} profile (not
+// localStorage), and honest states for everything not yet user-configurable.
+// Every save shows its real outcome — saving / saved / failed.
 
 import { useEffect, useState } from 'react'
 import { onAuthStateChanged, type User } from 'firebase/auth'
 import { getFirebaseAuth } from '@/lib/auth/client'
-import { PREF_FRAMEWORK, PREF_HOSTING } from '@/lib/prefs'
+import { fetchProfile, saveProfile, type HostingPref, type ProfileUpdate } from '@/lib/profile'
 import { Field } from '@/components/ui/field'
 import { PageFoot } from '@/components/ui/page-foot'
 import { PageShell } from '@/components/ui/page-shell'
@@ -17,26 +17,59 @@ import { TopBar } from '@/components/ui/topbar'
 
 const FRAMEWORKS = ['EU AI Act', 'NIST AI RMF', 'HIPAA', 'SOC 2 + AI']
 
-type Hosting = 'default' | 'byo'
+type SaveState =
+  | { kind: 'loading' }
+  | { kind: 'idle' }
+  | { kind: 'saving' }
+  | { kind: 'saved' }
+  | { kind: 'error'; message: string }
 
 export default function SettingsPage() {
-  const [hosting, setHosting] = useState<Hosting>('default')
+  const [hosting, setHosting] = useState<HostingPref>('default')
   const [framework, setFramework] = useState('EU AI Act')
   const [user, setUser] = useState<User | null>(null)
+  const [save, setSave] = useState<SaveState>({ kind: 'loading' })
 
   useEffect(() => {
-    setHosting((localStorage.getItem(PREF_HOSTING) as Hosting | null) ?? 'default')
-    setFramework(localStorage.getItem(PREF_FRAMEWORK) ?? 'EU AI Act')
-    return onAuthStateChanged(getFirebaseAuth(), setUser)
+    let cancelled = false
+    void fetchProfile().then(({ profile, error }) => {
+      if (cancelled) return
+      if (profile) {
+        setHosting(profile.hosting_pref)
+        setFramework(profile.framework_default)
+        setSave({ kind: 'idle' })
+      } else {
+        setSave({ kind: 'error', message: `could not load your saved settings — ${error}` })
+      }
+    })
+    const off = onAuthStateChanged(getFirebaseAuth(), setUser)
+    return () => {
+      cancelled = true
+      off()
+    }
   }, [])
 
-  const setMode = (m: Hosting) => {
+  const persist = (updates: ProfileUpdate) => {
+    setSave({ kind: 'saving' })
+    void saveProfile(updates).then(({ profile, error }) => {
+      if (profile) {
+        // Server truth wins — render what was actually stored.
+        setHosting(profile.hosting_pref)
+        setFramework(profile.framework_default)
+        setSave({ kind: 'saved' })
+      } else {
+        setSave({ kind: 'error', message: `save failed — ${error}` })
+      }
+    })
+  }
+
+  const setMode = (m: HostingPref) => {
     setHosting(m)
-    localStorage.setItem(PREF_HOSTING, m)
+    persist({ hosting_pref: m })
   }
   const setFw = (f: string) => {
     setFramework(f)
-    localStorage.setItem(PREF_FRAMEWORK, f)
+    persist({ framework_default: f })
   }
 
   return (
@@ -187,8 +220,21 @@ export default function SettingsPage() {
               configuration is not available yet.
             </p>
           ) : null}
-          <p className="mono muted" style={{ fontSize: 10.5, marginTop: 18 }}>
-            Preferences save as you change them — there is nothing else to submit.
+          <p
+            className="mono"
+            style={{
+              fontSize: 10.5,
+              marginTop: 18,
+              color: save.kind === 'error' ? 'var(--fail)' : 'var(--ink-2)',
+            }}
+            role="status"
+          >
+            {save.kind === 'loading' && 'Loading your saved settings…'}
+            {save.kind === 'idle' &&
+              'Preferences save to your account as you change them — there is nothing else to submit.'}
+            {save.kind === 'saving' && 'Saving…'}
+            {save.kind === 'saved' && '✓ Saved to your account.'}
+            {save.kind === 'error' && `✕ ${save.message}`}
           </p>
         </div>
         <PageFoot />

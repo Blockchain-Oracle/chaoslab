@@ -9,7 +9,13 @@ from __future__ import annotations
 from typing import Any
 
 from phoenix_audit_agent.storage.agents import demo_target_seed
-from phoenix_audit_agent.storage.models import AgentRecord, RunCompletion, RunRecord, ScheduleRecord
+from phoenix_audit_agent.storage.models import (
+    AgentRecord,
+    RunCompletion,
+    RunRecord,
+    ScheduleRecord,
+    UserProfile,
+)
 
 
 class InMemoryRunStore:
@@ -105,3 +111,15 @@ class InMemoryScheduleStore:
 
     async def patch_fields(self, schedule_id: str, fields: dict[str, Any]) -> None:
         self._docs[schedule_id].update(fields)
+
+
+class InMemoryProfileStore:
+    def __init__(self) -> None:
+        self._docs: dict[str, dict[str, Any]] = {}
+
+    async def get(self, uid: str) -> UserProfile | None:
+        doc = self._docs.get(uid)
+        return UserProfile.model_validate(doc) if doc else None
+
+    async def set(self, profile: UserProfile) -> None:
+        self._docs[profile.uid] = profile.model_dump()
