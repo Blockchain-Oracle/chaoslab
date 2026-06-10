@@ -55,7 +55,9 @@ export interface HardeningRecipe {
   targetAgentId: string
   generatedAt: string
   generationSec?: number
-  clusterSet?: FailureClusterSet
+  // Required — mirrors the JSON Schema (cluster_set is in `required`); the
+  // drift guard in tests/schema-drift.test.ts pins both sides.
+  clusterSet: FailureClusterSet
   promptPatches: PromptPatch[]
   toolValidationDiffs: ToolValidationDiff[]
   regressionTestCases: RegressionTestCase[]

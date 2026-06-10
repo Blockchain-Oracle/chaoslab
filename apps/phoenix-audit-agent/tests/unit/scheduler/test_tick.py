@@ -39,6 +39,9 @@ async def test_due_schedule_fires_and_advances() -> None:
         launched.append(schedule.schedule_id)
         return "run_scheduled001"
 
+    # Captured BEFORE the tick — comparing against a FRESH now() after the
+    # advance races the helper's internal clock by microseconds (flake).
+    before = datetime.now(UTC)
     result = await run_tick(store=store, launch=launch)
 
     assert result.claimed == 1
@@ -46,7 +49,7 @@ async def test_due_schedule_fires_and_advances() -> None:
     assert launched == ["sch_due"]
     after = await store.get("sch_due")
     assert after is not None
-    assert after.next_fire_at > _iso(datetime.now(UTC))  # advanced into the future
+    assert after.next_fire_at > _iso(before)  # advanced into the future
     assert after.last_run_id == "run_scheduled001"
     assert after.last_fired_at is not None
 
@@ -124,6 +127,9 @@ def test_advance_fast_forwards_after_outage_no_backlog() -> None:
     record = _schedule("sch_x", next_fire_at=_iso(week_ago)).model_copy(
         update={"cadence": "hourly"}
     )
+    # Captured BEFORE the call — advance_fire_time fast-forwards past its OWN
+    # now(); asserting against a fresh later now() is a microsecond flake.
+    before = datetime.now(UTC)
     advanced = datetime.fromisoformat(advance_fire_time(record))
-    assert advanced > datetime.now(UTC)
+    assert advanced > before
     assert advanced <= datetime.now(UTC) + timedelta(hours=1)

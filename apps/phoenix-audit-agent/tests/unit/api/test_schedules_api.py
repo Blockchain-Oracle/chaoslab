@@ -169,6 +169,8 @@ async def test_tick_fails_closed_when_unconfigured(client: httpx.AsyncClient) ->
 async def test_tick_rejects_missing_and_invalid_tokens(
     client: httpx.AsyncClient, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    from phoenix_audit_agent.api import schedules as schedules_api
+
     monkeypatch.setenv("SERVICE_BASE_URL", "https://agent.example")
     monkeypatch.setenv("SCHEDULER_INVOKER_EMAIL", "deploy@p.iam.gserviceaccount.com")
     get_settings.cache_clear()
@@ -176,10 +178,53 @@ async def test_tick_rejects_missing_and_invalid_tokens(
     r = await client.post("/internal/scheduler-tick")
     assert r.status_code == 401
 
+    # Mock the Google verifier — the real one fetches certs over HTTPS, so an
+    # unmocked call passes-by-accident offline (cert fetch raises → 401 for
+    # the wrong reason) and hits a live endpoint from a unit test otherwise.
+    def reject(token: object, request: object, audience: object) -> dict[str, Any]:
+        msg = "synthetic verification failure"
+        raise ValueError(msg)
+
+    monkeypatch.setattr(schedules_api.id_token, "verify_oauth2_token", reject)
     r = await client.post(
         "/internal/scheduler-tick", headers={"authorization": "Bearer not-a-real-token"}
     )
     assert r.status_code == 401
+    assert "ValueError" in r.json()["detail"]
+
+
+@pytest.mark.parametrize(
+    "claims",
+    [
+        # wrong service account
+        {"email": "attacker@evil.example", "email_verified": True},
+        # right account, unverified email claim
+        {"email": "deploy@p.iam.gserviceaccount.com", "email_verified": False},
+        # right account, email_verified absent (must not pass an is-True gate)
+        {"email": "deploy@p.iam.gserviceaccount.com"},
+    ],
+    ids=["wrong-email", "unverified-email", "missing-email-verified"],
+)
+async def test_tick_rejects_valid_token_with_wrong_claims(
+    client: httpx.AsyncClient, monkeypatch: pytest.MonkeyPatch, claims: dict[str, Any]
+) -> None:
+    """The authorization decision itself (claims gate) — verify_oauth2_token is
+    mocked to SUCCEED so the 403 must come from the email/email_verified check."""
+    from phoenix_audit_agent.api import schedules as schedules_api
+
+    monkeypatch.setenv("SERVICE_BASE_URL", "https://agent.example")
+    monkeypatch.setenv("SCHEDULER_INVOKER_EMAIL", "deploy@p.iam.gserviceaccount.com")
+    get_settings.cache_clear()
+
+    monkeypatch.setattr(
+        schedules_api.id_token,
+        "verify_oauth2_token",
+        lambda token, request, audience: claims,
+    )
+    r = await client.post(
+        "/internal/scheduler-tick", headers={"authorization": "Bearer signed-but-wrong"}
+    )
+    assert r.status_code == 403
 
 
 async def test_tick_launches_due_schedules_with_valid_token(

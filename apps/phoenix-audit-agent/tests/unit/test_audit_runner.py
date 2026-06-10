@@ -308,9 +308,9 @@ async def test_event_order_with_failures(wired: _Emitted) -> None:
     # phoenix_audit.honored — the transport failure has no response span and
     # must not inflate the locked warning's claim.
     assert rd.honored_missing_count == 2
-    assert [p.verdict for p in rd.probes] == ["fail", "pass", "fail"] or [
-        p.verdict for p in sorted(rd.probes, key=lambda p: p.n)
-    ] == ["pass", "fail", "fail"]
+    # Single assertion on probe-number order — a disjunctive (X == A or Y == B)
+    # shape would also accept broken n indices.
+    assert [p.verdict for p in sorted(rd.probes, key=lambda p: p.n)] == ["pass", "fail", "fail"]
 
     complete = wired.first("complete")
     assert complete["passed"] == 1
