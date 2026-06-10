@@ -10,6 +10,7 @@ from typing import TYPE_CHECKING, Protocol, cast, runtime_checkable
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from phoenix_audit_agent.config import get_settings
+from phoenix_audit_agent.errors import PhoenixAuditError
 from phoenix_audit_agent.patcher._markdown_renderer import render_recipe
 from phoenix_audit_agent.patcher.recipe import HardeningRecipe
 
@@ -25,7 +26,7 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 
 
-class MarkdownEmitterError(RuntimeError):
+class MarkdownEmitterError(PhoenixAuditError, RuntimeError):
     """Base class for Markdown-emitter failures."""
 
 

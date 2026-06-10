@@ -103,6 +103,53 @@ async def test_patch_toggles_enabled(client: httpx.AsyncClient) -> None:
     assert r404.status_code == 404
 
 
+async def test_create_deliver_email_without_recipient_is_422(
+    client: httpx.AsyncClient,
+) -> None:
+    """deliver_email=True with no recipient is an unhonorable delivery
+    contract — reject at POST instead of silently never emailing."""
+    r = await client.post(
+        "/schedules",
+        json={"target_url": "https://target.example", "deliver_email": True},
+    )
+    assert r.status_code == 422
+
+
+async def test_patch_deliver_email_without_recipient_is_422(
+    client: httpx.AsyncClient,
+) -> None:
+    """PATCH must not be a side door into the delivery contract POST rejects."""
+    created = await _create(client)
+    r = await client.patch(f"/schedules/{created['schedule_id']}", json={"deliver_email": True})
+    assert r.status_code == 422
+
+
+async def test_create_rejects_ssrf_target(client: httpx.AsyncClient) -> None:
+    r = await client.post(
+        "/schedules",
+        json={"target_url": "http://metadata.google.internal/computeMetadata/v1/"},
+    )
+    assert r.status_code == 422
+
+
+async def test_patch_vanished_schedule_is_404(client: httpx.AsyncClient) -> None:
+    """A schedule deleted between the existence check and the refresh must 404
+    — never fabricate a response record from the stale pre-patch copy."""
+    created = await _create(client)
+
+    store = schedule_storage.get_schedule_store()
+    assert isinstance(store, InMemoryScheduleStore)
+    original_patch_fields = store.patch_fields
+
+    async def patch_then_vanish(schedule_id: str, fields: dict[str, Any]) -> None:
+        await original_patch_fields(schedule_id, fields)
+        store._docs.pop(schedule_id, None)
+
+    store.patch_fields = patch_then_vanish  # ty: ignore[invalid-assignment]
+    r = await client.patch(f"/schedules/{created['schedule_id']}", json={"enabled": False})
+    assert r.status_code == 404
+
+
 async def test_invalid_email_rejected(client: httpx.AsyncClient) -> None:
     r = await client.post(
         "/schedules",
@@ -144,7 +191,7 @@ async def test_tick_launches_due_schedules_with_valid_token(
     monkeypatch.setenv("SCHEDULER_INVOKER_EMAIL", "deploy@p.iam.gserviceaccount.com")
     get_settings.cache_clear()
 
-    def fake_verify(authorization: str | None) -> dict[str, Any]:
+    async def fake_verify(authorization: str | None) -> dict[str, Any]:
         assert authorization == "Bearer good-token"
         return {"email": "deploy@p.iam.gserviceaccount.com", "email_verified": True}
 

@@ -90,11 +90,24 @@ def setup_logging(env: str = "production") -> None:
             )
             raise RuntimeError(msg)
         return
+    # main.py passes the Environment Literal value "prod"; "production" is
+    # accepted for explicit callers. Matching ONLY "production" silently sent
+    # ANSI console output to Cloud Logging.
     renderer: structlog.types.Processor = (
         structlog.processors.JSONRenderer()
-        if env == "production"
+        if env in ("prod", "production")
         else structlog.dev.ConsoleRenderer(colors=True)
     )
+    # structlog only wraps ITS OWN loggers — the ~17 modules using stdlib
+    # `logging.getLogger` would otherwise hit the unconfigured root logger,
+    # whose lastResort handler drops INFO (sse_client_disconnect,
+    # gitlab_mr_emitted, ... vanish from the production audit trail).
+    root = logging.getLogger()
+    if not root.handlers:
+        handler = logging.StreamHandler()
+        handler.setFormatter(logging.Formatter("%(levelname)s %(name)s %(message)s"))
+        root.addHandler(handler)
+    root.setLevel(logging.INFO)
     structlog.configure(
         processors=[
             structlog.contextvars.merge_contextvars,

@@ -110,7 +110,8 @@ async def test_launch_failure_contained_and_counted() -> None:
 
 def test_advance_anchors_to_schedule_not_tick_time() -> None:
     """+1 interval from the OLD fire time — no drift accumulation."""
-    recent = datetime.now(UTC) - timedelta(minutes=10)
+    # Second precision — the canonical timestamp format truncates microseconds.
+    recent = (datetime.now(UTC) - timedelta(minutes=10)).replace(microsecond=0)
     record = _schedule("sch_x", next_fire_at=_iso(recent)).model_copy(update={"cadence": "hourly"})
     advanced = datetime.fromisoformat(advance_fire_time(record))
     assert advanced == recent + timedelta(hours=1)

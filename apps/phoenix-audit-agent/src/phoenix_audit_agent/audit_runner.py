@@ -22,6 +22,7 @@ from typing import Any
 import structlog
 from pydantic import HttpUrl
 
+from phoenix_audit_agent._time import parse_iso, utc_now_iso
 from phoenix_audit_agent.config import get_settings
 from phoenix_audit_agent.injector.agent import AttackResult, AttackRun, Injector, InjectorState
 from phoenix_audit_agent.injector.target_adapters import AdapterTier, ADKAdapter, TargetSpec
@@ -121,7 +122,7 @@ def _completion_fields(
     """Registry-index finalize payload — typed; extra='forbid' on the model
     makes a typo'd field a constructor error, never a silent drop."""
     try:
-        started = datetime.fromisoformat(created_at.replace("Z", "+00:00"))
+        started = parse_iso(created_at)
         duration_sec: float | None = round((datetime.now(UTC) - started).total_seconds(), 1)
     except ValueError:
         duration_sec = None
@@ -136,7 +137,7 @@ def _completion_fields(
         transport_failed=tally.transport_failed,
         recipe_id=recipe_id,
         report_available=report_available,
-        finished_at=datetime.now(UTC).isoformat(),
+        finished_at=utc_now_iso(),
         duration_sec=duration_sec,
     )
 
@@ -156,7 +157,7 @@ async def drive_audit(
     Raises on pipeline failure — the caller (main._drive_orchestrator) owns
     the error/cancelled framing and the queue sentinel.
     """
-    created_at = created_at or datetime.now(UTC).isoformat()
+    created_at = created_at or utc_now_iso()
     # ---- injector ---------------------------------------------------------
     set_phase("injector")
     await emit("phase_change", {"phase": "injector", "run_id": run_id})
@@ -316,8 +317,13 @@ async def drive_audit(
         root_causes=[c.root_cause for c in cluster_set.clusters] if cluster_set else [],
         excluded_transport_failures=transport_failed,
         annotation_writeback_failed=writeback_failed,
+        # Same predicate as the SSE `cluster_set` skip frame above — an
+        # all-rubric-errored run (failed=0, errored>0) must disclose the skip
+        # in the SIGNED report too, not only in the live stream.
         clustering_skipped=(
-            "no_clusterable_failures" if cluster_set is None and failed > 0 else None
+            "no_clusterable_failures"
+            if cluster_set is None and (failed > 0 or errored > 0)
+            else None
         ),
         recipe_id=recipe_id,
         markdown_url=markdown_url,

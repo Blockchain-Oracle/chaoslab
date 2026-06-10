@@ -7,26 +7,22 @@ fire at most once per tick window, enforced by the store, not the caller.
 
 from __future__ import annotations
 
-from datetime import datetime
 from typing import Any, Protocol
 
 import structlog
 from google.api_core.exceptions import FailedPrecondition
 from pydantic import ValidationError
 
+# Both 'Z' and '+00:00' forms exist in stored documents (pre-canonicalization
+# writers). A lexicographic compare reads a DUE Z-form timestamp as future
+# ('Z' > '+'), silently skipping it every tick — always compare via parse.
+from phoenix_audit_agent._time import parse_iso as _parse_iso
 from phoenix_audit_agent.storage.firestore_client import get_firestore
 from phoenix_audit_agent.storage.models import ScheduleRecord
 
 _log = structlog.get_logger(__name__)
 
 _COLLECTION = "schedules"
-
-
-def _parse_iso(ts: str) -> datetime:
-    # Both 'Z' and '+00:00' forms exist in the wild (main._iso_now emits Z,
-    # api/schedules emits +00:00). A lexicographic compare reads a DUE Z-form
-    # timestamp as future ('Z' > '+'), silently skipping it every tick.
-    return datetime.fromisoformat(ts.replace("Z", "+00:00"))
 
 
 class ScheduleStore(Protocol):

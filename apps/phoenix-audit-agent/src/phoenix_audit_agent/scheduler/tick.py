@@ -14,6 +14,7 @@ from datetime import UTC, datetime, timedelta
 import structlog
 from pydantic import BaseModel
 
+from phoenix_audit_agent._time import parse_iso, utc_now_iso
 from phoenix_audit_agent.storage.models import Cadence, ScheduleRecord
 from phoenix_audit_agent.storage.schedules import ScheduleStore
 
@@ -45,7 +46,7 @@ def advance_fire_time(record: ScheduleRecord) -> str:
     interval = _INTERVALS[record.cadence]
     now = datetime.now(UTC)
     try:
-        next_at = datetime.fromisoformat(record.next_fire_at.replace("Z", "+00:00"))
+        next_at = parse_iso(record.next_fire_at)
     except ValueError:
         # Re-anchoring heals the schedule, but corrupted state must be VISIBLE.
         _log.warning(
@@ -57,11 +58,11 @@ def advance_fire_time(record: ScheduleRecord) -> str:
     next_at += interval
     while next_at <= now:
         next_at += interval
-    return next_at.isoformat()
+    return next_at.isoformat(timespec="seconds")
 
 
 async def run_tick(*, store: ScheduleStore, launch: LaunchFn) -> TickResult:
-    now_iso = datetime.now(UTC).isoformat()
+    now_iso = utc_now_iso()
     schedules, corrupted = await store.claim_due(now_iso=now_iso, advance=advance_fire_time)
     launched: list[str] = []
     failures = 0

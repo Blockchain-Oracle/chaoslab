@@ -23,6 +23,8 @@ from typing import Any
 
 import httpx
 
+from phoenix_audit_agent.errors import PhoenixAuditError
+
 logger = logging.getLogger(__name__)
 
 OFFICIAL_ENDPOINT: str = "https://gitlab.com/api/v4/mcp"
@@ -35,7 +37,7 @@ _HTTP_UNAUTHORIZED: int = 401
 _HTTP_INTERNAL_ERROR: int = 500
 
 
-class GitLabMcpError(RuntimeError):
+class GitLabMcpError(PhoenixAuditError, RuntimeError):
     """Raised when MCP `create_merge_request` fails non-recoverably.
 
     `auth_failed` is set True iff the failure was a 401 — round-3 review

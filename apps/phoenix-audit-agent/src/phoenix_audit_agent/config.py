@@ -169,6 +169,13 @@ class Settings(BaseSettings):
         default="dev",
         description="dev | staging | prod — gates fail-loud vs degraded paths.",
     )
+    ALLOW_LOCAL_TARGETS: bool = Field(
+        default=False,
+        description=(
+            "Permit loopback/localhost target URLs outside dev (SSRF guard "
+            "override for integration tests; never set in production)."
+        ),
+    )
     service_version: str = Field(
         default="0.0.0",
         description="${GITHUB_SHA} at build time; '0.0.0' for local dev.",

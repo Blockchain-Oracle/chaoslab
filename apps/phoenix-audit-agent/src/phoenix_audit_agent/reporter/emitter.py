@@ -35,7 +35,9 @@ class ReportEmitter:
     def _upload_one(self, blob_name: str, payload: bytes, content_type: str) -> str:
         bucket = self._client.bucket(self._bucket_name)
         blob = bucket.blob(blob_name)
-        blob.upload_from_string(payload, content_type=content_type)
+        # if_generation_match=0 → create-only: a retry/re-run can never
+        # silently overwrite an already-delivered regulator artifact.
+        blob.upload_from_string(payload, content_type=content_type, if_generation_match=0)
         return blob.generate_signed_url(version="v4", expiration=self._ttl, method="GET")
 
     async def emit(self, run_id: str, artifacts: dict[str, bytes]) -> dict[str, str]:

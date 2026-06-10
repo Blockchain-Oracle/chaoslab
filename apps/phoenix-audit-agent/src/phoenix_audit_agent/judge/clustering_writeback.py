@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING, Any, cast
 
 from pydantic import BaseModel, Field
 
+from phoenix_audit_agent.errors import PhoenixAuditError
 from phoenix_audit_agent.judge.rubrics._base import PhoenixClient
 
 if TYPE_CHECKING:
@@ -16,7 +17,7 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-class AnnotationWritebackError(RuntimeError):
+class AnnotationWritebackError(PhoenixAuditError, RuntimeError):
     """Phoenix rejected the annotation batch — audit may be partially written."""
 
     def __init__(

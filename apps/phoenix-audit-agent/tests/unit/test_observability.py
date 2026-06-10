@@ -56,6 +56,46 @@ def test_setup_logging_production_emits_json(capsys: pytest.CaptureFixture[str])
     assert parsed["level"] == "info"
 
 
+def test_setup_logging_prod_emits_json(capsys: pytest.CaptureFixture[str]) -> None:
+    """`env="prod"` is what main.py actually passes (Environment Literal) —
+    it must select the JSON renderer, not the dev console renderer."""
+    from phoenix_audit_agent.observability import get_logger, setup_logging
+
+    setup_logging(env="prod")
+    get_logger().info("prod_event", foo="bar")
+
+    output = capsys.readouterr().out.strip()
+    assert output, "no log line captured"
+    parsed = json.loads(output.splitlines()[-1])
+    assert parsed["event"] == "prod_event"
+
+
+def test_setup_logging_configures_stdlib_root_logger() -> None:
+    """~17 modules use stdlib `logging.getLogger`; without a configured root
+    logger their INFO lines (gitlab_mr_emitted, sse_client_disconnect, ...)
+    are dropped by the lastResort handler in production."""
+    import logging
+
+    from phoenix_audit_agent.observability import setup_logging
+
+    root = logging.getLogger()
+    before_handlers = list(root.handlers)
+    before_level = root.level
+    try:
+        for h in before_handlers:
+            root.removeHandler(h)
+        root.setLevel(logging.WARNING)
+        setup_logging(env="prod")
+        assert root.handlers, "setup_logging must attach a root stdlib handler"
+        assert root.getEffectiveLevel() <= logging.INFO
+    finally:
+        for h in list(root.handlers):
+            root.removeHandler(h)
+        for h in before_handlers:
+            root.addHandler(h)
+        root.setLevel(before_level)
+
+
 def test_setup_logging_dev_uses_console_renderer(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
