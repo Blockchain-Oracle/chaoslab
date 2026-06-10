@@ -1,12 +1,15 @@
-// Renders the run's REAL recipe.md in-app (story-9.13) — the designed diff
-// idiom (colored +/- lines) applied to the patcher's actual output, replacing
-// the raw-text-in-a-new-tab experience.
+// Renders the run's REAL recipe.md in-app. The diff idiom matches the
+// prototype's Surface G: paper-2 background, ink text, soft red/green tints
+// on +/- lines (NOT the audit chamber's dark codeblock). Top-level (h2)
+// markdown headings are wrapped in SectionHead with auto §-numbering when
+// `numbered` is on, so the Surface G page reads §1 Summary, §2 Root Causes,
+// §3 Prompt Patches, etc. without anyone hand-numbering anything.
 
 import { Fragment } from 'react'
+import { SectionHead } from '@/components/ui/section-head'
 import { diffLineKind, type RecipeBlock } from '@/lib/report-doc'
 
-/** Minimal inline renderer for OUR generated markdown: `code` and **bold**.
- *  Unknown constructs render as-is — content must never disappear. */
+/** Minimal inline renderer for OUR generated markdown: `code` and **bold**. */
 function Inline({ text }: { text: string }) {
   const parts = text.split(/(\*\*[^*]+\*\*|`[^`]+`)/g)
   return (
@@ -30,7 +33,7 @@ function Inline({ text }: { text: string }) {
 
 function CodeBlock({ lines }: { lines: string[] }) {
   return (
-    <pre className="codeblock" style={{ margin: '0 0 14px', whiteSpace: 'pre-wrap' }}>
+    <pre className="codeblock light" style={{ margin: '0 0 16px', whiteSpace: 'pre-wrap' }}>
       {lines.map((line, i) => {
         const kind = diffLineKind(line)
         const cls = kind === 'add' ? 'add' : kind === 'del' ? 'del' : kind === 'hunk' ? 'dim' : ''
@@ -44,32 +47,53 @@ function CodeBlock({ lines }: { lines: string[] }) {
   )
 }
 
-export function RecipeMdView({ blocks }: { blocks: RecipeBlock[] }) {
+interface RecipeMdViewProps {
+  blocks: RecipeBlock[]
+  /** When true, every h2 wraps in a SectionHead with auto §1, §2, …
+   *  Use on the standalone Surface G; leave off in the small report-preview
+   *  excerpt so the embedded view stays compact. */
+  numbered?: boolean
+}
+
+export function RecipeMdView({ blocks, numbered = false }: RecipeMdViewProps) {
+  let h2Index = 0
   return (
     <div>
       {blocks.map((b, i) => {
         if (b.kind === 'heading') {
-          if (b.level === 1) {
-            // The artifact's own title — the surrounding page already has one.
-            return null
+          // The recipe's own h1 title — the surrounding page already shows one.
+          if (b.level === 1) return null
+          if (b.level === 2) {
+            h2Index += 1
+            const inline = <Inline text={b.text} />
+            if (numbered) {
+              return (
+                <div key={i} style={{ margin: '32px 0 14px' }}>
+                  <SectionHead no={`§${h2Index}`} title={inline} />
+                </div>
+              )
+            }
+            return (
+              <h3 key={i} className="serif" style={{ fontSize: 17, margin: '22px 0 10px' }}>
+                {inline}
+              </h3>
+            )
           }
+          // h3 / sub-heads (e.g. cluster ids in the recipe markdown) — keep
+          // them as ember-deep mono so they read as identifiers.
           return (
-            <h3
+            <h4
               key={i}
-              className={b.level === 2 ? 'serif' : 'mono'}
-              style={
-                b.level === 2
-                  ? { fontSize: 17, margin: '22px 0 10px' }
-                  : {
-                      fontSize: 11,
-                      letterSpacing: '0.1em',
-                      color: 'var(--ember-deep)',
-                      margin: '16px 0 8px',
-                    }
-              }
+              className="mono"
+              style={{
+                fontSize: 11,
+                letterSpacing: '0.1em',
+                color: 'var(--ember-deep)',
+                margin: '16px 0 8px',
+              }}
             >
               <Inline text={b.text} />
-            </h3>
+            </h4>
           )
         }
         if (b.kind === 'code') {

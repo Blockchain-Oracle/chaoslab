@@ -2,6 +2,7 @@
 // run's REAL artifacts: report.json drives every number, signature.json the
 // attestation block, recipe.md the recipe page. No fixture values anywhere.
 
+import { A } from '@/components/ui/link'
 import { Seal } from '@/components/ui/seal'
 import { Verdict } from '@/components/ui/stamps'
 import { Wordmark } from '@/components/ui/wordmark'
@@ -40,6 +41,9 @@ interface ReportPageProps {
   page: ReportPageId
   view: ReportView
   signed: boolean
+  /** Used by the recipe excerpt's "Open the full hardening recipe" link
+   *  → Surface G at /recipe/[runId]. */
+  runId: string
 }
 
 function probeVerdict(p: ReportDoc['probes'][number]): 'pass' | 'fail' | 'error' {
@@ -47,7 +51,7 @@ function probeVerdict(p: ReportDoc['probes'][number]): 'pass' | 'fail' | 'error'
   return p.verdict
 }
 
-export function ReportPage({ page, view, signed }: ReportPageProps) {
+export function ReportPage({ page, view, signed, runId }: ReportPageProps) {
   const { report, signature } = view
   const [frameworkName, ...frameworkRest] = report.frameworkLabel.split('·').map((s) => s.trim())
 
@@ -288,26 +292,45 @@ export function ReportPage({ page, view, signed }: ReportPageProps) {
   }
 
   if (page === 'recipe') {
+    // In-app rendering of the real recipe content (cluster summaries, prompt
+    // patches, tool diffs) — Abu wants the visible preview AND a deep-link to
+    // Surface G (the standalone /recipe/[runId] page that has Download / MR
+    // / Copy actions).
     return (
       <div>
-        <div className="kicker" style={{ marginBottom: 18 }}>
+        <div className="kicker" style={{ marginBottom: 14 }}>
           Hardening recipe{view.report.recipeId ? ` — ${view.report.recipeId}` : ''}
         </div>
-        {view.recipeBlocks ? (
-          <div style={{ maxHeight: 560, overflowY: 'auto', paddingRight: 6 }}>
+        {report.recipeId && view.recipeBlocks ? (
+          <>
+            <p style={{ fontSize: 12.5, color: 'var(--ink-2)', marginBottom: 16, lineHeight: 1.7 }}>
+              Excerpt below — the full hardening recipe view has the download, GitLab MR action, and
+              copy-as-JSON.
+            </p>
             <RecipeMdView blocks={view.recipeBlocks} />
-          </div>
-        ) : (
+            <div
+              style={{
+                marginTop: 18,
+                paddingTop: 14,
+                borderTop: '1px solid var(--hairline-soft)',
+              }}
+            >
+              <A to={`recipe/${runId}`} className="span-link" style={{ fontSize: 13 }}>
+                Open the full hardening recipe view →
+              </A>
+            </div>
+          </>
+        ) : report.recipeId ? (
           <p className="muted" style={{ fontSize: 13 }}>
             {view.recipeError
-              ? `The recipe artifact could not be loaded right now (${view.recipeError}) — use the download button above.`
-              : 'No hardening recipe was generated for this run.'}
+              ? `The recipe artifact could not be loaded right now (${view.recipeError}).`
+              : 'Recipe markdown unavailable.'}
+          </p>
+        ) : (
+          <p className="muted" style={{ fontSize: 13 }}>
+            No hardening recipe was generated for this run.
           </p>
         )}
-        <p className="mono muted" style={{ fontSize: 9.5, marginTop: 14, lineHeight: 1.7 }}>
-          FILE AS GITLAB MR — available once you connect GitLab in Settings (coming next). The MR
-          only ADDS files under phoenix-audit/ in your repository.
-        </p>
       </div>
     )
   }

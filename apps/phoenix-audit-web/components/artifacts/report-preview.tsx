@@ -1,11 +1,14 @@
 'use client'
 
-// The signed-report surface for a REAL run (story-9.13 restore): the designed
-// multi-page preview (cover seal, verdict stamps, clusters, in-app recipe with
-// diffs) rendered from the run's actual artifacts, an in-app signature verify
-// panel, and honest disclosure when anything could not be loaded.
+// The signed-report multi-page preview (story-9.13 round 2 — prototype
+// fidelity). Top-right action row mirrors `Phoenix Audit.html`:
+//   [ Download PDF ] [ View JSON ] [ View signature ]
+// Page thumbnails sit in a HORIZONTAL strip above the preview pane so a
+// user can switch to any page without scrolling past the whole report.
+// The preview pane itself scrolls in place. Each artifact link navigates
+// to a dedicated viewer screen — never a raw browser tab.
 
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { A } from '@/components/ui/link'
 import { PageFoot } from '@/components/ui/page-foot'
 import { TopBar } from '@/components/ui/topbar'
@@ -14,10 +17,7 @@ import { PageThumb } from './page-thumb'
 import { REPORT_PAGES, ReportPage, type ReportPageId, type ReportView } from './report-pages'
 
 export interface LiveReportData {
-  /** Freshly signed artifact URLs from the registry (report.pdf, report.json,
-   *  signature.json, events.json, recipe.md — whichever exist). */
   urls: Record<string, string>
-  /** Artifacts whose URL signing failed — distinct from absent. */
   errors: Record<string, string>
   reportAvailable: boolean
   eventsAvailable: boolean
@@ -32,14 +32,10 @@ export interface LiveReportData {
 
 interface ReportPreviewProps {
   runId: string
-  /** Present = the registry answered; null = unreachable (see liveError). */
   live: LiveReportData | null
   liveError: string | null
-  /** Parsed artifact set — null report doc = preview unavailable, page
-   *  falls back to downloads + disclosure (reportDocError says why). */
   view: ReportView | null
   reportDocError: string | null
-  /** Deep-link target (?page=recipe from the audits table). */
   initialPage?: ReportPageId
 }
 
@@ -61,101 +57,6 @@ function Notice({ tone, children }: { tone: 'warn' | 'fail'; children: React.Rea
   )
 }
 
-const DOWNLOADS: ReadonlyArray<{ name: string; label: string; primary?: boolean }> = [
-  { name: 'report.pdf', label: 'Download PDF', primary: true },
-  { name: 'report.json', label: 'report.json' },
-  { name: 'signature.json', label: 'signature.json' },
-  { name: 'recipe.md', label: 'recipe.md' },
-]
-
-function VerifyPanel({
-  view,
-  live,
-  onOpenRecipe,
-}: {
-  view: ReportView
-  live: LiveReportData
-  onOpenRecipe: () => void
-}) {
-  const sig = view.signature
-  return (
-    <div
-      style={{
-        border: '1px solid var(--hairline)',
-        borderRadius: 'var(--r-lg)',
-        padding: '16px 20px',
-        marginBottom: 26,
-      }}
-    >
-      <div style={{ display: 'flex', gap: 18, alignItems: 'center', flexWrap: 'wrap' }}>
-        <div style={{ flex: 1, minWidth: 260 }}>
-          <div className="kicker" style={{ marginBottom: 6 }}>
-            Signature
-          </div>
-          {sig ? (
-            <div className="mono" style={{ fontSize: 11, lineHeight: 1.8 }}>
-              <span style={{ color: 'var(--pass)' }}>●</span> Signed with{' '}
-              {sig.algorithm.includes('ED25519') ? 'Ed25519' : sig.algorithm} via Cloud KMS · key
-              fingerprint <span title={sig.fingerprint}>{sig.fingerprint.slice(0, 16)}…</span>
-            </div>
-          ) : (
-            <div className="mono" style={{ fontSize: 11, color: 'var(--warn, #8a6d1a)' }}>
-              ⚠ signature sidecar could not be loaded
-              {view.signatureError ? ` (${view.signatureError})` : ''} — download it below to verify
-              offline.
-            </div>
-          )}
-        </div>
-        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-          {view.recipeBlocks ? (
-            <button className="btn small ghost" onClick={onOpenRecipe}>
-              View recipe
-            </button>
-          ) : null}
-          {DOWNLOADS.map(({ name, label, primary }) =>
-            live.urls[name] ? (
-              <a
-                key={name}
-                className={primary ? 'btn primary' : 'btn small ghost'}
-                href={live.urls[name]}
-                {...(primary ? { target: '_blank', rel: 'noreferrer' } : {})}
-              >
-                {primary ? label : `↓ ${label}`}
-              </a>
-            ) : null,
-          )}
-        </div>
-      </div>
-      {sig ? (
-        <details style={{ marginTop: 10 }}>
-          <summary
-            className="mono muted"
-            style={{ fontSize: 10.5, cursor: 'pointer', letterSpacing: '0.06em' }}
-          >
-            WHAT EXACTLY WAS SIGNED — verify it yourself
-          </summary>
-          <div className="mono" style={{ fontSize: 10.5, lineHeight: 1.9, paddingTop: 8 }}>
-            Key fingerprint (SHA-256 of public key): {sig.fingerprint}
-            <br />
-            KMS key: {sig.kmsKeyVersion}
-            <br />
-            Signed at: {sig.signedAt}
-            {sig.artifacts.map((a) => (
-              <span key={a.file}>
-                <br />
-                {a.file} · sha256 {a.sha256.slice(0, 24)}… · Ed25519-signed
-              </span>
-            ))}
-            <br />
-            Verify offline: ed25519_verify(public_key, sha256(file_bytes), signature) using the
-            sidecar&apos;s public_key_pem.
-          </div>
-        </details>
-      ) : null}
-    </div>
-  )
-}
-
 export function ReportPreview({
   runId,
   live,
@@ -166,11 +67,19 @@ export function ReportPreview({
 }: ReportPreviewProps) {
   const [page, setPage] = useState<ReportPageId>(initialPage ?? 'cover')
   const signed = Boolean(live?.reportAvailable)
+  const previewRef = useRef<HTMLDivElement>(null)
+
+  // Reset the preview's own scroll when switching pages — the rail stays
+  // visible above; a long page should start at its top, not where the
+  // previous page left off.
+  useEffect(() => {
+    previewRef.current?.scrollTo({ top: 0 })
+  }, [page])
 
   return (
     <div className="page-enter">
       <TopBar />
-      <div className="shell" style={{ padding: '44px 40px 30px', maxWidth: 980 }}>
+      <div className="shell" style={{ padding: '44px 40px 30px', maxWidth: 1080 }}>
         <div className="mono muted" style={{ fontSize: 11, marginBottom: 14 }}>
           <A to="audits" style={{ color: 'var(--ember-deep)', textDecoration: 'none' }}>
             AUDIT REGISTRY
@@ -198,22 +107,22 @@ export function ReportPreview({
         {live?.reportAvailable && !view ? (
           <Notice tone="warn">
             ⚠ REPORT PREVIEW UNAVAILABLE — report.json could not be loaded
-            {reportDocError ? ` (${reportDocError})` : ''}; the signed downloads below remain the
-            authoritative artifacts.
+            {reportDocError ? ` (${reportDocError})` : ''}; the artifact viewer links below remain
+            available.
           </Notice>
         ) : null}
 
         <div
           style={{
-            marginBottom: 22,
             display: 'flex',
             alignItems: 'flex-end',
             gap: 18,
+            marginBottom: 22,
             flexWrap: 'wrap',
           }}
         >
           <div style={{ flex: 1, minWidth: 320 }}>
-            <h1 className="display" style={{ fontSize: 36, whiteSpace: 'nowrap' }}>
+            <h1 className="display" style={{ fontSize: 36 }}>
               Signed audit report.
               {live?.sample ? (
                 <span
@@ -237,16 +146,43 @@ export function ReportPreview({
               </div>
             ) : null}
           </div>
-          {live?.eventsAvailable ? (
-            <A to={`run/${runId}`} className="btn ember" style={{ whiteSpace: 'nowrap' }}>
-              ▶ Replay this audit
-            </A>
+          {live?.reportAvailable ? (
+            <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+              {live.urls['report.pdf'] ? (
+                // The IN-APP report preview (this page) is the PDF view.
+                // This button downloads / opens the binary artifact itself.
+                <a
+                  className="btn primary"
+                  href={live.urls['report.pdf']}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  Download PDF
+                </a>
+              ) : null}
+              {live.urls['report.json'] ? (
+                <A to={`report/${runId}/json`} className="btn ghost">
+                  View JSON
+                </A>
+              ) : null}
+              {live.urls['signature.json'] ? (
+                <A to={`report/${runId}/signature`} className="btn ghost">
+                  View signature
+                </A>
+              ) : null}
+              {view?.report.recipeId ? (
+                <A to={`recipe/${runId}`} className="btn ghost">
+                  View recipe
+                </A>
+              ) : null}
+              {live.eventsAvailable ? (
+                <A to={`run/${runId}`} className="btn ember">
+                  ▶ Replay
+                </A>
+              ) : null}
+            </div>
           ) : null}
         </div>
-
-        {live && view ? (
-          <VerifyPanel view={view} live={live} onOpenRecipe={() => setPage('recipe')} />
-        ) : null}
 
         {live && !live.reportAvailable ? (
           <div
@@ -277,7 +213,18 @@ export function ReportPreview({
               alignItems: 'start',
             }}
           >
-            <div style={{ position: 'sticky', top: 24, alignSelf: 'start' }}>
+            {/* Vertical page rail — SCROLLS INTERNALLY when there are many
+                pages so the main viewport never has to scroll just to reach
+                page N. Bounded height matches the preview pane below. */}
+            <div
+              style={{
+                maxHeight: '78vh',
+                overflowY: 'auto',
+                paddingRight: 6,
+                position: 'sticky',
+                top: 24,
+              }}
+            >
               {REPORT_PAGES.map((p) => (
                 <PageThumb
                   key={p.id}
@@ -289,21 +236,25 @@ export function ReportPreview({
                 />
               ))}
             </div>
+
             <div
+              ref={previewRef}
               style={{
                 background: '#fff',
                 border: '1px solid var(--hairline)',
                 boxShadow: '0 18px 50px rgba(28,23,18,0.10)',
                 borderRadius: 2,
-                maxWidth: 680,
+                maxWidth: 720,
                 margin: '0 auto',
                 padding: '54px 58px',
-                minHeight: 760,
                 position: 'relative',
-                width: '100%',
+                // The preview pane SCROLLS INTERNALLY too — page content
+                // never forces the outer viewport to scroll.
+                maxHeight: '78vh',
+                overflowY: 'auto',
               }}
             >
-              <ReportPage page={page} view={view} signed={signed} />
+              <ReportPage page={page} view={view} signed={signed} runId={runId} />
             </div>
           </div>
         ) : null}
@@ -320,7 +271,7 @@ export function ReportPreview({
               Evidence chain
             </div>
             <p className="muted" style={{ fontSize: 13.5, margin: 0, lineHeight: 1.7 }}>
-              The PDF and JSON above are the run&apos;s actual signed artifacts — Ed25519-signed via
+              The downloads above are the run&apos;s actual signed artifacts — Ed25519-signed via
               Cloud KMS, verifiable against the signature sidecar.
             </p>
           </div>

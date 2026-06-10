@@ -2,7 +2,9 @@ import type { ReactNode } from 'react'
 
 interface SectionHeadProps {
   no?: string
-  title: string
+  /** Plain string or an inline-formatted node (e.g. **bold** rendered via
+   *  the markdown inline parser when SectionHead drives a markdown heading). */
+  title: ReactNode
   right?: ReactNode
 }
 

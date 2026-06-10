@@ -96,13 +96,10 @@ function HistoryRow({ run, agents }: RowProps) {
           </A>
         ) : null}
         {run.recipe && run.reportAvailable ? (
-          // Deep-links straight to the recipe page of the report preview —
-          // landing on the cover every time made the link pointless.
-          <A
-            to={'report/' + run.id + '?page=recipe'}
-            className="span-link"
-            style={{ marginRight: 12 }}
-          >
+          // The recipe lives on its own surface (Surface G) per the
+          // prototype — clicking goes straight to /recipe/[runId], not back
+          // to the report cover.
+          <A to={'recipe/' + run.id} className="span-link" style={{ marginRight: 12 }}>
             recipe
           </A>
         ) : null}
