@@ -83,6 +83,20 @@ class Settings(BaseSettings):
         ge=1,
         description="Upper bound on the clusterer output.",
     )
+    SERVICE_BASE_URL: str = Field(
+        default="",
+        description=(
+            "This service's own public Cloud Run URL — the OIDC audience the "
+            "scheduler tick verifies against. Empty => tick fails closed (503)."
+        ),
+    )
+    SCHEDULER_INVOKER_EMAIL: str = Field(
+        default="",
+        description=(
+            "Service-account email Cloud Scheduler signs its OIDC token with. "
+            "Empty => tick fails closed (503)."
+        ),
+    )
     TARGET_PHOENIX_PROJECT: str = Field(
         default="target-agent",
         min_length=1,

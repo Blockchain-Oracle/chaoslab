@@ -34,6 +34,20 @@ export interface AgentRecordDto {
   status: 'ok' | 'unreachable'
 }
 
+export interface ScheduleDto {
+  schedule_id: string
+  agent_id: string | null
+  target_url: string
+  cadence: 'hourly' | 'daily'
+  enabled: boolean
+  next_fire_at: string
+  last_fired_at: string | null
+  last_run_id: string | null
+  deliver_email: boolean
+  email_recipient: string | null
+  created_at: string
+}
+
 export interface RunDetailDto {
   run: RunRecordDto
   artifact_urls: Record<string, string>
@@ -107,4 +121,9 @@ export async function fetchAgents(): Promise<Live<AgentRecordDto[]>> {
 export async function fetchRunDetail(runId: string): Promise<Live<RunDetailDto | null>> {
   const { body, error } = await getJson<RunDetailDto>(`/runs/${encodeURIComponent(runId)}`)
   return { data: body, liveError: error }
+}
+
+export async function fetchSchedules(): Promise<Live<ScheduleDto[]>> {
+  const { body, error } = await getJson<{ schedules: ScheduleDto[] }>('/schedules')
+  return { data: body?.schedules ?? [], liveError: error }
 }
