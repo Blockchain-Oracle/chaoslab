@@ -12,6 +12,7 @@ export function LiveAuditShell({ runId }: LiveAuditShellProps) {
   return (
     <AuditChamber
       mode="live"
+      runId={runId}
       demoPacing
       livePhase={stream.phase}
       clockCeiling={stream.clockCeiling}
