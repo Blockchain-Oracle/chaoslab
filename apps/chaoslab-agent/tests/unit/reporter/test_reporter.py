@@ -168,10 +168,30 @@ def test_render_pdf_produces_real_pdf_bytes() -> None:
 # KMS signer
 
 
+_KEY_VERSION = "projects/p/locations/l/keyRings/r/cryptoKeys/k/cryptoKeyVersions/1"
+_FAKE_SIGNATURE = b"\x01" * 64
+
+
+def _sig_crc(payload: bytes) -> int:
+    import google_crc32c
+
+    return google_crc32c.value(payload)
+
+
 class _FakeSignResponse:
-    def __init__(self, signature: bytes, ok_crc: bool) -> None:
+    def __init__(
+        self,
+        signature: bytes,
+        ok_crc: bool,
+        name: str = _KEY_VERSION,
+        signature_crc32c: int | None = None,
+    ) -> None:
         self.signature = signature
         self.verified_data_crc32c = ok_crc
+        self.name = name
+        self.signature_crc32c = (
+            signature_crc32c if signature_crc32c is not None else _sig_crc(signature)
+        )
 
 
 class _FakePublicKey:
@@ -179,13 +199,25 @@ class _FakePublicKey:
 
 
 class _FakeKms:
-    def __init__(self, ok_crc: bool = True) -> None:
+    def __init__(
+        self,
+        ok_crc: bool = True,
+        name: str = _KEY_VERSION,
+        signature_crc32c: int | None = None,
+    ) -> None:
         self.ok_crc = ok_crc
+        self.name = name
+        self.signature_crc32c = signature_crc32c
         self.sign_requests: list[dict[str, Any]] = []
 
     def asymmetric_sign(self, request: dict[str, Any]) -> _FakeSignResponse:
         self.sign_requests.append(request)
-        return _FakeSignResponse(signature=b"\x01" * 64, ok_crc=self.ok_crc)
+        return _FakeSignResponse(
+            signature=_FAKE_SIGNATURE,
+            ok_crc=self.ok_crc,
+            name=self.name,
+            signature_crc32c=self.signature_crc32c,
+        )
 
     def get_public_key(self, request: dict[str, Any]) -> _FakePublicKey:
         return _FakePublicKey()
@@ -193,10 +225,7 @@ class _FakeKms:
 
 def test_signer_signs_sha256_as_raw_data_never_digest() -> None:
     kms = _FakeKms()
-    signer = KmsReportSigner(
-        key_version="projects/p/locations/l/keyRings/r/cryptoKeys/k/cryptoKeyVersions/1",
-        client=kms,
-    )
+    signer = KmsReportSigner(key_version=_KEY_VERSION, client=kms)
     pdf = b"%PDF-fake-bytes"
     sidecar = signer.sign_artifacts({"report.pdf": pdf})
 
@@ -215,20 +244,27 @@ def test_signer_signs_sha256_as_raw_data_never_digest() -> None:
     assert sidecar["public_key_pem"].startswith("-----BEGIN PUBLIC KEY-----")
 
 
-def test_signer_fails_loud_on_crc_mismatch() -> None:
-    signer = KmsReportSigner(
-        key_version="projects/p/locations/l/keyRings/r/cryptoKeys/k/cryptoKeyVersions/1",
-        client=_FakeKms(ok_crc=False),
-    )
+def test_signer_fails_loud_on_request_crc_mismatch() -> None:
+    signer = KmsReportSigner(key_version=_KEY_VERSION, client=_FakeKms(ok_crc=False))
     with pytest.raises(RuntimeError, match="CRC"):
         signer.sign_artifacts({"report.pdf": b"%PDF"})
 
 
+def test_signer_refuses_signature_from_wrong_key() -> None:
+    wrong = _KEY_VERSION.replace("/1", "/2")
+    signer = KmsReportSigner(key_version=_KEY_VERSION, client=_FakeKms(name=wrong))
+    with pytest.raises(RuntimeError, match="unexpected key"):
+        signer.sign_artifacts({"report.pdf": b"%PDF"})
+
+
+def test_signer_refuses_transit_corrupted_signature() -> None:
+    signer = KmsReportSigner(key_version=_KEY_VERSION, client=_FakeKms(signature_crc32c=12345))
+    with pytest.raises(RuntimeError, match="CRC32C verification in transit"):
+        signer.sign_artifacts({"report.pdf": b"%PDF"})
+
+
 def test_sidecar_is_json_serializable() -> None:
-    signer = KmsReportSigner(
-        key_version="projects/p/locations/l/keyRings/r/cryptoKeys/k/cryptoKeyVersions/1",
-        client=_FakeKms(),
-    )
+    signer = KmsReportSigner(key_version=_KEY_VERSION, client=_FakeKms())
     sidecar = signer.sign_artifacts({"report.pdf": b"%PDF", "report.json": b"{}"})
     parsed = json.loads(json.dumps(sidecar))
     assert len(parsed["artifacts"]) == 2

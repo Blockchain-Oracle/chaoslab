@@ -39,12 +39,28 @@ class ReportEmitter:
         return blob.generate_signed_url(version="v4", expiration=self._ttl, method="GET")
 
     async def emit(self, run_id: str, artifacts: dict[str, bytes]) -> dict[str, str]:
-        """Upload all artifacts; return {filename: signed_url}."""
+        """Upload all artifacts in dict order; return {filename: signed_url}.
+
+        On mid-sequence failure the already-uploaded set is logged by name so
+        a partial delivery is never an untracked orphan.
+        """
         urls: dict[str, str] = {}
-        for name, payload in artifacts.items():
-            suffix = name[name.rfind(".") :]
-            content_type = _CONTENT_TYPES.get(suffix, "application/octet-stream")
-            blob_name = f"reports/{run_id}/{name}"
-            urls[name] = await asyncio.to_thread(self._upload_one, blob_name, payload, content_type)
-            _log.info("report_artifact_uploaded", blob=blob_name, bytes=len(payload))
+        try:
+            for name, payload in artifacts.items():
+                suffix = name[name.rfind(".") :]
+                content_type = _CONTENT_TYPES.get(suffix, "application/octet-stream")
+                blob_name = f"reports/{run_id}/{name}"
+                urls[name] = await asyncio.to_thread(
+                    self._upload_one, blob_name, payload, content_type
+                )
+                _log.info("report_artifact_uploaded", blob=blob_name, bytes=len(payload))
+        except Exception:
+            _log.error(
+                "report_upload_partial_failure",
+                run_id=run_id,
+                uploaded=sorted(urls),
+                missing=sorted(set(artifacts) - set(urls)),
+                exc_info=True,
+            )
+            raise
         return urls

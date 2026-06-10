@@ -161,9 +161,14 @@ def wired(monkeypatch: pytest.MonkeyPatch) -> _Emitted:
             "signature.json": "https://gcs.example/reports/r/signature.json",
         }
 
+    class _FakeSpan:
+        # No phoenix_audit.honored attribute — the demo target doesn't emit
+        # the header-convention ack yet, so honored_missing counts these.
+        attributes: ClassVar[dict[str, Any]] = {}
+
     class _FakeSpans:
-        async def get_span(self, span_id: str) -> Any:  # pragma: no cover
-            raise NotImplementedError
+        async def get_span(self, span_id: str) -> Any:
+            return _FakeSpan()
 
     class _FakePhoenix:
         spans = _FakeSpans()
@@ -244,6 +249,10 @@ async def test_event_order_with_failures(wired: _Emitted) -> None:
     assert report_payload["pdf_url"].endswith("report.pdf")
     (rd,) = wired.report_data
     assert len(rd.probes) == 3
+    # honored {N}: counts ONLY transport-ok probes whose response span lacked
+    # phoenix_audit.honored — the transport failure has no response span and
+    # must not inflate the locked warning's claim.
+    assert rd.honored_missing_count == 2
     assert [p.verdict for p in rd.probes] == ["fail", "pass", "fail"] or [
         p.verdict for p in sorted(rd.probes, key=lambda p: p.n)
     ] == ["pass", "fail", "fail"]
@@ -278,6 +287,62 @@ async def test_report_skipped_loudly_when_signing_key_missing(
     assert skipped["reason"] == "signing_key_not_configured"
     assert "report" not in wired.names()
     assert wired.first("complete")["report_pdf_url"] is None
+
+
+@pytest.mark.asyncio
+async def test_report_generation_exception_is_contained(
+    wired: _Emitted, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """KMS/GCS/renderer failure must not void a successful audit — the run
+    completes with a MARKED report_skipped, never an error frame."""
+    import chaoslab_agent.audit_runner as ar
+
+    async def boom(_data: Any) -> None:
+        msg = "synthetic-kms-outage"
+        raise RuntimeError(msg)
+
+    monkeypatch.setattr(ar, "generate_signed_report", boom)
+    _FakeInjector.results = [_attack_result(0, SPAN_OK_PASS, "ok")]
+    phases: list[str] = []
+
+    await drive_audit_for_test(wired, phases)
+
+    skipped = wired.first("report_skipped")
+    assert skipped["reason"] == "generation_failed:RuntimeError"
+    complete = wired.first("complete")
+    assert complete["report_pdf_url"] is None
+    assert phases == ["injector", "judge", "patcher", "succeeded"]
+
+
+@pytest.mark.asyncio
+async def test_honored_span_attribute_excludes_compliant_target(
+    wired: _Emitted, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A target that emits phoenix_audit.honored=true on its response span
+    is NOT counted in the locked warning's {N}."""
+    import chaoslab_agent.audit_runner as ar
+
+    class _HonoredSpan:
+        attributes: ClassVar[dict[str, Any]] = {"phoenix_audit.honored": True}
+
+    class _HonoredSpans:
+        async def get_span(self, span_id: str) -> Any:
+            return _HonoredSpan()
+
+    class _HonoredPhoenix:
+        spans = _HonoredSpans()
+
+    monkeypatch.setattr(ar, "make_phoenix_client", _HonoredPhoenix)
+    _FakeInjector.results = [
+        _attack_result(0, SPAN_OK_PASS, "ok"),
+        _attack_result(1, SPAN_OK_FAIL, "ok"),
+    ]
+    phases: list[str] = []
+
+    await drive_audit_for_test(wired, phases)
+
+    (rd,) = wired.report_data
+    assert rd.honored_missing_count == 0
 
 
 @pytest.mark.asyncio

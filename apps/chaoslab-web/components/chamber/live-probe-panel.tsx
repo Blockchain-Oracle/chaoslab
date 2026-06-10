@@ -129,6 +129,10 @@ export function LiveProbeLedger({ probes, summary }: LiveProbeLedgerProps) {
 
 export function LiveReportRow({ report }: { report: LiveReport | null }) {
   if (!report) return null
+  // A malformed `report` frame (all URLs null) must not render success chrome.
+  if (!report.skippedReason && !report.pdfUrl && !report.signatureUrl) {
+    return null
+  }
   if (report.skippedReason) {
     return (
       <div

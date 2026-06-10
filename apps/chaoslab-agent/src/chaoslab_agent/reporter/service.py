@@ -49,11 +49,14 @@ async def generate_signed_report(data: ReportData) -> dict[str, str] | None:
     sidecar_bytes = json.dumps(sidecar, indent=2, sort_keys=True).encode("utf-8")
 
     emitter = ReportEmitter()
+    # signature.json uploads FIRST: a partial-upload failure can then never
+    # leave an unverifiable report.pdf orphaned in the bucket — artifacts
+    # without their sidecar are impossible by construction.
     return await emitter.emit(
         data.run_id,
         {
+            "signature.json": sidecar_bytes,
             "report.pdf": pdf_bytes,
             "report.json": json_bytes,
-            "signature.json": sidecar_bytes,
         },
     )

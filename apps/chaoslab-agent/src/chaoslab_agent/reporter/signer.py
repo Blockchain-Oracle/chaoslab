@@ -70,7 +70,22 @@ class KmsReportSigner:
             # signature emitted anyway could cover corrupted input.
             msg = "Cloud KMS did not verify the request CRC32C — refusing the signature"
             raise RuntimeError(msg)
-        return bytes(response.signature)
+        # Response integrity (KMS guidance): the signature must come back
+        # uncorrupted and from THE key we asked for — a wrong-key signature
+        # would only fail at the regulator's desk.
+        response_name = getattr(response, "name", None)
+        if response_name is not None and response_name != self._key_version:
+            msg = (
+                f"Cloud KMS signed with unexpected key {response_name!r} "
+                f"(requested {self._key_version!r}) — refusing the signature"
+            )
+            raise RuntimeError(msg)
+        signature = bytes(response.signature)
+        response_crc = getattr(response, "signature_crc32c", None)
+        if response_crc is not None and _crc32c(signature) != int(response_crc):
+            msg = "Cloud KMS signature failed CRC32C verification in transit — refusing"
+            raise RuntimeError(msg)
+        return signature
 
     def public_key_pem(self) -> str:
         response = self._client.get_public_key(request={"name": self._key_version})

@@ -36,6 +36,7 @@ from chaoslab_agent.patcher.agent import Patcher
 from chaoslab_agent.patcher.markdown_emitter import MarkdownEmitter
 from chaoslab_agent.phoenix_tools.run_experiment import _build_client
 from chaoslab_agent.reporter import ReportData, ReportProbe
+from chaoslab_agent.reporter.honored import span_honored
 from chaoslab_agent.reporter.service import generate_signed_report
 
 _log = structlog.get_logger(__name__)
@@ -82,8 +83,11 @@ class _JudgeTally:
         self.failed = 0
         self.errored = 0
         self.transport_failed = 0
-        # Probes whose response span did NOT carry phoenix_audit.honored=true
-        # (docs/header-convention.md). Drives the locked warning's {N}.
+        # Probes whose Phoenix RESPONSE SPAN was successfully read and did NOT
+        # carry phoenix_audit.honored=true (docs/header-convention.md). Drives
+        # the locked warning's {N}. Transport failures (no response span) and
+        # unreadable spans are EXCLUDED — the locked sentence claims absence
+        # from response spans, so N may only count spans we actually inspected.
         self.honored_missing = 0
 
 
@@ -105,9 +109,9 @@ async def _judge_attacks(
     tally = _JudgeTally()
     for result in state.attack_results:
         n = result.run_idx + 1
-        if result.span_attributes.get("phoenix_audit.honored") is not True:
-            tally.honored_missing += 1
         transport_ok = result.status == "ok" and bool(_HEX_SPAN.fullmatch(result.span_id))
+        if transport_ok and not await span_honored(phoenix, result.span_id, run_id=run_id):
+            tally.honored_missing += 1
         if not transport_ok:
             tally.failed += 1
             tally.transport_failed += 1
@@ -219,8 +223,31 @@ async def _judge_attacks(
 async def _emit_signed_report(
     report_data: ReportData, *, emit: EmitFn, run_id: str
 ) -> dict[str, str] | None:
-    """Generate + deliver the signed report; emit `report` or the loud skip."""
-    report_urls = await generate_signed_report(report_data)
+    """Generate + deliver the signed report; emit `report` or the loud skip.
+
+    Report-delivery failure (KMS down, GCS down, renderer OSError) is
+    CONTAINED: an audit whose verdicts and recipe all succeeded must not
+    render as "failed" because the PDF could not be delivered. The skip is
+    marked with the exception type — never silent (CLAUDE.md pattern #4).
+    """
+    try:
+        report_urls = await generate_signed_report(report_data)
+    except Exception as report_err:
+        _log.error(
+            "report_generation_failed",
+            run_id=run_id,
+            exc_type=type(report_err).__name__,
+            error=str(report_err),
+            exc_info=True,
+        )
+        await emit(
+            "report_skipped",
+            {
+                "reason": f"generation_failed:{type(report_err).__name__}",
+                "run_id": run_id,
+            },
+        )
+        return None
     if report_urls is None:
         await emit(
             "report_skipped",

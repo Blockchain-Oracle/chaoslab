@@ -9,6 +9,7 @@ spec violation gated by tests/unit/reporter/test_reporter.py.
 from __future__ import annotations
 
 import html as html_mod
+import re
 from pathlib import Path
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -138,8 +139,18 @@ def _cluster_summary_sentence(data: ReportData) -> str:
     return f"One or more failures collapsed into {len(data.cluster_ids)} root-cause cluster(s)."
 
 
+_SAFE_RUN_ID = re.compile(r"^[a-zA-Z0-9_\-]+$")
+
+
 def build_report_html(data: ReportData) -> str:
     """The full report document. Verbatim-locked paragraphs render as-is."""
+    # run_id interpolates into the @page CSS content string where html.escape
+    # is the wrong escaper (entities aren't decoded in CSS; backslashes pass
+    # through). Server-generated ids are hex today — this guard keeps a future
+    # id-shape change from becoming a CSS-string breakout.
+    if not _SAFE_RUN_ID.fullmatch(data.run_id):
+        msg = f"run_id contains CSS-unsafe characters: {data.run_id!r}"
+        raise ValueError(msg)
     warning_block = ""
     if data.honored_missing_count > 0:
         warning_text = HEADER_WARNING_TEMPLATE.replace("{N}", str(data.honored_missing_count))
