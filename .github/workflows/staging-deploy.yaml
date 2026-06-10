@@ -86,10 +86,10 @@ jobs:
             dockerfile: apps/phoenix-audit-web/Dockerfile
             smoke_path: /
             # The public judge-facing site. It reaches the IAM-gated agent via
-            # /api/agent (server-minted ID tokens) — AGENT_URL is the stable
-            # per-project Cloud Run URL (suffix is project-number derived).
+            # /api/agent (server-minted ID tokens); AGENT_URL is resolved from
+            # the live service at deploy time (see the deploy step).
             auth_flag: --allow-unauthenticated
-            extra_env: ",AGENT_URL=https://phoenix-audit-agent-kkkl7l77da-uc.a.run.app"
+            extra_env: ",AGENT_URL=__RESOLVE_AGENT_URL__"
     steps:
       - name: Determine if this service changed
         id: changed
@@ -178,6 +178,16 @@ jobs:
           else
             CANDIDATE_FLAGS=""
           fi
+          # Resolve the agent URL from the LIVE service — a hardcoded hostname
+          # would silently mis-wire web->agent on a recreated service or a
+          # forked project. Fails loud if the agent has never been deployed.
+          EXTRA_ENV='${{ matrix.extra_env }}'
+          if [ "${EXTRA_ENV#*__RESOLVE_AGENT_URL__}" != "${EXTRA_ENV}" ]; then
+            AGENT_URL=$(gcloud run services describe phoenix-audit-agent \
+              --region="${REGION}" --format='value(status.url)')
+            [ -n "${AGENT_URL}" ] || { echo "::error::phoenix-audit-agent service not found — deploy the agent before the web"; exit 1; }
+            EXTRA_ENV="${EXTRA_ENV/__RESOLVE_AGENT_URL__/${AGENT_URL}}"
+          fi
           # shellcheck disable=SC2086  # CANDIDATE_FLAGS is a controlled flag string
           gcloud run deploy ${{ matrix.service }} \
             --image="${REGION}-docker.pkg.dev/${PROJECT_ID}/phoenix-audit/${{ matrix.service }}:${GITHUB_SHA}" \
@@ -191,7 +201,7 @@ jobs:
             --port=8080 \
             --cpu-boost \
             ${{ matrix.auth_flag }} \
-            --set-env-vars=ENVIRONMENT=staging,JUDGE_LLM=gemini-3.5-flash,SERVICE_VERSION="${GITHUB_SHA}",PHOENIX_PROVIDER=${PHOENIX_PROVIDER},PHOENIX_COLLECTOR_ENDPOINT=${PHOENIX_COLLECTOR_ENDPOINT},GOOGLE_GENAI_USE_VERTEXAI=true,GOOGLE_CLOUD_PROJECT=${PROJECT_ID},GOOGLE_CLOUD_LOCATION=us-central1${{ matrix.extra_env }} \
+            --set-env-vars=ENVIRONMENT=staging,JUDGE_LLM=gemini-3.5-flash,SERVICE_VERSION="${GITHUB_SHA}",PHOENIX_PROVIDER=${PHOENIX_PROVIDER},PHOENIX_COLLECTOR_ENDPOINT=${PHOENIX_COLLECTOR_ENDPOINT},GOOGLE_GENAI_USE_VERTEXAI=true,GOOGLE_CLOUD_PROJECT=${PROJECT_ID},GOOGLE_CLOUD_LOCATION=us-central1${EXTRA_ENV} \
             --set-secrets=PHOENIX_API_KEY=phoenix-api-key:latest \
             ${CANDIDATE_FLAGS}
 

@@ -93,9 +93,9 @@ export default function NewAuditPage() {
   }
 
   const hint = pinging
-    ? 'Probe ping in progress…'
+    ? 'Checking address…'
     : pinged
-      ? '✓ Reachable · responded in 142 ms · framework detected: Google ADK (A2A)'
+      ? '✓ Address format OK — reachability and framework are verified by the first audit probe.'
       : 'HTTPS URL, or an A2A address for ADK-native agents.'
 
   return (

@@ -35,7 +35,9 @@ function HistoryRow({ run, agents }: RowProps) {
   const name = agent?.name ?? run.targetUrl ?? run.agentId
   const url = agent?.url ?? run.targetUrl ?? ''
   const open = () => {
-    const path = run.id === HERO_RUN.id ? `/run/${run.id}` : `/report/${run.id}`
+    // Sample hero row demos the chamber via the fixture replay; everything
+    // else (incl. ALL real runs) opens its report.
+    const path = run.sample && run.id === HERO_RUN.id ? '/replay' : `/report/${run.id}`
     router.push(path)
   }
   const stop = (e: React.MouseEvent) => e.stopPropagation()

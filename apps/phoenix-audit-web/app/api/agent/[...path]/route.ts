@@ -31,8 +31,10 @@ async function proxy(req: NextRequest, pathParts: string[]): Promise<Response> {
   const headers: Record<string, string> = await agentAuthHeaders()
   const contentType = req.headers.get('content-type')
   if (contentType) headers['content-type'] = contentType
-  const accept = req.headers.get('accept')
-  if (accept) headers['accept'] = accept
+  // Accept is forced per-path: only /stream is SSE; everything else is JSON.
+  // Browser cookies are DELIBERATELY not forwarded — the agent is a separate
+  // trust domain; do not "helpfully" add them.
+  headers['accept'] = path === 'stream' ? 'text/event-stream' : 'application/json'
 
   const upstream = await fetch(`${agentBaseUrl()}/${path}${search}`, {
     method: req.method,
@@ -71,5 +73,10 @@ export async function POST(req: NextRequest, ctx: Ctx): Promise<Response> {
   return proxy(req, path)
 }
 
-// SSE must not be statically optimized or buffered.
+// SSE must not be statically optimized or buffered, must run on Node (the
+// metadata-server ID-token mint + duplex streaming need it), and must outlive
+// the ~90s audit: the App Router default duration (10s) would tear the stream
+// down mid-demo.
 export const dynamic = 'force-dynamic'
+export const runtime = 'nodejs'
+export const maxDuration = 300

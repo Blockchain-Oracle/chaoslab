@@ -45,8 +45,8 @@ export function AgentDetailView({ id, agent, runs: runsProp }: AgentDetailViewPr
       window.localStorage.removeItem('pa_audit_t_live')
     }
     if (isSample) {
-      // Sample agents replay the hero fixture run.
-      router.push(`/run/${HERO_RUN.id}`)
+      // Sample agents demo the chamber via the fixture replay.
+      router.push('/replay')
       return
     }
     setStarting(true)
@@ -159,7 +159,7 @@ export function AgentDetailView({ id, agent, runs: runsProp }: AgentDetailViewPr
                 </thead>
                 <tbody>
                   {runs.map((r) => {
-                    const path = r.id === HERO_RUN.id ? `/run/${r.id}` : `/report/${r.id}`
+                    const path = r.id === HERO_RUN.id ? '/replay' : `/report/${r.id}`
                     return (
                       <tr key={r.id} className="clickable" onClick={() => router.push(path)}>
                         <td className="mono" style={{ fontSize: 11.5 }}>
