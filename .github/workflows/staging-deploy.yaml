@@ -70,6 +70,10 @@ jobs:
             # (scheduler-tick OIDC verification; fail-closed when unset).
             auth_flag: --no-allow-unauthenticated
             extra_env: ",SERVICE_BASE_URL=__RESOLVE_SELF_URL__,SCHEDULER_INVOKER_EMAIL=__DEPLOY_SA__"
+            # The run registry + SSE queues are in-process (main.py): a second
+            # instance means POST /run and GET /stream can land on different
+            # pods → 404 mid-demo. One instance trivially handles the audit.
+            max_instances: 1
 
           - service: target-agent
             path: apps/target-agent
@@ -84,6 +88,7 @@ jobs:
             # fault delivery (/hooks/adk) — the surface every real probe needs.
             auth_flag: --allow-unauthenticated
             extra_env: ",FAULT_HOOKS_ENABLED=true"
+            max_instances: 10
           - service: phoenix-audit-web
             path: apps/phoenix-audit-web
             changed_key: web
@@ -94,6 +99,7 @@ jobs:
             # the live service at deploy time (see the deploy step).
             auth_flag: --allow-unauthenticated
             extra_env: ",AGENT_URL=__RESOLVE_AGENT_URL__"
+            max_instances: 10
     steps:
       - name: Determine if this service changed
         id: changed
@@ -207,7 +213,7 @@ jobs:
             --platform=managed \
             --service-account="${RUNTIME_SA}" \
             --min-instances=0 \
-            --max-instances=10 \
+            --max-instances=${{ matrix.max_instances }} \
             --memory=1Gi \
             --cpu=1 \
             --port=8080 \

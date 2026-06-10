@@ -27,12 +27,12 @@ router = APIRouter()
 
 async def sign_blob_url(blob_name: str) -> str:
     """v4 signed GET URL for an existing blob (module attribute = test seam)."""
-    from phoenix_audit_agent.patcher.markdown_emitter import _build_default_client
+    from phoenix_audit_agent.storage.gcs import get_storage_client
 
     settings = get_settings()
 
     def _sign() -> str:
-        client = _build_default_client()
+        client = get_storage_client()
         blob = client.bucket(settings.GCS_RECIPES_BUCKET).blob(blob_name)
         return blob.generate_signed_url(
             version="v4",

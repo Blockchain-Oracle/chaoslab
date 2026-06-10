@@ -65,6 +65,63 @@ class _FakeClient:
 
 
 @pytest.mark.asyncio
+async def test_signature_uploads_first_then_documents() -> None:
+    """The sidecar must land BEFORE pdf/json so a partial-upload failure can
+    never orphan an unverifiable report; the documents then upload
+    concurrently (perf #9)."""
+    client = _FakeClient()
+    emitter = ReportEmitter(storage_client=cast(StorageClient, client))
+
+    await emitter.emit(
+        "run_abcabcabcabc",
+        {"report.pdf": b"%PDF", "report.json": b"{}", "signature.json": b"{}"},
+    )
+
+    assert client.uploads[0]["blob"].endswith("signature.json")
+    assert {u["blob"].rsplit("/", 1)[-1] for u in client.uploads} == {
+        "signature.json",
+        "report.pdf",
+        "report.json",
+    }
+
+
+@pytest.mark.asyncio
+async def test_document_failure_after_signature_discloses_partial() -> None:
+    """A pdf/json upload failure still raises (caller emits report_skipped),
+    with the already-uploaded set logged — never a silent partial delivery."""
+
+    class _BoomBlob(_FakeBlob):
+        def upload_from_string(
+            self,
+            payload: bytes,
+            content_type: str,
+            if_generation_match: int | None = None,
+        ) -> None:
+            if self._name.endswith("report.pdf"):
+                msg = "synthetic gcs outage"
+                raise RuntimeError(msg)
+            super().upload_from_string(payload, content_type, if_generation_match)
+
+    class _BoomBucket(_FakeBucket):
+        def blob(self, name: str) -> _FakeBlob:
+            return _BoomBlob(name, self._uploads)
+
+    class _BoomClient(_FakeClient):
+        def bucket(self, name: str) -> _FakeBucket:
+            return _BoomBucket(self.uploads)
+
+    client = _BoomClient()
+    emitter = ReportEmitter(storage_client=cast(StorageClient, client))
+    with pytest.raises(RuntimeError, match="synthetic gcs outage"):
+        await emitter.emit(
+            "run_abcabcabcabc",
+            {"signature.json": b"{}", "report.pdf": b"%PDF", "report.json": b"{}"},
+        )
+    # signature landed before the failure
+    assert client.uploads[0]["blob"].endswith("signature.json")
+
+
+@pytest.mark.asyncio
 async def test_uploads_are_create_only() -> None:
     client = _FakeClient()
     emitter = ReportEmitter(storage_client=cast(StorageClient, client))
