@@ -4,7 +4,6 @@
 // sse-bridge.ts; everything that interprets the /stream contract lives here
 // so the regulator-demo rendering path is unit-testable without a browser.
 
-import { TIMELINE } from './fixtures'
 import type { Phase } from './types'
 
 /** One adversarial probe as reported by the REAL backend event stream. */
@@ -54,15 +53,9 @@ export interface LiveReport {
 export interface AuditStreamState {
   connected: boolean
   phase: Phase
-  /** Maximum t (seconds) the chamber's local clock may advance to. Keyed to
-   *  real phase transitions so the visual stays honest about what the
-   *  backend is actually doing. */
-  clockCeiling: number
   /** Raw wire lines (event + JSON payload) — what the event feed shows. */
   wireLines: string[]
-  /** Real per-probe events from the backend. Non-empty means the backend is
-   *  emitting per-probe SSE — the chamber renders THESE instead of the
-   *  timeline fixtures and the DEMO PACING disclosure disappears. */
+  /** Real per-probe events from the wire (live SSE or replayed timeline). */
   probes: LiveProbe[]
   cluster: LiveCluster | null
   recipe: LiveRecipe | null
@@ -77,7 +70,6 @@ export function initialStreamState(): AuditStreamState {
   return {
     connected: false,
     phase: 'queued',
-    clockCeiling: 0,
     wireLines: [],
     probes: [],
     cluster: null,
@@ -102,25 +94,6 @@ const VALID_PHASES: ReadonlySet<string> = new Set<Phase>([
 // Bound the wire-line buffer so a long-lived or misbehaving stream can't
 // grow memory without limit.
 const MAX_WIRE_LINES = 500
-
-export function ceilingForPhase(phase: Phase): number {
-  // Each phase's ceiling is the START of the NEXT phase, so the chamber's
-  // per-probe ticker fills the current phase's window completely before
-  // the next real event arrives.
-  switch (phase) {
-    case 'queued':
-      return 0
-    case 'injector':
-      return TIMELINE.phases.find((p) => p.phase === 'judge')?.at ?? TIMELINE.duration
-    case 'judge':
-      return TIMELINE.phases.find((p) => p.phase === 'patcher')?.at ?? TIMELINE.duration
-    case 'patcher':
-      return TIMELINE.phases.find((p) => p.phase === 'succeeded')?.at ?? TIMELINE.duration
-    case 'succeeded':
-    case 'failed':
-      return TIMELINE.duration
-  }
-}
 
 function parseJson<T>(raw: string): T | null {
   try {
@@ -179,15 +152,8 @@ export function reduceWireEvent(
         }
       }
       const valid = phase as Phase
-      // 'failed' FREEZES the clock at its current ceiling — releasing it to
-      // TIMELINE.duration would play the full success choreography (cascade
-      // flip, recipe stream, receipt) over a failed run.
       return {
-        state: {
-          ...withLines(s, [line]),
-          phase: valid,
-          clockCeiling: valid === 'failed' ? s.clockCeiling : ceilingForPhase(valid),
-        },
+        state: { ...withLines(s, [line]), phase: valid },
         terminal: false,
       }
     }
@@ -349,7 +315,6 @@ export function reduceWireEvent(
         state: {
           ...withLines(s, [line]),
           phase: 'succeeded',
-          clockCeiling: ceilingForPhase('succeeded'),
           summary:
             typeof p?.passed === 'number' && typeof p?.failed === 'number'
               ? { passed: p.passed, failed: p.failed, errored: p.errored ?? 0 }

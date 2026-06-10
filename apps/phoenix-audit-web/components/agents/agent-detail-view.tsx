@@ -7,10 +7,9 @@ import { A } from '@/components/ui/link'
 import { PageFoot } from '@/components/ui/page-foot'
 import { SectionHead } from '@/components/ui/section-head'
 import { TopBar } from '@/components/ui/topbar'
-import { runAuditHref } from '@/lib/cta'
-import { AGENTS, HERO_RUN, HISTORY, agentById } from '@/lib/fixtures'
+import { historyRowDest, runAuditHref } from '@/lib/cta'
 import { fmtDate } from '@/lib/format'
-import type { MergedAgent, MergedRun } from '@/lib/sample-merge'
+import type { AgentSpec, HistoryRow } from '@/lib/types'
 import { useSafeTimeout } from '@/lib/use-safe-timeout'
 
 const snippetFor = (projectId: string) => `from phoenix_audit import instrument
@@ -22,25 +21,41 @@ instrument(project="${projectId}",
 
 interface AgentDetailViewProps {
   id: string
-  /** Server-provided real agent (sample=false) or labeled sample. Fixture
-   *  lookup remains the fallback for legacy callers. */
-  agent?: MergedAgent
-  /** Server-provided run history (real + sample, labeled). */
-  runs?: MergedRun[]
+  /** Registry agent — ownerless seeded demos arrive labeled sample. */
+  agent?: AgentSpec
+  /** Registry run history for this agent (samples labeled). */
+  runs: HistoryRow[]
 }
 
-export function AgentDetailView({ id, agent, runs: runsProp }: AgentDetailViewProps) {
+export function AgentDetailView({ id, agent, runs }: AgentDetailViewProps) {
   const router = useRouter()
-  const a = agent ?? agentById(id) ?? AGENTS[0]
   const [copied, setCopied] = useState(false)
   const schedule = useSafeTimeout()
-  if (!a) return null
-  const isSample = agent ? agent.sample : true
-  const runs = runsProp ?? HISTORY.filter((r) => r.agentId === a.id)
+  if (!agent) {
+    return (
+      <div className="page-enter">
+        <TopBar />
+        <div className="shell" style={{ padding: '80px 40px' }}>
+          <EmptyState
+            kicker="UNKNOWN AGENT"
+            title="This agent isn't in your registry."
+            body={`No registered agent with id "${id}" is visible to your account.`}
+            action={
+              <A to="agents" className="btn small ghost">
+                Back to target agents
+              </A>
+            }
+          />
+        </div>
+        <PageFoot />
+      </div>
+    )
+  }
+  const a = agent
   const err = a.status === 'unreachable'
   // The wizard is the single confirm surface — no one-click live runs
   // (story-9.10: an un-confirmed click fired a real failing audit).
-  const wizardHref = runAuditHref({ id: a.id, url: a.url, sample: isSample })
+  const wizardHref = runAuditHref({ id: a.id, url: a.url })
   return (
     <div className="page-enter">
       <TopBar />
@@ -78,8 +93,11 @@ export function AgentDetailView({ id, agent, runs: runsProp }: AgentDetailViewPr
           <span className="mono muted" style={{ fontSize: 12 }}>
             {a.url}
           </span>
-          {isSample ? (
-            <span className="tag" title="Seeded sample data — not your registered agent">
+          {a.sample ? (
+            <span
+              className="tag"
+              title="Seeded demo target — a real deployed agent, visible to every account"
+            >
               SAMPLE
             </span>
           ) : null}
@@ -105,7 +123,7 @@ export function AgentDetailView({ id, agent, runs: runsProp }: AgentDetailViewPr
           >
             <span className="stamp fail">Unreachable</span>
             <span style={{ fontSize: 13.5, color: 'var(--ink-2)', flex: 1 }}>
-              The probe ping has failed since 28 May. Audits are paused for this target until it
+              The last reachability probe failed. Audits are paused for this target until it
               responds over HTTPS.
             </span>
             <button className="btn small ghost">Retry probe</button>
@@ -134,7 +152,7 @@ export function AgentDetailView({ id, agent, runs: runsProp }: AgentDetailViewPr
                 </thead>
                 <tbody>
                   {runs.map((r) => {
-                    const path = r.id === HERO_RUN.id ? '/replay' : `/report/${r.id}`
+                    const path = historyRowDest(r)
                     return (
                       <tr key={r.id} className="clickable" onClick={() => router.push(path)}>
                         <td className="mono" style={{ fontSize: 11.5 }}>

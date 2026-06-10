@@ -2,6 +2,7 @@
 // Server components call these; failures surface as `liveError` so pages can
 // render the sample world WITH a visible notice — never silently.
 
+import { parseEventsDocument, type RunEventsDocument } from './replay'
 import { agentFetch } from './server/agent-fetch'
 import { userIdentityHeaders } from './server/user-fetch'
 import type { AgentSpec, HistoryRow } from './types'
@@ -22,7 +23,9 @@ export interface RunRecordDto {
   transport_failed: number
   recipe_id: string | null
   report_available: boolean
+  events_available: boolean
   mr_url: string | null
+  owner_uid: string | null
 }
 
 export interface AgentRecordDto {
@@ -33,6 +36,7 @@ export interface AgentRecordDto {
   tier: 1 | 2 | 3
   registered_at: string
   status: 'ok' | 'unreachable'
+  owner_uid: string | null
 }
 
 export interface ScheduleDto {
@@ -86,6 +90,10 @@ export function runToHistoryRow(dto: RunRecordDto): HistoryRow {
     source: dto.source,
     targetUrl: dto.target_url,
     reportAvailable: dto.report_available,
+    eventsAvailable: dto.events_available,
+    // Ownerless records are the seeded REAL sample audits — visible to all,
+    // labeled (story-9.11). Every authed run carries owner_uid since S9.4.
+    sample: dto.owner_uid === null,
     ...(dto.mr_url ? { mrUrl: dto.mr_url } : {}),
   }
 }
@@ -102,6 +110,8 @@ export function agentToSpec(dto: AgentRecordDto): AgentSpec {
     monitoring: { enabled: false },
     lastAudit: dto.registered_at,
     status: dto.status,
+    // Ownerless agents are the seeded demo targets — real, runnable, labeled.
+    sample: dto.owner_uid === null,
   }
 }
 
@@ -141,4 +151,29 @@ export async function fetchRunDetail(
 export async function fetchSchedules(): Promise<Live<ScheduleDto[]>> {
   const { body, error } = await getJson<{ schedules: ScheduleDto[] }>('/schedules')
   return { data: body?.schedules ?? [], liveError: error }
+}
+
+/** The public sample-replay source (no user identity — the endpoint serves
+ *  only ownerless seeded runs; agentFetch's service OIDC covers IAM). */
+export async function fetchFeaturedRun(): Promise<Live<RunDetailDto | null>> {
+  try {
+    const res = await agentFetch('/featured-run')
+    if (!res.ok) return { data: null, liveError: `agent API ${res.status} on /featured-run` }
+    return { data: (await res.json()) as RunDetailDto, liveError: null }
+  } catch (err) {
+    return { data: null, liveError: err instanceof Error ? err.message : String(err) }
+  }
+}
+
+/** Server-side fetch of a run's persisted timeline from its signed GCS URL
+ *  (server-side: no browser CORS in play). Malformed documents yield null —
+ *  the page renders the honest summary instead of a fabricated replay. */
+export async function fetchEventsDocument(signedUrl: string): Promise<RunEventsDocument | null> {
+  try {
+    const res = await fetch(signedUrl, { cache: 'no-store' })
+    if (!res.ok) return null
+    return parseEventsDocument(await res.json())
+  } catch {
+    return null
+  }
 }

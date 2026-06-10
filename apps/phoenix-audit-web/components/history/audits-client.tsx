@@ -7,11 +7,10 @@ import { EmptyState } from '@/components/ui/empty-state'
 import { A } from '@/components/ui/link'
 import { PageFoot } from '@/components/ui/page-foot'
 import { TopBar } from '@/components/ui/topbar'
-import { historyRowDest, runHasReport } from '@/lib/cta'
-import { HERO_RUN } from '@/lib/fixtures'
+import { historyRowDest } from '@/lib/cta'
 import { fmtDate } from '@/lib/format'
-import { realStats, visibleRows } from '@/lib/sample-merge'
-import type { MergedAgent, MergedRun } from '@/lib/sample-merge'
+import { registryStats } from '@/lib/registry-stats'
+import type { AgentSpec, HistoryRow as HistoryRowData } from '@/lib/types'
 
 const FRAMEWORKS = ['All frameworks', 'EU AI Act', 'NIST AI RMF', 'HIPAA', 'SOC 2 + AI']
 
@@ -20,7 +19,7 @@ function SampleChip() {
     <span
       className="tag"
       style={{ marginLeft: 8, fontSize: 9.5, opacity: 0.7 }}
-      title="Seeded sample data — not a real audit run"
+      title="Seeded sample — a real audit of the demo target, visible to every account"
     >
       SAMPLE
     </span>
@@ -28,8 +27,8 @@ function SampleChip() {
 }
 
 interface RowProps {
-  run: MergedRun
-  agents: MergedAgent[]
+  run: HistoryRowData
+  agents: AgentSpec[]
 }
 
 function HistoryRow({ run, agents }: RowProps) {
@@ -37,8 +36,7 @@ function HistoryRow({ run, agents }: RowProps) {
   const agent = run.agentId ? agents.find((a) => a.id === run.agentId) : undefined
   const name = agent?.name ?? run.targetUrl ?? run.agentId
   const url = agent?.url ?? run.targetUrl ?? ''
-  const hasReport = runHasReport(run)
-  const open = () => router.push(historyRowDest(run, HERO_RUN.id))
+  const open = () => router.push(historyRowDest(run))
   const stop = (e: React.MouseEvent) => e.stopPropagation()
   return (
     <tr className="clickable" onClick={open}>
@@ -83,7 +81,7 @@ function HistoryRow({ run, agents }: RowProps) {
         {run.sample ? <SampleChip /> : null}
       </td>
       <td onClick={stop} style={{ whiteSpace: 'nowrap' }}>
-        {hasReport ? (
+        {run.reportAvailable ? (
           <A to={'report/' + run.id} className="span-link" style={{ marginRight: 12 }}>
             signed PDF
           </A>
@@ -92,14 +90,14 @@ function HistoryRow({ run, agents }: RowProps) {
             no report
           </span>
         )}
-        {run.sample && run.recipe ? (
-          <A to={'recipe/' + HERO_RUN.recipeId} className="span-link" style={{ marginRight: 12 }}>
-            recipe
+        {run.eventsAvailable ? (
+          <A to={'run/' + run.id} className="span-link" style={{ marginRight: 12 }}>
+            replay
           </A>
         ) : null}
-        {!run.sample && run.recipe && hasReport ? (
-          // Real runs: the report page exposes the recipe.md download with a
-          // freshly signed URL.
+        {run.recipe && run.reportAvailable ? (
+          // The report page exposes the recipe.md download with a freshly
+          // signed URL.
           <A to={'report/' + run.id} className="span-link" style={{ marginRight: 12 }}>
             recipe
           </A>
@@ -116,19 +114,17 @@ function HistoryRow({ run, agents }: RowProps) {
 }
 
 export interface AuditsClientProps {
-  rows: MergedRun[]
-  agents: MergedAgent[]
+  rows: HistoryRowData[]
+  agents: AgentSpec[]
   liveError: string | null
 }
 
 export function AuditsClient({ rows: allRows, agents, liveError }: AuditsClientProps) {
   const [q, setQ] = useState('')
   const [fw, setFw] = useState('All frameworks')
-  // Own-data-first (story-9.10): samples render only on explicit request —
-  // a fresh signed-in account must never look like it has 47 audits.
-  const [showSamples, setShowSamples] = useState(false)
-  const sampleCount = allRows.filter((r) => r.sample).length
-  const rows = visibleRows(allRows, showSamples).filter((r) => {
+  // Seeded samples are REAL audits, visible to every account and labeled
+  // (story-9.11) — a fresh register is never empty, and stats stay yours.
+  const rows = allRows.filter((r) => {
     const agent = agents.find((a) => a.id === r.agentId)
     const haystack = (
       r.id +
@@ -138,7 +134,7 @@ export function AuditsClient({ rows: allRows, agents, liveError }: AuditsClientP
     ).toLowerCase()
     return haystack.includes(q.toLowerCase()) && (fw === 'All frameworks' || r.framework === fw)
   })
-  const stats = realStats(allRows)
+  const stats = registryStats(allRows)
   return (
     <div className="page-enter">
       <TopBar />
@@ -169,7 +165,7 @@ export function AuditsClient({ rows: allRows, agents, liveError }: AuditsClientP
               marginBottom: 24,
             }}
           >
-            ⚠ LIVE REGISTRY UNAVAILABLE — showing sample data only. ({liveError})
+            ⚠ LIVE REGISTRY UNAVAILABLE — nothing can be listed right now. ({liveError})
           </div>
         ) : null}
 
@@ -205,20 +201,6 @@ export function AuditsClient({ rows: allRows, agents, liveError }: AuditsClientP
             </select>
           </div>
         </div>
-
-        {sampleCount > 0 ? (
-          <div style={{ marginBottom: 18 }}>
-            <button
-              className="btn small ghost"
-              aria-pressed={showSamples}
-              onClick={() => setShowSamples((s) => !s)}
-            >
-              {showSamples
-                ? 'Hide sample data'
-                : `Explore sample data (${sampleCount} seeded audits)`}
-            </button>
-          </div>
-        ) : null}
 
         {rows.length ? (
           <div className="ledger-wrap">
@@ -261,7 +243,7 @@ export function AuditsClient({ rows: allRows, agents, liveError }: AuditsClientP
           <EmptyState
             kicker="NO AUDITS YET"
             title="Your register is empty."
-            body="Run your first audit to establish a signed baseline — or explore the seeded sample data to see what a finished audit looks like."
+            body="Run your first audit to establish a signed baseline."
             action={
               <A to="new" className="btn small ember">
                 Run your first audit

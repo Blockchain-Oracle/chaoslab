@@ -1,15 +1,13 @@
 'use client'
 
-import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { A } from '@/components/ui/link'
 import { PageFoot } from '@/components/ui/page-foot'
 import { TopBar } from '@/components/ui/topbar'
 import { fmtDate } from '@/lib/format'
-import { visibleRows } from '@/lib/sample-merge'
-import type { MergedAgent } from '@/lib/sample-merge'
+import type { AgentSpec } from '@/lib/types'
 
-function AgentCard({ a }: { a: MergedAgent }) {
+function AgentCard({ a }: { a: AgentSpec }) {
   const router = useRouter()
   const err = a.status === 'unreachable'
   return (
@@ -27,7 +25,11 @@ function AgentCard({ a }: { a: MergedAgent }) {
           {a.name}
         </span>
         {a.sample ? (
-          <span className="tag" style={{ fontSize: 9.5, opacity: 0.7 }} title="Seeded sample data">
+          <span
+            className="tag"
+            style={{ fontSize: 9.5, opacity: 0.7 }}
+            title="Seeded demo target — a real deployed agent, visible to every account"
+          >
             SAMPLE
           </span>
         ) : null}
@@ -54,8 +56,7 @@ function AgentCard({ a }: { a: MergedAgent }) {
         ) : null}
         <span style={{ flex: 1 }}></span>
         <span className="mono muted" style={{ fontSize: 10.5 }}>
-          {a.sample ? 'last audit ' : 'registered '}
-          {fmtDate(a.lastAudit)}
+          registered {fmtDate(a.lastAudit)}
         </span>
       </div>
     </div>
@@ -63,17 +64,13 @@ function AgentCard({ a }: { a: MergedAgent }) {
 }
 
 export interface AgentsClientProps {
-  agents: MergedAgent[]
+  agents: AgentSpec[]
   liveError: string | null
 }
 
 export function AgentsClient({ agents, liveError }: AgentsClientProps) {
-  // Own-data-first (story-9.10): sample agents render only on request. The
-  // demo-target seed is REAL (registered + deployed), so a fresh account
-  // still has one agent it can audit immediately.
-  const [showSamples, setShowSamples] = useState(false)
-  const sampleCount = agents.filter((a) => a.sample).length
-  const visible = visibleRows(agents, showSamples)
+  // Seeded demo targets are REAL deployed agents — listed for every account,
+  // labeled SAMPLE (story-9.11). A fresh account always has one runnable target.
   return (
     <div className="page-enter">
       <TopBar />
@@ -97,22 +94,11 @@ export function AgentsClient({ agents, liveError }: AgentsClientProps) {
               maxWidth: 760,
             }}
           >
-            ⚠ LIVE REGISTRY UNAVAILABLE — showing sample data only. ({liveError})
-          </div>
-        ) : null}
-        {sampleCount > 0 ? (
-          <div style={{ marginBottom: 18 }}>
-            <button
-              className="btn small ghost"
-              aria-pressed={showSamples}
-              onClick={() => setShowSamples((s) => !s)}
-            >
-              {showSamples ? 'Hide sample agents' : `Explore sample agents (${sampleCount} seeded)`}
-            </button>
+            ⚠ LIVE REGISTRY UNAVAILABLE — nothing can be listed right now. ({liveError})
           </div>
         ) : null}
         <div style={{ display: 'grid', gap: 14, maxWidth: 760 }}>
-          {visible.map((a) => (
+          {agents.map((a) => (
             <AgentCard key={a.id} a={a} />
           ))}
           <div

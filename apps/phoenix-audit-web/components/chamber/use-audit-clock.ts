@@ -1,8 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { TIMELINE } from '@/lib/fixtures'
-import { clamp } from '@/lib/timeline'
+import { clamp } from '@/lib/replay-clock'
 
 interface AuditClock {
   t: number
@@ -12,29 +11,22 @@ interface AuditClock {
   restart: () => void
 }
 
-interface ClockOptions {
-  /** Optional upper bound on `t`. In live mode this comes from the SSE bridge
-   *  so the per-probe ticker can't drift ahead of the real backend phase. */
-  ceiling?: number
-}
-
-/** Playback clock for the audit chamber. Persists t to localStorage per mode
- *  so a refresh resumes where the user left off. */
-export function useAuditClock(mode: 'replay' | 'live', options: ClockOptions = {}): AuditClock {
-  const storageKey = 'pa_audit_t_' + mode
+/** Playback clock for replaying a recorded run. `duration` comes from the
+ *  run's persisted timeline. Persists t per run so a refresh resumes. */
+export function useAuditClock(duration: number, runId: string): AuditClock {
+  const storageKey = 'pa_audit_t_' + runId
   const [t, setT] = useState<number>(0)
   const [playing, setPlaying] = useState(true)
   const lastWriteRef = useRef(0)
-  const ceiling = options.ceiling ?? TIMELINE.duration
 
   useEffect(() => {
     if (typeof window === 'undefined') return
     const raw = window.localStorage.getItem(storageKey)
     const v = raw ? parseFloat(raw) : NaN
-    const start = Number.isFinite(v) ? clamp(v, 0, TIMELINE.duration) : 0
+    const start = Number.isFinite(v) ? clamp(v, 0, duration) : 0
     setT(start)
-    setPlaying(start < TIMELINE.duration)
-  }, [storageKey])
+    setPlaying(start < duration)
+  }, [storageKey, duration])
 
   useEffect(() => {
     if (!playing) return
@@ -44,13 +36,13 @@ export function useAuditClock(mode: 'replay' | 'live', options: ClockOptions = {
       const dt = (now - last) / 1000
       last = now
       setT((prev) => {
-        const next = Math.min(prev + dt, ceiling, TIMELINE.duration)
-        if (next >= TIMELINE.duration) setPlaying(false)
+        const next = Math.min(prev + dt, duration)
+        if (next >= duration) setPlaying(false)
         return next
       })
     }, 50)
     return () => clearInterval(id)
-  }, [playing, ceiling])
+  }, [playing, duration])
 
   useEffect(() => {
     if (typeof window === 'undefined') return

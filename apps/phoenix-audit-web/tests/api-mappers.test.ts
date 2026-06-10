@@ -1,7 +1,5 @@
 import { describe, expect, it } from 'vitest'
 import { agentToSpec, runToHistoryRow, type AgentRecordDto, type RunRecordDto } from '@/lib/api'
-import { mergeAgents, mergeRuns } from '@/lib/sample-merge'
-import type { AgentSpec, HistoryRow } from '@/lib/types'
 
 const runDto: RunRecordDto = {
   run_id: 'run_abc123def456',
@@ -19,7 +17,9 @@ const runDto: RunRecordDto = {
   transport_failed: 0,
   recipe_id: 'recipe_deadbeefcafe',
   report_available: true,
+  events_available: true,
   mr_url: 'https://gitlab.com/Blockchain-Oracle/prior-auth-agent/-/merge_requests/1',
+  owner_uid: 'user-a',
 }
 
 describe('runToHistoryRow', () => {
@@ -36,6 +36,7 @@ describe('runToHistoryRow', () => {
     expect(row.mrUrl).toContain('gitlab.com')
     expect(row.targetUrl).toBe('https://target-agent.example.app')
     expect(row.source).toBe('manual')
+    expect(row.eventsAvailable).toBe(true)
   })
 
   it('surfaces errored/transport_failed — an all-errored run must not look clean', () => {
@@ -51,80 +52,40 @@ describe('runToHistoryRow', () => {
   })
 
   it('null agent_id stays unattributed (story-9.10) and absent mr stays absent', () => {
-    // The old 'demo-target' fallback dressed every custom-URL audit as the
-    // Demo Support Agent — rows must render their real target URL instead.
     const row = runToHistoryRow({ ...runDto, agent_id: null, mr_url: null, recipe_id: null })
     expect(row.agentId).toBe('')
     expect(row.mr).toBe(false)
     expect(row.mrUrl).toBeUndefined()
     expect(row.recipe).toBe(false)
   })
+
+  it('ownerless runs are the labeled seeded samples; owned runs are not', () => {
+    expect(runToHistoryRow({ ...runDto, owner_uid: null }).sample).toBe(true)
+    expect(runToHistoryRow(runDto).sample).toBe(false)
+  })
 })
 
 describe('agentToSpec', () => {
+  const dto: AgentRecordDto = {
+    agent_id: 'agt_x',
+    name: 'X',
+    url: 'https://x.example',
+    framework: 'adk-a2a',
+    tier: 1,
+    registered_at: '2026-06-10T00:00:00Z',
+    status: 'ok',
+    owner_uid: 'user-a',
+  }
+
   it('maps the agent DTO', () => {
-    const dto: AgentRecordDto = {
-      agent_id: 'agt_x',
-      name: 'X',
-      url: 'https://x.example',
-      framework: 'adk-a2a',
-      tier: 1,
-      registered_at: '2026-06-10T00:00:00Z',
-      status: 'ok',
-    }
     const spec = agentToSpec(dto)
     expect(spec.id).toBe('agt_x')
     expect(spec.transport).toBe('A2A protocol')
     expect(spec.depth).toBe(2)
+    expect(spec.sample).toBe(false)
   })
-})
 
-function row(id: string, date: string, sampleAgnostic?: Partial<HistoryRow>): HistoryRow {
-  return {
-    id,
-    date,
-    agentId: 'agt_priorauth',
-    framework: 'EU AI Act',
-    pass: 6,
-    fail: 0,
-    recipe: false,
-    mr: false,
-    source: 'manual',
-    ...sampleAgnostic,
-  }
-}
-
-describe('mergeRuns', () => {
-  it('tags samples, keeps real untagged, sorts newest first across both', () => {
-    const real = [row('run_real1', '2026-06-10T07:00:00Z')]
-    const samples = [
-      row('run_old1', '2026-06-01T00:00:00Z'),
-      row('run_old2', '2026-06-09T00:00:00Z'),
-    ]
-    const merged = mergeRuns(real, samples)
-    expect(merged.map((r) => r.id)).toEqual(['run_real1', 'run_old2', 'run_old1'])
-    expect(merged[0]?.sample).toBe(false)
-    expect(merged[1]?.sample).toBe(true)
-  })
-})
-
-describe('mergeAgents', () => {
-  it('real agent with same id replaces the sample', () => {
-    const spec = (id: string): AgentSpec => ({
-      id,
-      name: id,
-      url: 'https://x',
-      framework: 'adk-a2a',
-      tier: 1,
-      transport: 'A2A protocol',
-      depth: 2,
-      monitoring: { enabled: false },
-      lastAudit: '2026-06-01T00:00:00Z',
-      status: 'ok',
-    })
-    const merged = mergeAgents([spec('demo-target')], [spec('demo-target'), spec('agt_sample')])
-    expect(merged.filter((a) => a.id === 'demo-target')).toHaveLength(1)
-    expect(merged.find((a) => a.id === 'demo-target')?.sample).toBe(false)
-    expect(merged.find((a) => a.id === 'agt_sample')?.sample).toBe(true)
+  it('ownerless agents are the labeled seeded demo targets', () => {
+    expect(agentToSpec({ ...dto, owner_uid: null }).sample).toBe(true)
   })
 })
