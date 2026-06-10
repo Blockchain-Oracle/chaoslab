@@ -1,5 +1,5 @@
 ## phoenix-audit-agent — Phoenix Audit's orchestrator (ADK SequentialAgent: Injector -> Judge -> Patcher).
-## Codename `phoenix-audit-agent` is intentional per CLAUDE.md (S1.6 rename to phoenix-audit-agent is pending).
+## Renamed from chaoslab-agent on 2026-06-10 (PR #83); Python import path is phoenix_audit_agent.
 
 [project]
 name = "phoenix-audit-agent"

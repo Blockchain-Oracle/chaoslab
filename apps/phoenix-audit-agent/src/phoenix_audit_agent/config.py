@@ -84,6 +84,8 @@ class Settings(BaseSettings):
         description="Upper bound on the clusterer output.",
     )
     GCS_RECIPES_BUCKET: str = Field(
+        # Legacy chaoslab-* bucket name kept through the phoenix-audit rename
+        # (live storage rename judged churn-without-benefit — see CLAUDE.md).
         default="chaoslab-recipes",
         min_length=1,
         description="GCS bucket the Markdown emitter writes recipe artifacts to.",

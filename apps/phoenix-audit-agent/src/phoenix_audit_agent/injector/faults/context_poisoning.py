@@ -30,7 +30,7 @@ from phoenix_audit_agent.adk_types import BaseRetrievalTool, CallbackContext, Ll
 
 PoisonMode = Literal["retriever_insert", "history_insert"]
 
-POISON_MARKER = "[CHAOSLAB-POISON-MARKER]"
+POISON_MARKER = "[PHOENIX-AUDIT-POISON-MARKER]"
 _FAULT_TYPE = "context_poisoning"
 _INSTALLED_SENTINEL = "_phoenix_audit_f3_installed"
 _PATCHED_SENTINEL = "_phoenix_audit_f3_patched"

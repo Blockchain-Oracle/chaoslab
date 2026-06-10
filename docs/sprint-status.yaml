@@ -17,7 +17,7 @@ stories:
     tags: [infra, p0, foundation]
     depends_on: []
     issue_url: ""
-    pr_url: "https://github.com/Blockchain-Oracle/chaoslab/pull/1"
+    pr_url: "https://github.com/Blockchain-Oracle/phoenix-audit/pull/1"
     merged_at: "2026-06-03"
   - id: story-1.2-precommit-hooks
     epic: "Epic 1 — Repo + CI/CD foundation"
@@ -26,7 +26,7 @@ stories:
     tags: [infra, p0, foundation]
     depends_on: [story-1.1-monorepo-init]
     issue_url: ""
-    pr_url: "https://github.com/Blockchain-Oracle/chaoslab/pull/2"
+    pr_url: "https://github.com/Blockchain-Oracle/phoenix-audit/pull/2"
     merged_at: "2026-06-03"
   - id: story-1.3-max-lines-script
     epic: "Epic 1 — Repo + CI/CD foundation"
@@ -35,7 +35,7 @@ stories:
     tags: [infra, p0, foundation]
     depends_on: [story-1.2-precommit-hooks]
     issue_url: ""
-    pr_url: "https://github.com/Blockchain-Oracle/chaoslab/pull/3"
+    pr_url: "https://github.com/Blockchain-Oracle/phoenix-audit/pull/3"
     merged_at: "2026-06-03"
   - id: story-1.4-gcp-iam-bootstrap
     epic: "Epic 1 — Repo + CI/CD foundation"
@@ -44,7 +44,7 @@ stories:
     tags: [infra, p0, gcp]
     depends_on: [story-1.1-monorepo-init]
     issue_url: ""
-    pr_url: "https://github.com/Blockchain-Oracle/chaoslab/pull/47"
+    pr_url: "https://github.com/Blockchain-Oracle/phoenix-audit/pull/47"
     merged_at: "2026-06-09T10:11:00Z"
   - id: story-1.5-pr-checks-workflow
     epic: "Epic 1 — Repo + CI/CD foundation"
@@ -53,7 +53,7 @@ stories:
     tags: [infra, p0, ci]
     depends_on: [story-1.2-precommit-hooks, story-1.3-max-lines-script]
     issue_url: ""
-    pr_url: "https://github.com/Blockchain-Oracle/chaoslab/pull/46"
+    pr_url: "https://github.com/Blockchain-Oracle/phoenix-audit/pull/46"
     merged_at: "2026-06-09T09:49:00Z"
   - id: story-1.6-staging-deploy-workflow
     epic: "Epic 1 — Repo + CI/CD foundation"
@@ -62,7 +62,7 @@ stories:
     tags: [infra, p0, ci, deploy]
     depends_on: [story-1.4-gcp-iam-bootstrap, story-1.5-pr-checks-workflow]
     issue_url: ""
-    pr_url: "https://github.com/Blockchain-Oracle/chaoslab/pull/64"
+    pr_url: "https://github.com/Blockchain-Oracle/phoenix-audit/pull/64"
     merged_at: "2026-06-09T10:18:00Z"
   - id: story-1.7-prod-promote-and-visual-tests
     epic: "Epic 1 — Repo + CI/CD foundation"
@@ -82,7 +82,7 @@ stories:
     tags: [backend, p0, target]
     depends_on: [story-1.7-prod-promote-and-visual-tests]
     issue_url: ""
-    pr_url: "https://github.com/Blockchain-Oracle/chaoslab/pull/4"
+    pr_url: "https://github.com/Blockchain-Oracle/phoenix-audit/pull/4"
     merged_at: "2026-06-04T23:38:42Z"
   - id: story-2.2-target-a2a-exposure
     epic: "Epic 2 — Target agent"
@@ -91,7 +91,7 @@ stories:
     tags: [backend, p0, target, a2a]
     depends_on: [story-2.1-naive-target-agent]
     issue_url: ""
-    pr_url: "https://github.com/Blockchain-Oracle/chaoslab/pull/18"
+    pr_url: "https://github.com/Blockchain-Oracle/phoenix-audit/pull/18"
     merged_at: "2026-06-05T00:00:00Z"
   - id: story-2.3-target-phoenix-instrumentation
     epic: "Epic 2 — Target agent"
@@ -100,7 +100,7 @@ stories:
     tags: [backend, p0, target, phoenix]
     depends_on: [story-2.2-target-a2a-exposure]
     issue_url: ""
-    pr_url: "https://github.com/Blockchain-Oracle/chaoslab/pull/25"
+    pr_url: "https://github.com/Blockchain-Oracle/phoenix-audit/pull/25"
     merged_at: "2026-06-05T03:00:00Z"
   - id: story-2.4-target-cloud-run-deploy
     epic: "Epic 2 — Target agent"
@@ -108,8 +108,8 @@ stories:
     estimate_hours: 1.0
     tags: [backend, p0, target, deploy]
     depends_on: [story-2.3-target-phoenix-instrumentation]
-    issue_url: "https://github.com/Blockchain-Oracle/chaoslab/issues/22"
-    pr_url: "https://github.com/Blockchain-Oracle/chaoslab/pull/27"
+    issue_url: "https://github.com/Blockchain-Oracle/phoenix-audit/issues/22"
+    pr_url: "https://github.com/Blockchain-Oracle/phoenix-audit/pull/27"
     merged_at: "2026-06-05T10:00:54Z"
 
   # ---------- Epic 3 — Cross-framework target adapter layer ----------
@@ -120,7 +120,7 @@ stories:
     tags: [backend, p0, adapter, foundation]
     depends_on: [story-2.1-naive-target-agent]
     issue_url: ""
-    pr_url: "https://github.com/Blockchain-Oracle/chaoslab/pull/40"
+    pr_url: "https://github.com/Blockchain-Oracle/phoenix-audit/pull/40"
     merged_at: "2026-06-08T13:10:00Z"
   - id: story-3.2-adk-adapter
     epic: "Epic 3 — Target adapter layer"
@@ -129,7 +129,7 @@ stories:
     tags: [backend, p0, adapter, adk]
     depends_on: [story-3.1-adapter-interface, story-2.2-target-a2a-exposure]
     issue_url: ""
-    pr_url: "https://github.com/Blockchain-Oracle/chaoslab/pull/41"
+    pr_url: "https://github.com/Blockchain-Oracle/phoenix-audit/pull/41"
     merged_at: "2026-06-08T13:55:00Z"
   - id: story-3.3-langchain-adapter
     epic: "Epic 3 — Target adapter layer"
@@ -138,7 +138,7 @@ stories:
     tags: [backend, p0, adapter, langchain, tier2]
     depends_on: [story-3.1-adapter-interface]
     issue_url: ""
-    pr_url: "https://github.com/Blockchain-Oracle/chaoslab/pull/76"
+    pr_url: "https://github.com/Blockchain-Oracle/phoenix-audit/pull/76"
     merged_at: "2026-06-09T20:15:00Z"
   - id: story-3.4-crewai-adapter
     epic: "Epic 3 — Target adapter layer"
@@ -147,7 +147,7 @@ stories:
     tags: [backend, p0, adapter, crewai, tier2]
     depends_on: [story-3.1-adapter-interface]
     issue_url: ""
-    pr_url: "https://github.com/Blockchain-Oracle/chaoslab/pull/77"
+    pr_url: "https://github.com/Blockchain-Oracle/phoenix-audit/pull/77"
     merged_at: "2026-06-09T20:50:00Z"
   - id: story-3.5-openai-sdk-adapter
     epic: "Epic 3 — Target adapter layer"
@@ -156,7 +156,7 @@ stories:
     tags: [backend, p0, adapter, openai-sdk, tier2]
     depends_on: [story-3.1-adapter-interface]
     issue_url: ""
-    pr_url: "https://github.com/Blockchain-Oracle/chaoslab/pull/78"
+    pr_url: "https://github.com/Blockchain-Oracle/phoenix-audit/pull/78"
     merged_at: "2026-06-09T21:20:00Z"
   - id: story-3.6-http-blackbox-adapter
     epic: "Epic 3 — Target adapter layer"
@@ -165,7 +165,7 @@ stories:
     tags: [backend, p1, adapter, http-blackbox, tier3]
     depends_on: [story-3.1-adapter-interface]
     issue_url: ""
-    pr_url: "https://github.com/Blockchain-Oracle/chaoslab/pull/79"
+    pr_url: "https://github.com/Blockchain-Oracle/phoenix-audit/pull/79"
     merged_at: "2026-06-09T21:50:00Z"
 
   # ---------- Epic 4 — ChaosLab orchestrator + Phoenix tool wrappers ----------
@@ -176,7 +176,7 @@ stories:
     tags: [backend, p0, orchestrator]
     depends_on: [story-2.1-naive-target-agent, story-1.5-pr-checks-workflow]
     issue_url: ""
-    pr_url: "https://github.com/Blockchain-Oracle/chaoslab/pull/32"
+    pr_url: "https://github.com/Blockchain-Oracle/phoenix-audit/pull/32"
     merged_at: "2026-06-08T06:30:00Z"
   - id: story-4.2-sequential-orchestrator
     epic: "Epic 4 — Orchestrator + Phoenix wrappers"
@@ -185,7 +185,7 @@ stories:
     tags: [backend, p0, orchestrator]
     depends_on: [story-4.1-agent-entrypoint]
     issue_url: ""
-    pr_url: "https://github.com/Blockchain-Oracle/chaoslab/pull/34"
+    pr_url: "https://github.com/Blockchain-Oracle/phoenix-audit/pull/34"
     merged_at: "2026-06-08T09:55:00Z"
   - id: story-4.3-phoenix-run-experiment-tool
     epic: "Epic 4 — Orchestrator + Phoenix wrappers"
@@ -194,7 +194,7 @@ stories:
     tags: [backend, p0, phoenix, tool]
     depends_on: [story-4.1-agent-entrypoint]
     issue_url: ""
-    pr_url: "https://github.com/Blockchain-Oracle/chaoslab/pull/35"
+    pr_url: "https://github.com/Blockchain-Oracle/phoenix-audit/pull/35"
     merged_at: "2026-06-08T10:50:00Z"
   - id: story-4.4-phoenix-write-annotation-tool
     epic: "Epic 4 — Orchestrator + Phoenix wrappers"
@@ -203,7 +203,7 @@ stories:
     tags: [backend, p0, phoenix, tool]
     depends_on: [story-4.1-agent-entrypoint]
     issue_url: ""
-    pr_url: "https://github.com/Blockchain-Oracle/chaoslab/pull/36"
+    pr_url: "https://github.com/Blockchain-Oracle/phoenix-audit/pull/36"
     merged_at: "2026-06-08T11:30:00Z"
   - id: story-4.5-observability-and-types
     epic: "Epic 4 — Orchestrator + Phoenix wrappers"
@@ -212,7 +212,7 @@ stories:
     tags: [backend, p0, observability]
     depends_on: [story-4.1-agent-entrypoint]
     issue_url: ""
-    pr_url: "https://github.com/Blockchain-Oracle/chaoslab/pull/37"
+    pr_url: "https://github.com/Blockchain-Oracle/phoenix-audit/pull/37"
     merged_at: "2026-06-08T12:30:00Z"
   - id: story-4.6-chaoslab-agent-deploy
     epic: "Epic 4 — Orchestrator + Phoenix wrappers"
@@ -221,7 +221,7 @@ stories:
     tags: [backend, p0, deploy]
     depends_on: [story-4.1-agent-entrypoint, story-1.6-staging-deploy-workflow]
     issue_url: ""
-    pr_url: "https://github.com/Blockchain-Oracle/chaoslab/pull/38"
+    pr_url: "https://github.com/Blockchain-Oracle/phoenix-audit/pull/38"
     merged_at: "2026-06-08T13:30:00Z"
 
   # ---------- Epic 5 — Fault injection (4 fault classes) ----------
@@ -232,7 +232,7 @@ stories:
     tags: [backend, p0, injector, vendor]
     depends_on: [story-4.5-observability-and-types]
     issue_url: ""
-    pr_url: "https://github.com/Blockchain-Oracle/chaoslab/pull/39"
+    pr_url: "https://github.com/Blockchain-Oracle/phoenix-audit/pull/39"
     merged_at: "2026-06-08T11:55:00Z"
   - id: story-5.2-fault-malformed-tool
     epic: "Epic 5 — Fault injection"
@@ -241,7 +241,7 @@ stories:
     tags: [backend, p0, injector, fault]
     depends_on: [story-5.1-vendor-agent-chaos, story-3.2-adk-adapter]
     issue_url: ""
-    pr_url: "https://github.com/Blockchain-Oracle/chaoslab/pull/42"
+    pr_url: "https://github.com/Blockchain-Oracle/phoenix-audit/pull/42"
     merged_at: "2026-06-09T07:35:00Z"
   - id: story-5.3-fault-prompt-injection
     epic: "Epic 5 — Fault injection"
@@ -250,7 +250,7 @@ stories:
     tags: [backend, p0, injector, fault]
     depends_on: [story-5.1-vendor-agent-chaos, story-3.2-adk-adapter]
     issue_url: ""
-    pr_url: "https://github.com/Blockchain-Oracle/chaoslab/pull/42"
+    pr_url: "https://github.com/Blockchain-Oracle/phoenix-audit/pull/42"
     merged_at: "2026-06-09T07:35:00Z"
   - id: story-5.4-fault-context-poisoning
     epic: "Epic 5 — Fault injection"
@@ -259,7 +259,7 @@ stories:
     tags: [backend, p0, injector, fault]
     depends_on: [story-5.1-vendor-agent-chaos, story-3.2-adk-adapter]
     issue_url: ""
-    pr_url: "https://github.com/Blockchain-Oracle/chaoslab/pull/42"
+    pr_url: "https://github.com/Blockchain-Oracle/phoenix-audit/pull/42"
     merged_at: "2026-06-09T07:35:00Z"
   - id: story-5.5-fault-latency-spike
     epic: "Epic 5 — Fault injection"
@@ -268,7 +268,7 @@ stories:
     tags: [backend, p0, injector, fault]
     depends_on: [story-5.1-vendor-agent-chaos, story-3.2-adk-adapter]
     issue_url: ""
-    pr_url: "https://github.com/Blockchain-Oracle/chaoslab/pull/43"
+    pr_url: "https://github.com/Blockchain-Oracle/phoenix-audit/pull/43"
     merged_at: "2026-06-09T08:04:00Z"
   - id: story-5.6-preflight-baseline
     epic: "Epic 5 — Fault injection"
@@ -277,7 +277,7 @@ stories:
     tags: [backend, p0, injector]
     depends_on: [story-3.1-adapter-interface]
     issue_url: ""
-    pr_url: "https://github.com/Blockchain-Oracle/chaoslab/pull/44"
+    pr_url: "https://github.com/Blockchain-Oracle/phoenix-audit/pull/44"
     merged_at: "2026-06-09T08:29:00Z"
   - id: story-5.7-injector-sub-agent
     epic: "Epic 5 — Fault injection"
@@ -295,7 +295,7 @@ stories:
         story-4.4-phoenix-write-annotation-tool,
       ]
     issue_url: ""
-    pr_url: "https://github.com/Blockchain-Oracle/chaoslab/pull/45"
+    pr_url: "https://github.com/Blockchain-Oracle/phoenix-audit/pull/45"
     merged_at: "2026-06-09T09:26:00Z"
 
   - id: story-5.8-run-real-pipeline
@@ -305,7 +305,7 @@ stories:
     tags: [backend, p0, orchestrator, sse]
     depends_on: [story-5.7-injector-sub-agent, story-6.6-gitlab-mr-emitter]
     issue_url: ""
-    pr_url: "https://github.com/Blockchain-Oracle/chaoslab/pull/81"
+    pr_url: "https://github.com/Blockchain-Oracle/phoenix-audit/pull/81"
     merged_at: "2026-06-10T00:58:00Z"
 
   # ---------- Epic 6 — Judge + clustering + hardening recipe ----------
@@ -321,7 +321,7 @@ stories:
         story-5.7-injector-sub-agent,
       ]
     issue_url: ""
-    pr_url: "https://github.com/Blockchain-Oracle/chaoslab/pull/66"
+    pr_url: "https://github.com/Blockchain-Oracle/phoenix-audit/pull/66"
     merged_at: "2026-06-09T12:19:00Z"
   - id: story-6.2-failure-clustering
     epic: "Epic 6 — Judge + Patcher"
@@ -330,7 +330,7 @@ stories:
     tags: [backend, p0, judge]
     depends_on: [story-6.1-judge-rubrics]
     issue_url: ""
-    pr_url: "https://github.com/Blockchain-Oracle/chaoslab/pull/67"
+    pr_url: "https://github.com/Blockchain-Oracle/phoenix-audit/pull/67"
     merged_at: "2026-06-09T13:35:00Z"
   - id: story-6.3-recipe-schema
     epic: "Epic 6 — Judge + Patcher"
@@ -339,7 +339,7 @@ stories:
     tags: [backend, p0, patcher, schema]
     depends_on: [story-4.5-observability-and-types, story-1.1-monorepo-init]
     issue_url: ""
-    pr_url: "https://github.com/Blockchain-Oracle/chaoslab/pull/68"
+    pr_url: "https://github.com/Blockchain-Oracle/phoenix-audit/pull/68"
     merged_at: "2026-06-09T14:55:00Z"
   - id: story-6.4-patcher-sub-agent
     epic: "Epic 6 — Judge + Patcher"
@@ -348,7 +348,7 @@ stories:
     tags: [backend, p0, patcher]
     depends_on: [story-6.2-failure-clustering, story-6.3-recipe-schema]
     issue_url: ""
-    pr_url: "https://github.com/Blockchain-Oracle/chaoslab/pull/69"
+    pr_url: "https://github.com/Blockchain-Oracle/phoenix-audit/pull/69"
     merged_at: "2026-06-09T15:20:00Z"
   - id: story-6.5-markdown-emitter
     epic: "Epic 6 — Judge + Patcher"
@@ -357,7 +357,7 @@ stories:
     tags: [backend, p0, patcher, emitter]
     depends_on: [story-6.4-patcher-sub-agent]
     issue_url: ""
-    pr_url: "https://github.com/Blockchain-Oracle/chaoslab/pull/70"
+    pr_url: "https://github.com/Blockchain-Oracle/phoenix-audit/pull/70"
     merged_at: "2026-06-09T15:55:00Z"
   - id: story-6.6-gitlab-mr-emitter
     epic: "Epic 6 — Judge + Patcher"
@@ -366,7 +366,7 @@ stories:
     tags: [backend, p0, patcher, emitter, gitlab]
     depends_on: [story-6.4-patcher-sub-agent]
     issue_url: ""
-    pr_url: "https://github.com/Blockchain-Oracle/chaoslab/pull/74"
+    pr_url: "https://github.com/Blockchain-Oracle/phoenix-audit/pull/74"
     merged_at: "2026-06-09T19:00:00Z"
 
   - id: story-6.7-signed-pdf-report
@@ -376,93 +376,93 @@ stories:
     tags: [backend, p0, reporter, kms, pdf]
     depends_on: [story-5.8-run-real-pipeline, story-6.5-markdown-emitter]
     issue_url: ""
-    pr_url: "https://github.com/Blockchain-Oracle/chaoslab/pull/82"
+    pr_url: "https://github.com/Blockchain-Oracle/phoenix-audit/pull/82"
     merged_at: "2026-06-10T01:35:00Z"
 
-  # ---------- Epic 7 — chaoslab-web frontend ----------
+  # ---------- Epic 7 — phoenix-audit-web frontend ----------
   - id: story-7.1-nextjs-scaffold
-    epic: "Epic 7 — chaoslab-web frontend"
+    epic: "Epic 7 — phoenix-audit-web frontend"
     status: COMPLETE
     estimate_hours: 1.0
     tags: [frontend, p0, ui, foundation]
     depends_on: [story-1.7-prod-promote-and-visual-tests]
     issue_url: ""
-    pr_url: "https://github.com/Blockchain-Oracle/chaoslab/pull/80"
+    pr_url: "https://github.com/Blockchain-Oracle/phoenix-audit/pull/80"
     merged_at: "2026-06-09T23:12:57Z"
   - id: story-7.2-design-tokens
-    epic: "Epic 7 — chaoslab-web frontend"
+    epic: "Epic 7 — phoenix-audit-web frontend"
     status: COMPLETE
     estimate_hours: 1.0
     tags: [frontend, p0, ui, design]
     depends_on: [story-7.1-nextjs-scaffold]
     issue_url: ""
-    pr_url: "https://github.com/Blockchain-Oracle/chaoslab/pull/80"
+    pr_url: "https://github.com/Blockchain-Oracle/phoenix-audit/pull/80"
     merged_at: "2026-06-09T23:12:57Z"
   - id: story-7.3-env-and-dockerfile
-    epic: "Epic 7 — chaoslab-web frontend"
+    epic: "Epic 7 — phoenix-audit-web frontend"
     status: COMPLETE
     estimate_hours: 1.0
     tags: [frontend, p0, ui, deploy]
     depends_on: [story-7.1-nextjs-scaffold]
     issue_url: ""
-    pr_url: "https://github.com/Blockchain-Oracle/chaoslab/pull/80"
+    pr_url: "https://github.com/Blockchain-Oracle/phoenix-audit/pull/80"
     merged_at: "2026-06-09T23:12:57Z"
   - id: story-7.4-run-store-and-sse
-    epic: "Epic 7 — chaoslab-web frontend"
+    epic: "Epic 7 — phoenix-audit-web frontend"
     status: COMPLETE
     estimate_hours: 1.5
     tags: [frontend, p0, ui, state]
     depends_on: [story-7.1-nextjs-scaffold]
     issue_url: ""
-    pr_url: "https://github.com/Blockchain-Oracle/chaoslab/pull/80"
+    pr_url: "https://github.com/Blockchain-Oracle/phoenix-audit/pull/80"
     merged_at: "2026-06-09T23:12:57Z"
   - id: story-7.5-attack-matrix
-    epic: "Epic 7 — chaoslab-web frontend"
+    epic: "Epic 7 — phoenix-audit-web frontend"
     status: COMPLETE
     estimate_hours: 2.0
     tags: [frontend, p0, ui, component]
     depends_on: [story-7.2-design-tokens, story-7.4-run-store-and-sse]
     issue_url: ""
-    pr_url: "https://github.com/Blockchain-Oracle/chaoslab/pull/80"
+    pr_url: "https://github.com/Blockchain-Oracle/phoenix-audit/pull/80"
     merged_at: "2026-06-09T23:12:57Z"
   - id: story-7.6-resilience-curve
-    epic: "Epic 7 — chaoslab-web frontend"
+    epic: "Epic 7 — phoenix-audit-web frontend"
     status: COMPLETE
     estimate_hours: 2.0
     tags: [frontend, p0, ui, component]
     depends_on: [story-7.2-design-tokens, story-7.4-run-store-and-sse]
     issue_url: ""
-    pr_url: "https://github.com/Blockchain-Oracle/chaoslab/pull/80"
+    pr_url: "https://github.com/Blockchain-Oracle/phoenix-audit/pull/80"
     merged_at: "2026-06-09T23:12:57Z"
   - id: story-7.7-agent-pipeline
-    epic: "Epic 7 — chaoslab-web frontend"
+    epic: "Epic 7 — phoenix-audit-web frontend"
     status: COMPLETE
     estimate_hours: 1.5
     tags: [frontend, p0, ui, component]
     depends_on: [story-7.2-design-tokens, story-7.4-run-store-and-sse]
     issue_url: ""
-    pr_url: "https://github.com/Blockchain-Oracle/chaoslab/pull/80"
+    pr_url: "https://github.com/Blockchain-Oracle/phoenix-audit/pull/80"
     merged_at: "2026-06-09T23:12:57Z"
   - id: story-7.8-receipt-card
-    epic: "Epic 7 — chaoslab-web frontend"
+    epic: "Epic 7 — phoenix-audit-web frontend"
     status: COMPLETE
     estimate_hours: 1.0
     tags: [frontend, p0, ui, component]
     depends_on: [story-7.2-design-tokens, story-7.4-run-store-and-sse]
     issue_url: ""
-    pr_url: "https://github.com/Blockchain-Oracle/chaoslab/pull/80"
+    pr_url: "https://github.com/Blockchain-Oracle/phoenix-audit/pull/80"
     merged_at: "2026-06-09T23:12:57Z"
   - id: story-7.9-landing-page
-    epic: "Epic 7 — chaoslab-web frontend"
+    epic: "Epic 7 — phoenix-audit-web frontend"
     status: COMPLETE
     estimate_hours: 1.0
     tags: [frontend, p0, ui, page]
     depends_on: [story-7.2-design-tokens]
     issue_url: ""
-    pr_url: "https://github.com/Blockchain-Oracle/chaoslab/pull/80"
+    pr_url: "https://github.com/Blockchain-Oracle/phoenix-audit/pull/80"
     merged_at: "2026-06-09T23:12:57Z"
   - id: story-7.10-replay-route
-    epic: "Epic 7 — chaoslab-web frontend"
+    epic: "Epic 7 — phoenix-audit-web frontend"
     status: COMPLETE
     estimate_hours: 2.0
     tags: [frontend, p0, ui, page]
@@ -474,10 +474,10 @@ stories:
         story-7.8-receipt-card,
       ]
     issue_url: ""
-    pr_url: "https://github.com/Blockchain-Oracle/chaoslab/pull/80"
+    pr_url: "https://github.com/Blockchain-Oracle/phoenix-audit/pull/80"
     merged_at: "2026-06-09T23:12:57Z"
   - id: story-7.11-attack-route
-    epic: "Epic 7 — chaoslab-web frontend"
+    epic: "Epic 7 — phoenix-audit-web frontend"
     status: COMPLETE
     estimate_hours: 2.0
     tags: [frontend, p0, ui, page]
@@ -490,26 +490,26 @@ stories:
         story-7.4-run-store-and-sse,
       ]
     issue_url: ""
-    pr_url: "https://github.com/Blockchain-Oracle/chaoslab/pull/80"
+    pr_url: "https://github.com/Blockchain-Oracle/phoenix-audit/pull/80"
     merged_at: "2026-06-09T23:12:57Z"
   - id: story-7.12-visual-loop-integration
-    epic: "Epic 7 — chaoslab-web frontend"
+    epic: "Epic 7 — phoenix-audit-web frontend"
     status: COMPLETE
     estimate_hours: 1.5
     tags: [frontend, p0, ui, visual-loop]
     depends_on: [story-7.5-attack-matrix]
     issue_url: ""
-    pr_url: "https://github.com/Blockchain-Oracle/chaoslab/pull/80"
+    pr_url: "https://github.com/Blockchain-Oracle/phoenix-audit/pull/80"
     merged_at: "2026-06-09T23:12:57Z"
 
   - id: story-7.13-designer-delivered-surfaces
-    epic: "Epic 7 — chaoslab-web frontend"
+    epic: "Epic 7 — phoenix-audit-web frontend"
     status: COMPLETE
     estimate_hours: 0.0
     tags: [frontend, p0, ui, designer-port]
     depends_on: [story-7.1-nextjs-scaffold]
     issue_url: ""
-    pr_url: "https://github.com/Blockchain-Oracle/chaoslab/pull/80"
+    pr_url: "https://github.com/Blockchain-Oracle/phoenix-audit/pull/80"
     merged_at: "2026-06-09T23:12:57Z"
 
   # ---------- Epic 8 — README + Submission polish ----------

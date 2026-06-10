@@ -13,6 +13,8 @@ set -euo pipefail
 
 POOL_ID="${POOL_ID:-github-actions-pool}"
 PROVIDER_ID="${PROVIDER_ID:-github-actions-provider}"
+# Legacy identity names — see CLAUDE.md: live IAM/storage rename to phoenix-audit
+# was judged churn-without-benefit (rename PR #83, 2026-06-10).
 DEPLOY_SA="${DEPLOY_SA:-chaoslab-deploy}"
 RUNTIME_SA="${RUNTIME_SA:-chaoslab-runtime}"
 
@@ -156,6 +158,7 @@ done
 # role. Discovered during round-3+4 staging deploy: with only objectAdmin
 # bound, Cloud Run boots fail with 403 storage.buckets.get on the SA. Bind
 # `roles/storage.admin` on JUST this bucket (bucket-scoped, still least-privilege).
+# Legacy bucket name — kept through the phoenix-audit rename (see CLAUDE.md).
 GCS_RECIPES_BUCKET="${GCS_RECIPES_BUCKET:-chaoslab-recipes}"
 GCS_RECIPES_REGION="${GCS_RECIPES_REGION:-us-central1}"
 echo "==> Ensuring GCS bucket: gs://${GCS_RECIPES_BUCKET}"
