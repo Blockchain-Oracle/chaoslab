@@ -56,7 +56,7 @@ One PR per story. No parallel implementation. Eggs in one basket — your focus 
 
 - **Python 3.12** + `uv` (workspace) + `ruff` lint+format + `ty` typecheck (primary; `mypy strict` fallback if `ty` blocks)
 - **TypeScript 5.x** + `pnpm` + **Next.js 16** + Tailwind 4 (`@theme` CSS-first) + shadcn/ui (New York) + visx + Framer Motion 12
-- **Tests:** pytest + pytest-asyncio + respx + hypothesis (BE); vitest + RTL + `@playwright/test` (FE)
+- **Tests:** pytest + pytest-asyncio + respx + hypothesis (BE); vitest (FE; Playwright e2e not yet wired — do not document gates that don't exist)
 - **Agent:** `google-adk>=2.1.0,<3.0.0` (pin major — uses deprecated `SequentialAgent`/`LoopAgent`/`ParallelAgent` per ADR-012)
 - **Observability:** `arize-phoenix-otel` + `arize-phoenix-client` + `openinference-instrumentation-google-adk` (Tier 1) + `-langchain` / `-crewai` / `-openai-agents` (Tier 2)
 - **Deploy:** 3 Cloud Run services. Services `phoenix-audit-web` / `phoenix-audit-agent` / `target-agent` (renamed from chaoslab-\* 2026-06-10; GCP identities keep legacy names: SAs `chaoslab-deploy`/`chaoslab-runtime`, bucket `chaoslab-recipes` — live IAM/storage rename judged churn-without-benefit); deployed via GitHub Actions @v3 + Workload Identity Federation.
@@ -115,7 +115,6 @@ uv run ty check apps/
 pnpm install
 pnpm --filter phoenix-audit-web dev                     # local Next.js
 pnpm --filter phoenix-audit-web test                    # vitest
-pnpm --filter phoenix-audit-web test:e2e                # playwright
 pnpm lint && pnpm typecheck
 
 # Cross-language

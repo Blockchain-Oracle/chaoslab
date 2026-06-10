@@ -13,6 +13,11 @@ instruction strings is the §14 carve-out documented in the story file.
 ADR-012: ADK's `SequentialAgent` is the deprecated-but-pinned API per the
 google-adk[a2a]>=2.1.0,<3.0.0 constraint. Workflow (the v3 replacement) is
 out-of-scope until the upstream major version bump is planned.
+
+NOTE: the live audit hot path (`POST /run` -> audit_runner.drive_audit) does
+NOT execute this assembly — it drives Injector/Judge/Patcher directly for
+per-probe SSE control. This module is the ADK multi-agent surface (ADR-012,
+hackathon judging credit) and stays buildable + trace-asserted by its tests.
 """
 
 from __future__ import annotations
