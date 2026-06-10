@@ -65,9 +65,11 @@ jobs:
             changed_key: agent
             dockerfile: apps/phoenix-audit-agent/Dockerfile
             smoke_path: /health
-            # IAM-gated — only the web service (runtime SA) and CI invoke it.
+            # IAM-gated — only the web service (runtime SA), Cloud Scheduler
+            # and CI invoke it. SELF URL + invoker email resolve at deploy time
+            # (scheduler-tick OIDC verification; fail-closed when unset).
             auth_flag: --no-allow-unauthenticated
-            extra_env: ""
+            extra_env: ",SERVICE_BASE_URL=__RESOLVE_SELF_URL__,SCHEDULER_INVOKER_EMAIL=__DEPLOY_SA__"
 
           - service: target-agent
             path: apps/target-agent
@@ -187,6 +189,14 @@ jobs:
               --region="${REGION}" --format='value(status.url)')
             [ -n "${AGENT_URL}" ] || { echo "::error::phoenix-audit-agent service not found — deploy the agent before the web"; exit 1; }
             EXTRA_ENV="${EXTRA_ENV/__RESOLVE_AGENT_URL__/${AGENT_URL}}"
+          fi
+          if [ "${EXTRA_ENV#*__RESOLVE_SELF_URL__}" != "${EXTRA_ENV}" ]; then
+            SELF_URL=$(gcloud run services describe ${{ matrix.service }} \
+              --region="${REGION}" --format='value(status.url)' 2>/dev/null || true)
+            # First-ever deploy: URL unknown until the service exists; the tick
+            # stays fail-closed (503) until the next deploy fills it in.
+            EXTRA_ENV="${EXTRA_ENV/__RESOLVE_SELF_URL__/${SELF_URL}}"
+            EXTRA_ENV="${EXTRA_ENV/__DEPLOY_SA__/${DEPLOY_SA}}"
           fi
           # shellcheck disable=SC2086  # CANDIDATE_FLAGS is a controlled flag string
           gcloud run deploy ${{ matrix.service }} \

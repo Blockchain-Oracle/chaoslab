@@ -9,7 +9,7 @@ from __future__ import annotations
 from typing import Any
 
 from phoenix_audit_agent.storage.agents import DEMO_TARGET_SEED
-from phoenix_audit_agent.storage.models import AgentRecord, RunCompletion, RunRecord
+from phoenix_audit_agent.storage.models import AgentRecord, RunCompletion, RunRecord, ScheduleRecord
 
 
 class InMemoryRunStore:
@@ -64,3 +64,38 @@ class InMemoryAgentStore:
     async def get(self, agent_id: str) -> AgentRecord | None:
         doc = self._docs.get(agent_id)
         return AgentRecord.model_validate(doc) if doc else None
+
+
+class InMemoryScheduleStore:
+    def __init__(self) -> None:
+        self._docs: dict[str, dict[str, Any]] = {}
+
+    async def upsert(self, record: ScheduleRecord) -> None:
+        self._docs[record.schedule_id] = record.model_dump()
+
+    async def list_schedules(self) -> list[ScheduleRecord]:
+        rows = [ScheduleRecord.model_validate(d) for d in self._docs.values()]
+        rows.sort(key=lambda s: s.created_at)
+        return rows
+
+    async def get(self, schedule_id: str) -> ScheduleRecord | None:
+        doc = self._docs.get(schedule_id)
+        return ScheduleRecord.model_validate(doc) if doc else None
+
+    async def claim_due(self, *, now_iso: str, advance: Any) -> list[ScheduleRecord]:
+        claimed: list[ScheduleRecord] = []
+        for doc in list(self._docs.values()):
+            record = ScheduleRecord.model_validate(doc)
+            if not record.enabled or record.next_fire_at > now_iso:
+                continue
+            # claim-before-launch: advance the fire time FIRST, like prod.
+            self._docs[record.schedule_id]["next_fire_at"] = advance(record)
+            claimed.append(record)
+        return claimed
+
+    async def mark_fired(self, schedule_id: str, *, run_id: str, fired_at: str) -> None:
+        self._docs[schedule_id]["last_fired_at"] = fired_at
+        self._docs[schedule_id]["last_run_id"] = run_id
+
+    async def patch_fields(self, schedule_id: str, fields: dict[str, Any]) -> None:
+        self._docs[schedule_id].update(fields)

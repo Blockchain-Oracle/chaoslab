@@ -1,34 +1,39 @@
-# Stub Dockerfile for phoenix-audit-web. Real Next.js scaffold lands with S7.1
-# (Tailwind 4 + visx + Framer Motion 12 — see PRD §"Demo moment").
-# For now this image just runs a tiny health server on :8080 so the
-# staging-deploy workflow can exercise the WIF → Cloud Run path
-# end-to-end without waiting on the frontend stack.
+# phoenix-audit-web — the real Next.js app (standalone output).
+# Build context is the REPO ROOT (pnpm workspace): staging-deploy.yaml passes
+# context: . and this file via matrix.dockerfile.
+
+FROM node:20-alpine AS deps
+RUN corepack enable
+WORKDIR /repo
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+COPY apps/phoenix-audit-web/package.json apps/phoenix-audit-web/
+RUN pnpm install --frozen-lockfile --filter phoenix-audit-web...
+
+FROM node:20-alpine AS build
+RUN corepack enable
+WORKDIR /repo
+COPY --from=deps /repo ./
+COPY apps/phoenix-audit-web apps/phoenix-audit-web
+# Telemetry off in CI builds; standalone output is configured in next.config.ts.
+ENV NEXT_TELEMETRY_DISABLED=1
+RUN pnpm --filter phoenix-audit-web build
 
 FROM node:20-alpine AS runtime
-
 WORKDIR /app
+ENV NODE_ENV=production
+ENV NEXT_TELEMETRY_DISABLED=1
+# Cloud Run injects PORT; Next standalone reads PORT + HOSTNAME.
+ENV HOSTNAME=0.0.0.0
+ENV PORT=8080
 
-# Minimal health-only Node server. Replaced by Next.js standalone output
-# from `pnpm build` in S7.1.
-RUN <<'EOF' cat > /app/server.mjs
-import { createServer } from 'node:http';
+RUN addgroup -S app && adduser -S -G app app
 
-const PORT = process.env.PORT || 8080;
-createServer((req, res) => {
-  if (req.url === '/health') {
-    res.writeHead(200, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({ status: 'ok', service: 'phoenix-audit-web', stub: true }));
-    return;
-  }
-  res.writeHead(200, { 'Content-Type': 'text/plain' });
-  res.end('phoenix-audit-web stub — real frontend lands in S7.1\n');
-}).listen(PORT, () => console.log(`stub server listening on :${PORT}`));
-EOF
+# Monorepo standalone layout: server.js lives under apps/phoenix-audit-web/.
+COPY --from=build --chown=app:app /repo/apps/phoenix-audit-web/.next/standalone ./
+COPY --from=build --chown=app:app /repo/apps/phoenix-audit-web/.next/static ./apps/phoenix-audit-web/.next/static
+COPY --from=build --chown=app:app /repo/apps/phoenix-audit-web/public ./apps/phoenix-audit-web/public
 
+USER app
 EXPOSE 8080
 
-# Run as non-root.
-RUN addgroup -S app && adduser -S -G app app
-USER app
-
-CMD ["node", "/app/server.mjs"]
+CMD ["node", "apps/phoenix-audit-web/server.js"]

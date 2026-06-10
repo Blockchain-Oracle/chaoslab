@@ -8,6 +8,8 @@ import type { NextRequest } from 'next/server'
 import { agentAuthHeaders, agentBaseUrl } from '@/lib/server/agent-fetch'
 
 // Allowlist — this is a proxy to ONE service's known API, not an open relay.
+// NOTE: /internal/* is deliberately absent — the scheduler tick is
+// OIDC-gated and must never be reachable through the public proxy.
 const ALLOWED = [
   /^run$/,
   /^runs$/,
@@ -15,6 +17,8 @@ const ALLOWED = [
   /^stream$/,
   /^agents$/,
   /^agents\/[a-zA-Z0-9_-]+$/,
+  /^schedules$/,
+  /^schedules\/[a-zA-Z0-9_-]+$/,
   /^health$/,
 ]
 
@@ -39,7 +43,7 @@ async function proxy(req: NextRequest, pathParts: string[]): Promise<Response> {
   const upstream = await fetch(`${agentBaseUrl()}/${path}${search}`, {
     method: req.method,
     headers,
-    body: req.method === 'POST' ? req.body : undefined,
+    body: req.method === 'POST' || req.method === 'PATCH' ? req.body : undefined,
     cache: 'no-store',
     // @ts-expect-error -- undici needs duplex for streaming request bodies
     duplex: 'half',
@@ -69,6 +73,11 @@ export async function GET(req: NextRequest, ctx: Ctx): Promise<Response> {
 }
 
 export async function POST(req: NextRequest, ctx: Ctx): Promise<Response> {
+  const { path } = await ctx.params
+  return proxy(req, path)
+}
+
+export async function PATCH(req: NextRequest, ctx: Ctx): Promise<Response> {
   const { path } = await ctx.params
   return proxy(req, path)
 }

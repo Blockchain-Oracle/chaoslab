@@ -29,6 +29,8 @@ from sse_starlette.sse import EventSourceResponse
 
 from phoenix_audit_agent.api.agents import router as agents_router
 from phoenix_audit_agent.api.runs import router as runs_router
+from phoenix_audit_agent.api.schedules import router as schedules_router
+from phoenix_audit_agent.api.schedules import set_run_launcher
 from phoenix_audit_agent.audit_runner import drive_audit
 from phoenix_audit_agent.config import GCS_PROBE_ENV_NAME, get_settings
 from phoenix_audit_agent.storage.models import RunCompletion, RunRecord, RunSource
@@ -266,6 +268,11 @@ async def health() -> HealthResponse:
 
 @app.post("/run", response_model=RunResponse, status_code=201)
 async def start_run(payload: RunRequest) -> RunResponse:
+    return await launch_run(payload)
+
+
+async def launch_run(payload: RunRequest) -> RunResponse:
+    """Shared run launcher — POST /run and the scheduler tick both land here."""
     run_id = _new_run_id()
     created = _iso_now()
     _RUN_REGISTRY[run_id] = _RunState(run_id=run_id, request=payload, created_at=created)
@@ -351,8 +358,22 @@ def _cancel_task(run_id: str) -> None:
         task.cancel()
 
 
+async def _launch_scheduled_run(schedule: Any) -> str:
+    response = await launch_run(
+        RunRequest(
+            target_url=schedule.target_url,
+            agent_id=schedule.agent_id,
+            source="scheduled",
+        )
+    )
+    return response.run_id
+
+
+set_run_launcher(_launch_scheduled_run)
+
 app.include_router(runs_router)
 app.include_router(agents_router)
+app.include_router(schedules_router)
 
 
 def run_uvicorn() -> None:
