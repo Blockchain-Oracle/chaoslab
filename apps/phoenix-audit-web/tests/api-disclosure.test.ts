@@ -10,6 +10,12 @@ vi.mock('@/lib/server/agent-fetch', () => ({
   agentFetch: (...args: unknown[]) => agentFetch(...args),
 }))
 
+// Identity attach is covered in proxy-identity.test.ts; here it would drag
+// next/headers cookies() outside a request scope.
+vi.mock('@/lib/server/user-fetch', () => ({
+  userIdentityHeaders: async () => ({}),
+}))
+
 import { fetchRunDetail, fetchRuns } from '@/lib/api'
 
 beforeEach(() => {

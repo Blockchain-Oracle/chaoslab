@@ -39,7 +39,18 @@ printf '%s' "${GITLAB_TOKEN_VALUE}" | gcloud secrets versions add gitlab-token \
   --project="${PROJECT}" \
   --data-file=-
 
-SECRETS=(phoenix-api-key gitlab-token)
+echo "==> Creating secret: cookie-signature-keys (web session-cookie signing, story-9.4)"
+# Two comma-separated 64-hex keys — rotation = prepend a new key, keep the old.
+COOKIE_SIGNATURE_KEYS_VALUE="${COOKIE_SIGNATURE_KEYS_VALUE:-$(openssl rand -hex 32),$(openssl rand -hex 32)}"
+printf '%s' "${COOKIE_SIGNATURE_KEYS_VALUE}" | gcloud secrets create cookie-signature-keys \
+  --project="${PROJECT}" \
+  --replication-policy="automatic" \
+  --data-file=- || \
+printf '%s' "${COOKIE_SIGNATURE_KEYS_VALUE}" | gcloud secrets versions add cookie-signature-keys \
+  --project="${PROJECT}" \
+  --data-file=-
+
+SECRETS=(phoenix-api-key gitlab-token cookie-signature-keys)
 if [ -n "${GEMINI_API_KEY_VALUE}" ]; then
   echo "==> Creating optional secret: gemini-api-key (BYO AI Studio path)"
   printf '%s' "${GEMINI_API_KEY_VALUE}" | gcloud secrets create gemini-api-key \
