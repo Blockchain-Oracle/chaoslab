@@ -145,14 +145,25 @@ class RubricInput(BaseModel):
             if value is not None and not (isinstance(value, str) and not value):
                 return str(value)
         prefix = key + "."
+        index_pos = len(key.split("."))
+
+        def _family_index(k: str) -> tuple[int, str]:
+            # llm.tools.<i>.tool.json_schema — NUMERIC order, not string order
+            # (a lexicographic sort puts index 10 before 2; same fix as
+            # collect_retrieval_documents).
+            try:
+                return (int(k.split(".")[index_pos]), k)
+            except (IndexError, ValueError):
+                return (1 << 30, k)
+
         for span in ordered:
             family = {
                 k: v
-                for k, v in span.attributes.items()
+                for k, v in sorted(span.attributes.items(), key=lambda kv: _family_index(kv[0]))
                 if k.startswith(prefix) and v is not None and v != ""
             }
             if family:
-                return json.dumps(family, sort_keys=True, default=str)
+                return json.dumps(family, default=str)
         raise RubricInputMissingError(self.span_id, self.fault_class, key)
 
     def collect_retrieval_documents(self) -> str:

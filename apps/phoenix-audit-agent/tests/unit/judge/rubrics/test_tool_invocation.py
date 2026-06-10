@@ -46,7 +46,10 @@ async def test_flattened_llm_tools_and_output_messages_are_reassembled(
     monkeypatch.setattr(f1, "_EVALUATOR", stub_evaluator(StubVerdict("correct"), captured=captured))
     llm_span = child(
         {
+            # 11 tools: index 10 must come AFTER 2 (numeric, not string, order)
             "llm.tools.0.tool.json_schema": '{"description":"Look up an order"}',
+            "llm.tools.2.tool.json_schema": '{"description":"tool-two"}',
+            "llm.tools.10.tool.json_schema": '{"description":"tool-ten"}',
             "llm.tools.1.tool.json_schema": '{"description":"Issue a refund"}',
             "llm.output_messages.0.message.role": "model",
             "llm.output_messages.0.message.contents.0.message_content.text": "order not found",
@@ -59,8 +62,10 @@ async def test_flattened_llm_tools_and_output_messages_are_reassembled(
             llm_span,
         )
     )
-    assert "Look up an order" in captured[0]["available_tools"]
-    assert "Issue a refund" in captured[0]["available_tools"]
+    tools = captured[0]["available_tools"]
+    assert "Look up an order" in tools
+    assert "Issue a refund" in tools
+    assert tools.index("tool-two") < tools.index("tool-ten")
     assert "order not found" in captured[0]["tool_selection"]
 
 
