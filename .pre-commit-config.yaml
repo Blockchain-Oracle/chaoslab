@@ -13,7 +13,7 @@ repos:
     hooks:
       - id: ty-check
         name: ty type check
-        entry: uv run ty check apps/chaoslab-agent apps/target-agent
+        entry: uv run ty check apps/phoenix-audit-agent apps/target-agent
         language: system
         pass_filenames: false
         types: [python]
@@ -26,20 +26,20 @@ repos:
         always_run: true
 
       - id: eslint
-        name: ESLint (chaoslab-web package)
-        # `pnpm --filter chaoslab-web exec eslint <paths>` cd's into apps/chaoslab-web/
+        name: ESLint (phoenix-audit-web package)
+        # `pnpm --filter phoenix-audit-web exec eslint <paths>` cd's into apps/phoenix-audit-web/
         # and then can't resolve repo-root file paths pre-commit hands it. Run the
         # package's own lint script instead — lints the whole web package every
         # commit (correct, slightly more work than per-file). See audit-notes.md
         # IF-14 for the discovery context.
-        entry: pnpm --filter chaoslab-web run lint
+        entry: pnpm --filter phoenix-audit-web run lint
         language: system
-        files: ^apps/chaoslab-web/.*\.(ts|tsx|js|jsx)$
+        files: ^apps/phoenix-audit-web/.*\.(ts|tsx|js|jsx)$
         pass_filenames: false
 
       - id: prettier
         name: Prettier (changed files)
-        # Workspace-root prettier — `--filter chaoslab-web exec` cd's into apps/chaoslab-web/
+        # Workspace-root prettier — `--filter phoenix-audit-web exec` cd's into apps/phoenix-audit-web/
         # which then resolves relative file paths incorrectly. See audit-notes.md (S1.2 impl finding).
         entry: pnpm exec prettier --write
         language: system

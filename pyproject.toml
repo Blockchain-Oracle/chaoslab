@@ -6,14 +6,14 @@
 package = false
 
 [tool.uv.workspace]
-members = ["apps/chaoslab-agent", "apps/target-agent"]
+members = ["apps/phoenix-audit-agent", "apps/target-agent"]
 
 # --- ruff -------------------------------------------------------------------
 
 [tool.ruff]
 target-version = "py312"
 line-length = 100
-src = ["apps/chaoslab-agent/src", "apps/target-agent/src"]
+src = ["apps/phoenix-audit-agent/src", "apps/target-agent/src"]
 
 [tool.ruff.lint]
 select = [
@@ -57,7 +57,7 @@ line-ending = "lf"
 # --- ty (Astral type-checker — primary per ADR-001) -------------------------
 
 # ty v0.0.42 schema is still evolving — keep config minimal until it stabilizes.
-# Paths come from CLI args (`uv run ty check apps/chaoslab-agent apps/target-agent`,
+# Paths come from CLI args (`uv run ty check apps/phoenix-audit-agent apps/target-agent`,
 # wired via .pre-commit-config.yaml ty-check hook entry).
 # See audit-notes.md IF-8.
 [tool.ty]
@@ -87,7 +87,7 @@ ignore_missing_imports = true
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
-testpaths = ["apps/chaoslab-agent/tests", "apps/target-agent/tests"]
+testpaths = ["apps/phoenix-audit-agent/tests", "apps/target-agent/tests"]
 markers = [
   "slow: tests that take >5s",
   "online: tests that hit real Gemini/Phoenix (cost-impacting; nightly only)",
@@ -104,7 +104,7 @@ filterwarnings = [
 # --- coverage ---------------------------------------------------------------
 
 [tool.coverage.run]
-source = ["apps/chaoslab-agent/src", "apps/target-agent/src"]
+source = ["apps/phoenix-audit-agent/src", "apps/target-agent/src"]
 branch = true
 omit = [
   "*/_vendored/*",

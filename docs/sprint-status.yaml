@@ -1,8 +1,8 @@
-project: ChaosLab
+project: Phoenix Audit
 hackathon: google-cloud-rapid-agent
 track: arize
 deadline: "2026-06-11T14:00:00-08:00"
-repo: "" # filled by orchestrator Phase 1
+repo: "https://github.com/Blockchain-Oracle/phoenix-audit" # filled by orchestrator Phase 1
 thread_surface: "" # telegram | discord — filled by orchestrator Phase 1
 thread_chat_id: ""
 thread_topic_id: ""

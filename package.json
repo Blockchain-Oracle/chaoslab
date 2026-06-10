@@ -1,8 +1,8 @@
 {
-  "name": "chaoslab-workspace",
+  "name": "phoenix-audit-workspace",
   "version": "0.1.0",
   "private": true,
-  "description": "ChaosLab — chaos engineering for AI agents. Workspace root.",
+  "description": "PhoenixAudit — chaos engineering for AI agents. Workspace root.",
   "license": "Apache-2.0",
   "author": "Blockchain-Oracle",
   "packageManager": "pnpm@9.15.4",
