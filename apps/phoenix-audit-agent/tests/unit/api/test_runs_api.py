@@ -138,3 +138,47 @@ async def test_get_run_without_artifacts_has_no_urls(client: httpx.AsyncClient) 
 
     r = await client.get("/runs/run_444444444444")
     assert r.json()["artifact_urls"] == {}
+    assert r.json()["artifact_url_errors"] == {}
+
+
+async def test_sign_failure_disclosed_distinct_from_absent(
+    client: httpx.AsyncClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A signing outage must be DISTINGUISHABLE from 'artifact does not exist'
+    — never a silently absent key (CLAUDE.md pattern #4)."""
+    from phoenix_audit_agent.api import runs as runs_api
+
+    async def failing_sign(blob_name: str) -> str:
+        if blob_name.endswith("recipe_deadbeefcafe.md"):
+            raise RuntimeError("sign outage")
+        return f"https://storage.googleapis.com/signed/{blob_name}"
+
+    monkeypatch.setattr(runs_api, "sign_blob_url", failing_sign)
+
+    store = run_storage.get_run_store()
+    await store.create(
+        _record(
+            "run_555555555555",
+            created_at="2026-06-10T05:00:00Z",
+            report_available=True,
+            recipe_id="recipe_deadbeefcafe",
+        )
+    )
+
+    r = await client.get("/runs/run_555555555555")
+    body = r.json()
+    assert "report.pdf" in body["artifact_urls"]
+    assert "recipe.md" not in body["artifact_urls"]
+    assert body["artifact_url_errors"] == {"recipe.md": "RuntimeError"}
+
+
+async def test_finalize_with_unknown_field_is_rejected(client: httpx.AsyncClient) -> None:
+    """extra='ignore' on read would silently drop a typo'd finalize key —
+    the store must raise instead (containment turns it into a DISCLOSED
+    persistence_failed)."""
+    store = run_storage.get_run_store()
+    with pytest.raises(ValueError, match="report_avaliable"):
+        await store.finalize(
+            "run_666666666666",
+            {"run_id": "run_666666666666", "report_avaliable": True},
+        )

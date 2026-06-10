@@ -48,6 +48,30 @@ async def test_run_store_roundtrip_and_finalize_merge() -> None:
         await store.db.collection("runs").document(run_id).delete()
 
 
+async def test_finalize_without_create_heals_record() -> None:
+    """The merge-heal claim that justifies containing create failures —
+    proven against the REAL store, not just the in-memory fake."""
+    store = FirestoreRunStore()
+    run_id = f"run_heal{_SUFFIX}"
+    try:
+        await store.finalize(
+            run_id,
+            {
+                "run_id": run_id,
+                "target_url": "https://target.example",
+                "created_at": "2026-06-10T01:00:00Z",
+                "phase": "succeeded",
+                "passed": 3,
+            },
+        )
+        record = await store.get(run_id)
+        assert record is not None
+        assert record.phase == "succeeded"
+        assert record.passed == 3
+    finally:
+        await store.db.collection("runs").document(run_id).delete()
+
+
 async def test_agent_store_roundtrip() -> None:
     store = FirestoreAgentStore()
     agent_id = f"agt_test{_SUFFIX}"

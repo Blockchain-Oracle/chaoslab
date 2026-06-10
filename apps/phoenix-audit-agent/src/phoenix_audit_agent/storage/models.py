@@ -41,7 +41,6 @@ class RunRecord(BaseModel):
     recipe_id: str | None = None
     report_available: bool = False
     mr_url: str | None = None
-    persistence_healed: bool = False
     org_id: str = "default"
     owner_uid: str | None = None
 

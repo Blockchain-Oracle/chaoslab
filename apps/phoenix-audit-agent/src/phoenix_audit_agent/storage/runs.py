@@ -8,6 +8,7 @@ mark the run (`persistence_failed`) instead of dying.
 
 from __future__ import annotations
 
+import asyncio
 from typing import Any, Protocol
 
 import structlog
@@ -18,6 +19,21 @@ from phoenix_audit_agent.storage.models import RunRecord
 _log = structlog.get_logger(__name__)
 
 _COLLECTION = "runs"
+
+# Outage bound for contained writes: Firestore's default retry deadline is
+# ~60s; POST /run must never hang that long on the registry index.
+_WRITE_TIMEOUT_SEC = 5.0
+
+
+def assert_known_run_fields(fields: dict[str, Any]) -> None:
+    """finalize() writes raw dicts and RunRecord reads with extra='ignore' — a
+    typo'd key would write cleanly and silently read back as the field default.
+    Raise instead; the containment above converts the raise into a DISCLOSED
+    persistence_failed (drift-guard discipline)."""
+    unknown = set(fields) - set(RunRecord.model_fields)
+    if unknown:
+        msg = f"unknown RunRecord fields in finalize payload: {sorted(unknown)}"
+        raise ValueError(msg)
 
 
 class RunStore(Protocol):
@@ -48,6 +64,7 @@ class FirestoreRunStore:
     async def finalize(self, run_id: str, fields: dict[str, Any]) -> None:
         # merge=True heals a failed create: the completion write carries enough
         # keys (run_id/target_url/created_at) to stand alone as a valid record.
+        assert_known_run_fields(fields)
         await self.db.collection(_COLLECTION).document(run_id).set(fields, merge=True)
 
     async def list_runs(
@@ -93,7 +110,7 @@ def get_run_store() -> RunStore:
 async def create_run_record(record: RunRecord) -> bool:
     """Contained create — CRITICAL log on failure, never raises."""
     try:
-        await get_run_store().create(record)
+        await asyncio.wait_for(get_run_store().create(record), timeout=_WRITE_TIMEOUT_SEC)
     except Exception:
         _log.critical(
             "run_record_create_failed — registry index will heal at finalize",
@@ -107,7 +124,7 @@ async def create_run_record(record: RunRecord) -> bool:
 async def persist_run_completion(run_id: str, fields: dict[str, Any]) -> bool:
     """Contained finalize — CRITICAL log on failure, never raises."""
     try:
-        await get_run_store().finalize(run_id, fields)
+        await asyncio.wait_for(get_run_store().finalize(run_id, fields), timeout=_WRITE_TIMEOUT_SEC)
     except Exception:
         _log.critical(
             "run_record_finalize_failed — run is NOT in the registry index; "
@@ -122,6 +139,7 @@ async def persist_run_completion(run_id: str, fields: dict[str, Any]) -> bool:
 __all__ = [
     "FirestoreRunStore",
     "RunStore",
+    "assert_known_run_fields",
     "create_run_record",
     "get_run_store",
     "persist_run_completion",

@@ -31,7 +31,7 @@ from phoenix_audit_agent.api.runs import router as runs_router
 from phoenix_audit_agent.audit_runner import drive_audit
 from phoenix_audit_agent.config import GCS_PROBE_ENV_NAME, get_settings
 from phoenix_audit_agent.storage.models import RunRecord, RunSource
-from phoenix_audit_agent.storage.runs import create_run_record
+from phoenix_audit_agent.storage.runs import create_run_record, persist_run_completion
 
 logger = logging.getLogger(__name__)
 
@@ -157,6 +157,7 @@ async def _drive_orchestrator(run_id: str) -> None:
         # the cancelled frame or sentinel; queue is unbounded so put_nowait is safe.
         queue.put_nowait({"event": "cancelled", "data": json.dumps({"run_id": run_id})})
         queue.put_nowait(_QUEUE_SENTINEL)
+        await _persist_failed_phase(run_id, state)
         raise
     except Exception as e:
         state.phase = "failed"
@@ -168,8 +169,24 @@ async def _drive_orchestrator(run_id: str) -> None:
             }
         )
         queue.put_nowait(_QUEUE_SENTINEL)
+        await _persist_failed_phase(run_id, state)
         return
     queue.put_nowait(_QUEUE_SENTINEL)
+
+
+async def _persist_failed_phase(run_id: str, state: _RunState) -> None:
+    """Contained registry update — a crashed audit must not read as 'queued'
+    in the regulator-facing registry forever."""
+    await persist_run_completion(
+        run_id,
+        {
+            "run_id": run_id,
+            "target_url": state.request.target_url,
+            "created_at": state.created_at,
+            "phase": "failed",
+            "finished_at": _iso_now(),
+        },
+    )
 
 
 def _schedule_run_cleanup(run_id: str, delay: float = _RUN_CLEANUP_DELAY_SEC) -> None:

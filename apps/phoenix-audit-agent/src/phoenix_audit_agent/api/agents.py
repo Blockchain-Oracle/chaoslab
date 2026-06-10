@@ -27,6 +27,10 @@ class AgentListResponse(BaseModel):
 
 @router.post("/agents", response_model=AgentRecord, status_code=201)
 async def register_agent(payload: AgentRegisterRequest) -> AgentRecord:
+    if payload.agent_id == "demo-target":
+        # The seed shadows reads of this id — a successful 201 would write a
+        # record nobody can ever read back.
+        raise HTTPException(status_code=409, detail="agent_id 'demo-target' is reserved")
     record = AgentRecord(
         **payload.model_dump(),
         registered_at=time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),

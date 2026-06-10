@@ -334,6 +334,31 @@ async def test_stream_emits_full_phase_change_sequence(
     assert joined.count("event: phase_change") == 3, joined
 
 
+async def test_orchestrator_failure_persists_failed_phase(
+    client: httpx.AsyncClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A crashed audit must not read as 'queued' in the registry forever."""
+    from phoenix_audit_agent import main as _main
+    from phoenix_audit_agent.storage import runs as run_storage
+
+    async def boom(**_kw) -> None:
+        raise RuntimeError("synthetic pipeline crash")
+
+    monkeypatch.setattr(_main, "drive_audit", boom)
+
+    r = await client.post("/run", json={"target_url": "http://localhost:8001"})
+    run_id = r.json()["run_id"]
+    # drain the stream so the orchestrator task completes
+    async with client.stream("GET", f"/stream?runId={run_id}") as resp:
+        async for _ in resp.aiter_text():
+            pass
+
+    record = await run_storage.get_run_store().get(run_id)
+    assert record is not None
+    assert record.phase == "failed"
+    assert record.finished_at is not None
+
+
 async def test_post_run_writes_run_record_with_source(client: httpx.AsyncClient) -> None:
     """POST /run write-through: the registry index gets a queued record."""
     from phoenix_audit_agent.storage import runs as run_storage

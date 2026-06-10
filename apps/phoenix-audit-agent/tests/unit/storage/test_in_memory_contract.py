@@ -1,9 +1,10 @@
 """Store contract — exercised against the in-memory fake used by API tests.
 
 The fake must honor the same contract as FirestoreRunStore (create/finalize/
-list/get ordering + filters) or the API tests prove nothing. The Firestore
-implementation runs the SAME assertions under @pytest.mark.online with the
-emulator (see test_firestore_store_online.py).
+list/get ordering + filters + the unknown-field guard) or the API tests prove
+nothing. The Firestore implementation proves the load-bearing pieces (round
+trip, merge-heal) under @pytest.mark.online in
+tests/integration/test_firestore_stores_online.py.
 """
 
 from __future__ import annotations

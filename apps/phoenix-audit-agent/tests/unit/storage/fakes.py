@@ -10,6 +10,7 @@ from typing import Any
 
 from phoenix_audit_agent.storage.agents import DEMO_TARGET_SEED
 from phoenix_audit_agent.storage.models import AgentRecord, RunRecord
+from phoenix_audit_agent.storage.runs import assert_known_run_fields
 
 
 class InMemoryRunStore:
@@ -20,6 +21,8 @@ class InMemoryRunStore:
         self._docs[record.run_id] = record.model_dump()
 
     async def finalize(self, run_id: str, fields: dict[str, Any]) -> None:
+        # Same guard as FirestoreRunStore — fake/prod contract symmetry.
+        assert_known_run_fields(fields)
         merged = {**self._docs.get(run_id, {}), **fields, "run_id": run_id}
         self._docs[run_id] = RunRecord.model_validate(merged).model_dump()
 

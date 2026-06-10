@@ -51,6 +51,9 @@ class RunListResponse(BaseModel):
 class RunDetailResponse(BaseModel):
     run: RunRecord
     artifact_urls: dict[str, str]
+    # Artifacts whose URL signing FAILED — distinct from "artifact does not
+    # exist" so the UI can show retry vs absent (CLAUDE.md pattern #4).
+    artifact_url_errors: dict[str, str] = {}
 
 
 @router.get("/runs", response_model=RunListResponse)
@@ -77,18 +80,20 @@ async def get_run(run_id: str) -> RunDetailResponse:
         blob_names["recipe.md"] = f"{record.recipe_id}.md"
 
     urls: dict[str, str] = {}
+    errors: dict[str, str] = {}
     if blob_names:
         signed: list[Any] = await asyncio.gather(
             *(sign_blob_url(b) for b in blob_names.values()), return_exceptions=True
         )
         for (name, blob), result in zip(blob_names.items(), signed, strict=True):
             if isinstance(result, BaseException):
-                # A signing failure must not 500 the whole record view; the
-                # absent key tells the UI exactly which artifact is unavailable.
+                # A signing failure must not 500 the whole record view — but it
+                # must stay DISTINGUISHABLE from "artifact does not exist".
                 _log.error("artifact_url_sign_failed", run_id=run_id, blob=blob, error=str(result))
+                errors[name] = type(result).__name__
                 continue
             urls[name] = result
-    return RunDetailResponse(run=record, artifact_urls=urls)
+    return RunDetailResponse(run=record, artifact_urls=urls, artifact_url_errors=errors)
 
 
 __all__ = ["router", "sign_blob_url"]
