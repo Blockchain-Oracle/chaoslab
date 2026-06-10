@@ -203,7 +203,14 @@ export function useAuditStream(runId: string): AuditStreamState {
         return
       }
       const valid = phase as Phase
-      setState((s) => ({ ...s, phase: valid, clockCeiling: ceilingForPhase(valid) }))
+      // 'failed' FREEZES the clock at its current ceiling — releasing it to
+      // TIMELINE.duration would play the full success choreography (cascade
+      // flip, recipe stream, receipt) over a failed run.
+      setState((s) => ({
+        ...s,
+        phase: valid,
+        clockCeiling: valid === 'failed' ? s.clockCeiling : ceilingForPhase(valid),
+      }))
     })
 
     source.addEventListener('test_started', (e) => {

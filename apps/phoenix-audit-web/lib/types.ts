@@ -142,6 +142,10 @@ export interface HistoryRow {
   framework: string
   pass: number
   fail: number
+  /** Real runs: probes whose rubric errored (not a clean pass/fail). */
+  errored?: number
+  /** Real runs: probes that never reached the target. */
+  transportFailed?: number
   recipe: boolean
   mr: boolean
   source: HistorySource

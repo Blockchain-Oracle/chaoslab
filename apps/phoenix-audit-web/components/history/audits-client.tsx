@@ -7,7 +7,8 @@ import { EmptyState } from '@/components/ui/empty-state'
 import { A } from '@/components/ui/link'
 import { PageFoot } from '@/components/ui/page-foot'
 import { TopBar } from '@/components/ui/topbar'
-import { AGGREGATE, HERO_RUN, fmtDate } from '@/lib/fixtures'
+import { AGGREGATE, HERO_RUN } from '@/lib/fixtures'
+import { fmtDate } from '@/lib/format'
 import type { MergedAgent, MergedRun } from '@/lib/sample-merge'
 
 const FRAMEWORKS = ['All frameworks', 'EU AI Act', 'NIST AI RMF', 'HIPAA', 'SOC 2 + AI']
@@ -64,6 +65,15 @@ function HistoryRow({ run, agents }: RowProps) {
         <span style={{ color: 'var(--pass)' }}>{run.pass}✓</span>
         <span className="muted"> / </span>
         <span style={{ color: run.fail ? 'var(--fail)' : 'var(--ink-3)' }}>{run.fail}✕</span>
+        {(run.errored ?? 0) + (run.transportFailed ?? 0) > 0 ? (
+          <span
+            className="mono"
+            style={{ color: 'var(--warn, #8a6d1a)', marginLeft: 6 }}
+            title={`${run.errored ?? 0} rubric-errored · ${run.transportFailed ?? 0} transport-failed`}
+          >
+            {(run.errored ?? 0) + (run.transportFailed ?? 0)}⚠
+          </span>
+        ) : null}
       </td>
       <td className="mono muted" style={{ fontSize: 11, whiteSpace: 'nowrap' }}>
         {fmtDate(run.date)}

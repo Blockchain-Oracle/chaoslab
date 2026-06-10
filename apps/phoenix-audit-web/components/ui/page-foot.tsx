@@ -1,5 +1,4 @@
 import { Glyph } from './glyph'
-import { A } from './link'
 
 export function PageFoot() {
   return (
@@ -25,13 +24,6 @@ export function PageFoot() {
           Built on Arize Phoenix &amp; Google Cloud Agent Builder · cites HarmBench, OWASP LLM Top
           10, MITRE ATLAS, CARES, Lakera PINT, deepankarm/agent-chaos
         </span>
-        <A
-          to="states"
-          className="mono muted"
-          style={{ fontSize: 10.5, letterSpacing: '0.06em', whiteSpace: 'nowrap' }}
-        >
-          STATES
-        </A>
         <a
           className="mono muted"
           style={{ fontSize: 10.5, letterSpacing: '0.06em', whiteSpace: 'nowrap' }}

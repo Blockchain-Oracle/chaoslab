@@ -74,6 +74,9 @@ export function runToHistoryRow(dto: RunRecordDto): HistoryRow {
     framework: frameworkChip(dto.framework_label),
     pass: dto.passed,
     fail: dto.failed,
+    // Without these a 0-pass/0-fail/6-errored run renders as a clean row.
+    errored: dto.errored,
+    transportFailed: dto.transport_failed,
     recipe: Boolean(dto.recipe_id),
     mr: Boolean(dto.mr_url),
     source: dto.source,
@@ -97,13 +100,18 @@ export function agentToSpec(dto: AgentRecordDto): AgentSpec {
   }
 }
 
-async function getJson<T>(path: string): Promise<{ body: T | null; error: string | null }> {
+async function getJson<T>(
+  path: string,
+): Promise<{ body: T | null; error: string | null; status: number | null }> {
   try {
     const res = await agentFetch(path)
-    if (!res.ok) return { body: null, error: `agent API ${res.status} on ${path}` }
-    return { body: (await res.json()) as T, error: null }
+    if (!res.ok)
+      return { body: null, error: `agent API ${res.status} on ${path}`, status: res.status }
+    return { body: (await res.json()) as T, error: null, status: res.status }
   } catch (err) {
-    return { body: null, error: err instanceof Error ? err.message : String(err) }
+    // status null = the registry never answered (network/agent down) —
+    // callers must distinguish this from an authoritative 404.
+    return { body: null, error: err instanceof Error ? err.message : String(err), status: null }
   }
 }
 
@@ -118,9 +126,11 @@ export async function fetchAgents(): Promise<Live<AgentRecordDto[]>> {
   return { data: body?.agents ?? [], liveError: error }
 }
 
-export async function fetchRunDetail(runId: string): Promise<Live<RunDetailDto | null>> {
-  const { body, error } = await getJson<RunDetailDto>(`/runs/${encodeURIComponent(runId)}`)
-  return { data: body, liveError: error }
+export async function fetchRunDetail(
+  runId: string,
+): Promise<Live<RunDetailDto | null> & { status: number | null }> {
+  const { body, error, status } = await getJson<RunDetailDto>(`/runs/${encodeURIComponent(runId)}`)
+  return { data: body, liveError: error, status }
 }
 
 export async function fetchSchedules(): Promise<Live<ScheduleDto[]>> {
