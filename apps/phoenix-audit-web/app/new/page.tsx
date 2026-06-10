@@ -19,13 +19,6 @@ function probeCheck(url: string): { ok: true } | { ok: false; error: string } {
       ok: false,
       error: 'Must be a reachable HTTPS URL, or an A2A address for ADK-native agents.',
     }
-  if (/unreachable/.test(url))
-    return { ok: false, error: 'Probe ping failed — the target agent did not respond.' }
-  if (/error/.test(url))
-    return {
-      ok: false,
-      error: 'The target agent returned an error to the probe ping (HTTP 500).',
-    }
   return { ok: true }
 }
 
@@ -77,10 +70,17 @@ export default function NewAuditPage() {
     try {
       // REAL audit — POST /run through the same-origin proxy, then follow the
       // returned run id into the live chamber. No fixture short-circuit.
+      // "Cap number of tests" is the TOTAL probe budget; the backend takes
+      // attacks-per-fault-class (4 classes), so total ≈ 4 × runs_per_fault.
+      const runsPerFault = Math.min(20, Math.max(1, Math.round(cap / 4)))
       const res = await fetch('/api/agent/run', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ target_url: url.trim(), source: 'manual' }),
+        body: JSON.stringify({
+          target_url: url.trim(),
+          source: 'manual',
+          runs_per_fault: runsPerFault,
+        }),
       })
       if (!res.ok) throw new Error(`the audit service answered ${res.status}`)
       const body = (await res.json()) as { run_id?: string }
@@ -130,7 +130,13 @@ export default function NewAuditPage() {
             />
           </Field>
 
-          <SectionHead no="§2" title="Audit depth" />
+          <SectionHead
+            no="§2"
+            title="Audit depth"
+            right={
+              <span className="tag">depth 2 applied to every run — selection coming soon</span>
+            }
+          />
           <div
             style={{
               display: 'grid',

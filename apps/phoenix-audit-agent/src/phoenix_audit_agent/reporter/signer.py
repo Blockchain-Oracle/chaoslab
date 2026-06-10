@@ -14,10 +14,11 @@ from __future__ import annotations
 
 import base64
 import hashlib
-from datetime import UTC, datetime
 from typing import Any, Protocol, runtime_checkable
 
 import structlog
+
+from phoenix_audit_agent._time import utc_now_iso
 
 _log = structlog.get_logger(__name__)
 
@@ -124,5 +125,5 @@ class KmsReportSigner:
             "public_key_pem": pem,
             "public_key_fingerprint_sha256": fingerprint,
             "artifacts": entries,
-            "signed_at": datetime.now(UTC).isoformat(),
+            "signed_at": utc_now_iso(),
         }

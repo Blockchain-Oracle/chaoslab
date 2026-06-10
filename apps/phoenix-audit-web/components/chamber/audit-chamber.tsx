@@ -219,7 +219,9 @@ export function AuditChamber({
         </div>
       </div>
 
-      {s.receipt && !hasRealProbes ? <Receipt mode={mode} /> : null}
+      {/* The receipt hard-codes fixture stats + demo links — it must NEVER
+          overlay a real run (late-join with zero probe frames included). */}
+      {s.receipt && mode === 'replay' ? <Receipt mode={mode} /> : null}
       {mode === 'replay' ? (
         <Transport
           t={t}

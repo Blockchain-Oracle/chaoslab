@@ -365,6 +365,43 @@ async def test_run_clustering_raises_after_retry_exhaustion(
         await run_clustering(failures, phoenix_client=_RecordingClient())
 
 
+async def test_decode_error_from_clusterer_call_is_retried_then_recovers(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """`_call_clusterer` re-raises JSONDecodeError as the retriable marker —
+    the retry loop must actually CATCH it and re-prompt, not let it escape
+    `run_clustering` as a naked stdlib exception."""
+    failures = _failures(4)
+    good = _valid_partition_json(failures)
+    calls = {"n": 0}
+    import phoenix_audit_agent.judge.clustering as c
+
+    async def stub(prompt: str) -> str:
+        calls["n"] += 1
+        if calls["n"] == 1:
+            raise json.JSONDecodeError("synthetic body decode failure", doc="x", pos=0)
+        return good
+
+    monkeypatch.setattr(c, "_call_clusterer", stub)
+    result = await run_clustering(failures, phoenix_client=_RecordingClient())
+    assert isinstance(result, FailureClusterSet)
+    assert calls["n"] == 2
+
+
+async def test_decode_error_from_clusterer_call_exhausts_as_clustering_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    failures = _failures(4)
+    import phoenix_audit_agent.judge.clustering as c
+
+    async def stub(prompt: str) -> str:
+        raise json.JSONDecodeError("synthetic body decode failure", doc="x", pos=0)
+
+    monkeypatch.setattr(c, "_call_clusterer", stub)
+    with pytest.raises(ClusteringError):
+        await run_clustering(failures, phoenix_client=_RecordingClient())
+
+
 async def test_run_clustering_raises_on_zero_clusters(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

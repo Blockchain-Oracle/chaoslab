@@ -14,6 +14,8 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING, Any, Protocol, runtime_checkable
 
+from phoenix_audit_agent.errors import PhoenixAuditError
+
 if TYPE_CHECKING:
     # Stays in TYPE_CHECKING — runtime never needs the actual gitlab module
     # unless `build_default_client` is called. Test stubs satisfy the Protocol
@@ -23,7 +25,7 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-class GitLabRestClientError(RuntimeError):
+class GitLabRestClientError(PhoenixAuditError, RuntimeError):
     """Raised when a python-gitlab call fails — wrapped with phoenix-audit context."""
 
 

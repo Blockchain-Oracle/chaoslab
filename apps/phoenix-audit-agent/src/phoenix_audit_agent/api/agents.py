@@ -2,11 +2,11 @@
 
 from __future__ import annotations
 
-import time
-
 from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
+from phoenix_audit_agent._time import utc_now_iso
+from phoenix_audit_agent.api._url_guard import validate_target_url
 from phoenix_audit_agent.storage.agents import get_agent_store
 from phoenix_audit_agent.storage.models import AgentRecord, Framework
 
@@ -20,6 +20,11 @@ class AgentRegisterRequest(BaseModel):
     framework: Framework
     tier: int = Field(ge=1, le=3)
 
+    @field_validator("url")
+    @classmethod
+    def _guard_url(cls, v: str) -> str:
+        return validate_target_url(v)
+
 
 class AgentListResponse(BaseModel):
     agents: list[AgentRecord]
@@ -31,11 +36,15 @@ async def register_agent(payload: AgentRegisterRequest) -> AgentRecord:
         # The seed shadows reads of this id — a successful 201 would write a
         # record nobody can ever read back.
         raise HTTPException(status_code=409, detail="agent_id 'demo-target' is reserved")
-    record = AgentRecord(
-        **payload.model_dump(),
-        registered_at=time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
-    )
-    await get_agent_store().register(record)
+    store = get_agent_store()
+    if await store.get(payload.agent_id) is not None:
+        # `register` uses set() semantics — without this check a re-register
+        # silently overwrites the regulator-facing registry record.
+        raise HTTPException(
+            status_code=409, detail=f"agent_id already registered: {payload.agent_id}"
+        )
+    record = AgentRecord(**payload.model_dump(), registered_at=utc_now_iso())
+    await store.register(record)
     return record
 
 

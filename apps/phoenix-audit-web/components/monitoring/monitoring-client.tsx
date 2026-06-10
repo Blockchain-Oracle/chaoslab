@@ -9,7 +9,7 @@ import { SectionHead } from '@/components/ui/section-head'
 import { Toggle } from '@/components/ui/toggle'
 import { TopBar } from '@/components/ui/topbar'
 import type { ScheduleDto } from '@/lib/api'
-import { fmtDate } from '@/lib/fixtures'
+import { fmtDate } from '@/lib/format'
 import type { MergedAgent, MergedRun } from '@/lib/sample-merge'
 
 const CADENCES: { label: string; value: 'hourly' | 'daily' | null }[] = [

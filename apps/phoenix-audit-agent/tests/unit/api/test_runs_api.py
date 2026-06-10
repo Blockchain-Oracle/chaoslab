@@ -50,10 +50,26 @@ def _record(run_id: str, *, created_at: str, **kw: Any) -> RunRecord:
     )
 
 
+async def test_list_runs_discloses_truncation(client: httpx.AsyncClient) -> None:
+    """The store's truncation flag must pass through to the API response —
+    silent truncation reads as 'covered everything' when it didn't."""
+    store = run_storage.get_run_store()
+    original_list_runs = store.list_runs
+
+    async def truncated_list_runs(**kwargs: Any) -> tuple[list[RunRecord], bool]:
+        rows, _ = await original_list_runs(**kwargs)
+        return rows, True
+
+    store.list_runs = truncated_list_runs  # ty: ignore[invalid-assignment]
+    r = await client.get("/runs")
+    assert r.status_code == 200
+    assert r.json()["truncated"] is True
+
+
 async def test_list_runs_empty(client: httpx.AsyncClient) -> None:
     r = await client.get("/runs")
     assert r.status_code == 200
-    assert r.json() == {"runs": []}
+    assert r.json() == {"runs": [], "truncated": False}
 
 
 async def test_list_runs_newest_first_with_fields(client: httpx.AsyncClient) -> None:

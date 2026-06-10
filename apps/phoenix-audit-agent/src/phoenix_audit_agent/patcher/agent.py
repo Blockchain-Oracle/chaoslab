@@ -5,9 +5,9 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
-from datetime import UTC, datetime
 from typing import Any
 
+from phoenix_audit_agent._time import utc_now_iso
 from phoenix_audit_agent.adk_types import LlmAgent
 from phoenix_audit_agent.config import get_settings
 from phoenix_audit_agent.judge.clustering import FailureClusterSet
@@ -170,7 +170,7 @@ class Patcher:
         return HardeningRecipe(
             recipe_id=new_recipe_id(),
             target_agent_id=target_agent_id,
-            generated_at=datetime.now(UTC).isoformat(),
+            generated_at=utc_now_iso(),
             cluster_set=cluster_set,
             prompt_patches=all_patches,
             tool_validation_diffs=all_diffs,

@@ -1,3 +1,4 @@
+import { notFound } from 'next/navigation'
 import { ReportPreview } from '@/components/artifacts/report-preview'
 import { PageShell } from '@/components/ui/page-shell'
 import { fetchRunDetail } from '@/lib/api'
@@ -20,6 +21,9 @@ export default async function ReportPage({ params }: PageProps) {
     )
   }
   const detail = await fetchRunDetail(runId)
+  // Authoritative "run does not exist" → 404; a registry outage (status null
+  // / 5xx) falls through and is DISCLOSED via liveError instead.
+  if (detail.status === 404) notFound()
   const live = detail.data
     ? {
         urls: detail.data.artifact_urls,

@@ -308,9 +308,9 @@ async def test_event_order_with_failures(wired: _Emitted) -> None:
     # phoenix_audit.honored — the transport failure has no response span and
     # must not inflate the locked warning's claim.
     assert rd.honored_missing_count == 2
-    assert [p.verdict for p in rd.probes] == ["fail", "pass", "fail"] or [
-        p.verdict for p in sorted(rd.probes, key=lambda p: p.n)
-    ] == ["pass", "fail", "fail"]
+    # Single assertion on probe-number order — a disjunctive (X == A or Y == B)
+    # shape would also accept broken n indices.
+    assert [p.verdict for p in sorted(rd.probes, key=lambda p: p.n)] == ["pass", "fail", "fail"]
 
     complete = wired.first("complete")
     assert complete["passed"] == 1
@@ -502,6 +502,30 @@ async def test_rubric_exception_is_contained_per_probe(wired: _Emitted) -> None:
 
 
 @pytest.mark.asyncio
+async def test_all_errored_run_discloses_clustering_skip_in_report(wired: _Emitted) -> None:
+    """Every probe rubric-errored (failed=0, errored>0): the SSE stream says
+    'clustering skipped' — the signed report must say the SAME, never render
+    indistinguishable from a clean audit (CLAUDE.md silent-failure #4)."""
+    from phoenix_audit_agent.audit_runner import drive_audit
+
+    _FakeInjector.results = [
+        _attack_result(0, SPAN_RUBRIC_BOOM, "ok"),
+    ]
+    await drive_audit(
+        run_id="run_allerrored1",
+        target_url="https://target.example",
+        runs_per_fault=1,
+        emit=wired.emit,
+        set_phase=lambda _p: None,
+    )
+
+    (report_data,) = wired.report_data
+    assert report_data.clustering_skipped == "no_clusterable_failures"
+    assert report_data.errored == 1
+    assert report_data.failed == 0
+
+
+@pytest.mark.asyncio
 async def test_writeback_failure_recovers_valid_cluster_set(
     wired: _Emitted, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -591,8 +615,8 @@ async def test_persistence_failure_disclosed_never_fatal(wired: _Emitted) -> Non
         async def finalize(self, run_id: str, completion: Any) -> None:
             raise RuntimeError("firestore down")
 
-        async def list_runs(self, **kw: Any) -> list[Any]:
-            return []
+        async def list_runs(self, **kw: Any) -> tuple[list[Any], bool]:
+            return [], False
 
         async def get(self, run_id: str) -> Any:
             return None

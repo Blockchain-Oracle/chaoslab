@@ -23,6 +23,7 @@ from typing import Any
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from phoenix_audit_agent.config import get_settings
+from phoenix_audit_agent.errors import PhoenixAuditError
 from phoenix_audit_agent.patcher._gitlab_mcp_client import (
     OFFICIAL_ENDPOINT,
     GitLabMcpClient,
@@ -41,7 +42,7 @@ logger = logging.getLogger(__name__)
 _MR_URL_PATTERN = re.compile(r"^https://gitlab\.com/.+/-/merge_requests/\d+$")
 
 
-class GitLabEmitterError(RuntimeError):
+class GitLabEmitterError(PhoenixAuditError, RuntimeError):
     """Raised when MR emission fails — wraps REST + MCP errors with context.
 
     Round-3: `rollback_failed=True` signals that the orphan-branch rollback
