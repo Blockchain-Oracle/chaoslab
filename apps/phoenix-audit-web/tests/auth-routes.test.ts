@@ -5,12 +5,17 @@ import { describe, expect, it } from 'vitest'
 import { isPublicPath } from '@/lib/auth/routes'
 
 describe('isPublicPath', () => {
-  it.each([['/'], ['/login'], ['/replay'], ['/api/health'], ['/api/login'], ['/api/logout']])(
-    'public: %s',
-    (path) => {
-      expect(isPublicPath(path)).toBe(true)
-    },
-  )
+  it.each([
+    ['/'],
+    ['/login'],
+    ['/replay'],
+    ['/docs'],
+    ['/api/health'],
+    ['/api/login'],
+    ['/api/logout'],
+  ])('public: %s', (path) => {
+    expect(isPublicPath(path)).toBe(true)
+  })
 
   it.each([
     ['/audits'],

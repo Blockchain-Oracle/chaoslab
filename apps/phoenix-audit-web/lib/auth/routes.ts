@@ -1,9 +1,17 @@
 // Public/private route matrix. Unknown routes default to GATED — a new page
 // added without touching this file is private, never accidentally open.
 
-const PUBLIC_EXACT = new Set(['/', '/login', '/replay', '/api/health', '/api/login', '/api/logout'])
+const PUBLIC_EXACT = new Set([
+  '/',
+  '/login',
+  '/replay',
+  '/docs',
+  '/api/health',
+  '/api/login',
+  '/api/logout',
+])
 
-const PUBLIC_PREFIXES = ['/replay/']
+const PUBLIC_PREFIXES = ['/replay/', '/docs/']
 
 export function isPublicPath(pathname: string): boolean {
   if (PUBLIC_EXACT.has(pathname)) return true
