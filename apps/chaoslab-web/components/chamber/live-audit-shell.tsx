@@ -22,6 +22,7 @@ export function LiveAuditShell({ runId }: LiveAuditShellProps) {
       liveCluster={stream.cluster}
       liveRecipe={stream.recipe}
       liveSummary={stream.summary}
+      liveReport={stream.report}
     />
   )
 }

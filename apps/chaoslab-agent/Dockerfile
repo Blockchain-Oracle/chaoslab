@@ -96,9 +96,14 @@ RUN echo 'appuser:x:10001:10001::/app:/bin/sh' >> /etc/passwd \
     && mkdir -p /app \
     && chown 10001:10001 /app
 
-# ca-certificates for outbound TLS (Phoenix Cloud, Gemini API). Without these
-# the runtime stage cannot verify https.
-RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates \
+# ca-certificates for outbound TLS (Phoenix Cloud, Gemini API). Pango trio
+# for WeasyPrint's PDF renderer (the signed audit report, story-6.7) —
+# ~19 MB measured on python:3.12-slim; cairo is NOT needed since WeasyPrint 53.
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates \
+    libpango-1.0-0 \
+    libpangoft2-1.0-0 \
+    libharfbuzz-subset0 \
     && rm -rf /var/lib/apt/lists/*
 
 COPY --from=uv-source /uv /uvx /usr/local/bin/

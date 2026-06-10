@@ -45,3 +45,10 @@ the datasets themselves are not redistributed in this repository.
   https://atlas.mitre.org/
 - **CARES** — Comprehensive Evaluation of Safety and Adversarial
   Robustness in Medical LLMs (arXiv:2505.11413)
+
+## Embedded fonts (signed audit report PDF)
+
+- **Newsreader** © Production Type — SIL Open Font License 1.1
+  https://github.com/google/fonts/tree/main/ofl/newsreader
+- **IBM Plex Mono** © IBM Corp. — SIL Open Font License 1.1
+  https://github.com/google/fonts/tree/main/ofl/ibmplexmono
