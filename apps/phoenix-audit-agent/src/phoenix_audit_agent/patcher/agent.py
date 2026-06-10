@@ -74,7 +74,8 @@ def build_patcher_agent() -> LlmAgent:
 
 async def _call_patcher_llm(prompt: str) -> str:
     llm = get_judge_llm()
-    response = await llm.async_generate_text(prompt=prompt, temperature=0.2)
+    # config= not bare temperature= — see judge.clustering._call_clusterer.
+    response = await llm.async_generate_text(prompt=prompt, config={"temperature": 0.2})
     # Safety-block / quota exhaustion returns empty body; raising a typed
     # exception stops retries burning Gemini quota
     # (consistent with judge.clustering._call_clusterer).

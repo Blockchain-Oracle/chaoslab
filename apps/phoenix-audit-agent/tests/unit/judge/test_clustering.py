@@ -676,6 +676,60 @@ def test_failure_cluster_immutable_attribute_set_fails() -> None:
 # ---------------------------------------------------------------------------
 
 
+async def test_sampling_params_ride_config_not_bare_kwargs(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The phoenix-evals google adapter forwards **kwargs verbatim to
+    google-genai's generate_content, which REJECTS a bare temperature=
+    kwarg (TypeError). Sampling params must ride config=. The fake mirrors
+    the real adapter's strictness — a fake that accepts temperature= pins
+    a contract production never fulfills (IF-15 rule)."""
+    import phoenix_audit_agent.judge.clustering as c
+
+    captured: dict[str, object] = {}
+
+    class _StrictAdapterLLM:
+        async def async_generate_text(self, prompt: str, **kwargs: object) -> str:
+            if "temperature" in kwargs:
+                msg = (
+                    "AsyncModels.generate_content() got an unexpected "
+                    "keyword argument 'temperature'"
+                )
+                raise TypeError(msg)
+            captured.update(kwargs)
+            return "ok"
+
+    monkeypatch.setattr(c, "get_judge_llm", lambda: _StrictAdapterLLM())  # noqa: PLW0108
+    out = await c._call_clusterer("prompt")
+    assert out == "ok"
+    assert captured.get("config") == {"temperature": 0.1}
+
+
+async def test_patcher_sampling_params_ride_config_not_bare_kwargs(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Same SDK contract for the patcher's Gemini boundary."""
+    import phoenix_audit_agent.patcher.agent as p
+
+    captured: dict[str, object] = {}
+
+    class _StrictAdapterLLM:
+        async def async_generate_text(self, prompt: str, **kwargs: object) -> str:
+            if "temperature" in kwargs:
+                msg = (
+                    "AsyncModels.generate_content() got an unexpected "
+                    "keyword argument 'temperature'"
+                )
+                raise TypeError(msg)
+            captured.update(kwargs)
+            return "ok"
+
+    monkeypatch.setattr(p, "get_judge_llm", lambda: _StrictAdapterLLM())  # noqa: PLW0108
+    out = await p._call_patcher_llm("prompt")
+    assert out == "ok"
+    assert captured.get("config") == {"temperature": 0.2}
+
+
 async def test_non_retriable_gemini_exception_raises_clustering_error(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -683,7 +737,7 @@ async def test_non_retriable_gemini_exception_raises_clustering_error(
     import phoenix_audit_agent.judge.clustering as c
 
     class _BoomLLM:
-        async def async_generate_text(self, *, prompt: str, temperature: float) -> str:
+        async def async_generate_text(self, prompt: str, **kwargs: object) -> str:
             raise RuntimeError("Quota exhausted")
 
     monkeypatch.setattr(c, "get_judge_llm", lambda: _BoomLLM())  # noqa: PLW0108
@@ -699,7 +753,7 @@ async def test_empty_gemini_response_raises_clustering_error(
     import phoenix_audit_agent.judge.clustering as c
 
     class _EmptyLLM:
-        async def async_generate_text(self, *, prompt: str, temperature: float) -> str:
+        async def async_generate_text(self, prompt: str, **kwargs: object) -> str:
             return ""
 
     monkeypatch.setattr(c, "get_judge_llm", lambda: _EmptyLLM())  # noqa: PLW0108
