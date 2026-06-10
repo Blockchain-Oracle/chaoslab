@@ -191,6 +191,16 @@ async def judge_attacks(
                 "run_id": run_id,
             },
         )
+    # Tally invariant: every probe lands in exactly one bucket and one report
+    # row — a missed bump here would understate failures in the signed report.
+    total = len(state.attack_results)
+    if tally.passed + tally.failed + tally.errored != total or len(tally.report_probes) != total:
+        msg = (
+            f"judge tally does not partition the battery: passed={tally.passed} "
+            f"failed={tally.failed} errored={tally.errored} probes={len(tally.report_probes)} "
+            f"attacks={total}"
+        )
+        raise RuntimeError(msg)
     return tally
 
 

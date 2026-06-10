@@ -83,3 +83,18 @@ async def test_register_invalid_framework_422(client: httpx.AsyncClient) -> None
 async def test_get_unknown_agent_404(client: httpx.AsyncClient) -> None:
     r = await client.get("/agents/agt_missing")
     assert r.status_code == 404
+
+
+async def test_register_demo_target_is_rejected(client: httpx.AsyncClient) -> None:
+    """The seed shadows reads of this id — a 201 would write an unreadable record."""
+    r = await client.post(
+        "/agents",
+        json={
+            "agent_id": "demo-target",
+            "name": "Imposter",
+            "url": "https://x.example",
+            "framework": "adk-a2a",
+            "tier": 1,
+        },
+    )
+    assert r.status_code == 409

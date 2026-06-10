@@ -51,7 +51,8 @@ async def generate_signed_report(data: ReportData) -> dict[str, str] | None:
     emitter = ReportEmitter()
     # signature.json uploads FIRST: a partial-upload failure can then never
     # leave an unverifiable report.pdf orphaned in the bucket — artifacts
-    # without their sidecar are impossible by construction.
+    # without their sidecar are impossible by construction. Keys must match
+    # reporter.REPORT_ARTIFACT_NAMES (the read API derives paths from it).
     return await emitter.emit(
         data.run_id,
         {

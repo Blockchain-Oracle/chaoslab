@@ -10,16 +10,35 @@ import { useSafeTimeout } from '@/lib/use-safe-timeout'
 import { PageThumb } from './page-thumb'
 import { REPORT_PAGES, ReportPage, type ReportPageId } from './report-pages'
 
+export interface LiveReportData {
+  /** Freshly signed artifact URLs from the registry (report.pdf, report.json,
+   *  signature.json, recipe.md — whichever exist). */
+  urls: Record<string, string>
+  /** Artifacts whose URL signing failed — distinct from absent. */
+  errors: Record<string, string>
+  reportAvailable: boolean
+  passed: number
+  failed: number
+  createdAt: string
+  targetUrl: string
+}
+
 interface ReportPreviewProps {
   runId?: string
+  /** Present = REAL run from the registry; the report was signed during the
+   *  run, so the signing theater is skipped and downloads are live. */
+  live?: LiveReportData | null
+  /** Live registry unreachable for a non-sample run id. */
+  liveError?: string | null
 }
 
 type SignState = 'idle' | 'signing' | 'signed'
 
-export function ReportPreview({ runId }: ReportPreviewProps) {
+export function ReportPreview({ runId, live, liveError }: ReportPreviewProps) {
   const r = HERO_RUN
+  const isLive = Boolean(live)
   const [page, setPage] = useState<ReportPageId>('cover')
-  const [signState, setSignState] = useState<SignState>('idle')
+  const [signState, setSignState] = useState<SignState>(isLive ? 'signed' : 'idle')
   const schedule = useSafeTimeout()
   const sign = () => {
     setSignState('signing')
@@ -35,6 +54,53 @@ export function ReportPreview({ runId }: ReportPreviewProps) {
           </A>{' '}
           / {runId ?? r.id} / signed report
         </div>
+        {liveError ? (
+          <div
+            className="mono"
+            style={{
+              fontSize: 11,
+              color: 'var(--warn, #8a6d1a)',
+              border: '1px dashed currentColor',
+              borderRadius: 4,
+              padding: '10px 14px',
+              marginBottom: 18,
+            }}
+          >
+            ⚠ LIVE REGISTRY UNAVAILABLE — this run&apos;s artifacts cannot be fetched right now. (
+            {liveError})
+          </div>
+        ) : null}
+        {isLive && live && !live.reportAvailable ? (
+          <div
+            className="mono"
+            style={{
+              fontSize: 11,
+              color: 'var(--warn, #8a6d1a)',
+              border: '1px dashed currentColor',
+              borderRadius: 4,
+              padding: '10px 14px',
+              marginBottom: 18,
+            }}
+          >
+            ⚠ NO SIGNED REPORT FOR THIS RUN — generation was skipped (see the run&apos;s event log).
+          </div>
+        ) : null}
+        {isLive && live && Object.keys(live.errors).length > 0 ? (
+          <div
+            className="mono"
+            style={{
+              fontSize: 11,
+              color: 'var(--fail)',
+              border: '1px dashed currentColor',
+              borderRadius: 4,
+              padding: '10px 14px',
+              marginBottom: 18,
+            }}
+          >
+            ✕ DOWNLOAD LINKS TEMPORARILY UNAVAILABLE for: {Object.keys(live.errors).join(', ')} —
+            re-signing failed; reload to retry.
+          </div>
+        ) : null}
         <div
           style={{
             display: 'flex',
@@ -51,7 +117,50 @@ export function ReportPreview({ runId }: ReportPreviewProps) {
               {r.signingKey}
             </div>
           </div>
-          {signState === 'signed' ? (
+          {isLive && live ? (
+            <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+              {live.urls['report.pdf'] ? (
+                <a
+                  className="btn primary"
+                  href={live.urls['report.pdf']}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  Download PDF
+                </a>
+              ) : null}
+              {live.urls['report.json'] ? (
+                <a
+                  className="btn ghost"
+                  href={live.urls['report.json']}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  Signed JSON
+                </a>
+              ) : null}
+              {live.urls['signature.json'] ? (
+                <a
+                  className="btn ghost"
+                  href={live.urls['signature.json']}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  Signature sidecar
+                </a>
+              ) : null}
+              {live.urls['recipe.md'] ? (
+                <a
+                  className="btn ghost"
+                  href={live.urls['recipe.md']}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  Recipe (md)
+                </a>
+              ) : null}
+            </div>
+          ) : signState === 'signed' ? (
             <div style={{ display: 'flex', gap: 10 }}>
               <button className="btn primary">Download PDF</button>
               <button className="btn ghost">Download signed JSON</button>

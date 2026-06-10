@@ -12,18 +12,17 @@ from datetime import timedelta
 from typing import Any
 
 import structlog
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel
 
 from phoenix_audit_agent.config import get_settings
+from phoenix_audit_agent.reporter import REPORT_ARTIFACT_NAMES
 from phoenix_audit_agent.storage.models import RunRecord, RunSource
 from phoenix_audit_agent.storage.runs import get_run_store
 
 _log = structlog.get_logger(__name__)
 
 router = APIRouter()
-
-_REPORT_ARTIFACTS = ("report.pdf", "report.json", "signature.json")
 
 
 async def sign_blob_url(blob_name: str) -> str:
@@ -60,9 +59,9 @@ class RunDetailResponse(BaseModel):
 async def list_runs(
     agent_id: str | None = None,
     source: RunSource | None = None,
-    limit: int = 50,
+    limit: int = Query(default=50, ge=1, le=200),
 ) -> RunListResponse:
-    rows = await get_run_store().list_runs(agent_id=agent_id, source=source, limit=min(limit, 200))
+    rows = await get_run_store().list_runs(agent_id=agent_id, source=source, limit=limit)
     return RunListResponse(runs=rows)
 
 
@@ -74,7 +73,7 @@ async def get_run(run_id: str) -> RunDetailResponse:
 
     blob_names: dict[str, str] = {}
     if record.report_available:
-        for name in _REPORT_ARTIFACTS:
+        for name in REPORT_ARTIFACT_NAMES:
             blob_names[name] = f"reports/{record.run_id}/{name}"
     if record.recipe_id:
         blob_names["recipe.md"] = f"{record.recipe_id}.md"

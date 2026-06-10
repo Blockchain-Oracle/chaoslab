@@ -21,4 +21,10 @@ def get_firestore() -> Any:
     return _client
 
 
-__all__ = ["get_firestore"]
+def reset_firestore() -> None:
+    """Symmetry with set_run_store(None) — lets tests swap emulator/clients."""
+    global _client  # noqa: PLW0603 — lazy client singleton
+    _client = None
+
+
+__all__ = ["get_firestore", "reset_firestore"]

@@ -12,7 +12,7 @@ import uuid
 import pytest
 
 from phoenix_audit_agent.storage.agents import FirestoreAgentStore
-from phoenix_audit_agent.storage.models import AgentRecord, RunRecord
+from phoenix_audit_agent.storage.models import AgentRecord, RunCompletion, RunRecord
 from phoenix_audit_agent.storage.runs import FirestoreRunStore
 
 pytestmark = [pytest.mark.online, pytest.mark.asyncio]
@@ -33,7 +33,15 @@ async def test_run_store_roundtrip_and_finalize_merge() -> None:
         )
         await store.finalize(
             run_id,
-            {"phase": "succeeded", "passed": 6, "failed": 0, "report_available": True},
+            RunCompletion(
+                run_id=run_id,
+                target_url="https://target.example",
+                created_at="2026-06-10T01:00:00Z",
+                phase="succeeded",
+                passed=6,
+                failed=0,
+                report_available=True,
+            ),
         )
 
         record = await store.get(run_id)
@@ -56,13 +64,13 @@ async def test_finalize_without_create_heals_record() -> None:
     try:
         await store.finalize(
             run_id,
-            {
-                "run_id": run_id,
-                "target_url": "https://target.example",
-                "created_at": "2026-06-10T01:00:00Z",
-                "phase": "succeeded",
-                "passed": 3,
-            },
+            RunCompletion(
+                run_id=run_id,
+                target_url="https://target.example",
+                created_at="2026-06-10T01:00:00Z",
+                phase="succeeded",
+                passed=3,
+            ),
         )
         record = await store.get(run_id)
         assert record is not None

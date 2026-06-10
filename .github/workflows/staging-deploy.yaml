@@ -65,6 +65,10 @@ jobs:
             changed_key: agent
             dockerfile: apps/phoenix-audit-agent/Dockerfile
             smoke_path: /health
+            # IAM-gated — only the web service (runtime SA) and CI invoke it.
+            auth_flag: --no-allow-unauthenticated
+            extra_env: ""
+
           - service: target-agent
             path: apps/target-agent
             changed_key: target_agent
@@ -72,11 +76,20 @@ jobs:
             # A2A agent — no FastAPI /health; the agent-card endpoint is the
             # standard "is the container alive" probe.
             smoke_path: /.well-known/agent.json
+            # Sacrificial demo bot — public so the (IAM-gated) audit agent can
+            # probe it without service-to-service token plumbing in adapters.
+            auth_flag: --allow-unauthenticated
+            extra_env: ""
           - service: phoenix-audit-web
             path: apps/phoenix-audit-web
             changed_key: web
             dockerfile: apps/phoenix-audit-web/Dockerfile
             smoke_path: /
+            # The public judge-facing site. It reaches the IAM-gated agent via
+            # /api/agent (server-minted ID tokens); AGENT_URL is resolved from
+            # the live service at deploy time (see the deploy step).
+            auth_flag: --allow-unauthenticated
+            extra_env: ",AGENT_URL=__RESOLVE_AGENT_URL__"
     steps:
       - name: Determine if this service changed
         id: changed
@@ -165,6 +178,16 @@ jobs:
           else
             CANDIDATE_FLAGS=""
           fi
+          # Resolve the agent URL from the LIVE service — a hardcoded hostname
+          # would silently mis-wire web->agent on a recreated service or a
+          # forked project. Fails loud if the agent has never been deployed.
+          EXTRA_ENV='${{ matrix.extra_env }}'
+          if [ "${EXTRA_ENV#*__RESOLVE_AGENT_URL__}" != "${EXTRA_ENV}" ]; then
+            AGENT_URL=$(gcloud run services describe phoenix-audit-agent \
+              --region="${REGION}" --format='value(status.url)')
+            [ -n "${AGENT_URL}" ] || { echo "::error::phoenix-audit-agent service not found — deploy the agent before the web"; exit 1; }
+            EXTRA_ENV="${EXTRA_ENV/__RESOLVE_AGENT_URL__/${AGENT_URL}}"
+          fi
           # shellcheck disable=SC2086  # CANDIDATE_FLAGS is a controlled flag string
           gcloud run deploy ${{ matrix.service }} \
             --image="${REGION}-docker.pkg.dev/${PROJECT_ID}/phoenix-audit/${{ matrix.service }}:${GITHUB_SHA}" \
@@ -177,8 +200,8 @@ jobs:
             --cpu=1 \
             --port=8080 \
             --cpu-boost \
-            --no-allow-unauthenticated \
-            --set-env-vars=ENVIRONMENT=staging,JUDGE_LLM=gemini-3.5-flash,SERVICE_VERSION="${GITHUB_SHA}",PHOENIX_PROVIDER=${PHOENIX_PROVIDER},PHOENIX_COLLECTOR_ENDPOINT=${PHOENIX_COLLECTOR_ENDPOINT},GOOGLE_GENAI_USE_VERTEXAI=true,GOOGLE_CLOUD_PROJECT=${PROJECT_ID},GOOGLE_CLOUD_LOCATION=us-central1 \
+            ${{ matrix.auth_flag }} \
+            --set-env-vars=ENVIRONMENT=staging,JUDGE_LLM=gemini-3.5-flash,SERVICE_VERSION="${GITHUB_SHA}",PHOENIX_PROVIDER=${PHOENIX_PROVIDER},PHOENIX_COLLECTOR_ENDPOINT=${PHOENIX_COLLECTOR_ENDPOINT},GOOGLE_GENAI_USE_VERTEXAI=true,GOOGLE_CLOUD_PROJECT=${PROJECT_ID},GOOGLE_CLOUD_LOCATION=us-central1${EXTRA_ENV} \
             --set-secrets=PHOENIX_API_KEY=phoenix-api-key:latest \
             ${CANDIDATE_FLAGS}
 

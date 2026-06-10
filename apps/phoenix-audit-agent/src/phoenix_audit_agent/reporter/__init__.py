@@ -14,9 +14,14 @@ from phoenix_audit_agent.reporter._html import (
 from phoenix_audit_agent.reporter.renderer import render_pdf
 from phoenix_audit_agent.reporter.signer import KmsReportSigner
 
+# Single source of truth for the signed artifact set — generate_signed_report
+# uploads exactly these; the read API derives blob paths from the same tuple.
+REPORT_ARTIFACT_NAMES = ("report.pdf", "report.json", "signature.json")
+
 __all__ = [
     "DEFAULT_RESIDENCY_PARAGRAPH",
     "HEADER_WARNING_TEMPLATE",
+    "REPORT_ARTIFACT_NAMES",
     "KmsReportSigner",
     "ReportData",
     "ReportProbe",
