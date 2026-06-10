@@ -36,11 +36,20 @@ class RunStore(Protocol):
     async def finalize(self, run_id: str, completion: RunCompletion) -> None: ...
 
     async def list_runs(
-        self, *, agent_id: str | None = None, source: str | None = None, limit: int = 50
+        self,
+        *,
+        agent_id: str | None = None,
+        source: str | None = None,
+        limit: int = 50,
+        visible_to: str | None = None,
     ) -> tuple[list[RunRecord], bool]:
         """Returns (rows, truncated). truncated=True means the inner query hit
         its cap while a filter was applied — older matching runs may exist and
-        a registry whose point is completeness must say so."""
+        a registry whose point is completeness must say so.
+
+        visible_to scopes to records owned by that uid PLUS ownerless legacy
+        records (pre-auth audit evidence must not vanish). None = no scoping
+        (system callers)."""
         ...
 
     async def get(self, run_id: str) -> RunRecord | None: ...
@@ -71,7 +80,12 @@ class FirestoreRunStore:
         )
 
     async def list_runs(
-        self, *, agent_id: str | None = None, source: str | None = None, limit: int = 50
+        self,
+        *,
+        agent_id: str | None = None,
+        source: str | None = None,
+        limit: int = 50,
+        visible_to: str | None = None,
     ) -> tuple[list[RunRecord], bool]:
         # order_by only (no where): a where+order_by combo needs a composite
         # index per filter field. Registry volume is small — filter in memory
@@ -87,11 +101,13 @@ class FirestoreRunStore:
             except ValidationError:
                 # One corrupted doc must not 500 the registry for everyone.
                 _log.error("run_doc_corrupted", doc_id=doc.id, exc_info=True)
-        filtered = agent_id is not None or source is not None
+        filtered = agent_id is not None or source is not None or visible_to is not None
         if agent_id is not None:
             rows = [r for r in rows if r.agent_id == agent_id]
         if source is not None:
             rows = [r for r in rows if r.source == source]
+        if visible_to is not None:
+            rows = [r for r in rows if r.owner_uid in (None, visible_to)]
         # Cap hit + in-memory filter => older matching rows may exist beyond
         # the window. Unfiltered lists also truncate at `limit`, but that cut
         # is the newest-N contract the caller asked for — not silent loss.

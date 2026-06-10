@@ -95,6 +95,63 @@ export it as standalone SVG (static) + optionally a small animated variant
 Brand background, logo top-right, seal center, one line: product name + "Built on
 Arize Phoenix & Google Cloud" + repo URL. Gives the demo video a clean last 3 seconds.
 
+## 7. Auth surfaces — login / sign-up flow (NEW, story 9.4)
+
+The app is getting authentication. The designer owns the visual answer; here is
+the full domain picture so the components fit the product. Same brand language
+as every other surface (paper/ink/ember, Newsreader display, Instrument Sans
+body, IBM Plex Mono for data).
+
+**Who signs in and why:** the user is a compliance / AI-governance person at a
+large company. Signing in protects their audit data — runs, registered agents,
+monitoring schedules are private to the account that created them. The landing
+page and the demo replay stay public; everything else (audits, agents,
+monitoring, settings, starting a new audit) is behind sign-in.
+
+**The flow (exactly what the app will do):**
+
+1. Visitor hits a protected page while signed out → redirected to **`/login`**.
+2. `/login` offers two ways in, one screen:
+   - **Email + password** — both sign-in and create-account on the same
+     surface (a toggle/tab between "Sign in" and "Create account" is the
+     classic answer, but designer's call). Create-account needs: email,
+     password. Sign-in needs: email, password.
+   - **"Continue with Google"** — a single button.
+3. Success → straight to the page they originally wanted (or `/audits`).
+4. Signed-in state lives in the **app header**: a small user affordance
+   (avatar/initial + email) with one action: **Sign out**. Sign-out returns
+   to the landing page.
+
+**States the design must cover (the states-gallery discipline applies):**
+
+- Default form state (empty fields).
+- Submitting (button busy state — the audit-chamber already has a motion
+  language for "working"; a quiet version of it fits here).
+- **Error, visible and specific:** wrong password / unknown email / weak
+  password on create / network failure. Errors are inline text near the form,
+  never a silent no-op. Plain sentences, no error codes.
+- **Google temporarily unavailable:** the Google button can be present but
+  failing while the provider is being enabled — it shows a visible "Google
+  sign-in isn't available yet — use email" notice when clicked, never nothing.
+- Session expired mid-use → user lands back on `/login` with a one-line
+  notice ("Signed out — sign in to continue").
+
+**Components needed (names as the code will call them):**
+
+- `login-card` — the centered card with both methods (logo at top; this is a
+  branded moment, the first thing a judge clicking "Sign in" sees).
+- `auth-input` — text field style for email/password (error variant included).
+- `auth-submit` — primary button (default / busy / disabled).
+- `google-button` — secondary button with the Google mark, per Google's
+  sign-in branding rules (they require their logo treatment; designer should
+  follow "Sign in with Google" brand guidance).
+- `user-menu` — header affordance for the signed-in user + sign-out.
+- `auth-notice` — the inline error/info line (error and neutral variants).
+
+**Tone:** this is a compliance product — the login should feel like signing
+into evidence, not into a social app. Calm, paper-and-ink, the ember accent
+reserved for the primary action.
+
 ---
 
 ## Notes for Abu

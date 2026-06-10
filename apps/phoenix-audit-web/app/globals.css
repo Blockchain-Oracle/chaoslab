@@ -869,3 +869,284 @@ textarea {
     gap: 12px;
   }
 }
+
+/* ============================================================
+   AUTH SURFACES (story 9.4)
+   Signing into evidence — calm, paper-first; ember reserved
+   for the primary action. No spinners: the quiet pulse is the
+   login's version of the chamber's working language.
+   ============================================================ */
+
+/* login-card */
+.auth-card {
+  width: 100%;
+  max-width: 440px;
+  background: rgba(255, 253, 248, 0.92);
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-lg);
+  padding: 34px 38px 30px;
+  position: relative;
+}
+
+.auth-tabs {
+  display: flex;
+  gap: 26px;
+  border-bottom: 1px solid var(--hairline);
+  margin: 26px 0 22px;
+}
+.auth-tab {
+  font-family: var(--mono);
+  font-size: 11.5px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  color: var(--ink-3);
+  background: none;
+  border: none;
+  padding: 0 2px 10px;
+  transition: color 0.15s ease;
+}
+.auth-tab:hover {
+  color: var(--ink);
+}
+.auth-tab.active {
+  color: var(--ink);
+  box-shadow: inset 0 -2px 0 var(--ember);
+}
+
+/* auth-notice — plain sentences, never codes */
+.auth-notice {
+  display: flex;
+  gap: 10px;
+  align-items: baseline;
+  font-size: 13px;
+  line-height: 1.5;
+  padding: 11px 14px;
+  border-radius: var(--r);
+  border: 1px solid;
+}
+.auth-notice .mark {
+  font-family: var(--mono);
+  font-size: 11px;
+  flex-shrink: 0;
+}
+.auth-notice.error {
+  color: var(--fail);
+  border-color: var(--fail);
+  background: var(--fail-soft);
+}
+.auth-notice.warn {
+  color: var(--warn);
+  border-color: var(--warn);
+  background: var(--warn-soft);
+}
+.auth-notice.info {
+  color: var(--ink-2);
+  border-color: var(--hairline);
+  background: var(--paper-2);
+}
+
+/* google-button — secondary way in, Google brand mark kept intact */
+.google-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 11px;
+  width: 100%;
+  padding: 12px 16px;
+  font-family: var(--sans);
+  font-size: 13.5px;
+  font-weight: 500;
+  color: var(--ink);
+  background: #fff;
+  border: 1px solid var(--hairline);
+  border-radius: var(--r);
+  transition:
+    border-color 0.15s ease,
+    transform 0.12s ease;
+}
+.google-btn:hover {
+  border-color: var(--ink-3);
+}
+.google-btn:active {
+  transform: translateY(1px);
+}
+.google-btn:disabled {
+  cursor: default;
+  opacity: 0.45;
+  transform: none;
+}
+.google-btn:disabled:hover {
+  border-color: var(--hairline);
+}
+
+/* auth-submit busy — the quiet pulse, never a spinner */
+.btn.block {
+  width: 100%;
+}
+.btn.busy,
+.btn.busy:disabled {
+  opacity: 1;
+  pointer-events: none;
+  background: color-mix(in oklab, var(--ember-deep) 82%, var(--paper));
+  border-color: transparent;
+  color: #fff;
+}
+.busy-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+  position: relative;
+  flex-shrink: 0;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .busy-dot::after {
+    content: '';
+    position: absolute;
+    inset: -5px;
+    border-radius: 50%;
+    border: 1px solid currentColor;
+    animation: authPulse 1.6s ease-out infinite;
+  }
+  @keyframes authPulse {
+    from {
+      transform: scale(0.5);
+      opacity: 0.9;
+    }
+    to {
+      transform: scale(1.6);
+      opacity: 0;
+    }
+  }
+}
+
+/* user-menu — signed-in state in the app header */
+.user-menu {
+  position: relative;
+}
+.user-menu-btn {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  background: none;
+  border: 1px solid transparent;
+  border-radius: var(--r);
+  padding: 5px 9px;
+  transition: border-color 0.15s ease;
+}
+.user-menu-btn:hover,
+.user-menu-btn[aria-expanded='true'] {
+  border-color: var(--hairline);
+}
+.avatar-dot {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: var(--ember-deep);
+  color: var(--paper);
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.user-menu-email {
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  color: var(--ink-2);
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.user-menu-pop {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  width: 264px;
+  background: #fff;
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-lg);
+  box-shadow: 0 14px 40px rgba(28, 23, 18, 0.14);
+  padding: 6px;
+  z-index: 60;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .user-menu-pop {
+    animation: menuIn 0.16s ease both;
+  }
+  @keyframes menuIn {
+    from {
+      opacity: 0;
+      transform: translateY(-4px);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+}
+.user-menu-pop .who {
+  padding: 12px 12px 11px;
+  border-bottom: 1px solid var(--hairline-soft);
+  margin-bottom: 6px;
+}
+.user-menu-signout {
+  width: 100%;
+  text-align: left;
+  background: none;
+  border: none;
+  border-radius: var(--r);
+  padding: 10px 12px;
+  font-family: var(--mono);
+  font-size: 11.5px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-2);
+  transition:
+    background 0.15s ease,
+    color 0.15s ease;
+}
+.user-menu-signout:hover {
+  background: var(--ember-faint);
+  color: var(--ember-deep);
+}
+
+/* /login page */
+.login-stage {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  overflow: hidden;
+}
+.login-watermark {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0.06;
+  pointer-events: none;
+}
+.login-strip {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  white-space: nowrap;
+  padding: 22px 40px;
+  position: relative;
+}
+@media (max-width: 900px) {
+  .login-strip {
+    padding: 18px 20px;
+  }
+  .auth-card {
+    padding: 28px 24px 24px;
+  }
+}

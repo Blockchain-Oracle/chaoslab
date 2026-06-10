@@ -1,11 +1,15 @@
-// Same-origin proxy to the IAM-gated agent service.
+// Same-origin proxy to the IAM-gated agent service — and the Firebase-auth
+// enforcement point (story-9.4).
 //
 // The browser (EventSource can't attach Authorization headers) talks to
-// /api/agent/<path>; this handler forwards with a metadata-minted ID token.
-// Becomes the Firebase-auth enforcement point in story-9.4.
+// /api/agent/<path>; this handler verifies the session cookie, then forwards
+// with the metadata-minted GCP ID token on Authorization (Cloud Run ingress)
+// and the user's Firebase ID token on X-Firebase-Id-Token (backend identity).
 
 import type { NextRequest } from 'next/server'
+import { getTokens } from 'next-firebase-auth-edge'
 import { agentAuthHeaders, agentBaseUrl } from '@/lib/server/agent-fetch'
+import { serverAuthConfig } from '@/lib/auth/config'
 
 // Allowlist — this is a proxy to ONE service's known API, not an open relay.
 // NOTE: /internal/* is deliberately absent — the scheduler tick is
@@ -31,8 +35,17 @@ async function proxy(req: NextRequest, pathParts: string[]): Promise<Response> {
   if (!allowed(path)) {
     return Response.json({ detail: `path not allowed: ${path}` }, { status: 404 })
   }
+  // Session check AFTER the allowlist 404 — disallowed paths read as
+  // nonexistent even to authenticated callers and never touch auth or the
+  // upstream — and BEFORE any upstream call. EventSource cannot set headers,
+  // so the cookie is the only credential the browser can present here.
+  const tokens = await getTokens(req.cookies, serverAuthConfig())
+  if (!tokens) {
+    return Response.json({ detail: 'sign in required' }, { status: 401 })
+  }
   const search = req.nextUrl.search
   const headers: Record<string, string> = await agentAuthHeaders()
+  headers['x-firebase-id-token'] = tokens.token
   const contentType = req.headers.get('content-type')
   if (contentType) headers['content-type'] = contentType
   // Accept is forced per-path: only /stream is SSE; everything else is JSON.

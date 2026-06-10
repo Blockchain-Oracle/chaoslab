@@ -30,6 +30,7 @@ def _env(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
                 "GCS_",
                 "SERVICE_",
                 "SCHEDULER_",
+                "FIREBASE_",
             )
         ):
             monkeypatch.delenv(key, raising=False)
@@ -58,6 +59,14 @@ def _reset_run_registries() -> None:
     _RUN_REGISTRY.clear()
     _RUN_QUEUES.clear()
     _RUN_TASKS.clear()
+
+
+@pytest.fixture(autouse=True)
+def _authed(
+    _env: None, auth_as
+) -> None:  # _env first: settings env must exist before auth_as imports main
+    """This module's subject is schedules CRUD + the tick, not auth — requests
+    arrive pre-authenticated as `user-test` (auth wiring: test_auth_scoping)."""
 
 
 @pytest.fixture

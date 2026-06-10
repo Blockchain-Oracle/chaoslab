@@ -1,6 +1,7 @@
 'use client'
 
 import { usePathname } from 'next/navigation'
+import { UserMenu } from '@/components/auth/user-menu'
 import { A } from './link'
 import { Wordmark } from './wordmark'
 
@@ -28,12 +29,7 @@ export function TopBar() {
             </A>
           ))}
         </nav>
-        <span
-          className="mono muted"
-          style={{ fontSize: 11, letterSpacing: '0.06em', whiteSpace: 'nowrap' }}
-        >
-          Meridian Mutual Health
-        </span>
+        <UserMenu />
         <A to="new" className="btn ember small">
           Run audit
         </A>

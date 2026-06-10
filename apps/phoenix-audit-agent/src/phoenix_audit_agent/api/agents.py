@@ -2,11 +2,14 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter, HTTPException
+from typing import Annotated
+
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field, field_validator
 
 from phoenix_audit_agent._time import utc_now_iso
 from phoenix_audit_agent.api._url_guard import validate_target_url
+from phoenix_audit_agent.api.auth import AuthedUser, require_user
 from phoenix_audit_agent.storage.agents import get_agent_store
 from phoenix_audit_agent.storage.models import AgentRecord, Framework
 
@@ -31,7 +34,9 @@ class AgentListResponse(BaseModel):
 
 
 @router.post("/agents", response_model=AgentRecord, status_code=201)
-async def register_agent(payload: AgentRegisterRequest) -> AgentRecord:
+async def register_agent(
+    payload: AgentRegisterRequest, user: Annotated[AuthedUser, Depends(require_user)]
+) -> AgentRecord:
     if payload.agent_id == "demo-target":
         # The seed shadows reads of this id — a successful 201 would write a
         # record nobody can ever read back.
@@ -43,20 +48,25 @@ async def register_agent(payload: AgentRegisterRequest) -> AgentRecord:
         raise HTTPException(
             status_code=409, detail=f"agent_id already registered: {payload.agent_id}"
         )
-    record = AgentRecord(**payload.model_dump(), registered_at=utc_now_iso())
+    record = AgentRecord(**payload.model_dump(), registered_at=utc_now_iso(), owner_uid=user.uid)
     await store.register(record)
     return record
 
 
 @router.get("/agents", response_model=AgentListResponse)
-async def list_agents() -> AgentListResponse:
-    return AgentListResponse(agents=await get_agent_store().list_agents())
+async def list_agents(user: Annotated[AuthedUser, Depends(require_user)]) -> AgentListResponse:
+    rows = await get_agent_store().list_agents()
+    # Own + ownerless (the demo seed and pre-auth records) stay visible.
+    return AgentListResponse(agents=[a for a in rows if a.owner_uid in (None, user.uid)])
 
 
 @router.get("/agents/{agent_id}", response_model=AgentRecord)
-async def get_agent(agent_id: str) -> AgentRecord:
+async def get_agent(
+    agent_id: str, user: Annotated[AuthedUser, Depends(require_user)]
+) -> AgentRecord:
     record = await get_agent_store().get(agent_id)
-    if record is None:
+    # Foreign-owned reads as not-found — a 403 would CONFIRM the id exists.
+    if record is None or record.owner_uid not in (None, user.uid):
         raise HTTPException(status_code=404, detail=f"agent_id not found: {agent_id}")
     return record
 
