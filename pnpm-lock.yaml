@@ -31,8 +31,8 @@ importers:
         specifier: ^9.16.0
         version: 9.39.4
       '@next/eslint-plugin-next':
-        specifier: ^16.0.0
-        version: 16.2.8
+        specifier: ^16.2.9
+        version: 16.2.9
       '@tailwindcss/postcss':
         specifier: ^4.0.0
         version: 4.3.0
@@ -383,6 +383,9 @@ packages:
 
   '@next/eslint-plugin-next@16.2.8':
     resolution: {integrity: sha512-UR7nMHAhCo2bO6spWq8avSWllqWE2JSxtVt82NYY/47ofq5OtSEUmGjoT8pwY8arqEQ0WjEZGg8VqqAGDEYXhA==}
+
+  '@next/eslint-plugin-next@16.2.9':
+    resolution: {integrity: sha512-UZi8+YT/MLgTC9nrrn2Xd4lBYv1B7lVmtWHfPcthAI5Tt/C1LuDe6DfmtCtJ+WQod3ksY4VrKSvk3oMVAnL7qw==}
 
   '@next/swc-darwin-arm64@16.2.8':
     resolution: {integrity: sha512-R/MDVX4Cj+bzvTNkDWNyA09yCPBZB0J1m8P3VAmWAzx/J7DctA1wxya1LU3CcPv2szER3AImHEtsgScauH8SsQ==}
@@ -2366,6 +2369,10 @@ snapshots:
   '@next/env@16.2.8': {}
 
   '@next/eslint-plugin-next@16.2.8':
+    dependencies:
+      fast-glob: 3.3.1
+
+  '@next/eslint-plugin-next@16.2.9':
     dependencies:
       fast-glob: 3.3.1
 
