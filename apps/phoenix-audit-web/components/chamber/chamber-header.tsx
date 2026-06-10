@@ -14,6 +14,9 @@ interface ChamberHeaderProps {
    *  The LIVE indicator must reflect reality, never assert "CONNECTED"
    *  unconditionally (review finding #5). */
   connected?: boolean
+  /** Live-mode: the REAL run id — the sample label must never headline a
+   *  real run (story-9.10). */
+  runLabel?: string
 }
 
 const PHASE_SEQ: DerivedAuditState['phase'][] = [
@@ -30,6 +33,7 @@ export function ChamberHeader({
   mode,
   demoPacing,
   connected,
+  runLabel,
 }: ChamberHeaderProps) {
   const phaseIdx = PHASE_SEQ.indexOf(s.phase)
   return (
@@ -66,7 +70,7 @@ export function ChamberHeader({
             textOverflow: 'ellipsis',
           }}
         >
-          run_9f3c2ab81d4e · prior-auth · EU AI Act
+          {runLabel ?? 'run_9f3c2ab81d4e · prior-auth · EU AI Act (sample replay)'}
         </span>
         <span style={{ flex: 1 }}></span>
         {demoPacing ? (

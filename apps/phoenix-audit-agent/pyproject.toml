@@ -43,6 +43,7 @@ dependencies = [
   "google-cloud-kms>=3.13.0",
   "google-crc32c>=1.8.0",
   "google-cloud-firestore>=2.19",
+  "email-validator>=2.0",
 ]
 
 [dependency-groups]

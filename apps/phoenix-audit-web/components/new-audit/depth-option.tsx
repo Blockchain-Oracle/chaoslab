@@ -43,8 +43,7 @@ export function DepthOption({ selected, onSelect, sub, title, body, link }: Dept
         <a
           className="span-link"
           style={{ fontSize: 11.5, display: 'inline-block', marginTop: 10 }}
-          href="#docs"
-          onClick={(e) => e.preventDefault()}
+          href="/docs"
         >
           {link}
         </a>

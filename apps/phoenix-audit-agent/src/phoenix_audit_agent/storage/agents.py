@@ -4,19 +4,27 @@ from __future__ import annotations
 
 from typing import Any, Protocol
 
+from phoenix_audit_agent.config import get_settings
 from phoenix_audit_agent.storage.firestore_client import get_firestore
 from phoenix_audit_agent.storage.models import AgentRecord
 
 _COLLECTION = "agents"
 
-DEMO_TARGET_SEED = AgentRecord(
-    agent_id="demo-target",
-    name="Demo Support Agent",
-    url="http://localhost:8001",
-    framework="adk-a2a",
-    tier=1,
-    registered_at="2026-06-08T00:00:00Z",
-)
+DEMO_TARGET_ID = "demo-target"
+
+
+def demo_target_seed() -> AgentRecord:
+    """Built per-call from settings — the seed URL must point at the DEPLOYED
+    target-agent in deployed envs; a hardcoded localhost:8001 fired real
+    (failing) runs from staging with one click (story-9.10)."""
+    return AgentRecord(
+        agent_id=DEMO_TARGET_ID,
+        name="Demo Support Agent",
+        url=get_settings().DEMO_TARGET_URL,
+        framework="adk-a2a",
+        tier=1,
+        registered_at="2026-06-08T00:00:00Z",
+    )
 
 
 class AgentStore(Protocol):
@@ -44,14 +52,14 @@ class FirestoreAgentStore:
         rows: list[AgentRecord] = []
         async for doc in self.db.collection(_COLLECTION).stream():
             rows.append(AgentRecord.model_validate(doc.to_dict()))
-        if not any(a.agent_id == DEMO_TARGET_SEED.agent_id for a in rows):
-            rows.append(DEMO_TARGET_SEED)
+        if not any(a.agent_id == DEMO_TARGET_ID for a in rows):
+            rows.append(demo_target_seed())
         rows.sort(key=lambda a: a.registered_at)
         return rows
 
     async def get(self, agent_id: str) -> AgentRecord | None:
-        if agent_id == DEMO_TARGET_SEED.agent_id:
-            return DEMO_TARGET_SEED
+        if agent_id == DEMO_TARGET_ID:
+            return demo_target_seed()
         doc = await self.db.collection(_COLLECTION).document(agent_id).get()
         if not doc.exists:
             return None
@@ -75,9 +83,10 @@ def get_agent_store() -> AgentStore:
 
 
 __all__ = [
-    "DEMO_TARGET_SEED",
+    "DEMO_TARGET_ID",
     "AgentStore",
     "FirestoreAgentStore",
+    "demo_target_seed",
     "get_agent_store",
     "set_agent_store",
 ]

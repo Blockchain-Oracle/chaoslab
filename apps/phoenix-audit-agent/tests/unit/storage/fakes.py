@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from phoenix_audit_agent.storage.agents import DEMO_TARGET_SEED
+from phoenix_audit_agent.storage.agents import demo_target_seed
 from phoenix_audit_agent.storage.models import AgentRecord, RunCompletion, RunRecord, ScheduleRecord
 
 
@@ -50,9 +50,8 @@ class InMemoryRunStore:
 
 class InMemoryAgentStore:
     def __init__(self) -> None:
-        self._docs: dict[str, dict[str, Any]] = {
-            DEMO_TARGET_SEED.agent_id: DEMO_TARGET_SEED.model_dump()
-        }
+        seed = demo_target_seed()
+        self._docs: dict[str, dict[str, Any]] = {seed.agent_id: seed.model_dump()}
 
     async def register(self, record: AgentRecord) -> None:
         self._docs[record.agent_id] = record.model_dump()

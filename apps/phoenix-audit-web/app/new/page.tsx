@@ -1,10 +1,11 @@
 'use client'
 
-import { useEffect, useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { Suspense, useEffect, useState } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { DepthOption } from '@/components/new-audit/depth-option'
 import { FrameworkPicker } from '@/components/new-audit/framework-picker'
 import { OverridesBlock } from '@/components/new-audit/overrides-block'
+import { PREF_FRAMEWORK, PREF_HOSTING } from '@/lib/prefs'
 import { Field } from '@/components/ui/field'
 import { A } from '@/components/ui/link'
 import { PageFoot } from '@/components/ui/page-foot'
@@ -23,9 +24,22 @@ function probeCheck(url: string): { ok: true } | { ok: false; error: string } {
 }
 
 export default function NewAuditPage() {
+  // useSearchParams demands a Suspense boundary in the App Router.
+  return (
+    <Suspense>
+      <NewAuditForm />
+    </Suspense>
+  )
+}
+
+function NewAuditForm() {
   const router = useRouter()
+  const params = useSearchParams()
+  // Agent CTAs prefill the wizard (/new?agent=<id>&url=<url>) — the wizard
+  // stays the single confirm surface; runs stay associated to the agent.
+  const agentId = params.get('agent')
   const [hosting, setHosting] = useState<'default' | 'byo'>('default')
-  const [url, setUrl] = useState('')
+  const [url, setUrl] = useState(() => params.get('url') ?? '')
   const [touched, setTouched] = useState(false)
   const [pinging, setPinging] = useState(false)
   const [pinged, setPinged] = useState(false)
@@ -39,7 +53,11 @@ export default function NewAuditPage() {
   const [startError, setStartError] = useState<string | null>(null)
 
   useEffect(() => {
-    setHosting((localStorage.getItem('pa_hosting') as 'default' | 'byo' | null) ?? 'default')
+    setHosting((localStorage.getItem(PREF_HOSTING) as 'default' | 'byo' | null) ?? 'default')
+    // The settings page persists this preference — honor it here so the
+    // preference is real, not decorative (story-9.10).
+    const fw = localStorage.getItem(PREF_FRAMEWORK)
+    if (fw) setFramework(fw)
   }, [])
 
   const check = probeCheck(url)
@@ -78,6 +96,7 @@ export default function NewAuditPage() {
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({
           target_url: url.trim(),
+          agent_id: agentId ?? undefined,
           source: 'manual',
           runs_per_fault: runsPerFault,
         }),

@@ -9,11 +9,25 @@ tests/integration/test_firestore_stores_online.py.
 
 from __future__ import annotations
 
+from collections.abc import Iterator
+
 import pytest
 
+from phoenix_audit_agent.config import get_settings
 from phoenix_audit_agent.storage.models import AgentRecord, RunCompletion, RunRecord, RunSource
 
 from .fakes import InMemoryAgentStore, InMemoryRunStore
+
+
+@pytest.fixture(autouse=True)
+def _env(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
+    # demo_target_seed() (constructed by InMemoryAgentStore) reads Settings,
+    # which needs a Gemini/Vertex path configured — deterministic here.
+    monkeypatch.setenv("GEMINI_API_KEY", "test-gemini")
+    monkeypatch.delenv("DEMO_TARGET_URL", raising=False)
+    get_settings.cache_clear()
+    yield
+    get_settings.cache_clear()
 
 
 def _run(

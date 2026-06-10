@@ -6,17 +6,17 @@ import { EmptyState } from '@/components/ui/empty-state'
 import { A } from '@/components/ui/link'
 import { PageFoot } from '@/components/ui/page-foot'
 import { SectionHead } from '@/components/ui/section-head'
-import { Toggle } from '@/components/ui/toggle'
 import { TopBar } from '@/components/ui/topbar'
+import { runAuditHref } from '@/lib/cta'
 import { AGENTS, HERO_RUN, HISTORY, agentById } from '@/lib/fixtures'
 import { fmtDate } from '@/lib/format'
 import type { MergedAgent, MergedRun } from '@/lib/sample-merge'
 import { useSafeTimeout } from '@/lib/use-safe-timeout'
 
-const SNIPPET = `from phoenix_audit import instrument
+const snippetFor = (projectId: string) => `from phoenix_audit import instrument
 
 # 3 lines, at your agent's startup:
-instrument(project="prior-auth",
+instrument(project="${projectId}",
            endpoint=PHOENIX_COLLECTOR,
            audit_headers=True)`
 
@@ -33,40 +33,14 @@ export function AgentDetailView({ id, agent, runs: runsProp }: AgentDetailViewPr
   const router = useRouter()
   const a = agent ?? agentById(id) ?? AGENTS[0]
   const [copied, setCopied] = useState(false)
-  const [mon, setMon] = useState(!!a?.monitoring.enabled)
-  const [starting, setStarting] = useState(false)
-  const [startError, setStartError] = useState<string | null>(null)
   const schedule = useSafeTimeout()
   if (!a) return null
   const isSample = agent ? agent.sample : true
   const runs = runsProp ?? HISTORY.filter((r) => r.agentId === a.id)
   const err = a.status === 'unreachable'
-  const runHero = async () => {
-    if (typeof window !== 'undefined') {
-      window.localStorage.removeItem('pa_audit_t_live')
-    }
-    if (isSample) {
-      // Sample agents demo the chamber via the fixture replay.
-      router.push('/replay')
-      return
-    }
-    setStarting(true)
-    setStartError(null)
-    try {
-      const res = await fetch('/api/agent/run', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ target_url: a.url, agent_id: a.id, source: 'manual' }),
-      })
-      if (!res.ok) throw new Error(`the audit service answered ${res.status}`)
-      const body = (await res.json()) as { run_id?: string }
-      if (!body.run_id) throw new Error('the audit service returned no run id')
-      router.push(`/run/${body.run_id}`)
-    } catch (e) {
-      setStartError(e instanceof Error ? e.message : String(e))
-      setStarting(false)
-    }
-  }
+  // The wizard is the single confirm surface — no one-click live runs
+  // (story-9.10: an un-confirmed click fired a real failing audit).
+  const wizardHref = runAuditHref({ id: a.id, url: a.url, sample: isSample })
   return (
     <div className="page-enter">
       <TopBar />
@@ -88,8 +62,8 @@ export function AgentDetailView({ id, agent, runs: runsProp }: AgentDetailViewPr
           <h1 className="display" style={{ fontSize: 38, flex: 1 }}>
             {a.name}
           </h1>
-          <button className="btn ember" onClick={runHero} disabled={err || starting}>
-            {starting ? 'Starting…' : 'Run audit now'}
+          <button className="btn ember" onClick={() => router.push(wizardHref)} disabled={err}>
+            Run audit now
           </button>
         </div>
         <div
@@ -101,14 +75,14 @@ export function AgentDetailView({ id, agent, runs: runsProp }: AgentDetailViewPr
             marginBottom: 36,
           }}
         >
-          {startError ? (
-            <span className="mono" style={{ fontSize: 11.5, color: 'var(--fail)', width: '100%' }}>
-              ✕ Could not start the audit — {startError}
-            </span>
-          ) : null}
           <span className="mono muted" style={{ fontSize: 12 }}>
             {a.url}
           </span>
+          {isSample ? (
+            <span className="tag" title="Seeded sample data — not your registered agent">
+              SAMPLE
+            </span>
+          ) : null}
           <span className="tag">
             Tier {a.tier} · {a.framework}
           </span>
@@ -194,7 +168,7 @@ export function AgentDetailView({ id, agent, runs: runsProp }: AgentDetailViewPr
                 title="This agent hasn't been audited."
                 body="Run the first audit to establish a signed baseline for this target."
                 action={
-                  <A to="new" className="btn small ember">
+                  <A to={wizardHref.slice(1)} className="btn small ember">
                     Run audit
                   </A>
                 }
@@ -204,49 +178,24 @@ export function AgentDetailView({ id, agent, runs: runsProp }: AgentDetailViewPr
 
           <div style={{ display: 'grid', gap: 26 }}>
             <div className="card" style={{ padding: '18px 20px' }}>
-              <div
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 12,
-                  marginBottom: 8,
-                }}
+              <span
+                className="field-label"
+                style={{ margin: 0, display: 'block', marginBottom: 8 }}
               >
-                <span className="field-label" style={{ margin: 0, flex: 1 }}>
-                  Continuous monitoring
-                </span>
-                <Toggle on={mon} onChange={setMon} label="continuous monitoring" />
-              </div>
-              {mon ? (
-                <div>
-                  <div className="leader-row" style={{ padding: '4px 0' }}>
-                    <span style={{ fontSize: 12.5, color: 'var(--ink-2)' }}>Cadence</span>
-                    <span className="leader-fill"></span>
-                    <span className="mono" style={{ fontSize: 11.5 }}>
-                      Daily · 06:00 UTC
-                    </span>
-                  </div>
-                  <div className="leader-row" style={{ padding: '4px 0' }}>
-                    <span style={{ fontSize: 12.5, color: 'var(--ink-2)' }}>Window</span>
-                    <span className="leader-fill"></span>
-                    <span className="mono" style={{ fontSize: 11.5 }}>
-                      last 24 h of traffic
-                    </span>
-                  </div>
-                  <A
-                    to="monitoring"
-                    className="span-link"
-                    style={{ fontSize: 11.5, marginTop: 8, display: 'inline-block' }}
-                  >
-                    Configure schedule →
-                  </A>
-                </div>
-              ) : (
-                <p className="muted" style={{ fontSize: 12.5, lineHeight: 1.6 }}>
-                  Audit real production traces on a schedule — catch failures that actually
-                  happened, not just synthetic ones.
-                </p>
-              )}
+                Continuous monitoring
+              </span>
+              <p className="muted" style={{ fontSize: 12.5, lineHeight: 1.6, marginBottom: 10 }}>
+                Re-run the audit battery on a schedule — catch regressions before a regulator does.
+              </p>
+              {/* The real schedule form lives on /monitoring — no fake toggle
+                  pretending state that nothing persists (story-9.10). */}
+              <A
+                to="monitoring"
+                className="span-link"
+                style={{ fontSize: 11.5, display: 'inline-block' }}
+              >
+                Set up a schedule →
+              </A>
             </div>
 
             <div>
@@ -262,7 +211,9 @@ export function AgentDetailView({ id, agent, runs: runsProp }: AgentDetailViewPr
                 </p>
               ) : null}
               <div className="codeblock" style={{ position: 'relative', fontSize: 11.5 }}>
-                <pre style={{ fontFamily: 'inherit', margin: 0, whiteSpace: 'pre' }}>{SNIPPET}</pre>
+                <pre style={{ fontFamily: 'inherit', margin: 0, whiteSpace: 'pre' }}>
+                  {snippetFor(a.id)}
+                </pre>
                 <button
                   className="btn small"
                   style={{
