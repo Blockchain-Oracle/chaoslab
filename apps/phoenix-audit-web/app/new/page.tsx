@@ -53,6 +53,10 @@ function NewAuditForm() {
 
   useEffect(() => {
     setHosting((localStorage.getItem('pa_hosting') as 'default' | 'byo' | null) ?? 'default')
+    // The settings page persists this preference — honor it here so the
+    // preference is real, not decorative (story-9.10).
+    const fw = localStorage.getItem('pa_framework')
+    if (fw) setFramework(fw)
   }, [])
 
   const check = probeCheck(url)
