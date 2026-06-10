@@ -1,19 +1,15 @@
-"""Trace-as-assertion integration tests for the Injector orchestrator (story-5.7).
+"""Integration tests: Injector x remote fault delivery (the REAL contract).
 
-Drives ``Injector.run()`` against an in-process scripted target that
-mimics the Tier 1 ADK shape (exposes ``agent`` with callback hooks +
-tools list) but does NOT call Gemini — each invoke synthesizes a TOOL
-or LLM or RETRIEVER span via OTel directly, applies whatever fault
-callback has been installed, and returns an ``AdapterResult`` whose
-``span_ids[0]`` points to the just-finished span.
+The scripted target here simulates the DEPLOYED target faithfully: it accepts
+the fault descriptor from ``AdapterInvocation.fault_config``, registers it on
+the REAL target-side executor (``target_agent.fault_hooks.HookState`` — the
+same code the Cloud Run target runs), drives the installed callbacks inside
+test-traced spans, and reports the genuine 32-hex trace id back in metadata.
 
-This pattern matches PR #42-44's trace-as-assertion approach: we
-verify the Injector emits the right SHAPE of spans (4 fault classes,
-~24 attacks, correct ``phoenix_audit.fault.type`` tagging) without paying
-for real Gemini calls.
-
-Test doubles (``_ScriptedAgent``, ``_ScriptedTarget``) live in tests/
-per §14.
+This is the composition the old suite never exercised: the previous fakes
+hand-fed ``metadata={"trace_id": ...}`` and exposed a ``.agent`` attribute no
+real adapter has — the suite passed while the shipped pipeline recorded every
+probe as a transport error (evidence-chain repair, 2026-06-10).
 """
 
 from __future__ import annotations
@@ -34,8 +30,8 @@ from phoenix_audit_agent.adk_types import (
     LlmRequest,
     ToolContext,
 )
-from phoenix_audit_agent.errors import BaselineAbortError
-from phoenix_audit_agent.injector import Injector, InjectorState
+from phoenix_audit_agent.errors import BaselineAbortError, FaultDeliveryError
+from phoenix_audit_agent.injector.agent import Injector, InjectorState
 from phoenix_audit_agent.injector.target_adapters import (
     AdapterFingerprint,
     AdapterInvocation,
@@ -44,6 +40,7 @@ from phoenix_audit_agent.injector.target_adapters import (
     TargetAdapter,
     TargetSpec,
 )
+from target_agent.fault_hooks import HookState
 
 pytestmark = pytest.mark.integration
 
@@ -65,7 +62,7 @@ def _spec() -> TargetSpec:
 
 
 class _ScriptedRetriever(BaseRetrievalTool):
-    """Minimal retriever for F3 retriever_insert to monkey-patch."""
+    """Minimal retriever for F3 retriever_insert to patch."""
 
     def __init__(self) -> None:
         super().__init__(name="scripted_retriever", description="A scripted retriever")
@@ -74,15 +71,8 @@ class _ScriptedRetriever(BaseRetrievalTool):
         return ["doc-1", "doc-2"]
 
 
-class _ScriptedAgent:
-    """Stand-in for ADK LlmAgent that exposes the callback hooks F1-F4 mutate.
-
-    The faults attach callbacks via:
-    - ``before_tool_callback`` (F1, F4)
-    - ``before_model_callback`` (F2, F3 history_insert)
-    - ``ContextPoisoningFault.install(agent)`` reaches into ``agent.tools``
-      to patch retrievers (F3 retriever_insert).
-    """
+class _ServedAgent:
+    """The agent object living 'inside' the simulated remote target."""
 
     def __init__(self) -> None:
         self.before_tool_callback: Any = None
@@ -90,15 +80,12 @@ class _ScriptedAgent:
         self.tools: list[Any] = [_ScriptedRetriever()]
 
 
-class _ScriptedTarget(TargetAdapter):
-    """In-process adapter that drives the agent's callbacks against a synthetic
-    span on every invoke. ``agent`` is exposed so per-fault dispatch can attach
-    callbacks.
+class _HookedRemoteTarget(TargetAdapter):
+    """Faithful stand-in for the deployed target + ADK adapter pair.
 
-    ``baseline_fail_simulation=True`` makes the FIRST 3 of every 5 invokes
-    fail — produces a 40% baseline pass rate (below the 80% threshold) that
-    is genuinely deterministic. Previously this used % 2 which produced 60%,
-    misleadingly named.
+    invoke() mirrors ADKAdapter's contract: register fault_config on the
+    (real) hook executor, drive the target work inside one traced span,
+    tear down, and report trace_id + fault_delivered in metadata.
     """
 
     def __init__(
@@ -106,14 +93,19 @@ class _ScriptedTarget(TargetAdapter):
         spec: TargetSpec,
         *,
         baseline_fail_simulation: bool = False,
-        drop_span_ids: bool = False,
+        drop_trace_id: bool = False,
+        omit_fault_delivered: bool = False,
         error_on_invoke: str | None = None,
         raise_on_invoke: type[BaseException] | None = None,
     ) -> None:
         super().__init__(spec)
-        self.agent = _ScriptedAgent()
+        self.served_agent = _ServedAgent()
+        self.hook_state = HookState(self.served_agent)
+        self.received_configs: list[dict[str, Any]] = []
+        self.baseline_configs: list[Any] = []
         self._baseline_fail_simulation = baseline_fail_simulation
-        self._drop_span_ids = drop_span_ids
+        self._drop_trace_id = drop_trace_id
+        self._omit_fault_delivered = omit_fault_delivered
         self._error_on_invoke = error_on_invoke
         self._raise_on_invoke = raise_on_invoke
         self._invoke_count = 0
@@ -130,319 +122,261 @@ class _ScriptedTarget(TargetAdapter):
 
     async def invoke(self, invocation: AdapterInvocation) -> AdapterResult:
         self._invoke_count += 1
+        if invocation.fault_config is None:
+            self.baseline_configs.append(None)
         if self._baseline_fail_simulation and self._invoke_count % 5 in (1, 2, 3):
             return AdapterResult(
-                response="",
-                span_ids=[],
-                duration_ms=1.0,
-                error="baseline-fail-simulation",
+                response="", span_ids=[], duration_ms=1.0, error="baseline-fail-simulation"
             )
-        # Error/raise/drop modes apply only AFTER baseline (n=5). Otherwise
-        # the test target would fail baseline and never reach the attack
-        # phase the tests are trying to exercise.
-        in_attack_phase = self._invoke_count > 5
+        in_attack_phase = invocation.fault_config is not None
         if in_attack_phase and self._raise_on_invoke is not None:
             raise self._raise_on_invoke("scripted invoke failure")
-        if in_attack_phase and self._error_on_invoke is not None:
-            return AdapterResult(
-                response="",
-                span_ids=["span-with-error"],
-                duration_ms=1.0,
-                error=self._error_on_invoke,
-                metadata={"trace_id": "trace-test"},
-            )
-        if in_attack_phase and self._drop_span_ids:
-            return AdapterResult(
-                response="ok",
-                span_ids=[],
-                duration_ms=1.0,
-                error=None,
-                metadata={"trace_id": "trace-test"},
-            )
 
-        span_kind, span_id = await self._drive_callbacks(invocation)
+        registration_id: str | None = None
+        if in_attack_phase:
+            self.received_configs.append(invocation.fault_config)
+            registration_id = await self.hook_state.register(invocation.fault_config)
+        try:
+            with _TEST_TRACER.start_as_current_span("phoenix-audit.adapter.test.invoke") as span:
+                trace_id = f"{span.get_span_context().trace_id:032x}"
+                adapter_span_id = f"{span.get_span_context().span_id:016x}"
+                await self._drive_target_work(invocation)
+        finally:
+            if registration_id is not None:
+                await self.hook_state.unregister(registration_id)
+
+        metadata: dict[str, Any] = {"agent_card_name": "scripted-target"}
+        if not self._drop_trace_id:
+            metadata["trace_id"] = trace_id
+        if in_attack_phase and not self._omit_fault_delivered:
+            metadata["fault_delivered"] = True
         return AdapterResult(
             response="ok",
-            span_ids=[span_id],
+            span_ids=[adapter_span_id],
             duration_ms=1.0,
-            error=None,
-            metadata={"trace_id": "trace-test", "span_kind": span_kind},
+            error=self._error_on_invoke if in_attack_phase else None,
+            metadata=metadata,
         )
 
-    async def _drive_callbacks(self, invocation: AdapterInvocation) -> tuple[str, str]:
-        """Fire the installed callbacks once each inside test-traced spans.
+    async def _drive_target_work(self, invocation: AdapterInvocation) -> None:
+        """Simulate the target's request handling under the installed fault."""
+        agent = self.served_agent
+        config = invocation.fault_config or {}
 
-        Returns (span_kind, span_id) for the LAST fault-tagged span that fired.
-        """
-        last_kind = "TOOL"
-        last_span_id = "no-fault-fired"
-
-        if self.agent.before_tool_callback is not None:
+        if agent.before_tool_callback is not None:
             with _TEST_TRACER.start_as_current_span("test.tool") as span:
                 span.set_attribute("openinference.span.kind", "TOOL")
-                from google.adk.tools.function_tool import FunctionTool
 
-                def _t() -> dict[str, Any]:
-                    return {"status": "ok"}
+                class _Tool:
+                    name = "scripted_tool"
 
-                tool = FunctionTool(func=_t)
                 try:
-                    await self.agent.before_tool_callback(
-                        tool=tool, args={}, tool_context=cast(ToolContext, None)
-                    )
+                    await agent.before_tool_callback(_Tool(), {}, cast(ToolContext, None))
                 except RuntimeError as e:
                     span.set_status(trace.Status(trace.StatusCode.ERROR))
                     span.record_exception(e)
-                last_kind = "TOOL"
-                last_span_id = f"{span.get_span_context().span_id:016x}"
 
-        if self.agent.before_model_callback is not None:
+        if agent.before_model_callback is not None:
             with _TEST_TRACER.start_as_current_span("test.llm") as span:
                 span.set_attribute("openinference.span.kind", "LLM")
                 req = LlmRequest(
                     model="gemini-3.5-flash",
                     contents=[Content(role="user", parts=[Part(text=invocation.prompt)])],
                 )
-                await self.agent.before_model_callback(
-                    callback_context=cast(CallbackContext, None), llm_request=req
-                )
-                last_kind = "LLM"
-                last_span_id = f"{span.get_span_context().span_id:016x}"
+                await agent.before_model_callback(cast(CallbackContext, None), req)
 
-        # Only emit a RETRIEVER span if the retriever was patched (F3
-        # retriever_insert). The sentinel attribute is set by
-        # ContextPoisoningFault.install().
-        if (
-            self.agent.tools
-            and isinstance((tool := self.agent.tools[0]), BaseRetrievalTool)
-            and getattr(tool, "_phoenix_audit_f3_patched", False)
-        ):
+        if config.get("mode") == "retriever_insert":
             with _TEST_TRACER.start_as_current_span("test.retriever") as span:
                 span.set_attribute("openinference.span.kind", "RETRIEVER")
-                await tool.run_async(args={}, tool_context=cast(ToolContext, None))
-                last_kind = "RETRIEVER"
-                last_span_id = f"{span.get_span_context().span_id:016x}"
-
-        return last_kind, last_span_id
+                await agent.tools[0].run_async(args={}, tool_context=cast(ToolContext, None))
 
 
 def _fault_tagged_spans(exporter: InMemorySpanExporter) -> list[Any]:
     return [
         s
         for s in exporter.get_finished_spans()
-        if s.attributes is not None and s.attributes.get("phoenix_audit.fault.type")
+        if s.attributes and "phoenix_audit.fault.type" in s.attributes
     ]
 
 
-# ---------------------------------------------------------------------------
-# Happy path: 24 attacks, 4 fault classes, baseline_passed.
-# ---------------------------------------------------------------------------
+def _injector(target: _HookedRemoteTarget, **kwargs: Any) -> Injector:
+    return Injector(
+        target=target,
+        state=InjectorState(),
+        prompt="Please look up order ORD-1001.",
+        **kwargs,
+    )
 
 
-async def test_full_run_emits_24_annotated_spans_across_4_fault_classes() -> None:
-    """BDD lines 52-58: the canonical 5x5-cell-style demo grid materializes."""
-    target = _ScriptedTarget(_spec())
-    state = InjectorState()
-    injector = Injector(target=target, state=state, prompt="test-prompt", runs_per_fault=6)
-    await injector.run()
-
-    fault_spans = _fault_tagged_spans(_TEST_EXPORTER)
-    assert len(fault_spans) >= 24, f"expected ≥24 fault-tagged spans, got {len(fault_spans)}"
-
-    fault_types = {s.attributes["phoenix_audit.fault.type"] for s in fault_spans}
-    assert fault_types == {
+async def test_full_run_emits_24_annotated_spans_across_4_fault_classes(
+    exporter: InMemorySpanExporter,
+) -> None:
+    target = _HookedRemoteTarget(_spec())
+    state = await _injector(target).run()
+    assert state.total_attacks == 24
+    tagged = _fault_tagged_spans(exporter)
+    assert len(tagged) >= 24
+    kinds = {s.attributes["phoenix_audit.fault.type"] for s in tagged}
+    assert kinds == {
         "malformed_tool_output",
         "prompt_injection",
         "context_poisoning",
         "latency_spike",
     }
 
-    breakdown = state.fault_breakdown()
-    for fc in fault_types:
-        assert breakdown.get(fc, 0) >= 4, (
-            f"expected ≥4 attacks for {fc}, got {breakdown.get(fc, 0)}"
-        )
 
-    assert state.baseline_passed is True
-    assert state.total_attacks >= 24
+async def test_every_attack_delivered_exactly_one_descriptor() -> None:
+    target = _HookedRemoteTarget(_spec())
+    await _injector(target).run()
+    assert len(target.received_configs) == 24
+    assert all("kind" in c for c in target.received_configs)
+    # Baseline invokes (n=5) carry NO fault_config — never attack the
+    # steady-state measurement.
+    assert len(target.baseline_configs) == 5
+
+
+async def test_attack_results_use_32hex_trace_indexed_span_ids() -> None:
+    target = _HookedRemoteTarget(_spec())
+    state = await _injector(target).run()
+    for result in state.attack_results:
+        assert result.status == "ok", result
+        assert len(result.span_id) == 32
+        assert result.span_id == result.trace_id
+        assert int(result.span_id, 16) != 0
+        assert result.span_attributes["phoenix_audit.adapter_span_id"]
+
+
+async def test_f2_and_f3_results_carry_the_attack_payload() -> None:
+    target = _HookedRemoteTarget(_spec())
+    state = await _injector(target).run()
+    payload_classes = {"prompt_injection", "context_poisoning"}
+    for result in state.attack_results:
+        if result.fault_class in payload_classes:
+            assert result.attack_payload, result.fault_class
+        else:
+            assert result.attack_payload is None
 
 
 async def test_broken_baseline_aborts_before_any_attack() -> None:
-    """BDD lines 60-63: degraded target → BaselineAbortError, zero attack spans."""
-    target = _ScriptedTarget(_spec(), baseline_fail_simulation=True)
-    state = InjectorState()
-    injector = Injector(target=target, state=state, prompt="test-prompt", runs_per_fault=6)
+    target = _HookedRemoteTarget(_spec(), baseline_fail_simulation=True)
+    injector = _injector(target)
     with pytest.raises(BaselineAbortError):
         await injector.run()
-    assert _fault_tagged_spans(_TEST_EXPORTER) == []
-    assert state.total_attacks == 0
-    assert state.baseline_passed is False
-
-
-async def test_attack_results_carry_non_empty_span_id_and_fault_class() -> None:
-    """BDD lines 65-67: every AttackResult is fully populated."""
-    target = _ScriptedTarget(_spec())
-    state = InjectorState()
-    await Injector(target=target, state=state, prompt="test-prompt", runs_per_fault=6).run()
-
-    assert state.attack_results, "expected at least one AttackResult"
-    for result in state.attack_results:
-        assert result.span_id
-        assert result.span_id != "<missing>"
-        assert result.fault_class in {
-            "malformed_tool_output",
-            "prompt_injection",
-            "context_poisoning",
-            "latency_spike",
-        }
+    assert injector.state.total_attacks == 0
+    assert target.received_configs == []
 
 
 async def test_runs_per_fault_configures_attack_count_per_class() -> None:
-    """runs_per_fault=3 → exactly 3 attacks per fault class = 12 total."""
-    target = _ScriptedTarget(_spec())
-    state = InjectorState()
-    await Injector(target=target, state=state, prompt="test-prompt", runs_per_fault=3).run()
-
-    breakdown = state.fault_breakdown()
-    for fc in (
-        "malformed_tool_output",
-        "prompt_injection",
-        "context_poisoning",
-        "latency_spike",
-    ):
-        assert breakdown.get(fc, 0) >= 3
-    assert state.total_attacks >= 12
+    target = _HookedRemoteTarget(_spec())
+    state = await _injector(target, runs_per_fault=3).run()
+    assert state.total_attacks == 12
+    assert all(n == 3 for n in state.fault_breakdown().values())
 
 
-async def test_per_attack_uninstall_isolates_consecutive_attacks() -> None:
-    """Each attack must clean up before the next runs — otherwise the F3
-    retriever monkey-patch persists into F4's run and the trace becomes
-    confusing (story-5.7 line 318 "_install / _uninstall symmetry")."""
-    target = _ScriptedTarget(_spec())
-    state = InjectorState()
-    await Injector(target=target, state=state, prompt="test-prompt", runs_per_fault=6).run()
-
-    # After all attacks: callbacks should be uninstalled.
-    assert target.agent.before_tool_callback is None, (
-        "F1/F4 left a before_tool_callback installed — uninstall is broken"
-    )
-    assert target.agent.before_model_callback is None, (
-        "F2/F3 left a before_model_callback installed — uninstall is broken"
-    )
+async def test_per_attack_teardown_leaves_target_clean() -> None:
+    target = _HookedRemoteTarget(_spec())
+    await _injector(target).run()
+    assert target.served_agent.before_tool_callback is None
+    assert target.served_agent.before_model_callback is None
+    docs = await target.served_agent.tools[0].run_async(args={}, tool_context=None)
+    assert docs == ["doc-1", "doc-2"], "retriever patch must be removed after the run"
 
 
 async def test_disconnect_called_on_happy_path() -> None:
-    """Resource lifecycle — apply S5.6 PR #44 BLOCKING-1 fix at the Injector level too."""
-    target = _ScriptedTarget(_spec())
-    state = InjectorState()
-    await Injector(target=target, state=state, prompt="test-prompt", runs_per_fault=2).run()
+    target = _HookedRemoteTarget(_spec())
+    await _injector(target).run()
     assert target.disconnect_count >= 1
 
 
 async def test_disconnect_called_on_baseline_abort() -> None:
-    """Even when baseline aborts, the adapter must be released."""
-    target = _ScriptedTarget(_spec(), baseline_fail_simulation=True)
-    state = InjectorState()
-    injector = Injector(target=target, state=state, prompt="test-prompt", runs_per_fault=2)
+    target = _HookedRemoteTarget(_spec(), baseline_fail_simulation=True)
     with pytest.raises(BaselineAbortError):
-        await injector.run()
+        await _injector(target).run()
+    # BaselineCheck owns its own lifecycle; the outer finally never ran a
+    # connect, so we only require no leaked connection state.
     assert target.disconnect_count >= 1
 
 
-# Round-2 regression tests for the 4-reviewer pass on PR #45.
-
-
 async def test_baseline_abort_preserves_measured_pass_rate_on_state() -> None:
-    """Regulator-facing data integrity: when baseline aborts, the state must
-    carry the actual measured pass_rate, not the default 0.0. Catches the
-    silent-failure-hunter HIGH-4 regression where _run_baseline would lose
-    the measurement on the abort path."""
-    target = _ScriptedTarget(_spec(), baseline_fail_simulation=True)
-    state = InjectorState()
-    injector = Injector(target=target, state=state, prompt="test-prompt", runs_per_fault=2)
+    target = _HookedRemoteTarget(_spec(), baseline_fail_simulation=True)
+    injector = _injector(target)
     with pytest.raises(BaselineAbortError):
         await injector.run()
-    assert state.baseline_pass_rate > 0.0
-    assert state.baseline_pass_rate < 0.8
-    assert state.baseline_passed is False
+    assert injector.state.baseline_passed is False
+    assert injector.state.baseline_pass_rate == pytest.approx(0.4)
 
 
 async def test_attack_continues_when_one_invoke_raises() -> None:
-    """One bad invoke must NOT kill the 24-attack audit (silent-failure-hunter
-    BLOCKING-2). The exception surfaces as an error-status AttackResult."""
-    target = _ScriptedTarget(_spec(), raise_on_invoke=RuntimeError)
-    state = InjectorState()
-    injector = Injector(target=target, state=state, prompt="test-prompt", runs_per_fault=2)
-    await injector.run()
-    # All 8 attacks (4 classes x 2 runs) attempted; each raised → error result
-    assert state.total_attacks == 8
-    for result in state.attack_results:
-        assert result.status == "error"
-        assert result.span_id.startswith("error:RuntimeError")
+    target = _HookedRemoteTarget(_spec(), raise_on_invoke=ValueError)
+    state = await _injector(target).run()
+    assert state.total_attacks == 24
+    assert all(r.status == "error" for r in state.attack_results)
 
 
-async def test_attack_with_dropped_span_id_records_error_result_not_silent_drop() -> None:
-    """silent-failure-hunter BLOCKING-1: adapter that doesn't populate span_ids
-    must produce an error-status AttackResult, NOT a silent skip."""
-    target = _ScriptedTarget(_spec(), drop_span_ids=True)
-    state = InjectorState()
-    injector = Injector(target=target, state=state, prompt="test-prompt", runs_per_fault=2)
-    await injector.run()
-    # All 8 attempts recorded — not silently dropped
-    assert state.total_attacks == 8
-    for result in state.attack_results:
-        assert result.status == "error"
-        assert result.span_id == "missing:no-span-emitted"
-        assert result.span_attributes.get("phoenix_audit.attack.span_missing") is True
+async def test_fault_delivery_error_is_contained_per_attack() -> None:
+    target = _HookedRemoteTarget(_spec(), raise_on_invoke=FaultDeliveryError)
+    state = await _injector(target).run()
+    assert state.total_attacks == 24
+    assert all(r.status == "error" for r in state.attack_results)
+    assert all(
+        r.span_attributes.get("phoenix_audit.attack.exception") == "FaultDeliveryError"
+        for r in state.attack_results
+    )
+
+
+async def test_dropped_trace_id_records_error_result_not_silent_drop() -> None:
+    target = _HookedRemoteTarget(_spec(), drop_trace_id=True)
+    state = await _injector(target).run()
+    assert state.total_attacks == 24
+    for r in state.attack_results:
+        assert r.status == "error"
+        assert r.span_id == "missing:no-trace-emitted"
+
+
+async def test_missing_fault_delivered_marker_records_error_result() -> None:
+    """An adapter that ignored fault_config must not let a healthy response
+    score the attack — the no-fault invocation would inflate the pass rate."""
+    target = _HookedRemoteTarget(_spec(), omit_fault_delivered=True)
+    state = await _injector(target).run()
+    assert state.total_attacks == 24
+    for r in state.attack_results:
+        assert r.status == "error"
+        assert r.span_attributes["phoenix_audit.attack.fault_delivered"] is False
 
 
 async def test_attack_with_timeout_error_classifies_as_timeout_status() -> None:
-    """Status classification: response.error containing 'timeout' substring
-    classifies as 'timeout' rather than 'error'."""
-    target = _ScriptedTarget(_spec(), error_on_invoke="ReadTimeout: target slow")
-    state = InjectorState()
-    injector = Injector(target=target, state=state, prompt="test-prompt", runs_per_fault=2)
-    await injector.run()
-    for result in state.attack_results:
-        assert result.status == "timeout"
+    target = _HookedRemoteTarget(_spec(), error_on_invoke="upstream timeout after 5000ms")
+    state = await _injector(target).run()
+    assert all(r.status == "timeout" for r in state.attack_results)
 
 
 async def test_attack_with_generic_error_classifies_as_error_status() -> None:
-    """Status classification: response.error without 'timeout' substring
-    classifies as 'error'."""
-    target = _ScriptedTarget(_spec(), error_on_invoke="tool produced invalid JSON")
-    state = InjectorState()
-    injector = Injector(target=target, state=state, prompt="test-prompt", runs_per_fault=2)
-    await injector.run()
-    for result in state.attack_results:
-        assert result.status == "error"
+    target = _HookedRemoteTarget(_spec(), error_on_invoke="target exploded")
+    state = await _injector(target).run()
+    assert all(r.status == "error" for r in state.attack_results)
 
 
 async def test_disconnect_called_exactly_once_per_run() -> None:
-    """Injector connects once at attack-phase entry and disconnects once at
-    finally. BaselineCheck owns its own lifecycle separately."""
-    target = _ScriptedTarget(_spec())
-    state = InjectorState()
-    await Injector(target=target, state=state, prompt="test-prompt", runs_per_fault=2).run()
-    # Two disconnects total: one from BaselineCheck, one from Injector
+    target = _HookedRemoteTarget(_spec())
+    await _injector(target).run()
+    # one for BaselineCheck's own lifecycle + one for the attack phase
     assert target.disconnect_count == 2
 
 
 async def test_build_plan_emits_correct_ordering_and_indices() -> None:
-    """Direct test of _build_plan: 4 classes x runs_per_fault, ordered
-    F1→F2→F3→F4, run_idx strictly increments 0..N-1, variant_idx cycles."""
-    target = _ScriptedTarget(_spec())
-    state = InjectorState()
-    injector = Injector(target=target, state=state, prompt="test-prompt", runs_per_fault=3)
+    target = _HookedRemoteTarget(_spec())
+    injector = _injector(target, runs_per_fault=2)
     plan = injector._build_plan()
-    assert len(plan) == 12
-    expected_classes = (
-        ["malformed_tool_output"] * 3
-        + ["prompt_injection"] * 3
-        + ["context_poisoning"] * 3
-        + ["latency_spike"] * 3
-    )
+    assert [r.run_idx for r in plan] == list(range(8))
+    expected_classes = [
+        "malformed_tool_output",
+        "malformed_tool_output",
+        "prompt_injection",
+        "prompt_injection",
+        "context_poisoning",
+        "context_poisoning",
+        "latency_spike",
+        "latency_spike",
+    ]
     for i, run in enumerate(plan):
-        assert run.run_idx == i
         assert run.fault_class == expected_classes[i]
-        assert run.variant_idx == i % 3

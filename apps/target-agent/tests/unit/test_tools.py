@@ -152,4 +152,4 @@ def test_root_agent_metadata():
 
     assert root_agent.name == "target_customer_support"
     assert root_agent.model == "gemini-3.5-flash"
-    assert len(root_agent.tools) == 3
+    assert len(root_agent.tools) == 4  # lookup_order, refund, escalate, search_policy_kb

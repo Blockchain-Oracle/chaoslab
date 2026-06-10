@@ -211,6 +211,9 @@ async def drive_audit(
         # module attributes read at run start — the documented monkeypatch seams
         apply_rubric=apply_rubric,
         span_honored=span_honored,
+        # The rubrics receive the auditor-known original prompt directly —
+        # it never round-trips through span attributes.
+        prompt=prompt,
     )
     failures, passed, failed, errored, transport_failed = (
         tally.failures,

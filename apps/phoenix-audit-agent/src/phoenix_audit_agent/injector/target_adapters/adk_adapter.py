@@ -42,7 +42,11 @@ from a2a.client.errors import A2AClientError, A2AClientHTTPError, A2AClientJSONE
 from a2a.types import Message, Role, Task, TextPart, TransportProtocol
 from opentelemetry import trace
 
-from phoenix_audit_agent.errors import AdapterConnectionError, AdapterDiscoveryError
+from phoenix_audit_agent.errors import (
+    AdapterConnectionError,
+    AdapterDiscoveryError,
+    FaultDeliveryError,
+)
 from phoenix_audit_agent.injector.target_adapters.base import (
     AdapterFingerprint,
     AdapterInvocation,
@@ -53,8 +57,22 @@ from phoenix_audit_agent.injector.target_adapters.base import (
 )
 
 _WELL_KNOWN_AGENT_CARD = "/.well-known/agent-card.json"
+_HOOK_PATH = "/hooks/adk"
 _HTTP_NOT_FOUND = 404
 _TRACER = trace.get_tracer(__name__)
+
+
+async def _inject_traceparent(request: httpx.Request) -> None:
+    """httpx request hook: propagate the CURRENT span context as W3C headers.
+
+    The adapter's invoke span becomes the parent of the target's server-side
+    spans (the target extracts this via TraceContextMiddleware), so both
+    processes share one 32-hex trace_id — the id the Judge later uses to
+    fetch the target's evidence spans from Phoenix.
+    """
+    from opentelemetry.propagate import inject
+
+    inject(request.headers)
 
 
 def _bearer_headers(spec: TargetSpec) -> dict[str, str] | None:
@@ -123,7 +141,11 @@ class ADKAdapter(TargetAdapter):
             return
         base = str(self.spec.url).rstrip("/")
         headers = _bearer_headers(self.spec) or {}
-        self._http = httpx.AsyncClient(timeout=self.spec.timeout_s, headers=headers)
+        self._http = httpx.AsyncClient(
+            timeout=self.spec.timeout_s,
+            headers=headers,
+            event_hooks={"request": [_inject_traceparent]},
+        )
         resolver = A2ACardResolver(
             httpx_client=self._http,
             base_url=base,
@@ -172,43 +194,86 @@ class ADKAdapter(TargetAdapter):
 
         start = time.perf_counter()
         span_ids: list[str] = []
+        trace_id: str | None = None
+        fault_delivered: bool | None = None
+
+        from phoenix_audit_agent.injector.target_adapters._webhook_fault_proxy import (
+            webhook_fault_session,
+        )
+
+        base = str(self.spec.url).rstrip("/")
+        # webhook_fault_session filters by kind for Tier-2 adapters that own
+        # ONE fault surface each; this adapter routes every kind through
+        # /hooks/adk, so passing the config's own kind makes the filter a
+        # deliberate no-op.
+        fault_kind = (invocation.fault_config or {}).get("kind", "")
 
         with _TRACER.start_as_current_span("phoenix-audit.adapter.adk.invoke") as span:
             span_ids.append(format(span.get_span_context().span_id, "016x"))
+            span_ctx = span.get_span_context()
+            if span_ctx.is_valid:
+                trace_id = format(span_ctx.trace_id, "032x")
             message = create_text_message_object(content=invocation.prompt)
             if invocation.session_id is not None:
                 message.context_id = invocation.session_id
-            try:
-                # With streaming=False the iterator yields ONE terminal event;
-                # we still iterate to drain it but only keep the last emitted
-                # text (defends against a future SDK quirk emitting partials).
-                response_text = ""
-                async for event in self._client.send_message(message):
-                    response_text = _text_from_event(event)
-            except A2AClientError as e:
-                # round-2: record_and_raise sets StatusCode.ERROR on the span
-                # so Phoenix doesn't show "OK" with a recorded exception inside.
-                from phoenix_audit_agent.injector.target_adapters._common import record_and_raise
 
-                record_and_raise(span, e)
-                raise AdapterConnectionError(
-                    f"A2A protocol error from {self.spec.url}: {type(e).__name__}"
-                ) from e
-            except httpx.HTTPError as e:
-                from phoenix_audit_agent.injector.target_adapters._common import record_and_raise
+            async with webhook_fault_session(
+                invocation.fault_config,
+                http=self._http,
+                target_url=base,
+                hook_path=_HOOK_PATH,
+                fault_kind=fault_kind,
+            ) as registration_id:
+                if invocation.fault_config is not None:
+                    if registration_id is None:
+                        # Invoking anyway would record a healthy, fault-free
+                        # response as if the attack ran — silently inflating
+                        # the pass rate in a signed audit. Refuse instead.
+                        raise FaultDeliveryError(
+                            f"target at {base} did not accept the fault registration "
+                            f"({_HOOK_PATH} unavailable or refused) — probe cannot run"
+                        )
+                    fault_delivered = True
+                try:
+                    # With streaming=False the iterator yields ONE terminal event;
+                    # we still iterate to drain it but only keep the last emitted
+                    # text (defends against a future SDK quirk emitting partials).
+                    response_text = ""
+                    async for event in self._client.send_message(message):
+                        response_text = _text_from_event(event)
+                except A2AClientError as e:
+                    # round-2: record_and_raise sets StatusCode.ERROR on the span
+                    # so Phoenix doesn't show "OK" with a recorded exception inside.
+                    from phoenix_audit_agent.injector.target_adapters._common import (
+                        record_and_raise,
+                    )
 
-                record_and_raise(span, e)
-                raise AdapterConnectionError(
-                    f"transport error to {self.spec.url}: {type(e).__name__}"
-                ) from e
+                    record_and_raise(span, e)
+                    raise AdapterConnectionError(
+                        f"A2A protocol error from {self.spec.url}: {type(e).__name__}"
+                    ) from e
+                except httpx.HTTPError as e:
+                    from phoenix_audit_agent.injector.target_adapters._common import (
+                        record_and_raise,
+                    )
+
+                    record_and_raise(span, e)
+                    raise AdapterConnectionError(
+                        f"transport error to {self.spec.url}: {type(e).__name__}"
+                    ) from e
 
         duration_ms = (time.perf_counter() - start) * 1000.0
+        metadata: dict[str, Any] = {"agent_card_name": (self._agent_card or {}).get("name")}
+        if trace_id is not None:
+            metadata["trace_id"] = trace_id
+        if fault_delivered is not None:
+            metadata["fault_delivered"] = fault_delivered
         return AdapterResult(
             response=response_text,
             span_ids=span_ids,
             duration_ms=duration_ms,
             error=None,
-            metadata={"agent_card_name": (self._agent_card or {}).get("name")},
+            metadata=metadata,
         )
 
     async def fingerprint(self) -> AdapterFingerprint:

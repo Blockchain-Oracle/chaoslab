@@ -1,106 +1,59 @@
-"""span_honored — three-state header-convention check.
+"""span_honored — header-convention check over the PREFETCHED trace.
 
-The locked warning's {N} may only count spans actually read and found
-lacking; unreadable spans surface as their own disclosure state, and
-programmer errors must propagate (a broad catch here once turned a missing
-client method into "every target is compliant").
+The locked warning's {N} may only count root spans actually read and found
+lacking; a trace without a readable root surfaces as its own "unreadable"
+disclosure state. Fetch-layer failures are mapped to "unreadable" by the
+caller (judge_phase) since the single-fetch refactor — covered in
+tests/unit/test_judge_phase_evidence.py.
 """
 
 from __future__ import annotations
 
 from typing import Any
 
-import httpx
-import pytest
-
+from phoenix_audit_agent.phoenix_tools.span_fetch import FetchedSpan
 from phoenix_audit_agent.reporter.honored import span_honored
 
 SPAN_ID = "0123456789abcdef"
 TRACE_ID = SPAN_ID * 2
-PROJECT = "target-agent"
 
 
-def _v1_span(attributes: dict[str, Any]) -> dict[str, Any]:
-    return {
-        "name": "agent.invoke",
-        "context": {"trace_id": TRACE_ID, "span_id": SPAN_ID},
-        "span_kind": "AGENT",
-        "start_time": "2026-06-10T00:00:00+00:00",
-        "end_time": "2026-06-10T00:00:01+00:00",
-        "status_code": "OK",
-        "attributes": attributes,
-    }
+def _root(attributes: dict[str, Any]) -> FetchedSpan:
+    return FetchedSpan(span_id=SPAN_ID, trace_id=TRACE_ID, parent_id="", attributes=attributes)
 
 
-class _Phoenix:
-    def __init__(self, spans: list[dict[str, Any]] | Exception) -> None:
-        outer = self
-
-        class _Spans:
-            async def get_spans(self, **kwargs: Any) -> list[dict[str, Any]]:
-                if isinstance(outer._spans, Exception):
-                    raise outer._spans
-                return outer._spans
-
-        self._spans = spans
-        self.spans = _Spans()
-
-
-async def _check(phoenix: _Phoenix) -> str:
-    return await span_honored(
-        phoenix,
-        span_id=SPAN_ID,
-        trace_id=TRACE_ID,
-        project_identifier=PROJECT,
-        run_id="run_test12345",
+def _child(attributes: dict[str, Any]) -> FetchedSpan:
+    return FetchedSpan(
+        span_id="ffffeeeeddddcccc", trace_id=TRACE_ID, parent_id=SPAN_ID, attributes=attributes
     )
 
 
-@pytest.mark.asyncio
-async def test_attribute_true_is_honored() -> None:
-    phoenix = _Phoenix([_v1_span({"phoenix_audit.honored": True})])
-    assert await _check(phoenix) == "honored"
+def _check(spans: list[FetchedSpan]) -> str:
+    return span_honored(spans, trace_id=TRACE_ID, run_id="run_test12345")
 
 
-@pytest.mark.asyncio
-async def test_attribute_absent_is_missing() -> None:
-    phoenix = _Phoenix([_v1_span({})])
-    assert await _check(phoenix) == "missing"
+def test_attribute_true_on_root_is_honored() -> None:
+    assert _check([_root({"phoenix_audit.honored": True})]) == "honored"
 
 
-@pytest.mark.asyncio
-async def test_attribute_string_true_is_missing_not_honored() -> None:
+def test_attribute_absent_is_missing() -> None:
+    assert _check([_root({})]) == "missing"
+
+
+def test_attribute_string_true_is_missing_not_honored() -> None:
     # Only boolean true counts — a string "true" is not the convention.
-    phoenix = _Phoenix([_v1_span({"phoenix_audit.honored": "true"})])
-    assert await _check(phoenix) == "missing"
+    assert _check([_root({"phoenix_audit.honored": "true"})]) == "missing"
 
 
-@pytest.mark.asyncio
-async def test_span_not_in_trace_is_unreadable() -> None:
-    phoenix = _Phoenix([])  # trace exists but the span is gone
-    assert await _check(phoenix) == "unreadable"
+def test_attribute_on_child_only_is_missing() -> None:
+    # The convention is response-span (root) level; a child carrying it does
+    # not prove the response honored the header.
+    assert _check([_root({}), _child({"phoenix_audit.honored": True})]) == "missing"
 
 
-@pytest.mark.asyncio
-async def test_network_failure_is_unreadable() -> None:
-    phoenix = _Phoenix(httpx.ConnectError("phoenix unreachable"))
-    assert await _check(phoenix) == "unreadable"
+def test_empty_trace_is_unreadable() -> None:
+    assert _check([]) == "unreadable"
 
 
-@pytest.mark.asyncio
-async def test_programmer_error_propagates() -> None:
-    """AttributeError (e.g. a renamed client method) must crash the audit,
-    never silently mark the target compliant."""
-
-    class _BrokenPhoenix:
-        class spans:  # noqa: N801 — namespace stand-in
-            pass  # no get_spans at all
-
-    with pytest.raises(AttributeError):
-        await span_honored(
-            _BrokenPhoenix(),
-            span_id=SPAN_ID,
-            trace_id=TRACE_ID,
-            project_identifier=PROJECT,
-            run_id="run_test12345",
-        )
+def test_trace_without_root_span_is_unreadable() -> None:
+    assert _check([_child({"phoenix_audit.honored": True})]) == "unreadable"
