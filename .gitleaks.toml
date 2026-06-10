@@ -15,3 +15,11 @@ paths = [
   '''^docs/''',
   '''(uv\.lock|pnpm-lock\.yaml|package-lock\.json)$''',
 ]
+
+# Resend API keys (re_ prefix) — the default ruleset missed one in a notes
+# file on 2026-06-10; never again.
+[[rules]]
+id = "resend-api-key"
+description = "Resend API key"
+regex = '''re_[A-Za-z0-9]{8}_[A-Za-z0-9]{20,}'''
+keywords = ["re_"]
