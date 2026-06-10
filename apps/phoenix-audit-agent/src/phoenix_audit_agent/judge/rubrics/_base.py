@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from typing import TYPE_CHECKING, Any, Literal, Protocol, assert_never, runtime_checkable
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
@@ -131,12 +132,38 @@ class RubricInput(BaseModel):
 
     def require_attr_from_trace(self, key: str) -> str:
         """Non-empty ``key`` from the FIRST span carrying it (root searched
-        first — its values are the response-level evidence) or raise."""
+        first — its values are the response-level evidence) or raise.
+
+        OpenInference flattens structured attributes (``llm.tools`` arrives
+        as ``llm.tools.{i}.tool.json_schema``, ``llm.output_messages`` as
+        ``llm.output_messages.{i}.message...``) — when the whole key is
+        absent, reassemble the flattened family from the first span carrying
+        it (same precedent as ``collect_retrieval_documents``)."""
         ordered = sorted(self.spans, key=lambda s: not getattr(s, "is_root", False))
         for span in ordered:
             value = span.attributes.get(key)
             if value is not None and not (isinstance(value, str) and not value):
                 return str(value)
+        prefix = key + "."
+        index_pos = len(key.split("."))
+
+        def _family_index(k: str) -> tuple[int, str]:
+            # llm.tools.<i>.tool.json_schema — NUMERIC order, not string order
+            # (a lexicographic sort puts index 10 before 2; same fix as
+            # collect_retrieval_documents).
+            try:
+                return (int(k.split(".")[index_pos]), k)
+            except (IndexError, ValueError):
+                return (1 << 30, k)
+
+        for span in ordered:
+            family = {
+                k: v
+                for k, v in sorted(span.attributes.items(), key=lambda kv: _family_index(kv[0]))
+                if k.startswith(prefix) and v is not None and v != ""
+            }
+            if family:
+                return json.dumps(family, default=str)
         raise RubricInputMissingError(self.span_id, self.fault_class, key)
 
     def collect_retrieval_documents(self) -> str:

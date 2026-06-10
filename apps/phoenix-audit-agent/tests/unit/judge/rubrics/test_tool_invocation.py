@@ -35,6 +35,40 @@ def _full_attrs() -> dict[str, Any]:
     }
 
 
+async def test_flattened_llm_tools_and_output_messages_are_reassembled(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Real openinference google-adk spans never carry a whole `llm.tools`
+    key — they flatten to `llm.tools.{i}.tool.json_schema` (and likewise
+    `llm.output_messages.{i}...`). The rubric must reassemble the family
+    instead of erroring every probe (IF-16 live finding)."""
+    captured: list[dict[str, Any]] = []
+    monkeypatch.setattr(f1, "_EVALUATOR", stub_evaluator(StubVerdict("correct"), captured=captured))
+    llm_span = child(
+        {
+            # 11 tools: index 10 must come AFTER 2 (numeric, not string, order)
+            "llm.tools.0.tool.json_schema": '{"description":"Look up an order"}',
+            "llm.tools.2.tool.json_schema": '{"description":"tool-two"}',
+            "llm.tools.10.tool.json_schema": '{"description":"tool-ten"}',
+            "llm.tools.1.tool.json_schema": '{"description":"Issue a refund"}',
+            "llm.output_messages.0.message.role": "model",
+            "llm.output_messages.0.message.contents.0.message_content.text": "order not found",
+        }
+    )
+    await tool_invocation_rubric(
+        make_input(
+            "malformed_tool_output",
+            FakeSpan(attributes={"input.value": "lookup order"}),
+            llm_span,
+        )
+    )
+    tools = captured[0]["available_tools"]
+    assert "Look up an order" in tools
+    assert "Issue a refund" in tools
+    assert tools.index("tool-two") < tools.index("tool-ten")
+    assert "order not found" in captured[0]["tool_selection"]
+
+
 async def test_correct_verdict_passes(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(f1, "_EVALUATOR", stub_evaluator(StubVerdict("correct", "agent recovered")))
     result = await tool_invocation_rubric(_inp(FakeSpan(attributes=_full_attrs())))
