@@ -46,7 +46,9 @@ async def hallucination_rubric(inp: RubricInput) -> EvalScore:
         # Retrieval evidence lives on the target's RETRIEVER spans (whole or
         # OpenInference-flattened); history_insert probes carry the poison in
         # the input instead, so fall back to the auditor-known payload.
-        "reference": _reference(inp),
+        # Field name `context` is the evaluator's input schema — `reference`
+        # raises "Path not found: context" (IF-16 live finding).
+        "context": _reference(inp),
     }
     verdict = first_verdict(
         await _evaluator().async_evaluate(payload),

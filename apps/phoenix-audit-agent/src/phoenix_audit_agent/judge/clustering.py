@@ -128,7 +128,10 @@ async def _call_clusterer(prompt: str) -> str:
     # the retry loop doesn't waste tokens re-prompting an exhausted quota.
     llm = get_judge_llm()
     try:
-        response = await llm.async_generate_text(prompt=prompt, temperature=0.1)
+        # Sampling params must ride config= — the phoenix-evals google adapter
+        # forwards **kwargs verbatim to generate_content, which rejects a bare
+        # temperature= kwarg (TypeError on current google-genai).
+        response = await llm.async_generate_text(prompt=prompt, config={"temperature": 0.1})
     except Exception as exc:
         if _is_retriable_decode_failure(exc):
             raise
