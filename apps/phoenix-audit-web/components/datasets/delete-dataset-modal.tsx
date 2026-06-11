@@ -34,7 +34,10 @@ export function DeleteDatasetModal({ row, onCancel, onDeleted }: Props) {
       return
     }
     if (result.kind === 'not_found') {
-      // Already gone — treat as success so the UI clears.
+      // Already gone — treat as success so the UI clears. Leave a
+      // forensic trail in case the slug came from stale optimistic
+      // state pointing at a dataset that never existed.
+      console.warn(`[delete] dataset ${row.dataset_id} 404 — treated as success`)
       onDeleted(row.dataset_id)
       return
     }

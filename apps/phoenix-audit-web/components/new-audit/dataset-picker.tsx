@@ -178,9 +178,12 @@ export function DatasetPicker({ value, onChange, initiallyOpen }: PickerProps) {
       try {
         const res = await fetch('/api/agent/datasets')
         if (!res.ok) throw new Error(`agent API ${res.status} on /datasets`)
-        const body = (await res.json()) as { datasets: DatasetListRowDto[] }
+        const body = (await res.json()) as { datasets: unknown }
         if (cancelled) return
-        setRows(body.datasets ?? [])
+        if (!Array.isArray(body.datasets)) {
+          throw new Error('agent API returned non-array datasets — contract drift')
+        }
+        setRows(body.datasets as DatasetListRowDto[])
         setLoaded(true)
       } catch (err) {
         if (cancelled) return

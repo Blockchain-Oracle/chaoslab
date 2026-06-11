@@ -58,6 +58,18 @@ describe('groupDatasetsByKind', () => {
     expect(sections.find((s) => s.kind === 'uploaded')?.rows).toEqual([])
   })
 
+  it('preserves caller-supplied ordering so optimistic-insert lands newest-first', () => {
+    // The listing prepends `optimistic` to `rows` before grouping so a
+    // just-uploaded dataset appears at the TOP of its section, not at the
+    // bottom — that's the affordance the upload card's filed-flash
+    // animation lands on. Pinning this in the helper contract.
+    const olderUpload = { ...uploaded, dataset_id: 'ds_old', name: 'older' }
+    const newerUpload = { ...uploaded, dataset_id: 'ds_new', name: 'newer' }
+    const sections = groupDatasetsByKind([newerUpload, olderUpload])
+    const uploadedSection = sections.find((s) => s.kind === 'uploaded')
+    expect(uploadedSection?.rows.map((r) => r.dataset_id)).toEqual(['ds_new', 'ds_old'])
+  })
+
   it('each section carries an empty-state caption per the brief', () => {
     const sections = groupDatasetsByKind([])
     const captions = Object.fromEntries(sections.map((s) => [s.kind, s.emptyCaption]))

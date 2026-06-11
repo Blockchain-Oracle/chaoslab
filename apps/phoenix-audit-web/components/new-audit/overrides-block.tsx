@@ -80,12 +80,16 @@ export function OverridesBlock(props: OverridesBlockProps) {
             </div>
           </Field>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
-            <Field label="Cap number of tests">
+            <Field
+              label="Cap number of tests"
+              hint={`runs ${Math.max(4, Math.min(80, Math.round(cap / 4) * 4))} probes total (rounded to multiples of 4 across the fault classes)`}
+            >
               <input
                 className="text-input"
                 type="number"
-                min={1}
-                max={24}
+                min={4}
+                max={80}
+                step={4}
                 value={cap}
                 onChange={(e) => setCap(Number(e.target.value) || 0)}
               />

@@ -81,8 +81,11 @@ export async function fetchDatasets(): Promise<Live<DatasetListRowDto[]>> {
     if (!res.ok) {
       return { data: [], liveError: `agent API ${res.status} on /datasets` }
     }
-    const body = (await res.json()) as { datasets: DatasetListRowDto[] }
-    return { data: body.datasets ?? [], liveError: null }
+    const body = (await res.json()) as { datasets: unknown }
+    if (!Array.isArray(body.datasets)) {
+      return { data: [], liveError: 'agent API returned non-array datasets — contract drift' }
+    }
+    return { data: body.datasets as DatasetListRowDto[], liveError: null }
   } catch (err) {
     return { data: [], liveError: err instanceof Error ? err.message : String(err) }
   }

@@ -21,6 +21,7 @@ import {
   type DatasetListRowDto,
   type UploadValidationErrorDto,
 } from '@/lib/datasets'
+import { approxRowCount, detectFormat } from '@/lib/dataset-upload'
 
 type UploadState =
   | { kind: 'idle' }
@@ -34,17 +35,6 @@ async function fileToBase64(file: File): Promise<string> {
   const bytes = new Uint8Array(buf)
   for (let i = 0; i < bytes.byteLength; i += 1) binary += String.fromCharCode(bytes[i]!)
   return btoa(binary)
-}
-
-function detectFormat(filename: string): 'jsonl' | 'csv' | null {
-  const lower = filename.toLowerCase()
-  if (lower.endsWith('.csv')) return 'csv'
-  if (lower.endsWith('.json') || lower.endsWith('.jsonl')) return 'jsonl'
-  return null
-}
-
-function approxRowCount(text: string): number {
-  return Math.max(1, text.split('\n').filter((l) => l.trim()).length)
 }
 
 interface Props {
@@ -80,6 +70,11 @@ export function DatasetUploadCard({ onUploaded }: Props) {
   }
 
   const handleFile = async (file: File) => {
+    // Guard against a second drop/pick landing while the first POST is
+    // still in flight — otherwise the in-flight upload's `stopScan()`
+    // would kill the new file's scan animation when the earlier promise
+    // resolves. The file-picker and drop both reach here.
+    if (state.kind === 'parsing') return
     const format = detectFormat(file.name)
     if (!format) {
       setState({

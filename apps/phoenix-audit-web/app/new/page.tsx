@@ -6,6 +6,7 @@ import { DatasetPicker } from '@/components/new-audit/dataset-picker'
 import { DepthOption } from '@/components/new-audit/depth-option'
 import { FrameworkPicker } from '@/components/new-audit/framework-picker'
 import { OverridesBlock } from '@/components/new-audit/overrides-block'
+import { runsPerFaultFromCap } from '@/lib/audit-budget'
 import { fetchProfile } from '@/lib/profile'
 import { Field } from '@/components/ui/field'
 import { A } from '@/components/ui/link'
@@ -105,9 +106,7 @@ function NewAuditForm() {
     try {
       // REAL audit — POST /run through the same-origin proxy, then follow the
       // returned run id into the live chamber. No fixture short-circuit.
-      // "Cap number of tests" is the TOTAL probe budget; the backend takes
-      // attacks-per-fault-class (4 classes), so total ≈ 4 × runs_per_fault.
-      const runsPerFault = Math.min(20, Math.max(1, Math.round(cap / 4)))
+      const runsPerFault = runsPerFaultFromCap(cap)
       const res = await fetch('/api/agent/run', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },

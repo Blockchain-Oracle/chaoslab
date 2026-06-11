@@ -312,7 +312,12 @@ export function DatasetDetailClient({ result }: DatasetDetailClientProps) {
     )
   }
 
-  if (!data) return null
+  if (!data) {
+    // Discriminated union has exactly ok/phoenix_outage/error today.
+    // If a future result kind lands and a branch is missed, throwing
+    // surfaces it loudly instead of rendering a blank page.
+    throw new Error('unreachable: unhandled DatasetDetailResult kind')
+  }
 
   return (
     <>

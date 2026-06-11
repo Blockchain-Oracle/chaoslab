@@ -29,19 +29,25 @@ function SevDot({ s }: { s: string | null }) {
   return <span className={`sev ${cls}`}>{s}</span>
 }
 
+type CopyState = 'idle' | 'copied' | 'unavailable'
+
 export function DsCaseRow({ row, hasNotes }: { row: DatasetItemDto; hasNotes: boolean }) {
   const [open, setOpen] = useState(false)
-  const [copied, setCopied] = useState(false)
-  const copy = async (e: MouseEvent) => {
+  const [copy, setCopy] = useState<CopyState>('idle')
+  const onCopy = async (e: MouseEvent) => {
     e.stopPropagation()
     try {
       await navigator.clipboard.writeText(row.prompt)
+      setCopy('copied')
     } catch {
-      return
+      // Clipboard is legitimately blocked in iframes / insecure contexts.
+      // Surface that to the operator — don't silently swallow the failure.
+      setCopy('unavailable')
     }
-    setCopied(true)
-    setTimeout(() => setCopied(false), 1400)
+    setTimeout(() => setCopy('idle'), 1400)
   }
+  const copyLabel =
+    copy === 'copied' ? 'Copied ✓' : copy === 'unavailable' ? 'Copy unavailable' : 'Copy'
   return (
     <>
       <tr
@@ -108,7 +114,7 @@ export function DsCaseRow({ row, hasNotes }: { row: DatasetItemDto; hasNotes: bo
                   </pre>
                   <button
                     className="btn small"
-                    onClick={copy}
+                    onClick={onCopy}
                     style={{
                       position: 'absolute',
                       top: 10,
@@ -117,7 +123,7 @@ export function DsCaseRow({ row, hasNotes }: { row: DatasetItemDto; hasNotes: bo
                       fontSize: 9.5,
                     }}
                   >
-                    {copied ? 'Copied ✓' : 'Copy'}
+                    {copyLabel}
                   </button>
                 </div>
                 <div style={{ display: 'flex', gap: 26, marginTop: 10, flexWrap: 'wrap' }}>
