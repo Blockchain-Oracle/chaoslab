@@ -8,9 +8,10 @@ same Protocol so the unit suite is offline by construction.
 
 Flat-row contract: our code passes a list of `FlatDatasetItem`-shaped
 mappings (the columns the operator sees — `case_id / prompt / fault_class /
-expected / source / severity / notes`). The wrapper slices them into
-Phoenix's `input / output / metadata` buckets via `input_keys` / `output_keys`
-/ `metadata_keys` per the SDK convention. The buckets never leak out.
+expected / source / severity / notes`). The wrapper VALIDATES each row and
+slices it into the pre-bucketed `{input, output, metadata}` example shape the
+SDK's `examples=` parameter requires (the `*_keys` kwargs apply only to the
+dataframe/CSV ingestion paths). The buckets never leak out.
 """
 
 from __future__ import annotations
@@ -123,14 +124,19 @@ def _normalize_row(row: dict[str, Any] | FlatDatasetItem) -> dict[str, Any]:
 
 
 def _bucket_row(row: dict[str, Any] | FlatDatasetItem) -> dict[str, dict[str, Any]]:
-    """Slice a flat row into the SDK's pre-bucketed example shape.
+    """Validate a flat row, then slice it into the SDK's pre-bucketed shape.
 
     The SDK's `examples=` parameter REQUIRES `{input, output, metadata}`
     dicts — the `input_keys`/`output_keys`/`metadata_keys` kwargs apply only
     to the dataframe/CSV ingestion paths. Passing flat rows raised
     ValueError on the first real call (staging seed, 2026-06-11); the fake
-    had accepted the flat shape, masking it."""
-    flat = _normalize_row(row)
+    had accepted the flat shape, masking it.
+
+    Validation is write-time ON PURPOSE (PR #118 HIGH-1): an invalid row
+    (e.g. a regression row missing `prompt`) must fail HERE, loudly, not
+    write `None` into Phoenix and detonate every later read of the dataset
+    as an unpartitioned ValidationError."""
+    flat = FlatDatasetItem.model_validate(_normalize_row(row)).model_dump()
     return {
         "input": {k: flat.get(k) for k in _INPUT_KEYS},
         "output": {k: flat.get(k) for k in _OUTPUT_KEYS},

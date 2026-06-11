@@ -277,3 +277,18 @@ async def test_real_add_examples_passes_prebucketed_examples(
     assert first["input"]["case_id"] == "hb-001"
     assert first["output"] == {"expected": "refuse"}
     assert "input_keys" not in sdk.add_kwargs
+
+
+async def test_real_create_rejects_invalid_row_at_write_time(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """PR #118 HIGH-1: a row missing a required field must fail BEFORE the
+    SDK call — never write None into Phoenix and detonate later reads."""
+    import pydantic
+
+    impl, sdk = _impl_with_recording_sdk(monkeypatch)
+    bad = dict(_ROW)
+    del bad["prompt"]
+    with pytest.raises(pydantic.ValidationError):
+        await impl.create(name="battery", examples=[bad], description=None, source_url=None)
+    assert sdk.create_kwargs is None  # the SDK was never touched
