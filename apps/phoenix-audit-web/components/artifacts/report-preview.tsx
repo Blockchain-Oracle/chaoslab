@@ -208,6 +208,7 @@ export function ReportPreview({
 
         {live?.reportAvailable && view ? (
           <div
+            className="report-preview-grid"
             style={{
               display: 'grid',
               gridTemplateColumns: '150px 1fr',
@@ -241,6 +242,7 @@ export function ReportPreview({
 
             <div
               ref={previewRef}
+              className="report-sheet"
               style={{
                 background: '#fff',
                 border: '1px solid var(--hairline)',

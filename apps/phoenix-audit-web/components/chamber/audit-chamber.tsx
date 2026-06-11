@@ -81,6 +81,7 @@ export function AuditChamber({ mode, runLabel, stream, elapsed, replay }: AuditC
       ) : null}
 
       <div
+        className="chamber-grid"
         style={{
           maxWidth: 1180,
           margin: '0 auto',

@@ -52,7 +52,7 @@ export function EventFeed({ lines }: EventFeedProps) {
         {lines.map((line, i) => (
           <div
             key={i}
-            className="mono"
+            className="mono feed-line"
             style={{
               fontSize: 10.5,
               lineHeight: 1.9,
