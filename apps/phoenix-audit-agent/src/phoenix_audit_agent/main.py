@@ -88,6 +88,13 @@ class RunRequest(BaseModel):
         description="Optional dataset slug to interleave with the synthetic battery.",
         pattern=r"^[a-z0-9_-]+$",
     )
+    # Story-9.5: set ONLY by the scheduler tick (POST /run 422s it) — links
+    # the run to its schedule so the finalize email hook can resolve
+    # `deliver_email` without a side-channel.
+    schedule_id: str | None = Field(
+        default=None,
+        description="Monitoring schedule that launched this run (tick-internal).",
+    )
 
     @field_validator("target_url")
     @classmethod
@@ -183,6 +190,10 @@ async def _drive_orchestrator(run_id: str) -> None:
             # so the signed report cover can name the corpus.
             dataset_id=state.request.dataset_id,
             agent_id=state.request.agent_id,
+            # Story 9.5: launch-time identity rides to finalize so the
+            # heal-path merge can't strip schedule linkage (MED-1, PR #111).
+            schedule_id=state.request.schedule_id,
+            source=state.request.source,
         )
     except asyncio.CancelledError:
         state.phase = "failed"
@@ -301,6 +312,10 @@ async def health() -> HealthResponse:
 async def start_run(
     payload: RunRequest, user: Annotated[AuthedUser, Depends(require_user)]
 ) -> RunResponse:
+    if payload.schedule_id is not None:
+        # A forged schedule linkage would sit on regulator-visible records
+        # (and could trigger summary mail) — only the tick may set it.
+        raise HTTPException(status_code=422, detail="schedule_id is not a client-settable field")
     return await launch_run(payload, owner_uid=user.uid)
 
 
@@ -334,6 +349,7 @@ async def launch_run(payload: RunRequest, *, owner_uid: str | None = None) -> Ru
             source=payload.source,
             created_at=created,
             owner_uid=owner_uid,
+            schedule_id=payload.schedule_id,
         )
     )
     task = asyncio.create_task(_drive_orchestrator(run_id))
@@ -415,6 +431,7 @@ async def _launch_scheduled_run(schedule: Any) -> str:
             target_url=schedule.target_url,
             agent_id=schedule.agent_id,
             source="scheduled",
+            schedule_id=schedule.schedule_id,
         ),
         # A scheduled run must appear in ITS OWNER's registry, not nobody's.
         owner_uid=schedule.owner_uid,

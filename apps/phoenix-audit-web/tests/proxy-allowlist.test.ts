@@ -74,6 +74,19 @@ describe('proxy allowlist', () => {
     },
   )
 
+  it('forwards runs/{id}/email POST upstream (story-9.5)', async () => {
+    const res = await POST(req('POST'), ctx(['runs', 'run_abc123def456', 'email']))
+    expect(res.status).toBe(200)
+    expect(upstream).toHaveBeenCalledOnce()
+    expect(upstream.mock.calls[0]?.[0]).toBe('http://agent.test/runs/run_abc123def456/email')
+  })
+
+  it('blocks email sub-sub-paths', async () => {
+    const res = await POST(req('POST'), ctx(['runs', 'run_abc', 'email', 'extra']))
+    expect(res.status).toBe(404)
+    expect(upstream).not.toHaveBeenCalled()
+  })
+
   it('blocks profile sub-paths — /profile is the only settings surface', async () => {
     const res = await GET(req('GET'), ctx(['profile', 'other-uid']))
     expect(res.status).toBe(404)

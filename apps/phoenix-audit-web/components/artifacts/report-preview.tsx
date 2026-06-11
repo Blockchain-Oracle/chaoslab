@@ -13,6 +13,7 @@ import { A } from '@/components/ui/link'
 import { PageFoot } from '@/components/ui/page-foot'
 import { TopBar } from '@/components/ui/topbar'
 import { fmtDate } from '@/lib/format'
+import { EmailReportButton } from './email-report-button'
 import { PageThumb } from './page-thumb'
 import { REPORT_PAGES, ReportPage, type ReportPageId, type ReportView } from './report-pages'
 
@@ -160,6 +161,7 @@ export function ReportPreview({
                   Download PDF
                 </a>
               ) : null}
+              <EmailReportButton runId={runId} />
               {live.urls['report.json'] ? (
                 <A to={`report/${runId}/json`} className="btn ghost">
                   View JSON

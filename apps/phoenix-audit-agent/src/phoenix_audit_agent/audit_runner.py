@@ -48,6 +48,7 @@ from phoenix_audit_agent.reporter.honored import span_honored
 from phoenix_audit_agent.reporter.service import (
     generate_signed_report,  # noqa: F401  re-exported monkeypatch seam read by audit_runner_emit
 )
+from phoenix_audit_agent.storage.models import RunSource
 from phoenix_audit_agent.storage.runs import (
     persist_run_completion,  # noqa: F401  re-exported monkeypatch seam read by audit_runner_emit
 )
@@ -162,6 +163,8 @@ async def drive_audit(
     owner_uid: str | None = None,
     dataset_id: str | None = None,
     agent_id: str | None = None,
+    schedule_id: str | None = None,
+    source: RunSource | None = None,
 ) -> None:
     """Run one full audit and emit the SSE event stream.
 
@@ -366,12 +369,20 @@ async def drive_audit(
                 agent_id=agent_id,
                 owner_uid=owner_uid,
                 failing_rows=failing_rows,
+                schedule_id=schedule_id,
+                source=source,
             )
         except Exception:
             # The partial timeline of a FAILED audit is exactly when replay
             # matters for forensics — persist what was recorded (contained).
             await persist_failure_timeline(
-                run_id=run_id, target_url=target_url, created_at=created_at, frames=frames
+                run_id=run_id,
+                target_url=target_url,
+                created_at=created_at,
+                frames=frames,
+                owner_uid=owner_uid,
+                schedule_id=schedule_id,
+                source=source,
             )
             raise
 

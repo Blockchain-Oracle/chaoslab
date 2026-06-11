@@ -18,6 +18,9 @@ const ALLOWED = [
   /^run$/,
   /^runs$/,
   /^runs\/[a-zA-Z0-9_-]+$/,
+  // Story-9.5: "Email me this report" — recipient is server-derived from
+  // the verified token; the POST carries no body.
+  /^runs\/[a-zA-Z0-9_-]+\/email$/,
   /^stream$/,
   /^agents$/,
   /^agents\/[a-zA-Z0-9_-]+$/,

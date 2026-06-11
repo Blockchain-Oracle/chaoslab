@@ -180,6 +180,27 @@ class Settings(BaseSettings):
         min_length=1,
         description="Target branch for hardening-recipe MRs (typical: 'main').",
     )
+    RESEND_API_KEY: SecretStr | None = Field(
+        default=None,
+        description=(
+            "Resend API key (Secret Manager-injected on Cloud Run). Unset ⇒ "
+            "email features fail closed: the email endpoint 503s and the "
+            "scheduled-summary hook skips loudly (story-9.5)."
+        ),
+    )
+    EMAIL_FROM: str = Field(
+        default="Phoenix Audit <reports@phxaudit.xyz>",
+        min_length=1,
+        description="Verified Resend sender for summary + report emails.",
+    )
+    PUBLIC_WEB_URL: str = Field(
+        default="",
+        description=(
+            "Public web origin (https://phxaudit.xyz) for portal links inside "
+            "emails. Empty ⇒ the portal-link row is omitted — never a "
+            "localhost link in a customer inbox."
+        ),
+    )
     environment: Environment = Field(
         default="dev",
         description="dev | staging | prod — gates fail-loud vs degraded paths.",
@@ -208,6 +229,33 @@ class Settings(BaseSettings):
         extra="ignore",
         case_sensitive=False,
     )
+
+    @field_validator("PUBLIC_WEB_URL")
+    @classmethod
+    def _public_web_url_https_only(cls, v: str) -> str:
+        # Empty ⇒ portal rows omitted from emails. Non-empty MUST be https —
+        # a localhost or plain-http origin in a customer inbox is always a
+        # misconfig, never a feature (story-9.5 review finding).
+        if v and not v.startswith("https://"):
+            raise ValueError("PUBLIC_WEB_URL must be empty or start with https://")
+        return v
+
+    @field_validator("EMAIL_FROM")
+    @classmethod
+    def _email_from_has_address(cls, v: str) -> str:
+        # Shape check only ('Name <user@domain>' or bare address) — a garbage
+        # sender should fail at boot, not on the first send.
+        if "@" not in v:
+            raise ValueError("EMAIL_FROM must contain an email address")
+        return v
+
+    @model_validator(mode="after")
+    def _warn_public_web_url_empty_in_prod(self) -> Settings:
+        # Contained degradation (emails ship without portal links) — but a
+        # forgotten Cloud Run env var must leave a grep-able signal.
+        if self.environment == "prod" and not self.PUBLIC_WEB_URL:
+            logger.warning("PUBLIC_WEB_URL is empty in prod — emails will carry no portal links")
+        return self
 
     @field_validator("judge_llm")
     @classmethod
