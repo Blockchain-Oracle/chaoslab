@@ -10,6 +10,7 @@ import { onAuthStateChanged, type User } from 'firebase/auth'
 import { getFirebaseAuth } from '@/lib/auth/client'
 import { fetchProfile, saveProfile, type HostingPref, type ProfileUpdate } from '@/lib/profile'
 import { Field } from '@/components/ui/field'
+import { GitLabConnectCard } from '@/components/integrations/gitlab-connect-card'
 import { PageFoot } from '@/components/ui/page-foot'
 import { PageShell } from '@/components/ui/page-shell'
 import { SectionHead } from '@/components/ui/section-head'
@@ -125,15 +126,7 @@ export default function SettingsPage() {
               report carries its Ed25519 verification fingerprint and signature sidecar.
             </div>
           </div>
-          <div className="card" style={{ padding: '16px 20px', marginBottom: 26 }}>
-            <div className="field-label" style={{ marginBottom: 4 }}>
-              GitLab merge requests
-            </div>
-            <div className="mono" style={{ fontSize: 12 }}>
-              Configured via the service environment — hardening recipes are filed as merge requests
-              by the audit pipeline. Per-account connections are not available yet.
-            </div>
-          </div>
+          <GitLabConnectCard />
 
           <SectionHead
             no="§3"

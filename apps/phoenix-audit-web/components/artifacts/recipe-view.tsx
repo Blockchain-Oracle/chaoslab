@@ -12,6 +12,7 @@ import { PageFoot } from '@/components/ui/page-foot'
 import { TopBar } from '@/components/ui/topbar'
 import { fmtDate } from '@/lib/format'
 import type { RecipeBlock } from '@/lib/report-doc'
+import { GitLabFileMr } from '@/components/integrations/gitlab-file-mr'
 import { RecipeMdView } from './recipe-md-view'
 
 export interface RecipeViewProps {
@@ -117,7 +118,9 @@ export function RecipeView({
               <a className="btn small ghost" href={mrUrl} target="_blank" rel="noreferrer">
                 GitLab MR ↗
               </a>
-            ) : null}
+            ) : (
+              <GitLabFileMr runId={runId} sample={sample} />
+            )}
             <button
               className="btn small ghost"
               onClick={copyAsJson}
