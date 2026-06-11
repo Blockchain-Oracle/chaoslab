@@ -166,6 +166,9 @@ async def _drive_orchestrator(run_id: str) -> None:
             emit=emit,
             set_phase=set_phase,
             created_at=state.created_at,
+            # Story 9.7: feeds OpenInference user.id => Phoenix Sessions tab
+            # filters by tenant. None on sample runs => empty-string no-op.
+            owner_uid=state.owner_uid,
         )
     except asyncio.CancelledError:
         state.phase = "failed"

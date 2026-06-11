@@ -179,12 +179,21 @@ def _build_client(settings: Settings) -> AsyncClient:
     return AsyncClient(api_key=api_key, base_url=_derive_base_url(settings))
 
 
-async def _invoke_sdk(dataset_name: str, evaluators: list[str], task_callable_id: str) -> Any:
+async def _invoke_sdk(
+    dataset_name: str,
+    evaluators: list[str],
+    task_callable_id: str,
+    experiment_name: str | None = None,
+) -> Any:
     """Resolve dataset + task + evaluators then call the SDK's run_experiment.
 
     Evaluator resolution happens BEFORE the SDK call so unknown names fail loud
     with a useful PhoenixExperimentError instead of being wrapped as a generic
     `(KeyError)` after the catch-all in `run_phoenix_experiment`.
+
+    Story 9.7: `experiment_name` (when non-None) forwards into the SDK so the
+    Experiments tab shows `phoenix-audit-{run_id}` instead of an anonymous run.
+    None => kwarg omitted entirely; Phoenix auto-generates a name.
     """
     if task_callable_id not in TASK_REGISTRY:
         raise PhoenixExperimentError(
@@ -193,17 +202,23 @@ async def _invoke_sdk(dataset_name: str, evaluators: list[str], task_callable_id
     resolved_evaluators = _resolve_evaluators(evaluators)
     client = _build_client(get_settings())
     dataset = await client.datasets.get_dataset(dataset=dataset_name)
-    return await client.experiments.run_experiment(
-        dataset=dataset,
-        task=TASK_REGISTRY[task_callable_id],
+    # Build kwargs conditionally so a None `experiment_name` is NOT forwarded —
+    # Phoenix's SDK auto-generates when the kwarg is absent, and an explicit
+    # `experiment_name=None` would override that auto-naming with literal None.
+    sdk_kwargs: dict[str, Any] = {
+        "dataset": dataset,
+        "task": TASK_REGISTRY[task_callable_id],
         # Suppression rationale: list[object] subsumes Phoenix's Evaluator |
         # Callable union; the registry lookup is the runtime contract.
-        evaluators=resolved_evaluators,  # ty: ignore[invalid-argument-type]
-        concurrency=10,
-        timeout=30,
-        retries=2,
-        rate_limit_errors=_rate_limit_errors(),
-    )
+        "evaluators": resolved_evaluators,
+        "concurrency": 10,
+        "timeout": 30,
+        "retries": 2,
+        "rate_limit_errors": _rate_limit_errors(),
+    }
+    if experiment_name is not None:
+        sdk_kwargs["experiment_name"] = experiment_name
+    return await client.experiments.run_experiment(**sdk_kwargs)
 
 
 def _finalize_result(
@@ -227,20 +242,21 @@ async def run_phoenix_experiment(
     dataset_name: str,
     evaluators: list[str],
     task_callable_id: str = _DEFAULT_TASK_KEY,
+    *,
+    experiment_name: str | None = None,
 ) -> ExperimentResult:
     """Run a Phoenix LLM-as-judge experiment over a dataset.
 
     ADR-005 keystone tool — wraps `AsyncClient.experiments.run_experiment`. Body
-    is intentionally short (<=30 significant LOC) per ADR-005; setup, SDK call,
-    and post-validation live in `_build_client`, `_invoke_sdk`, `_finalize_result`.
-
-    Error sanitization: the wrapper's own raised message excludes the API key by
-    construction; the chained exception (preserved via `raise ... from e`) may
-    include SDK-side detail, scrubbed of obvious key patterns.
+    is <=30 significant LOC; setup, SDK call, and post-validation live in
+    `_build_client`, `_invoke_sdk`, `_finalize_result`. Story 9.7: optional
+    `experiment_name` forwards into the SDK so the Experiments tab deep-links
+    per audit. Error sanitization: the wrapper's own raised message excludes
+    the API key by construction; the chained exception is scrubbed.
     """
     start = time.monotonic()
     try:
-        ran = await _invoke_sdk(dataset_name, evaluators, task_callable_id)
+        ran = await _invoke_sdk(dataset_name, evaluators, task_callable_id, experiment_name)
     except PhoenixExperimentError:
         raise
     except httpx.HTTPStatusError as e:
