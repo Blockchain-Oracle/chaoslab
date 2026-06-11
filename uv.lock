@@ -22,7 +22,7 @@ members = [
 [manifest.dependency-groups]
 dev = [
     { name = "arize-phoenix", specifier = ">=17.2.0" },
-    { name = "arize-phoenix-client", specifier = ">=2.7.0" },
+    { name = "arize-phoenix-client", specifier = ">=2.8.0" },
     { name = "arize-phoenix-otel", specifier = ">=0.16.1" },
     { name = "google-adk", extras = ["a2a"], specifier = ">=2.1.0,<3.0.0" },
     { name = "openinference-instrumentation", specifier = ">=0.1.53" },
@@ -205,7 +205,7 @@ wheels = [
 
 [[package]]
 name = "arize-phoenix-client"
-version = "2.7.0"
+version = "2.8.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "httpx" },
@@ -216,9 +216,9 @@ dependencies = [
     { name = "tqdm" },
     { name = "typing-extensions" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/b1/f1/38863019dd3fa8080fea7b929f0ca9ff5a3eb4836c2e6f235b5327cfd892/arize_phoenix_client-2.7.0.tar.gz", hash = "sha256:b53b003a3ce4f6fd5ba3ad0116ee7aba79328f3b76bc9161cfea84799704e07d", size = 195168, upload-time = "2026-05-15T00:51:07.289Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/16/e5/e9231327f6417f12bb4755e99458c4493fe4b84175e0e271385ea89e9f81/arize_phoenix_client-2.8.0.tar.gz", hash = "sha256:b9d27472da65ea66466ddb9a655c141034e621a4d00aa4917ef0022874f890a7", size = 195917, upload-time = "2026-06-09T01:41:02.098Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/4a/03/31c58b8efc82decbe7a2363f0313d6ba3e1a100092106a120fe1a0f3606b/arize_phoenix_client-2.7.0-py3-none-any.whl", hash = "sha256:53f36910dd50614c731acaf53473bd19639f2b2b8902952f57f8ad69b95b67ac", size = 185794, upload-time = "2026-05-15T00:51:05.484Z" },
+    { url = "https://files.pythonhosted.org/packages/ef/67/012fe9b243dcfab12f1b5433de1b50bc0efa26c1b440a87ebcc256826bbf/arize_phoenix_client-2.8.0-py3-none-any.whl", hash = "sha256:74f2859ef0a70474df99b84a76ebc66dc72f9526098fbd957c9ede77afaca90e", size = 186164, upload-time = "2026-06-09T01:41:00.568Z" },
 ]
 
 [[package]]
@@ -2275,7 +2275,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "arize-phoenix-client", specifier = ">=2.7.0,<3.0.0" },
+    { name = "arize-phoenix-client", specifier = ">=2.8.0,<3.0.0" },
     { name = "arize-phoenix-evals", specifier = ">=3.1,<4.0" },
     { name = "arize-phoenix-otel", specifier = ">=0.10,<1.0.0" },
     { name = "authlib", specifier = ">=1.3,<2.0" },
@@ -3595,7 +3595,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "arize-phoenix-client", specifier = ">=2.7.0,<3.0.0" },
+    { name = "arize-phoenix-client", specifier = ">=2.8.0,<3.0.0" },
     { name = "arize-phoenix-otel", specifier = ">=0.10,<1.0.0" },
     { name = "google-adk", extras = ["a2a"], specifier = ">=2.1.0,<3.0.0" },
     { name = "google-cloud-secret-manager", specifier = ">=2.28.0,<3.0.0" },
