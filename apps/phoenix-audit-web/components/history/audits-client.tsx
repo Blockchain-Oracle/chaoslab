@@ -171,6 +171,7 @@ export function AuditsClient({ rows: allRows, agents, liveError }: AuditsClientP
         ) : null}
 
         <div
+          className="stat-row"
           style={{
             display: 'flex',
             marginBottom: 38,
