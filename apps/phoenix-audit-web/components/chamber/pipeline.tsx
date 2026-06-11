@@ -95,7 +95,7 @@ export function Pipeline({ phase }: PipelineProps) {
       >
         AUDIT PIPELINE — A MULTI-AGENT SYSTEM
       </div>
-      <div style={{ display: 'flex', gap: 10, alignItems: 'stretch' }}>
+      <div className="pipeline-row" style={{ display: 'flex', gap: 10, alignItems: 'stretch' }}>
         <Station
           label="INJECTOR"
           sub="sends the test battery"

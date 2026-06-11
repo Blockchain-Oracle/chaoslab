@@ -24,32 +24,34 @@ export function Frameworks() {
           Voice agents, support copilots, prior-authorization agents, web-automation agents — if it
           answers over the internet, it can be audited.
         </p>
-        <table className="ledger" style={{ background: 'rgba(255,255,255,0.5)' }}>
-          <thead>
-            <tr>
-              <th>Framework</th>
-              <th>Support</th>
-              <th>Transport</th>
-              <th>Clustering</th>
-            </tr>
-          </thead>
-          <tbody>
-            {ROWS.map(([f, t, tr, c]) => (
-              <tr key={f}>
-                <td className="serif" style={{ fontSize: 15.5 }}>
-                  {f}
-                </td>
-                <td>
-                  <span className="tag">{t}</span>
-                </td>
-                <td className="mono" style={{ fontSize: 12 }}>
-                  {tr}
-                </td>
-                <td style={{ fontSize: 13, color: 'var(--ink-2)' }}>{c}</td>
+        <div className="frameworks-scroll">
+          <table className="ledger" style={{ background: 'rgba(255,255,255,0.5)' }}>
+            <thead>
+              <tr>
+                <th>Framework</th>
+                <th>Support</th>
+                <th>Transport</th>
+                <th>Clustering</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {ROWS.map(([f, t, tr, c]) => (
+                <tr key={f}>
+                  <td className="serif" style={{ fontSize: 15.5 }}>
+                    {f}
+                  </td>
+                  <td>
+                    <span className="tag">{t}</span>
+                  </td>
+                  <td className="mono" style={{ fontSize: 12 }}>
+                    {tr}
+                  </td>
+                  <td style={{ fontSize: 13, color: 'var(--ink-2)' }}>{c}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </div>
     </section>
   )

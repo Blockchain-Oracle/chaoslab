@@ -6,6 +6,7 @@
 // Every save shows its real outcome — saving / saved / failed.
 
 import { useEffect, useRef, useState } from 'react'
+import Link from 'next/link'
 import { onAuthStateChanged, type User } from 'firebase/auth'
 import { getFirebaseAuth } from '@/lib/auth/client'
 import { fetchProfile, saveProfile, type HostingPref, type ProfileUpdate } from '@/lib/profile'
@@ -90,8 +91,22 @@ export default function SettingsPage() {
             Settings.
           </h1>
 
-          <SectionHead no="§1" title="Account" />
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+          <SectionHead
+            no="§1"
+            title="Account"
+            right={
+              <span className="mono muted" style={{ fontSize: 10.5 }}>
+                need help?{' '}
+                <Link href="/docs" className="span-link">
+                  read the docs →
+                </Link>
+              </span>
+            }
+          />
+          <div
+            className="grid-2up"
+            style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}
+          >
             <Field label="Signed in as">
               <input
                 className="text-input"
@@ -138,6 +153,7 @@ export default function SettingsPage() {
             }
           />
           <div
+            className="grid-2up"
             style={{
               display: 'grid',
               gridTemplateColumns: '1fr 1fr',

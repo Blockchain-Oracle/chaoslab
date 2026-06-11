@@ -2085,6 +2085,177 @@ textarea {
     padding-left: 0 !important;
   }
 
+  /* ---- class 4b: landing procedure (the 01–04 step strip) -------------
+   * Diagnosed 2026-06-11 by Playwright at 390×844: the 4 cards rendered
+   * as a horizontal row at ~100px each, cramming every line. Same fix
+   * as compare-grid: single column at ≤768px, vertical hairlines become
+   * horizontal hairlines between cards.
+   */
+  .procedure-grid {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+  .procedure-grid > div {
+    border-right: none !important;
+    padding: 22px 0 18px 0 !important;
+  }
+  .procedure-grid > div:not(:last-child) {
+    border-bottom: 1px solid var(--hairline);
+  }
+
+  /* ---- class 4c: cascade-story chamber (THE killer demo moment) -------
+   * Diagnosed 2026-06-11: the 5-column `1fr auto 1fr auto 1fr` grid at
+   * 390px cramped every card to <90px wide; the root-cause card was
+   * unreadable. Stack the 5 children vertically, rotate the SVG
+   * connector arrows 90° so they point DOWN the cascade, tighten the
+   * margin around them so vertical rhythm reads as flow not space.
+   */
+  .cascade-grid {
+    grid-template-columns: minmax(0, 1fr) !important;
+    gap: 18px !important;
+  }
+  .cascade-grid > svg {
+    width: 28px !important;
+    height: 40px !important;
+    transform: rotate(90deg);
+    transform-origin: center;
+    justify-self: center;
+    margin: 0 !important;
+  }
+
+  /* ---- class 4d: closing CTA ------------------------------------------
+   * Diagnosed 2026-06-11: the 3-col `auto 1fr auto` (seal · text ·
+   * buttons) at 390px compressed the text column to ~60px and each word
+   * wrapped to its own line — the headline read as a vertical alphabet
+   * stripe. Stack: seal centered, headline + paragraph full-width, then
+   * the two CTA buttons stacked full-width below.
+   */
+  .closing-cta-grid {
+    grid-template-columns: minmax(0, 1fr) !important;
+    gap: 22px !important;
+    text-align: center;
+    justify-items: center;
+  }
+  .closing-cta-grid > div:nth-child(2) {
+    text-align: left;
+  }
+  .closing-cta-grid > div:last-child {
+    width: 100%;
+    max-width: 320px;
+  }
+
+  /* ---- class 4e: frameworks-table swipeable -----------------------------
+   * The 4-col cross-framework ledger can't usefully stack as a card layout
+   * (column headers carry the meaning). Wrap it in a horizontal scroller
+   * so the user can swipe across without overflowing the page.
+   */
+  .frameworks-scroll {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    margin: 0 -16px;
+    padding: 0 16px;
+  }
+  .frameworks-scroll > table {
+    min-width: 540px;
+  }
+
+  /* ---- class 4f: section heads — flow the right-note onto its own row -
+   * Diagnosed 2026-06-11: titles like "Phoenix hosting mode", "Regulatory
+   * framework", "Test cases" wrap to 2-3 lines while the right-side note
+   * narrows to ~80px and goes vertical. The kicker stays glued to the
+   * title via the inner flex group; the right-note flows below.
+   */
+  .section-head > .section-head-right {
+    flex: 0 0 100%;
+    max-width: 100%;
+    margin-top: 4px;
+  }
+
+  /* ---- class 4g: ledger tables — horizontal scroll wrapper -------------
+   * Any .ledger that lives inside a .ledger-wrap gets a swipeable
+   * scroller at mobile. The dataset rows table, audit history table, etc.
+   * all stop truncating cells off-canvas because the table keeps its
+   * desktop column widths and the operator swipes.
+   */
+  .ledger-wrap {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  .ledger-wrap > .ledger {
+    min-width: 560px;
+  }
+
+  /* ---- class 4h: full-width primary buttons ----------------------------
+   * /monitoring's ENABLE MONITORING button + /report's EMAIL ME THIS
+   * REPORT button + /new's RUN AUDIT footer were rendered with their
+   * desktop widths and overflowed past 390px. Constrain to viewport.
+   */
+  .btn.ember,
+  .btn.danger,
+  .btn.primary {
+    max-width: 100%;
+  }
+
+  /* ---- class 4i: form fields full-width -------------------------------
+   * Settings §1 (Signed in as / Default framework) and similar 2-col
+   * grids stack to one column. The 2-col rule lives on each consumer
+   * (inline styles + grid-template-columns), so we override structurally
+   * via .grid-2up which is the convention used across the app for
+   * "two-column desktop, one-column mobile" forms.
+   */
+  .grid-2up {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+
+  /* ---- class 4j-pre: page hero rows (title + primary CTA) ---------------
+   * /datasets uses a side-by-side hero (kicker + title on the left, CTA on
+   * the right). The title wrapped to two lines because the CTA stole flex.
+   * Wrap so the CTA drops to its own line below the title at mobile.
+   */
+  .page-hero-row {
+    flex-wrap: wrap;
+    align-items: flex-start !important;
+    row-gap: 14px;
+  }
+  .page-hero-row > button,
+  .page-hero-row > a {
+    flex: 0 0 auto;
+  }
+
+  /* ---- class 4j: audit chamber (replay surface) — let the 3-stage
+   * pipeline wrap to 2 lines and tighten the target-agent indent so the
+   * narrow lane doesn't push "instrumented over A2A · traces land in
+   * Phoenix" past the viewport. The cluster/recipe pair stacks via
+   * grid-2up already (above). */
+  .pipeline-row {
+    flex-wrap: wrap !important;
+    gap: 8px !important;
+  }
+  .pipeline-row > div {
+    min-width: 0;
+  }
+  /* The horizontal connector arrows between stations don't carry meaning
+   * once the stations wrap onto a second line — hide them on mobile so
+   * orphan arrows don't sit at the start of a new row. */
+  .pipeline-row > svg {
+    display: none;
+  }
+  /* Target-agent lane: shrink the left indent so the wide label fits. */
+  .chamber-grid .pipeline-row + div {
+    margin-left: 0 !important;
+    flex-wrap: wrap;
+  }
+
+  /* Transport (replay controls) — pause/restart/slider wraps below the
+   * elapsed time so nothing extends past 390px. */
+  .replay-transport {
+    flex-wrap: wrap !important;
+    row-gap: 10px !important;
+  }
+  .replay-transport input[type='range'] {
+    flex: 1 1 200px;
+    min-width: 0;
+  }
+
   /* ---- class 5: signed-report preview ---------------------------------- */
   /* Thumb rail stacks above the sheet as a horizontal strip. */
   .report-preview-grid {
