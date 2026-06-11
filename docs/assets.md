@@ -89,9 +89,29 @@ Maya finishes the wizard, picks "Browse sample audits" or "Run your first audit.
 
 ---
 
-## Story-9.16 — Docs page upgrade (Surface D) — placeholder
+## Story-9.20 — Docs page upgrade (Surface D)
 
-The full docs-upgrade brief lands when story-9.16 starts. Pre-allocating the heading so the designer knows it's coming and the index doesn't change later.
+**What ships:** /docs grows from a single-column scroll into a navigable manual: sticky sidebar TOC + four new sections (datasets, GitLab connect + MR review, email reports, auth & privacy) + per-section screenshots captured from the live app.
+
+### D-1 — Sticky sidebar TOC
+
+- ≥1040px: a left rail listing every section (§1–§11), anchor-linked, active section tracked on scroll (the etched mono register — same idiom as the report page's page rail). ≤1040px: the rail collapses to a horizontal scroller pinned under the header, or simply disappears (designer's call — the page reads fine linearly).
+- Designer owns: rail typography/active treatment, the scroll-position indicator idiom.
+
+### D-2 — New sections (content provided, layout yours)
+
+- §Datasets: upload your own test cases (JSONL/CSV), run audits with them, regression sets that accumulate per agent.
+- §GitLab: per-user OAuth connect, review-first MR filing — the "we only ADD files under phoenix-audit/" promise rendered prominently.
+- §Email: scheduled summaries + "Email me this report" with the signed PDF attached.
+- §Auth & privacy: accounts, data residency paragraph, what's public (landing, /replay) vs private.
+
+### D-3 — Screenshots
+
+- Existing `scripts/capture-docs-shots.ts` captures from the live app; new sections each get a slot. Same treatment as today (hairline border, r-lg corners). Mobile captures NOT required — the page itself is responsive post-S9.19.
+
+### D-4 — Favicon (shipped with the story, not a designer ask)
+
+- `app/icon.svg` now ships the brand glyph (diamond + ember spark on paper) — the favicon 404 is closed. If you want a richer mark (e.g., the seal), deliver an SVG and it drops in.
 
 ---
 
