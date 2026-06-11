@@ -148,7 +148,11 @@ async def test_drive_audit_with_dataset_id_snapshots_onto_run_record(
     assert record.dataset_id == "harmbench-v1-sample"
     assert record.dataset_name == "HarmBench v1 (sample)"
     assert record.dataset_phoenix_id  # whatever the fake minted
-    assert record.dataset_version_id  # sentinel "latest" for now
+    # H-NEW-2: the real Phoenix version_id from the SDK Dataset.version_id
+    # rides through. The fake mints `phx_v_NNNNNN` so the snapshot pins
+    # an actual evidence-chain identifier, not the old "latest" sentinel.
+    assert record.dataset_version_id is not None
+    assert record.dataset_version_id.startswith("phx_v_")
     assert record.dataset_kind == "battery"
     assert record.dataset_source_url == "https://example.test/source"
 
@@ -211,15 +215,12 @@ async def test_drive_audit_failing_probes_populate_regression_set(
     assert len(items) == 1
     assert items[0].fault_class == "prompt_injection"
 
-    # The run record carries the fake-only marker per silent-failure I5.
+    # H-NEW-1 (review-fleet pass 2): the marker must survive read-back via
+    # `RunRecord.model_validate` — it's declared on `RunRecord` now so a
+    # signed-report renderer reading via the model sees it.
     record = await run_storage.get_run_store().get(run_id)
-    # Note: regression_overwrite_mode is on RunCompletion (extra=forbid).
-    # The RunRecord (extra=ignore) accepts arbitrary extras — but we want the
-    # marker available on the registry document. Since RunRecord doesn't
-    # carry the field today, the marker survives via Firestore's set(merge=True)
-    # and rides on the raw doc dict. For now we just confirm the upsert
-    # happened — the marker is verified at the audit_runner_emit helper level.
     assert record is not None
+    assert record.regression_overwrite_mode == "newest_wins"
 
 
 @pytest.mark.asyncio
@@ -304,3 +305,135 @@ async def test_drive_audit_dataset_id_for_deleted_slug_falls_back_safely(
     # Snapshot fields remain None — contained failure.
     assert record.dataset_id is None
     assert record.dataset_name is None
+
+
+@pytest.mark.asyncio
+async def test_drive_audit_second_run_appends_to_existing_regression_set(
+    wired,  # noqa: F811
+    monkeypatch: pytest.MonkeyPatch,
+    index_store: InMemoryDatasetIndexStore,
+    phoenix_client: FakePhoenixDatasetClient,
+) -> None:
+    """Finding C (review-fleet pass 2): the SECOND audit against the same
+    agent exercises the `_append_regression_examples` path, not `_create_`.
+    The regression-set keeps the agent's failure history across audits."""
+    import phoenix_audit_agent.audit_runner as ar
+    from phoenix_audit_agent.storage import runs as run_storage
+
+    async def fake_rubric(inp: Any) -> EvalScore:
+        if inp.span_id == SPAN_OK_FAIL:
+            return EvalScore(passed=False, score=0.0, reason="bad")
+        return EvalScore(passed=True, score=1.0, reason="ok")
+
+    monkeypatch.setattr(ar, "apply_rubric", fake_rubric)
+    _FakeInjector.results = [_attack_result(0, SPAN_OK_FAIL, "ok")]
+
+    from phoenix_audit_agent._time import utc_now_iso
+    from phoenix_audit_agent.storage.models import RunRecord
+
+    async def _one_run(run_id: str) -> None:
+        await run_storage.create_run_record(
+            RunRecord(
+                run_id=run_id,
+                target_url="https://target.example",
+                created_at=utc_now_iso(),
+                owner_uid="uid_alice",
+                agent_id="agt_repeat001",
+            )
+        )
+        await ar.drive_audit(
+            run_id=run_id,
+            target_url="https://target.example",
+            runs_per_fault=1,
+            emit=wired.emit,
+            set_phase=lambda _p: None,
+            created_at=utc_now_iso(),
+            owner_uid="uid_alice",
+            agent_id="agt_repeat001",
+        )
+
+    await _one_run("run_first00001")
+    first_idx = await index_store.get_by_slug("regression-agt_repeat001")
+    assert first_idx is not None
+    first_phx_id = first_idx.phoenix_dataset_id
+
+    # Second audit reuses the existing regression set (same Phoenix dataset
+    # id; new version_id after the append). The `_append_regression_examples`
+    # branch is what carries us here — first run hit `_create_`.
+    await _one_run("run_second0001")
+    second_idx = await index_store.get_by_slug("regression-agt_repeat001")
+    assert second_idx is not None
+    assert second_idx.phoenix_dataset_id == first_phx_id
+    assert second_idx.updated_at >= first_idx.updated_at
+    # Same probe failing twice -> same case_id (battery-<fc>-n<n>) -> dedup.
+    items = await phoenix_client.get_examples(first_phx_id)
+    assert len(items) == 1, [i.case_id for i in items]
+
+
+@pytest.mark.asyncio
+async def test_get_runs_id_surfaces_dataset_snapshot(
+    wired,  # noqa: F811
+    monkeypatch: pytest.MonkeyPatch,
+    index_store: InMemoryDatasetIndexStore,
+    phoenix_client: FakePhoenixDatasetClient,
+    auth_as,
+) -> None:
+    """Gap 2 (review-fleet pass 2): the GET /runs/{id} JSON wire response
+    carries the dataset block. The signed report cover renderer + the web
+    `/run/<id>` page both read via this route — if the FastAPI serializer
+    ever dropped the fields, the cover line would silently go blank."""
+    import os
+
+    import httpx
+
+    from phoenix_audit_agent import audit_runner as ar
+    from phoenix_audit_agent._time import utc_now_iso
+    from phoenix_audit_agent.storage import runs as run_storage
+    from phoenix_audit_agent.storage.models import RunRecord
+
+    # The /runs/{id} route requires auth — wire the global test seam.
+    monkeypatch.setenv("GEMINI_API_KEY", "test-gemini")
+    for k in list(os.environ):
+        if k.startswith(("PHOENIX_", "GCS_", "FIREBASE_")):
+            monkeypatch.delenv(k, raising=False)
+    get_settings.cache_clear()
+
+    auth_as("uid_alice", email="alice@example.com")
+
+    await _seed_battery(
+        index_store, phoenix_client, slug="harmbench-v1-sample", name="HarmBench v1 (sample)"
+    )
+    run_id = "run_runsroute01"
+    await run_storage.create_run_record(
+        RunRecord(
+            run_id=run_id,
+            target_url="https://target.example",
+            created_at=utc_now_iso(),
+            owner_uid="uid_alice",
+        )
+    )
+    _FakeInjector.results = [_attack_result(0, "a" * 16, "ok")]
+    await ar.drive_audit(
+        run_id=run_id,
+        target_url="https://target.example",
+        runs_per_fault=1,
+        emit=wired.emit,
+        set_phase=lambda _p: None,
+        created_at=utc_now_iso(),
+        owner_uid="uid_alice",
+        dataset_id="harmbench-v1-sample",
+    )
+
+    from phoenix_audit_agent.main import app
+
+    transport = httpx.ASGITransport(app=app)
+    async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+        r = await client.get(f"/runs/{run_id}")
+    assert r.status_code == 200, r.text
+    run = r.json()["run"]
+    assert run["dataset_id"] == "harmbench-v1-sample"
+    assert run["dataset_name"] == "HarmBench v1 (sample)"
+    assert run["dataset_phoenix_id"]
+    assert run["dataset_version_id"].startswith("phx_v_")
+    assert run["dataset_kind"] == "battery"
+    assert run["dataset_source_url"] == "https://example.test/source"

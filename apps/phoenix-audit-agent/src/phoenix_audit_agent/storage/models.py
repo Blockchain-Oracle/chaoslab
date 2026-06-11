@@ -61,6 +61,12 @@ class RunRecord(BaseModel):
     dataset_version_id: str | None = None
     dataset_kind: str | None = None
     dataset_source_url: str | None = None
+    # Story 9.15: how the regression upsert resolved case_id collisions on
+    # this run. Currently always "newest_wins" when an upsert happened
+    # (story-9.16 will add SDK-side strategies). Declared on RunRecord so a
+    # read-back via model_validate doesn't drop it (silent-failure H-NEW-1
+    # from the second review pass).
+    regression_overwrite_mode: str | None = None
 
 
 class RunCompletion(BaseModel):
@@ -95,10 +101,11 @@ class RunCompletion(BaseModel):
     dataset_version_id: str | None = None
     dataset_kind: str | None = None
     dataset_source_url: str | None = None
-    # Story 9.15: marker for the regression-set upsert. "fake_only" when the
-    # in-memory FakePhoenixDatasetClient handled the upsert (its newest-wins
-    # semantics); None when no regression upsert ran. The real Phoenix SDK
-    # path will add other markers in story-9.16 (see audit_runner_emit notes).
+    # Story 9.15: marker for the regression-set upsert. "newest_wins" when an
+    # upsert ran (case_id collisions resolve newest-wins); None when no
+    # upsert ran. Story-9.16 will add SDK-side strategies. The marker rides
+    # to Firestore via merge_fields() and is declared on RunRecord too so a
+    # read-back via model_validate doesn't drop it (extra="ignore" rule).
     regression_overwrite_mode: str | None = None
 
     def merge_fields(self) -> dict[str, object]:

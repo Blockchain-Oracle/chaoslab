@@ -101,6 +101,13 @@ class PhoenixDatasetClient(Protocol):
         `PhoenixUnavailableError` if Phoenix is unreachable."""
         ...
 
+    async def get_current_version_id(self, phoenix_dataset_id: str) -> str:
+        """Return the Phoenix `version_id` of the dataset's current version.
+        The audit finalize path snapshots this onto the RunRecord so the
+        signed report cover pins evidence to a specific Phoenix version
+        (H-NEW-2). Raises the same error families as `get_examples`."""
+        ...
+
     async def delete(self, phoenix_dataset_id: str) -> None:
         """Delete the Phoenix dataset. Best-effort: a NotFound is treated
         as already-deleted (the Firestore index row is what hides the
@@ -200,6 +207,19 @@ class PhoenixDatasetClientImpl:
             # Network / connect / timeout — Phoenix is unreachable.
             raise PhoenixUnavailableError(str(e)) from e
         return [_flat_from_example(ex) for ex in ds.examples]
+
+    async def get_current_version_id(self, phoenix_dataset_id: str) -> str:
+        """Read the current `version_id` off the SDK's `Dataset` object."""
+        try:
+            ds = await self._client().datasets.get_dataset(dataset=phoenix_dataset_id)
+        except httpx.HTTPStatusError as e:
+            if e.response.status_code == _HTTP_NOT_FOUND:
+                raise PhoenixDatasetNotFoundError(phoenix_dataset_id) from e
+            raise PhoenixUnavailableError(str(e)) from e
+        except (httpx.RequestError, TimeoutError) as e:
+            raise PhoenixUnavailableError(str(e)) from e
+        # `Dataset.version_id` is the canonical wire field per the SDK.
+        return ds.version_id
 
     async def delete(self, phoenix_dataset_id: str) -> None:
         # H4 (review-fleet): the SDK doesn't yet expose dataset delete in

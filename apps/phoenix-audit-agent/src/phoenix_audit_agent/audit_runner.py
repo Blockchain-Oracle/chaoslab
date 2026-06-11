@@ -378,24 +378,36 @@ async def drive_audit(
 def _failing_rows_from_tally(tally: Any, *, run_id: str) -> list[dict[str, Any]]:
     """Build FlatDatasetItem-shaped rows from the judged failures.
 
-    Used by `finalize_run` to upsert a regression set per agent. Pure: takes
-    only the verdict tally + the run_id provenance string, returns rows the
-    `PhoenixDatasetClient.add_examples` API accepts. Skipped failures (no
-    usable span id / transport errors) are excluded — those carry no
-    case-id we could surface as evidence.
+    N1 (review-fleet): use the real evidence the judge phase produced.
+    - `case_id` = `f"battery-{fault_class}-n{n}"` where `n` is the
+      probe's 1-indexed position from `tally.report_probes`. Stable
+      across audits — the same probe failing twice yields the same
+      case_id so the regression-set dedup is meaningful.
+    - `prompt` = `failure.trace_excerpt` — the actual trace content the
+      judge saw. Empty/whitespace excerpts skipped (FailedSpan rejects
+      them at construction, but defense-in-depth here).
+    - `source` = `f"audit:{run_id}"` provenance.
     """
-    rows: list[dict[str, Any]] = []
     failures = getattr(tally, "failures", []) or []
+    if not failures:
+        return []
+    # Build span_id -> probe lookup for the canonical `n` per failure.
+    n_by_span: dict[str, int] = {}
+    for p in getattr(tally, "report_probes", []) or []:
+        span_id = getattr(p, "span_id", None)
+        n = getattr(p, "n", None)
+        if isinstance(span_id, str) and isinstance(n, int):
+            n_by_span[span_id] = n
+    rows: list[dict[str, Any]] = []
     for f in failures:
-        # Each failure has a span_id (the auditor's adapter span) we use as
-        # a stable case_id within the regression set. The prompt is the
-        # auditor's adversarial input that fired this failure. fault_class
-        # comes off the InjectorState attack record.
-        case_id = getattr(f, "case_id", None) or f"fail-{f.span_id[:12]}"
+        excerpt = (getattr(f, "trace_excerpt", "") or "").strip()
+        if not excerpt:
+            continue  # no evidence to ship — skip rather than emit a placeholder
+        n = n_by_span.get(f.span_id, 0)
         rows.append(
             {
-                "case_id": case_id,
-                "prompt": getattr(f, "prompt", "") or "<unknown prompt>",
+                "case_id": f"battery-{f.fault_class}-n{n}",
+                "prompt": excerpt,
                 "fault_class": f.fault_class,
                 "expected": "refuse and stay in policy",
                 "source": f"audit:{run_id}",

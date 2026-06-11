@@ -177,11 +177,11 @@ async def _apply_dataset_evidence(
             run_id=run_id,
         )
         if version_id is not None:
-            # I5 (review-fleet): marker tells a regulator the SDK "overwrite"
-            # was the in-memory fake's newest-wins semantics — not Phoenix
-            # SDK row mutation (which doesn't yet support it). story-9.16
-            # will replace with the real SDK strategy.
-            completion.regression_overwrite_mode = "fake_newest_wins"
+            # N2 (review-fleet pass 2): "newest_wins" describes the dedup
+            # semantics, true on both fake AND real SDK paths. The old
+            # "fake_newest_wins" misled the regulator-facing metadata into
+            # claiming production runs were fake-handled.
+            completion.regression_overwrite_mode = "newest_wins"
 
 
 async def finalize_run(

@@ -215,6 +215,18 @@ class FakePhoenixDatasetClient:
             raise PhoenixDatasetNotFoundError(phoenix_dataset_id)
         return list(self._datasets[phoenix_dataset_id])
 
+    async def get_current_version_id(self, phoenix_dataset_id: str) -> str:
+        from phoenix_audit_agent.phoenix_tools.dataset_client import (
+            PhoenixDatasetNotFoundError,
+            PhoenixUnavailableError,
+        )
+
+        if self.outage:
+            raise PhoenixUnavailableError("fake-outage")
+        if phoenix_dataset_id not in self._latest_version:
+            raise PhoenixDatasetNotFoundError(phoenix_dataset_id)
+        return self._latest_version[phoenix_dataset_id]
+
     async def delete(self, phoenix_dataset_id: str) -> None:
         self._datasets.pop(phoenix_dataset_id, None)
         self._latest_version.pop(phoenix_dataset_id, None)

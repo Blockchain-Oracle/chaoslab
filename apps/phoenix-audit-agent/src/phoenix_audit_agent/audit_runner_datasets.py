@@ -30,9 +30,14 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
+import httpx
 import structlog
 
 from phoenix_audit_agent._time import utc_now_iso
+from phoenix_audit_agent.phoenix_tools.dataset_client import (
+    PhoenixDatasetNotFoundError,
+    PhoenixUnavailableError,
+)
 
 _log = structlog.get_logger(__name__)
 
@@ -87,8 +92,10 @@ def _dedupe_newest_wins(
     new_rows: list[dict[str, Any]], existing_rows: list[dict[str, Any]]
 ) -> list[dict[str, Any]]:
     """Merge two row lists, deduped on `case_id`. New rows beat existing
-    rows of the same `case_id`. Raises ValueError if any row lacks
-    `case_id` (see `_case_id`)."""
+    rows of the same `case_id`. Result is sorted **oldest-first** —
+    existing rows first (in their original order), then any genuinely-new
+    rows. Callers that need a most-recent cap take `[-cap:]`. Raises
+    `ValueError` if any row lacks `case_id` (see `_case_id`)."""
     by_case: dict[str, dict[str, Any]] = {_case_id(r): r for r in existing_rows}
     for r in new_rows:
         by_case[_case_id(r)] = r  # newest wins
@@ -167,8 +174,9 @@ async def _append_regression_examples(
 
     existing_items = await phoenix.get_examples(existing_idx.phoenix_dataset_id)
     existing_rows = [i.model_dump() for i in existing_items]
+    # `[-REGRESSION_CAP:]` keeps the NEWEST 200 (Finding A).
     deduped = _dedupe_newest_wins(new_rows, existing_rows)
-    capped = deduped[:REGRESSION_CAP]
+    capped = deduped[-REGRESSION_CAP:]
 
     version_id = await phoenix.add_examples(existing_idx.phoenix_dataset_id, capped)
     refreshed_items = await phoenix.get_examples(existing_idx.phoenix_dataset_id)
@@ -219,7 +227,10 @@ async def upsert_regression_set(
     slug = _regression_slug(agent_id)
     existing_idx = await idx_store.get_by_slug(slug)
     if existing_idx is None:
-        new_rows = _dedupe_newest_wins(failing_rows, [])[:REGRESSION_CAP]
+        # `[-REGRESSION_CAP:]` keeps the NEWEST 200 (Finding A, review-fleet
+        # pass 2): the BDD says "most-recent 200, deduped on case_id". The
+        # dedup helper preserves oldest-first order, so the tail is newest.
+        new_rows = _dedupe_newest_wins(failing_rows, [])[-REGRESSION_CAP:]
         return await _create_regression_dataset(
             slug=slug,
             agent_id=agent_id,
@@ -249,9 +260,12 @@ async def build_dataset_snapshot(*, dataset_id: str, run_id: str) -> dict[str, A
     from phoenix_audit_agent.api.datasets import get_phoenix_client
     from phoenix_audit_agent.storage.datasets import get_dataset_index_store
 
+    # M-NEW-1: narrow to network / store-level error families. Programming
+    # bugs (AttributeError / ValueError / TypeError) surface naturally
+    # instead of silently no-opping the snapshot.
     try:
         idx = await get_dataset_index_store().get_by_slug(dataset_id)
-    except Exception as e:
+    except (httpx.HTTPError, TimeoutError, ConnectionError) as e:
         _log.warning(
             "finalize.dataset_index_lookup_failed",
             run_id=run_id,
@@ -263,14 +277,14 @@ async def build_dataset_snapshot(*, dataset_id: str, run_id: str) -> dict[str, A
         _log.warning("finalize.dataset_index_missing", run_id=run_id, dataset_id=dataset_id)
         return None
 
-    # Phoenix exposes version ids on the Dataset object — we read the latest
-    # via get_examples (the version id rides on the SDK Dataset shape).
-    # For now we record a sentinel "latest"; story-9.16 will swap for a
-    # real version_id read.
-    version_id = "latest"
+    # H-NEW-2 (review-fleet pass 2): capture the REAL Phoenix version_id
+    # via the wrapper's `get_current_version_id` — the previous "latest"
+    # sentinel made every audit cover claim the same version, breaking the
+    # cryptographic evidence chain.
+    version_id = "unknown"
     try:
-        await get_phoenix_client().get_examples(idx.phoenix_dataset_id)
-    except Exception as e:
+        version_id = await get_phoenix_client().get_current_version_id(idx.phoenix_dataset_id)
+    except PhoenixUnavailableError as e:
         _log.warning(
             "finalize.dataset_version_lookup_failed",
             run_id=run_id,
@@ -297,6 +311,9 @@ async def try_regression_upsert(
     from phoenix_audit_agent.api.datasets import get_phoenix_client
     from phoenix_audit_agent.storage.datasets import get_dataset_index_store
 
+    # M-NEW-1: narrow to Phoenix + network families. A ValueError from
+    # `_case_id` (malformed failing-row shape) propagates — that's a
+    # programming bug in the caller, not a Phoenix outage to swallow.
     try:
         snap = await upsert_regression_set(
             agent_id=agent_id,
@@ -306,7 +323,13 @@ async def try_regression_upsert(
             idx_store=get_dataset_index_store(),
             now=utc_now_iso(),
         )
-    except Exception as e:
+    except (
+        PhoenixUnavailableError,
+        PhoenixDatasetNotFoundError,
+        httpx.HTTPError,
+        TimeoutError,
+        ConnectionError,
+    ) as e:
         _log.warning(
             "finalize.regression_upsert_failed",
             run_id=run_id,

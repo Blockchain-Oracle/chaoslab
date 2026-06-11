@@ -143,8 +143,10 @@ def test_upload_validation_error_post_init_raises_on_both_fields_set() -> None:
 
 
 @pytest.mark.asyncio
-async def test_regression_upsert_caps_at_200_rows() -> None:
-    """The dedup-and-cap path keeps at most REGRESSION_CAP rows."""
+async def test_regression_upsert_caps_keeps_newest_200_not_oldest() -> None:
+    """Finding A (review-fleet pass 2): BDD says "most-recent 200".
+    A previous bug used `[:CAP]` which kept the OLDEST 200; this test
+    asserts the NEWEST 200 survive (r0050..r0249)."""
     from phoenix_audit_agent import audit_runner_datasets as ard
 
     fake_phx = FakePhoenixDatasetClient()
@@ -181,6 +183,9 @@ async def test_regression_upsert_caps_at_200_rows() -> None:
     assert snap.row_count == ard.REGRESSION_CAP
     items = await fake_phx.get_examples(snap.phoenix_dataset_id)
     assert len(items) == ard.REGRESSION_CAP
+    # NEWEST 200 retained: r0050..r0249, not r0000..r0199.
+    expected = {f"r{n:04d}" for n in range(50, 250)}
+    assert {i.case_id for i in items} == expected
 
 
 @pytest.mark.asyncio
