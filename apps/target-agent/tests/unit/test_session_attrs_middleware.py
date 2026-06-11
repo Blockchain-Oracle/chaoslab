@@ -11,7 +11,6 @@ request; it just leaves the scope unentered.
 
 from __future__ import annotations
 
-import json
 from typing import Any
 
 from openinference.instrumentation import get_attributes_from_context
@@ -114,19 +113,33 @@ def test_middleware_passes_through_non_http_scopes() -> None:
         pass  # if middleware crashed on the lifespan scope, this would raise
 
 
-def test_middleware_body_is_replayed_downstream() -> None:
-    """The middleware buffers + replays the body; downstream must see the same bytes."""
+def test_middleware_body_is_replayed_downstream_byte_for_byte() -> None:
+    """The middleware buffers + replays the body. Downstream must see the EXACT
+    bytes that were sent — not just JSON-equivalent. A `json.loads(raw) == sent`
+    check passes even if the middleware silently re-canonicalizes whitespace,
+    reorders keys, normalizes Unicode, or drops a `more_body` chunk that
+    downstream JSON-decodes equivalently. Byte-level hash is the real test."""
+    import hashlib
+
     from target_agent.session_attrs import SessionAttributesMiddleware
 
-    async def echo_body(request: Any) -> JSONResponse:
+    async def hash_body(request: Any) -> JSONResponse:
         raw = await request.body()
-        return JSONResponse({"bytes": len(raw), "echo": json.loads(raw)})
+        return JSONResponse({"bytes": len(raw), "sha256": hashlib.sha256(raw).hexdigest()})
 
-    app = Starlette(routes=[Route("/", echo_body, methods=["POST"])])
+    app = Starlette(routes=[Route("/", hash_body, methods=["POST"])])
     app.add_middleware(SessionAttributesMiddleware)
 
-    sent = _a2a_body("run_replay99abc")
-    resp = TestClient(app).post("/", json=sent)
+    # Raw bytes — control whitespace + key order ourselves so the assertion is
+    # exact. A JSON-equivalent canonicalization in the middleware would change
+    # the hash.
+    raw_sent = (
+        b'{"jsonrpc": "2.0",  "id":"1","method":"message/send",'
+        b'"params":{"message":{"role":"user","contextId":"run_replay99abc"}}}'
+    )
+    expected_hash = hashlib.sha256(raw_sent).hexdigest()
+    resp = TestClient(app).post("/", content=raw_sent, headers={"content-type": "application/json"})
     assert resp.status_code == 200
     body = resp.json()
-    assert body["echo"] == sent
+    assert body["bytes"] == len(raw_sent)
+    assert body["sha256"] == expected_hash

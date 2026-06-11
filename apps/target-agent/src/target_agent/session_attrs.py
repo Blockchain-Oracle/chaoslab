@@ -73,6 +73,12 @@ def _extract_context_id(body: bytes) -> str | None:
 
     Returns None on ANY shape mismatch — JSON parse error, missing field,
     non-string value, empty string. Never raises.
+
+    Log policy: empty body / not-JSON-at-all is silent (GETs, health checks,
+    non-A2A traffic hit this constantly). JSON-parsed-but-shape-wrong fires
+    one debug-level breadcrumb so an operator can ask "why didn't this run's
+    target spans group?" and find the answer. A non-string `contextId` is
+    explicit contract violation — warning-level.
     """
     if not body:
         return None
@@ -80,11 +86,23 @@ def _extract_context_id(body: bytes) -> str | None:
         payload = json.loads(body)
     except (ValueError, UnicodeDecodeError):
         return None
-    # Walk the chain via .get; any non-dict intermediate aborts to None.
     params = payload.get("params") if isinstance(payload, dict) else None
     message = params.get("message") if isinstance(params, dict) else None
-    context_id = message.get("contextId") if isinstance(message, dict) else None
-    if not isinstance(context_id, str) or not context_id:
+    if not isinstance(message, dict):
+        _log.debug("session_attrs.body_shape_missing_message", body_len=len(body))
+        return None
+    context_id = message.get("contextId")
+    if context_id is None or context_id == "":
+        # Auditor sent a real A2A envelope but no contextId — sessions tab
+        # won't group; surface the breadcrumb at debug so it's greppable.
+        _log.debug("session_attrs.context_id_absent", body_len=len(body))
+        return None
+    if not isinstance(context_id, str):
+        # Wire-contract violation: contextId must be a string per A2A spec.
+        _log.warning(
+            "session_attrs.context_id_type_mismatch",
+            got_type=type(context_id).__name__,
+        )
         return None
     return context_id
 
@@ -104,14 +122,12 @@ class SessionAttributesMiddleware:
         if scope.get("type") != "http":
             await self._app(scope, receive, send)
             return
-        try:
-            body, messages = await _read_body(receive)
-        except Exception:
-            # Receive-side failure (rare): let the downstream see whatever
-            # arrives next; we never swallow the request silently.
-            _log.warning("session_attrs.receive_failed", exc_info=True)
-            await self._app(scope, receive, send)
-            return
+        # `_read_body` failures (receive-side crash, client disconnect mid-stream)
+        # are NOT swallowed — partial draining leaves `receive` in an
+        # indeterminate state; forwarding either it OR the partial buffer would
+        # silently hang or corrupt the downstream A2A handler. Let it bubble;
+        # the request 500s loudly, which is the right thing to do.
+        body, messages = await _read_body(receive)
         context_id = _extract_context_id(body)
         wrapped_receive = _replay_receive(messages, receive)
         if context_id is None:

@@ -139,13 +139,13 @@ def _assemble_app() -> object:
         routes=[*build_hook_routes(_agent), Mount("", app=inner)],  # ty: ignore[invalid-argument-type]
         lifespan=_delegate_inner_lifespan,
     )
-    # Starlette runs middleware in REVERSE add order — the LAST add_middleware
-    # call wraps the outermost layer. We want session attributes attached
-    # BEFORE TraceContextMiddleware extracts the W3C context, so add
-    # TraceContextMiddleware first and SessionAttributesMiddleware second
-    # (story-9.7).
-    app.add_middleware(TraceContextMiddleware)
-    app.add_middleware(SessionAttributesMiddleware)
+    # Starlette wraps middleware so the LAST `add_middleware` becomes the
+    # OUTERMOST layer (runs FIRST on the inbound request, LAST on outbound).
+    # Story-9.7 wants SessionAttributesMiddleware outside TraceContextMiddleware
+    # so OpenInference's session attributes are on the contextvar before any
+    # tracer instrumentation starts span work. Order: inner first, outer last.
+    app.add_middleware(TraceContextMiddleware)  # inner
+    app.add_middleware(SessionAttributesMiddleware)  # outer
     return app
 
 

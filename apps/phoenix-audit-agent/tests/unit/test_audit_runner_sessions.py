@@ -21,7 +21,6 @@ import pytest
 from openinference.instrumentation import get_attributes_from_context
 
 from phoenix_audit_agent.config import get_settings
-from phoenix_audit_agent.injector.agent import AttackResult
 from phoenix_audit_agent.judge.rubrics import EvalScore
 from phoenix_audit_agent.patcher.recipe import HardeningRecipe
 
@@ -96,11 +95,12 @@ async def test_drive_audit_emits_session_and_user_id_on_attributes_context(
 
 
 @pytest.mark.asyncio
-async def test_drive_audit_owner_uid_none_yields_empty_user_id(
+async def test_drive_audit_owner_uid_none_omits_user_id(
     wired: _Emitted, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Sample runs (owner_uid=None) still group by session.id. user.id is empty
-    string — OpenInference's no-op default; we never invent a tenant."""
+    """Sample runs (owner_uid=None) still group by session.id. user.id is
+    ABSENT from the contextvar — not present-as-empty-string. Strict assertion
+    means a regression to `user.id=""` on every span would FAIL this test."""
     import phoenix_audit_agent.audit_runner as ar
 
     seen_inside: list[dict[str, Any]] = []
@@ -126,8 +126,42 @@ async def test_drive_audit_owner_uid_none_yields_empty_user_id(
     assert seen_inside
     for attrs in seen_inside:
         assert attrs.get("session.id") == "run_sample0001"
-        # user.id absent OR empty — both are valid no-ops for OpenInference.
-        assert attrs.get("user.id", "") == ""
+        # Strict: user.id must NOT be on the contextvar. Empty-string would
+        # fail this assertion (silent-failure pattern #1 from CLAUDE.md).
+        assert "user.id" not in attrs, attrs
+
+
+@pytest.mark.asyncio
+async def test_drive_audit_owner_uid_empty_string_omits_user_id(
+    wired: _Emitted, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Defense in depth: even if owner_uid="" (which should never happen but
+    could leak from a DB bug), the contextvar must still omit user.id —
+    NOT silently report "" as a tenant id."""
+    import phoenix_audit_agent.audit_runner as ar
+
+    seen_inside: list[dict[str, Any]] = []
+
+    async def rubric_recording(inp: Any) -> EvalScore:
+        seen_inside.append(dict(get_attributes_from_context()))
+        return EvalScore(passed=True, score=1.0, reason="ok")
+
+    monkeypatch.setattr(ar, "apply_rubric", rubric_recording)
+    _FakeInjector.results = [_attack_result(0, SPAN_OK_PASS, "ok")]
+
+    await ar.drive_audit(
+        run_id="run_emptyuid001",
+        target_url="https://target.example",
+        runs_per_fault=1,
+        emit=wired.emit,
+        set_phase=lambda _phase: None,
+        owner_uid="",
+    )
+
+    assert seen_inside
+    for attrs in seen_inside:
+        assert attrs.get("session.id") == "run_emptyuid001"
+        assert "user.id" not in attrs, attrs
 
 
 @pytest.mark.asyncio
@@ -177,18 +211,29 @@ async def test_drive_audit_keeps_scope_through_recipe_phase(
 
 
 @pytest.mark.asyncio
-async def test_drive_audit_keeps_scope_even_when_pipeline_raises(
+async def test_drive_audit_failure_arm_runs_under_session_scope(
     wired: _Emitted, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """A pipeline crash must not leak the scope. The failure-timeline write
-    happens INSIDE the except arm — which itself relies on no contextvar
-    poisoning. The cleanest test: assert the contextvar is empty AFTER
-    drive_audit raises."""
+    """When the pipeline crashes mid-run, the failure-timeline persistence
+    that runs in the except arm MUST still see session.id + user.id on the
+    contextvar — so its spans land in the same Phoenix Session as the rest
+    of the audit. A bug that moves the `try/except` OUTSIDE the `with` block
+    would lose this attribution; this test catches it.
+
+    Also asserts the contextvar resets cleanly AFTER drive_audit returns.
+    """
     import phoenix_audit_agent.audit_runner as ar
 
-    async def boom(*_args: Any, **_kwargs: Any) -> AttackResult:
-        msg = "synthetic-injector-crash"
-        raise RuntimeError(msg)
+    seen_in_failure_arm: list[dict[str, Any]] = []
+
+    async def recording_persist(
+        *, run_id: str, target_url: str, created_at: str, frames: list[Any]
+    ) -> None:
+        seen_in_failure_arm.append(dict(get_attributes_from_context()))
+
+    # Patch on `ar` — audit_runner imported `persist_failure_timeline` at
+    # module load, so the consumer-side binding is the live seam.
+    monkeypatch.setattr(ar, "persist_failure_timeline", recording_persist)
 
     class _ExplodingInjector:
         def __init__(self, **kwargs: Any) -> None:
@@ -210,7 +255,12 @@ async def test_drive_audit_keeps_scope_even_when_pipeline_raises(
             owner_uid="uid_eve",
         )
 
-    # Contextvar reset after `with` exits — exception or not.
+    # The failure arm ran under the same session scope as the pipeline body.
+    assert seen_in_failure_arm, "persist_failure_timeline was never reached"
+    assert seen_in_failure_arm[0].get("session.id") == "run_explodexxx0"
+    assert seen_in_failure_arm[0].get("user.id") == "uid_eve"
+
+    # And the contextvar reset cleanly after drive_audit's `with` block exited.
     after = dict(get_attributes_from_context())
     assert "session.id" not in after
     assert "user.id" not in after

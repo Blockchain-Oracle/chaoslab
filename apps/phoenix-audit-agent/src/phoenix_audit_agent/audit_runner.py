@@ -16,7 +16,6 @@ Collaborators are module attributes so tests can monkeypatch the seams
 from __future__ import annotations
 
 from collections.abc import Awaitable, Callable
-from datetime import UTC, datetime
 from time import monotonic
 from typing import Any
 
@@ -24,7 +23,12 @@ import structlog
 from openinference.instrumentation import using_attributes
 from pydantic import HttpUrl
 
-from phoenix_audit_agent._time import parse_iso, utc_now_iso
+from phoenix_audit_agent._time import utc_now_iso
+from phoenix_audit_agent.audit_runner_emit import (
+    emit_signed_report,
+    finalize_run,
+    persist_failure_timeline,
+)
 from phoenix_audit_agent.config import get_settings
 from phoenix_audit_agent.injector.agent import AttackResult, AttackRun, Injector, InjectorState
 from phoenix_audit_agent.injector.target_adapters import AdapterTier, ADKAdapter, TargetSpec
@@ -36,11 +40,16 @@ from phoenix_audit_agent.patcher.agent import Patcher
 from phoenix_audit_agent.patcher.markdown_emitter import MarkdownEmitter
 from phoenix_audit_agent.phoenix_tools.run_experiment import _build_client
 from phoenix_audit_agent.reporter import ReportData
-from phoenix_audit_agent.reporter.events import persist_run_events
+from phoenix_audit_agent.reporter.events import (
+    persist_run_events,  # noqa: F401  re-exported monkeypatch seam read by audit_runner_emit
+)
 from phoenix_audit_agent.reporter.honored import span_honored
-from phoenix_audit_agent.reporter.service import generate_signed_report
-from phoenix_audit_agent.storage.models import RunCompletion
-from phoenix_audit_agent.storage.runs import persist_run_completion
+from phoenix_audit_agent.reporter.service import (
+    generate_signed_report,  # noqa: F401  re-exported monkeypatch seam read by audit_runner_emit
+)
+from phoenix_audit_agent.storage.runs import (
+    persist_run_completion,  # noqa: F401  re-exported monkeypatch seam read by audit_runner_emit
+)
 
 _log = structlog.get_logger(__name__)
 
@@ -80,88 +89,6 @@ def build_adapter(target_url: str) -> Any:
     (the Epic 3 adapters are already in-tree)."""
     return ADKAdapter(
         TargetSpec(tier=AdapterTier.TIER1_ADK, url=HttpUrl(target_url), framework="adk-a2a")
-    )
-
-
-async def _emit_signed_report(
-    report_data: ReportData,
-    *,
-    emit: EmitFn,
-    run_id: str,
-    recipe_markdown: str | None = None,
-) -> dict[str, str] | None:
-    """Generate + deliver the signed report; emit `report` or the loud skip.
-
-    Report-delivery failure (KMS down, GCS down, renderer OSError) is
-    CONTAINED: an audit whose verdicts and recipe all succeeded must not
-    render as "failed" because the PDF could not be delivered. The skip is
-    marked with the exception type — never silent (CLAUDE.md pattern #4).
-    """
-    try:
-        report_urls = await generate_signed_report(report_data, recipe_markdown=recipe_markdown)
-    except Exception as report_err:
-        _log.error(
-            "report_generation_failed",
-            run_id=run_id,
-            exc_type=type(report_err).__name__,
-            error=str(report_err),
-            exc_info=True,
-        )
-        await emit(
-            "report_skipped",
-            {
-                "reason": f"generation_failed:{type(report_err).__name__}",
-                "run_id": run_id,
-            },
-        )
-        return None
-    if report_urls is None:
-        await emit(
-            "report_skipped",
-            {"reason": "signing_key_not_configured", "run_id": run_id},
-        )
-        return None
-    await emit(
-        "report",
-        {
-            "pdf_url": report_urls.get("report.pdf"),
-            "json_url": report_urls.get("report.json"),
-            "signature_url": report_urls.get("signature.json"),
-            "run_id": run_id,
-        },
-    )
-    return report_urls
-
-
-def _completion_fields(
-    *,
-    run_id: str,
-    target_url: str,
-    created_at: str,
-    tally: Any,
-    recipe_id: str | None,
-    report_available: bool,
-) -> RunCompletion:
-    """Registry-index finalize payload — typed; extra='forbid' on the model
-    makes a typo'd field a constructor error, never a silent drop."""
-    try:
-        started = parse_iso(created_at)
-        duration_sec: float | None = round((datetime.now(UTC) - started).total_seconds(), 1)
-    except ValueError:
-        duration_sec = None
-    return RunCompletion(
-        run_id=run_id,
-        target_url=target_url,
-        created_at=created_at,
-        phase="succeeded",
-        passed=tally.passed,
-        failed=tally.failed,
-        errored=tally.errored,
-        transport_failed=tally.transport_failed,
-        recipe_id=recipe_id,
-        report_available=report_available,
-        finished_at=utc_now_iso(),
-        duration_sec=duration_sec,
     )
 
 
@@ -221,13 +148,23 @@ async def drive_audit(
     """Run one full audit and emit the SSE event stream.
 
     Raises on pipeline failure (caller frames error/cancelled). Story 9.7:
-    every emitted span runs under `using_attributes(session_id=run_id,
-    user_id=owner_uid or "")` for the Phoenix Sessions tab.
+    every emitted span runs under `using_attributes(session_id=run_id, ...)`
+    so the Phoenix Sessions tab groups by run_id; `user_id=owner_uid` only
+    when owner_uid is a non-empty string — None and "" both collapse to
+    "scope without user.id" (OpenInference empty-string is a contract no-op).
     """
     created_at = created_at or utc_now_iso()
     frames: list[dict[str, Any]] = []
     emit = _recording_emit(emit, frames)
-    with using_attributes(session_id=run_id, user_id=owner_uid or ""):
+    # "no tenant" stays distinct from "any-falsy tenant" at the call site —
+    # silent-failure pattern #1 (CLAUDE.md): never let `""` masquerade as a
+    # populated identity. owner_uid=None or "" => scope without user.id.
+    ctx = (
+        using_attributes(session_id=run_id, user_id=owner_uid)
+        if owner_uid
+        else using_attributes(session_id=run_id)
+    )
+    with ctx:
         try:
             # ---- injector ---------------------------------------------------------
             set_phase("injector")
@@ -377,12 +314,12 @@ async def drive_audit(
                 honored_missing_count=tally.honored_missing,
                 honored_unreadable_count=tally.honored_unreadable,
             )
-            report_urls = await _emit_signed_report(
+            report_urls = await emit_signed_report(
                 report_data, emit=emit, run_id=run_id, recipe_markdown=recipe_markdown
             )
 
             set_phase("succeeded")
-            await _finalize_run(
+            await finalize_run(
                 run_id=run_id,
                 target_url=target_url,
                 created_at=created_at,
@@ -396,88 +333,7 @@ async def drive_audit(
         except Exception:
             # The partial timeline of a FAILED audit is exactly when replay
             # matters for forensics — persist what was recorded (contained).
-            await _persist_failure_timeline(
+            await persist_failure_timeline(
                 run_id=run_id, target_url=target_url, created_at=created_at, frames=frames
             )
             raise
-
-
-async def _persist_failure_timeline(
-    *, run_id: str, target_url: str, created_at: str, frames: list[dict[str, Any]]
-) -> None:
-    if await persist_run_events(run_id, frames, created_at=created_at):
-        await persist_run_completion(
-            run_id,
-            RunCompletion(
-                run_id=run_id,
-                target_url=target_url,
-                created_at=created_at,
-                phase="failed",
-                events_available=True,
-            ),
-        )
-
-
-async def _finalize_run(
-    *,
-    run_id: str,
-    target_url: str,
-    created_at: str,
-    tally: Any,
-    recipe_id: str | None,
-    markdown_url: str | None,
-    report_urls: dict[str, str] | None,
-    frames: list[dict[str, Any]],
-    emit: EmitFn,
-) -> None:
-    """Registry finalize + complete frame + replay-timeline persistence."""
-    # Contained write-through to the registry index; the frame discloses
-    # failure so the UI never silently shows a run that history forgot.
-    persisted = await persist_run_completion(
-        run_id,
-        _completion_fields(
-            run_id=run_id,
-            target_url=target_url,
-            created_at=created_at,
-            tally=tally,
-            recipe_id=recipe_id,
-            report_available=report_urls is not None,
-        ),
-    )
-    await emit(
-        "complete",
-        {
-            "phase": "succeeded",
-            "run_id": run_id,
-            "passed": tally.passed,
-            "failed": tally.failed,
-            "errored": tally.errored,
-            "transport_failed": tally.transport_failed,
-            "recipe_id": recipe_id,
-            "markdown_url": markdown_url,
-            "report_pdf_url": report_urls.get("report.pdf") if report_urls else None,
-            "persistence_failed": not persisted,
-        },
-    )
-    # Replay timeline AFTER the complete frame so the persisted file mirrors
-    # the full stream. Contained: an events outage leaves events_available
-    # False — the replay affordance simply never lights up for this run.
-    if await persist_run_events(run_id, frames, created_at=created_at):
-        flagged = await persist_run_completion(
-            run_id,
-            RunCompletion(
-                run_id=run_id,
-                target_url=target_url,
-                created_at=created_at,
-                phase="succeeded",
-                events_available=True,
-            ),
-        )
-        if not flagged:
-            # GCS holds the timeline but the registry never learned it —
-            # name the orphaned blob so the drift is greppable as one event.
-            _log.error(
-                "events_flag_finalize_failed",
-                run_id=run_id,
-                blob=f"reports/{run_id}/events.json",
-            )
