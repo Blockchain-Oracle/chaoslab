@@ -2,6 +2,7 @@
 // Server components call these; failures surface as `liveError` so pages can
 // render the sample world WITH a visible notice — never silently.
 
+import { parseProfile, type ProfileDto } from './profile'
 import { parseEventsDocument, type RunEventsDocument } from './replay'
 import { agentFetch } from './server/agent-fetch'
 import { userIdentityHeaders } from './server/user-fetch'
@@ -147,6 +148,15 @@ export async function fetchRunDetail(
 ): Promise<Live<RunDetailDto | null> & { status: number | null }> {
   const { body, error, status } = await getJson<RunDetailDto>(`/runs/${encodeURIComponent(runId)}`)
   return { data: body, liveError: error, status }
+}
+
+/** Server-side fetch of the signed-in user's profile (story-9.14) — drives
+ *  the onboarding gate AND the per-page framework-default seeding. Direct
+ *  agent call (NOT through the browser /api/agent proxy); identity headers
+ *  carry the verified Firebase token. */
+export async function fetchProfileServer(): Promise<Live<ProfileDto | null>> {
+  const { body, error } = await getJson<unknown>('/profile')
+  return { data: body === null ? null : parseProfile(body), liveError: error }
 }
 
 export async function fetchSchedules(): Promise<Live<ScheduleDto[]>> {
