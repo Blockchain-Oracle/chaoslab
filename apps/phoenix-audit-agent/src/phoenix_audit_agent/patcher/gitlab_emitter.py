@@ -98,6 +98,7 @@ class GitLabMREmitter:
         self,
         rest_client: GitLabRestClient | None = None,
         mcp_client: GitLabMcpClient | None = None,
+        oauth_token: str | None = None,
     ) -> None:
         settings = get_settings()
         if settings.GITLAB_MCP_ENDPOINT != OFFICIAL_ENDPOINT:
@@ -106,10 +107,18 @@ class GitLabMREmitter:
                 f"(got {settings.GITLAB_MCP_ENDPOINT!r})"
             )
             raise GitLabEmitterError(msg)
+        # Story-9.17: when set, BOTH halves (REST branch+files, MCP MR) run
+        # as the USER — never mixed identities, never a service-token
+        # fallback (filing as the wrong identity is worse than failing).
+        self._oauth_token = oauth_token
         self._rest_client = rest_client
         self._mcp_client = mcp_client or GitLabMcpClient(
             endpoint=settings.GITLAB_MCP_ENDPOINT,
-            token=(settings.gitlab_token.get_secret_value() if settings.gitlab_token else None),
+            token=(
+                oauth_token
+                if oauth_token is not None
+                else (settings.gitlab_token.get_secret_value() if settings.gitlab_token else None)
+            ),
         )
         self._default_branch = settings.GITLAB_DEFAULT_BRANCH
 
@@ -307,6 +316,8 @@ class GitLabMREmitter:
     def _get_rest_client(self, project_id: str) -> GitLabRestClient:
         if self._rest_client is not None:
             return self._rest_client
+        if self._oauth_token is not None:
+            return build_default_client(project_id=project_id, token=self._oauth_token, oauth=True)
         settings = get_settings()
         if settings.gitlab_token is None:
             msg = "GITLAB_TOKEN must be set in Settings for REST branch + commit operations"

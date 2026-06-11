@@ -34,6 +34,7 @@ from phoenix_audit_agent.api.datasets import router as datasets_router
 from phoenix_audit_agent.api.integrations import router as integrations_router
 from phoenix_audit_agent.api.profile import router as profile_router
 from phoenix_audit_agent.api.runs import router as runs_router
+from phoenix_audit_agent.api.runs_mr import router as runs_mr_router
 from phoenix_audit_agent.api.schedules import router as schedules_router
 from phoenix_audit_agent.api.schedules import set_run_launcher
 from phoenix_audit_agent.audit_runner import drive_audit
@@ -448,6 +449,7 @@ app.include_router(schedules_router)
 app.include_router(profile_router)
 app.include_router(datasets_router)
 app.include_router(integrations_router)
+app.include_router(runs_mr_router)
 
 
 def run_uvicorn() -> None:

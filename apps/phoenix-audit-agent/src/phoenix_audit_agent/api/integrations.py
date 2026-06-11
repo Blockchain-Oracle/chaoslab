@@ -37,11 +37,18 @@ def _settings_redirect(flag: str) -> RedirectResponse:
     return RedirectResponse(url=f"{base}/settings?gitlab={flag}", status_code=307)
 
 
-@router.get("/connect")
-async def connect(user: Annotated[AuthedUser, Depends(require_user)]) -> RedirectResponse:
+class ConnectResponse(BaseModel):
+    authorize_url: str
+
+
+@router.get("/connect", response_model=ConnectResponse)
+async def connect(user: Annotated[AuthedUser, Depends(require_user)]) -> ConnectResponse:
+    # JSON, not a 307 — the browser calls this through the same-origin proxy,
+    # where a redirect's Location is unreadable to client JS. The web
+    # navigates to authorize_url itself.
     _require_configured()
     url = await gitlab_oauth.build_authorization_redirect(user.uid)
-    return RedirectResponse(url=url, status_code=307)
+    return ConnectResponse(authorize_url=url)
 
 
 @router.get("/exchange")

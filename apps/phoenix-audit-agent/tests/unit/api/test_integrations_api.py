@@ -75,10 +75,13 @@ async def _connect(uid: str = "user-a") -> None:
 # --- /connect --------------------------------------------------------------------
 
 
-async def test_connect_redirects_to_gitlab(client: httpx.AsyncClient) -> None:
+async def test_connect_returns_authorize_url(client: httpx.AsyncClient) -> None:
+    """JSON (not a 307): the browser reaches this through the same-origin
+    proxy, where a redirect's Location is unreadable to client JS — the web
+    navigates to authorize_url itself."""
     r = await client.get("/integrations/gitlab/connect")
-    assert r.status_code == 307
-    assert r.headers["location"].startswith("https://gitlab.com/oauth/authorize?")
+    assert r.status_code == 200
+    assert r.json()["authorize_url"].startswith("https://gitlab.com/oauth/authorize?")
 
 
 async def test_connect_503_when_unconfigured(

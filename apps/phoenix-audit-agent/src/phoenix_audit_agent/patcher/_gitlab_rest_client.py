@@ -124,8 +124,12 @@ class GitLabRestClient:
         )
 
 
-def build_default_client(project_id: str, token: str) -> GitLabRestClient:
+def build_default_client(project_id: str, token: str, *, oauth: bool = False) -> GitLabRestClient:
     """Build a python-gitlab Project wrapper.
+
+    `oauth=True` authenticates with a per-user OAuth access token
+    (story-9.17 review-first MR filing); default stays the service-env
+    private token (seed-script path only).
 
     Deferred-import so unit tests that inject a stub `_ProjectLike` don't
     incur the gitlab module's transitive HTTP-client imports. Production
@@ -134,7 +138,11 @@ def build_default_client(project_id: str, token: str) -> GitLabRestClient:
     """
     import gitlab
 
-    gl = gitlab.Gitlab("https://gitlab.com", private_token=token)
+    gl = (
+        gitlab.Gitlab("https://gitlab.com", oauth_token=token)
+        if oauth
+        else gitlab.Gitlab("https://gitlab.com", private_token=token)
+    )
     project = gl.projects.get(project_id)
     return GitLabRestClient(project=project)
 
