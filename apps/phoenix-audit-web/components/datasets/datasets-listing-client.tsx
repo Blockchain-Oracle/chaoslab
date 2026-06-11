@@ -14,7 +14,7 @@
 // liveError surfaces as a banner so an outage never displays a silent
 // empty page.
 
-import { useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { A } from '@/components/ui/link'
 import { PageFoot } from '@/components/ui/page-foot'
 import { SectionHead } from '@/components/ui/section-head'
@@ -22,7 +22,7 @@ import { TopBar } from '@/components/ui/topbar'
 import { fmtDate } from '@/lib/format'
 import { groupDatasetsByKind, type DatasetSection } from '@/lib/datasets-grouping'
 import type { DatasetKind, DatasetListRowDto } from '@/lib/datasets-types'
-import { DatasetUploadCard } from './dataset-upload-card'
+import { DatasetUploadModal } from './dataset-upload-modal'
 import { DeleteDatasetModal } from './delete-dataset-modal'
 
 const KIND_GLYPH: Record<DatasetKind, string> = {
@@ -216,7 +216,10 @@ export function DatasetsListingClient({ rows, liveError }: DatasetsListingClient
   const [optimistic, setOptimistic] = useState<DatasetListRowDto[]>([])
   const [landedId, setLandedId] = useState<string | null>(null)
   const [deleting, setDeleting] = useState<DatasetListRowDto | null>(null)
-  const uploadRef = useRef<HTMLDivElement>(null)
+  // story-9.15 follow-up: upload UX moved from inline-at-page-bottom (+
+  // scroll-to-anchor) to a centered modal. The CTA opens the modal; the
+  // modal closes itself on successful upload via onUploaded.
+  const [uploadOpen, setUploadOpen] = useState(false)
 
   const all = [...optimistic, ...rows]
   const sections = groupDatasetsByKind(all)
@@ -227,16 +230,20 @@ export function DatasetsListingClient({ rows, liveError }: DatasetsListingClient
   const onUploaded = (row: DatasetListRowDto) => {
     setOptimistic((prev) => [row, ...prev])
     setLandedId(row.dataset_id)
+    setUploadOpen(false)
     setTimeout(() => setLandedId(null), 3200)
   }
-  const scrollToUpload = () => {
-    const el = uploadRef.current
-    if (el)
-      window.scrollTo({
-        top: el.getBoundingClientRect().top + window.scrollY - 90,
-        behavior: 'smooth',
-      })
-  }
+
+  // Escape closes the modal (mirrors DeleteDatasetModal behavior; ds-modal-veil
+  // owns the backdrop-click close).
+  useEffect(() => {
+    if (!uploadOpen) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setUploadOpen(false)
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [uploadOpen])
 
   return (
     <>
@@ -251,7 +258,7 @@ export function DatasetsListingClient({ rows, liveError }: DatasetsListingClient
               Datasets.
             </h1>
           </div>
-          <button className="btn ghost" onClick={scrollToUpload}>
+          <button className="btn ghost" onClick={() => setUploadOpen(true)}>
             Upload a dataset
           </button>
         </div>
@@ -329,11 +336,10 @@ export function DatasetsListingClient({ rows, liveError }: DatasetsListingClient
             </DsEmptyRow>
           }
         />
-
-        <div ref={uploadRef} style={{ marginTop: 4 }}>
-          <DatasetUploadCard onUploaded={onUploaded} />
-        </div>
       </div>
+      {uploadOpen ? (
+        <DatasetUploadModal onCancel={() => setUploadOpen(false)} onUploaded={onUploaded} />
+      ) : null}
       {deleting ? (
         <DeleteDatasetModal
           row={deleting}

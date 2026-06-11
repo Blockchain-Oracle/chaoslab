@@ -389,3 +389,21 @@ describe('server-side gate plumbing (source-level pins)', () => {
     expect(src).toMatch(/redirect\(['"]\/audits['"]\)/)
   })
 })
+
+describe('framework step mentions the Datasets surface (story-9.15 follow-up)', () => {
+  it('FrameworkStep body discloses /datasets so onboarding users learn the feature exists', () => {
+    // The wizard intentionally stays at 5 steps (designer-locked per
+    // story-9.14 brief). Surfacing datasets in the framework step body is
+    // the lightest-touch fix — the user otherwise has no in-product mention
+    // of the feature until they wander to /new.
+    const src = readFileSync(
+      join(import.meta.dirname, '../components/onboarding/steps.tsx'),
+      'utf-8',
+    )
+    const frameworkStart = src.indexOf('export function FrameworkStep')
+    const frameworkEnd = src.indexOf('export function', frameworkStart + 1)
+    expect(frameworkStart).toBeGreaterThan(-1)
+    const body = src.slice(frameworkStart, frameworkEnd)
+    expect(body).toMatch(/[Dd]ataset/)
+  })
+})

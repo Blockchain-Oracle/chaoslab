@@ -7,6 +7,10 @@
 export const NAV_ITEMS: ReadonlyArray<[string, string]> = [
   ['audits', 'Audits'],
   ['agents', 'Target agents'],
+  // story-9.15 follow-up: surface the dataset feature in the global nav. Sits
+  // between Target agents and Monitoring so the natural read is "what I'm
+  // auditing → what data I'm auditing it with → how it's going."
+  ['datasets', 'Datasets'],
   ['monitoring', 'Monitoring'],
   ['settings', 'Settings'],
 ]
