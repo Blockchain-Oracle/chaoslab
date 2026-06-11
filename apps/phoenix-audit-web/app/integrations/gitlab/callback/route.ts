@@ -9,6 +9,12 @@ import { getTokens } from 'next-firebase-auth-edge'
 import { agentAuthHeaders, agentBaseUrl } from '@/lib/server/agent-fetch'
 import { serverAuthConfig } from '@/lib/auth/config'
 
+// google-auth-library (agent-fetch) needs Node APIs — without this the
+// production build compiles the route for the edge and fails (same pair as
+// app/api/agent/[...path]/route.ts).
+export const dynamic = 'force-dynamic'
+export const runtime = 'nodejs'
+
 function settingsRedirect(req: NextRequest, flag: 'connected' | 'error'): NextResponse {
   return NextResponse.redirect(new URL(`/settings?gitlab=${flag}`, req.url))
 }

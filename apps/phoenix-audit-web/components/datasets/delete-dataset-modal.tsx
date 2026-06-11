@@ -8,7 +8,8 @@
 // operator's source file is the only backup.
 
 import { useState } from 'react'
-import { deleteDataset, type DatasetListRowDto } from '@/lib/datasets'
+import { deleteDataset } from '@/lib/datasets-client'
+import type { DatasetListRowDto } from '@/lib/datasets-types'
 import { fmtDate } from '@/lib/format'
 
 interface Props {

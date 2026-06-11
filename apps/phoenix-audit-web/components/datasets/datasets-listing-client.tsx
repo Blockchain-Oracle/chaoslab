@@ -21,7 +21,7 @@ import { SectionHead } from '@/components/ui/section-head'
 import { TopBar } from '@/components/ui/topbar'
 import { fmtDate } from '@/lib/format'
 import { groupDatasetsByKind, type DatasetSection } from '@/lib/datasets-grouping'
-import type { DatasetKind, DatasetListRowDto } from '@/lib/datasets'
+import type { DatasetKind, DatasetListRowDto } from '@/lib/datasets-types'
 import { DatasetUploadCard } from './dataset-upload-card'
 import { DeleteDatasetModal } from './delete-dataset-modal'
 

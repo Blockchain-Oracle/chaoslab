@@ -7,7 +7,7 @@
 // without a measured pixel value.
 
 import { useState, type MouseEvent } from 'react'
-import type { DatasetItemDto } from '@/lib/datasets'
+import type { DatasetItemDto } from '@/lib/datasets-types'
 
 function FaultClass({ name }: { name: string }) {
   return (
