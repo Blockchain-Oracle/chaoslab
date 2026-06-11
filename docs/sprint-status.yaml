@@ -693,6 +693,36 @@ stories:
     pr_url: "https://github.com/Blockchain-Oracle/phoenix-audit/pull/107"
     merged_at: "2026-06-11T07:55:00Z"
 
+  - id: story-9.15-phoenix-datasets
+    epic: "Epic 9 — product surfaces real"
+    # Wave B (Arize-track core, recovered as S9.8 in jazzy-churning-koala plan,
+    # renumbered to fit the 9.10+ chronology). Three dataset kinds (battery /
+    # regression / uploaded) wired across backend (storage + GET/POST /datasets
+    # + dataset_name on RunRequest + per-failing-probe regression upsert),
+    # web (/datasets page + detail + wizard picker + agent re-audit CTA), and
+    # the signed report cover (real Dataset: line). Designer brief is
+    # docs/assets.md Surface S — written FIRST so the designer can deliver in
+    # parallel (S9.14 lesson, see feedback memory).
+    #
+    # BUNDLED: while already in the web codebase for the datasets UI, this
+    # story also ports the designer's better S9.14 onboarding redesign from
+    # /Users/abu/Downloads/Phoenix Audit(2)/js/onboarding.jsx — docket rail
+    # with answered-values TOC, live signed-report cover preview, AuditLoop
+    # SVG on Welcome, per-step skip wording, GitLab promise/specimen,
+    # DestCards with custom SVG marks. State-machine + reducer from S9.14
+    # stay; only the surface components are replaced.
+    status: PENDING
+    estimate_hours: 0.0
+    tags: [fullstack, p0, phoenix, arize-track, assets, onboarding-reconcile]
+    depends_on:
+      - story-9.1-firestore-persistence
+      - story-9.12-user-profile
+      - story-9.7-phoenix-sessions
+      - story-9.14-onboarding-wizard
+    issue_url: ""
+    pr_url: ""
+    merged_at: ""
+
 # Totals: 58 stories across 9 epics.
 # Aggregate estimate: ~78 hours of coding-agent work.
 # 9 days × multiple parallel coding agents = comfortably fits.
