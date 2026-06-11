@@ -728,6 +728,26 @@ stories:
     pr_url: "https://github.com/Blockchain-Oracle/phoenix-audit/pull/110"
     merged_at: "2026-06-11T13:45:10Z"
 
+  - id: story-9.17-gitlab-oauth-connect
+    epic: "Epic 9 — product surfaces real"
+    # Wave C2: per-user GitLab OAuth (Authlib PKCE S256, single-use
+    # transactional state docs, refresh-with-rotation, transport-vs-revocation
+    # failure classification) + review-first MR filing (POST
+    # /runs/{id}/gitlab-mr with the USER's token; samples not filable;
+    # idempotent). ADR-011 amended (auto→opt-in; service-token→user OAuth;
+    # official-MCP MR call unchanged — MCP is OAuth-only, verified).
+    # {recipe_id}.json GCS sidecar added so the endpoint can rehydrate the
+    # structured recipe. Web: connect card on settings, File-MR button +
+    # project picker on the recipe page, callback server route (open-redirect
+    # hardened per PR review). Live e2e = story-9.6 (next).
+    status: COMPLETE
+    estimate_hours: 0.0
+    tags: [fullstack, p0, gitlab, oauth, adr-011]
+    depends_on: [story-9.12-user-profile, story-9.5-email-summaries]
+    issue_url: ""
+    pr_url: "https://github.com/Blockchain-Oracle/phoenix-audit/pull/112"
+    merged_at: "2026-06-11T17:15:00Z"
+
 # Totals: 58 stories across 9 epics.
 # Aggregate estimate: ~78 hours of coding-agent work.
 # 9 days × multiple parallel coding agents = comfortably fits.
