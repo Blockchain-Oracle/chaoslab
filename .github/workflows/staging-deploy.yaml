@@ -76,7 +76,14 @@ jobs:
             # trace context onto probes, Phoenix routes the target's spans
             # into the AUDITOR's project — the judge must read evidence there,
             # not from the target's own resource project (verified 2026-06-10).
-            extra_env: ",SERVICE_BASE_URL=__RESOLVE_SELF_URL__,SCHEDULER_INVOKER_EMAIL=__DEPLOY_SA__,FIREBASE_PROJECT_ID=__PROJECT_ID__,DEMO_TARGET_URL=__RESOLVE_TARGET_AGENT_URL__,KMS_SIGNING_KEY_VERSION=projects/__PROJECT_ID__/locations/us-central1/keyRings/phoenix-audit/cryptoKeys/report-signer/cryptoKeyVersions/1,TARGET_PHOENIX_PROJECT=phoenix-audit"
+            # PUBLIC_WEB_URL (story-9.5/C3): portal links in emails + the
+            # OAuth exchange's settings-redirect target — the live domain.
+            # GITLAB_OAUTH_REDIRECT_URI (story-9.17): must EXACTLY match a
+            # redirect URI registered on the GitLab OAuth app.
+            extra_env: ",SERVICE_BASE_URL=__RESOLVE_SELF_URL__,SCHEDULER_INVOKER_EMAIL=__DEPLOY_SA__,FIREBASE_PROJECT_ID=__PROJECT_ID__,DEMO_TARGET_URL=__RESOLVE_TARGET_AGENT_URL__,KMS_SIGNING_KEY_VERSION=projects/__PROJECT_ID__/locations/us-central1/keyRings/phoenix-audit/cryptoKeys/report-signer/cryptoKeyVersions/1,TARGET_PHOENIX_PROJECT=phoenix-audit,PUBLIC_WEB_URL=https://phxaudit.xyz,GITLAB_OAUTH_REDIRECT_URI=https://phxaudit.xyz/integrations/gitlab/callback"
+            # resend-api-key (story-9.5) + gitlab-oauth-* (story-9.17) were
+            # provisioned in Secret Manager 2026-06-10 and runtime-SA bound.
+            extra_secrets: ",RESEND_API_KEY=resend-api-key:latest,GITLAB_OAUTH_CLIENT_ID=gitlab-oauth-client-id:latest,GITLAB_OAUTH_CLIENT_SECRET=gitlab-oauth-client-secret:latest"
             # The run registry + SSE queues are in-process (main.py): a second
             # instance means POST /run and GET /stream can land on different
             # pods → 404 mid-demo. One instance trivially handles the audit.

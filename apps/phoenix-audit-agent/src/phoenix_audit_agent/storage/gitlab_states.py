@@ -41,6 +41,8 @@ class FirestoreGitLabStateStore:
         return self._db
 
     async def put(self, state: str, *, uid: str, code_verifier: str, created_at: str) -> None:
+        from datetime import UTC, datetime, timedelta
+
         await (
             self.db.collection(_COLLECTION)
             .document(state)
@@ -50,6 +52,11 @@ class FirestoreGitLabStateStore:
                     "uid": uid,
                     "code_verifier": code_verifier,
                     "created_at": created_at,
+                    # Real Timestamp for the Firestore TTL policy (TTL ignores
+                    # string fields) — abandoned verifiers self-delete. The
+                    # consume-time TTL check stays authoritative at 10 min;
+                    # this is storage hygiene, not the security boundary.
+                    "expire_at": datetime.now(UTC) + timedelta(hours=1),
                 }
             )
         )

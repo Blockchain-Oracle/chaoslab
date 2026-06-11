@@ -33,7 +33,7 @@ const ibmPlexMono = IBM_Plex_Mono({
 })
 
 export const metadata: Metadata = {
-  metadataBase: new URL('https://phoenix-audit.example'),
+  metadataBase: new URL('https://phxaudit.xyz'),
   title: 'Phoenix Audit — the AI agent that audits your other AI agents',
   description:
     'Three failures. One root cause. Patch in four seconds. Regulator-ready signed audit reports in ~90 seconds.',
