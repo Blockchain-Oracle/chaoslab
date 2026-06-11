@@ -98,3 +98,92 @@ describe('reviewClusterLabel', () => {
     expect(reviewClusterLabel({ status: 'failed', error: 'x' })).toBe('✕ Save failed — retry')
   })
 })
+
+// --- PR #120 review fixes -------------------------------------------------------
+
+describe('submitClusterReview — prior-state preservation', () => {
+  it('keeps the prior saved review when a re-submit fails (network)', async () => {
+    const { submitClusterReview } = await import('@/lib/cluster-review')
+    const prior = {
+      status: 'saved' as const,
+      review: {
+        verdict: 'confirmed' as const,
+        note: null,
+        reviewer_email: 'officer@corp.example',
+        reviewed_at: '2026-06-11T18:30:00Z',
+      },
+      phoenixAnnotated: true,
+    }
+    const f = vi.fn(async () => {
+      throw new TypeError('network down')
+    })
+    const state = await submitClusterReview(
+      'run_abc',
+      'cluster_xy',
+      { verdict: 'disputed' },
+      f,
+      prior,
+    )
+    expect(state).toEqual({ ...prior, retryError: 'network down' })
+  })
+
+  it('keeps the prior saved review when a re-submit gets a backend 502', async () => {
+    const { submitClusterReview } = await import('@/lib/cluster-review')
+    const prior = {
+      status: 'saved' as const,
+      review: {
+        verdict: 'confirmed' as const,
+        note: null,
+        reviewer_email: 'officer@corp.example',
+        reviewed_at: '2026-06-11T18:30:00Z',
+      },
+      phoenixAnnotated: false,
+    }
+    const f = vi.fn(
+      async () => new Response(JSON.stringify({ detail: 'gateway' }), { status: 502 }),
+    )
+    const state = await submitClusterReview(
+      'run_abc',
+      'cluster_xy',
+      { verdict: 'disputed' },
+      f,
+      prior,
+    )
+    expect(state).toEqual({ ...prior, retryError: 'gateway' })
+  })
+})
+
+describe('retryClusterAnnotation', () => {
+  it('hits the retry endpoint and reports the new outcome', async () => {
+    const { retryClusterAnnotation } = await import('@/lib/cluster-review')
+    const f = vi.fn(
+      async () => new Response(JSON.stringify({ phoenix_annotated: true }), { status: 200 }),
+    )
+    const result = await retryClusterAnnotation('run_abc', 'cluster_xy', f)
+    expect(result).toEqual({ ok: true })
+    expect(f).toHaveBeenCalledWith(
+      '/api/agent/runs/run_abc/clusters/cluster_xy/review/annotate-retry',
+      { method: 'POST' },
+    )
+  })
+
+  it('surfaces the backend detail on failure', async () => {
+    const { retryClusterAnnotation } = await import('@/lib/cluster-review')
+    const f = vi.fn(
+      async () => new Response(JSON.stringify({ detail: 'phoenix down' }), { status: 502 }),
+    )
+    const result = await retryClusterAnnotation('run_abc', 'cluster_xy', f)
+    expect(result).toEqual({ ok: false, error: 'phoenix down' })
+  })
+})
+
+describe('proxy allowlist — annotate-retry path', () => {
+  it('matches the retry path with a dotted cluster id', async () => {
+    const dotted = /^runs\/[a-zA-Z0-9_-]+\/clusters\/[A-Za-z0-9_.-]{1,64}\/review\/annotate-retry$/
+    expect(dotted.test('runs/run_abc123def456/clusters/cluster.xy/review/annotate-retry')).toBe(
+      true,
+    )
+    expect(dotted.test('runs/run_x/clusters/cluster_01/review/annotate-retry')).toBe(true)
+    expect(dotted.test('runs/run_x/clusters/cluster_01/review/extra')).toBe(false)
+  })
+})

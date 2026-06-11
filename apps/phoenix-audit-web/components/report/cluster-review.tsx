@@ -7,6 +7,7 @@
 import { useState } from 'react'
 import { phoenixSpanUrl } from '@/lib/phoenix-links'
 import {
+  retryClusterAnnotation,
   reviewClusterLabel,
   submitClusterReview,
   type ClusterReview,
@@ -36,14 +37,45 @@ export function ClusterReviewControl({
   const [open, setOpen] = useState(false)
   const [note, setNote] = useState('')
   const [state, setState] = useState<ReviewState>(
-    existing ? { status: 'saved', review: existing, phoenixAnnotated: true } : { status: 'idle' },
+    existing
+      ? {
+          status: 'saved',
+          review: existing,
+          // PR #120 review B2: hydrate from the persisted boolean — never
+          // hardcode `true` on refresh, or a partial-success silently
+          // upgrades to a clean confirmation on the next page load.
+          phoenixAnnotated: existing.phoenix_annotated !== false,
+        }
+      : { status: 'idle' },
   )
+  const [retrying, setRetrying] = useState(false)
   const spanHref = phoenixSpanUrl(phoenixUiBase, phoenixProject, spanId)
 
   async function send(verdict: 'confirmed' | 'disputed') {
+    const prior = state
     setState({ status: 'submitting' })
-    setState(await submitClusterReview(runId, clusterId, { verdict, note: note || undefined }))
+    setState(
+      await submitClusterReview(
+        runId,
+        clusterId,
+        { verdict, note: note || undefined },
+        fetch,
+        prior,
+      ),
+    )
     setOpen(false)
+  }
+
+  async function retryAnnotation() {
+    if (state.status !== 'saved') return
+    setRetrying(true)
+    const result = await retryClusterAnnotation(runId, clusterId)
+    setRetrying(false)
+    if (result.ok) {
+      setState({ ...state, phoenixAnnotated: true, retryError: undefined })
+    } else if (result.error) {
+      setState({ ...state, retryError: result.error })
+    }
   }
 
   return (
@@ -64,6 +96,20 @@ export function ClusterReviewControl({
             >
               Review in Phoenix ↗
             </a>
+          ) : null}
+          {!state.phoenixAnnotated ? (
+            <button
+              type="button"
+              className="btn small ghost"
+              onClick={retryAnnotation}
+              disabled={retrying}
+              style={{ marginLeft: 10, fontSize: 10 }}
+            >
+              {retrying ? 'Retrying annotation…' : 'Retry annotation'}
+            </button>
+          ) : null}
+          {state.retryError ? (
+            <div style={{ marginTop: 4, color: 'var(--fail)' }}>✕ {state.retryError}</div>
           ) : null}
         </div>
       ) : open ? (

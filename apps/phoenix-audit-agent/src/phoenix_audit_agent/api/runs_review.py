@@ -29,8 +29,12 @@ async def annotate_officer_verdict(
     *, span_id: str, verdict: str, note: str | None, cluster_id: str
 ) -> bool:
     """Write the HUMAN annotation onto the cluster's exemplar span (module
-    attribute = test seam). Returns False on any failure — contained; the
-    caller discloses the outcome instead of failing the review."""
+    attribute = test seam). Returns False on the typed Phoenix failure
+    classes — contained; the caller discloses the outcome instead of failing
+    the review. Programmer errors (ImportError, KeyError, etc.) surface."""
+    import httpx
+
+    from phoenix_audit_agent.errors import PhoenixAnnotationError
     from phoenix_audit_agent.phoenix_tools.write_annotation import write_span_annotation
 
     try:
@@ -42,7 +46,7 @@ async def annotate_officer_verdict(
             annotator="human",
             label=verdict,
         )
-    except Exception:
+    except (PhoenixAnnotationError, httpx.HTTPError, TimeoutError):
         _log.error(
             "officer_annotation_failed", span_id=span_id, cluster_id=cluster_id, exc_info=True
         )
@@ -85,14 +89,23 @@ async def review_cluster(
             status_code=422, detail="signed-in account has no email address on its token"
         )
 
+    # Run the Phoenix annotation FIRST so the persisted ClusterReview can
+    # record its outcome — that pin is what survives a page refresh (PR #120
+    # review B2). Contained: a Phoenix outage never blocks the review write.
+    annotated = await annotate_officer_verdict(
+        span_id=span_id, verdict=payload.verdict, note=payload.note, cluster_id=cluster_id
+    )
     review = ClusterReview(
         verdict=payload.verdict,
         note=payload.note,
         reviewer_email=user.email,
         reviewed_at=utc_now_iso(),
+        phoenix_annotated=annotated,
     )
-    # Read-modify-write of the whole dict: per-run review traffic is single-
-    # officer; the merge path is the same contained write-through finalize uses.
+    # Read-modify-write of the whole dict. Per-run review traffic is single-
+    # officer; concurrent reviews-of-different-clusters from one user's two
+    # tabs are a documented residual (PR #120 review HIGH-1) — atomic per-key
+    # merge via Firestore field-path updates is the right follow-up.
     reviews = {**record.cluster_reviews, cluster_id: review}
     persisted = await persist_run_completion(
         run_id,
@@ -107,10 +120,62 @@ async def review_cluster(
     if not persisted:
         raise HTTPException(status_code=502, detail="review could not be persisted — retry")
 
-    annotated = await annotate_officer_verdict(
-        span_id=span_id, verdict=payload.verdict, note=payload.note, cluster_id=cluster_id
-    )
     return ReviewResponse(review=review, phoenix_annotated=annotated)
+
+
+@router.post(
+    "/runs/{run_id}/clusters/{cluster_id}/review/annotate-retry",
+    response_model=ReviewResponse,
+)
+async def retry_cluster_annotation(
+    run_id: str,
+    cluster_id: str,
+    user: Annotated[AuthedUser, Depends(require_user)],
+) -> ReviewResponse:
+    """PR #120 review HIGH-2: re-fire JUST the Phoenix annotation half on an
+    EXISTING review — without rewriting `reviewed_at` (which would pollute
+    the audit trail). Updates `phoenix_annotated` on the stored review."""
+    record = await get_run_store().get(run_id)
+    if record is None or record.owner_uid not in (None, user.uid):
+        raise HTTPException(status_code=404, detail=f"run_id not found: {run_id}")
+    if record.owner_uid is None:
+        raise HTTPException(status_code=422, detail="sample runs cannot be reviewed")
+    existing = record.cluster_reviews.get(cluster_id)
+    if existing is None:
+        raise HTTPException(
+            status_code=422,
+            detail=f"no review on file for cluster {cluster_id} — submit a verdict first",
+        )
+    span_id = record.cluster_spans.get(cluster_id)
+    if span_id is None:
+        raise HTTPException(status_code=422, detail=f"cluster_id not on this run: {cluster_id}")
+
+    annotated = await annotate_officer_verdict(
+        span_id=span_id,
+        verdict=existing.verdict,
+        note=existing.note,
+        cluster_id=cluster_id,
+    )
+    if annotated == existing.phoenix_annotated:
+        # No state change — return the existing review without touching the store.
+        return ReviewResponse(review=existing, phoenix_annotated=annotated)
+    updated = existing.model_copy(update={"phoenix_annotated": annotated})
+    reviews = {**record.cluster_reviews, cluster_id: updated}
+    persisted = await persist_run_completion(
+        run_id,
+        RunCompletion(
+            run_id=record.run_id,
+            target_url=record.target_url,
+            created_at=record.created_at,
+            phase=record.phase,
+            cluster_reviews=reviews,
+        ),
+    )
+    if not persisted:
+        raise HTTPException(
+            status_code=502, detail="annotation outcome could not be persisted — retry"
+        )
+    return ReviewResponse(review=updated, phoenix_annotated=annotated)
 
 
 __all__ = ["annotate_officer_verdict", "router"]

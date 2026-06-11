@@ -26,9 +26,12 @@ const ALLOWED = [
   // /integrations/gitlab/callback server route may reach it.
   /^runs\/[a-zA-Z0-9_-]+\/gitlab-mr$/,
   /^integrations\/gitlab\/(connect|status|projects|connection)$/,
-  // Story-9.21: officer review on a failure cluster (POST only); cluster
-  // ids match the FailureCluster regex (`cluster_` + 8 hex chars).
-  /^runs\/[a-zA-Z0-9_-]+\/clusters\/[a-zA-Z0-9_-]+\/review$/,
+  // Story-9.21: officer review on a failure cluster (POST only) + retry-
+  // just-the-Phoenix-annotation (PR #120 review HIGH-2). The cluster id
+  // grammar mirrors backend `_CLUSTER_ID_RE` so dotted ids aren't 404'd
+  // here before reaching the typed API error (PR #120 review HIGH-3).
+  /^runs\/[a-zA-Z0-9_-]+\/clusters\/[A-Za-z0-9_.-]{1,64}\/review$/,
+  /^runs\/[a-zA-Z0-9_-]+\/clusters\/[A-Za-z0-9_.-]{1,64}\/review\/annotate-retry$/,
   /^stream$/,
   /^agents$/,
   /^agents\/[a-zA-Z0-9_-]+$/,

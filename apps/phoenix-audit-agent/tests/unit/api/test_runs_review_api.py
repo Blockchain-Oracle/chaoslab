@@ -226,3 +226,93 @@ async def test_run_detail_phoenix_fields_null_when_unconfigured(
     body = r.json()
     assert body["phoenix_ui_base"] is None
     assert body["phoenix_project"] is None
+
+
+# --- PR #120 review fixes -------------------------------------------------------
+
+
+async def test_human_and_judge_annotations_get_distinct_identifiers() -> None:
+    """B1: the officer HUMAN annotation must NOT overwrite the LLM Judge's
+    annotation on the same cluster span — `annotator` participates in the
+    identifier so Phoenix shows both rows."""
+    from phoenix_audit_agent.config import get_settings
+    from phoenix_audit_agent.phoenix_tools.write_annotation import _default_identifier
+
+    s = get_settings()
+    judge_id = _default_identifier("a1b2c3d4e5f60708", "cluster_xy", s, "phoenix_audit_judge")
+    human_id = _default_identifier("a1b2c3d4e5f60708", "cluster_xy", s, "human")
+    assert judge_id != human_id
+    # Phoenix dedups on (name, span_id, identifier) — distinct identifiers
+    # mean the rows coexist, never overwrite.
+
+
+async def test_phoenix_annotated_persisted_on_review(
+    client: httpx.AsyncClient, annotation_spy: list[dict[str, Any]]
+) -> None:
+    """B2: the persisted ClusterReview must record whether the annotation
+    landed — never silently render a partial-success as confirmed on the
+    next /runs/{id} read."""
+    await _seed()
+    r = await _post(client, note="reviewed against trace")
+    assert r.status_code == 200
+    record = await run_storage.get_run_store().get(RUN_ID)
+    assert record is not None
+    assert record.cluster_reviews[CLUSTER].phoenix_annotated is True
+
+
+async def test_phoenix_annotated_false_persisted_on_phoenix_outage(
+    client: httpx.AsyncClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """B2 (cont.): a Phoenix outage at submit time persists False — that
+    boolean MUST survive a page refresh, never silently flip to True."""
+    from phoenix_audit_agent.api import runs_review
+
+    async def down(*, span_id: str, verdict: str, note: str | None, cluster_id: str) -> bool:
+        return False
+
+    monkeypatch.setattr(runs_review, "annotate_officer_verdict", down)
+    await _seed()
+    r = await _post(client)
+    assert r.status_code == 200
+    assert r.json()["phoenix_annotated"] is False
+    record = await run_storage.get_run_store().get(RUN_ID)
+    assert record is not None
+    assert record.cluster_reviews[CLUSTER].phoenix_annotated is False
+
+
+async def test_retry_annotation_updates_only_phoenix_annotated(
+    client: httpx.AsyncClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """H2: a retry of just the annotation must NOT rewrite `reviewed_at`
+    (that pollutes the audit trail). The endpoint touches only the boolean."""
+    from phoenix_audit_agent.api import runs_review
+
+    outcomes = iter([False, True])
+
+    async def staged(*, span_id: str, verdict: str, note: str | None, cluster_id: str) -> bool:
+        return next(outcomes)
+
+    monkeypatch.setattr(runs_review, "annotate_officer_verdict", staged)
+    await _seed()
+    r = await _post(client, note="first take")
+    assert r.json()["phoenix_annotated"] is False
+    original_reviewed_at = r.json()["review"]["reviewed_at"]
+
+    r2 = await client.post(f"/runs/{RUN_ID}/clusters/{CLUSTER}/review/annotate-retry")
+    assert r2.status_code == 200, r2.text
+    body = r2.json()
+    assert body["phoenix_annotated"] is True
+    assert body["review"]["reviewed_at"] == original_reviewed_at
+    record = await run_storage.get_run_store().get(RUN_ID)
+    assert record is not None
+    assert record.cluster_reviews[CLUSTER].phoenix_annotated is True
+    assert record.cluster_reviews[CLUSTER].reviewed_at == original_reviewed_at
+
+
+async def test_retry_without_existing_review_422(
+    client: httpx.AsyncClient, annotation_spy: list[dict[str, Any]]
+) -> None:
+    await _seed()
+    r = await client.post(f"/runs/{RUN_ID}/clusters/{CLUSTER}/review/annotate-retry")
+    assert r.status_code == 422
+    assert "submit a verdict first" in r.json()["detail"]

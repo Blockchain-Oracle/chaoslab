@@ -91,6 +91,10 @@ class ClusterReview(BaseModel):
     note: str | None = Field(default=None, max_length=500)
     reviewer_email: str = Field(min_length=1)
     reviewed_at: str = Field(min_length=1)
+    # PR #120 review B2: persisted so a page refresh preserves the
+    # "(annotation pending)" disclosure — never silently renders a
+    # partial-success as a clean confirmation on the next load.
+    phoenix_annotated: bool = True
 
 
 class RunCompletion(BaseModel):
