@@ -787,6 +787,24 @@ stories:
     pr_url: "https://github.com/Blockchain-Oracle/phoenix-audit/pull/115"
     merged_at: "2026-06-11T17:50:00Z"
 
+  - id: story-9.20-docs-v2
+    epic: "Epic 9 — product surfaces real"
+    # Wave A5: /docs becomes a navigable manual — sticky rail w/ scroll spy
+    # (single-sourced SECTIONS model, pure activeSection reducer), 4 new
+    # feature-true sections (datasets/gitlab/email/privacy; residency
+    # paragraph quoted verbatim per review), 9 live screenshots captured
+    # from staging (first ever committed), favicon (app/icon.svg, shipped
+    # via #116). Side discovery → PR #118: the S9.15 Phoenix dataset
+    # wrapper passed flat rows the REAL SDK rejects (fake masked it);
+    # fixed + write-time validation + staging battery seed now live (3/3).
+    status: COMPLETE
+    estimate_hours: 0.0
+    tags: [web, p1, docs, assets]
+    depends_on: [story-9.19-mobile-responsive, story-9.17-gitlab-oauth-connect]
+    issue_url: ""
+    pr_url: "https://github.com/Blockchain-Oracle/phoenix-audit/pull/117"
+    merged_at: "2026-06-11T18:25:00Z"
+
 # Totals: 58 stories across 9 epics.
 # Aggregate estimate: ~78 hours of coding-agent work.
 # 9 days × multiple parallel coding agents = comfortably fits.
