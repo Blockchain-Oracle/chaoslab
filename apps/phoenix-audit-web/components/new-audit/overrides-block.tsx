@@ -1,6 +1,7 @@
 'use client'
 
 import { Field } from '@/components/ui/field'
+import { runsPerFaultFromCap } from '@/lib/audit-budget'
 
 const CATS = ['prompt_injection', 'context_poisoning', 'malformed_tool_output', 'latency_spike']
 
@@ -82,7 +83,7 @@ export function OverridesBlock(props: OverridesBlockProps) {
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
             <Field
               label="Cap number of tests"
-              hint={`runs ${Math.max(4, Math.min(80, Math.round(cap / 4) * 4))} probes total (rounded to multiples of 4 across the fault classes)`}
+              hint={`runs ${runsPerFaultFromCap(cap) * 4} probes total (rounded to multiples of 4 across the fault classes)`}
             >
               <input
                 className="text-input"

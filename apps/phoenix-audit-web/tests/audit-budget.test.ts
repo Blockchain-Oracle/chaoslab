@@ -29,7 +29,12 @@ describe('runsPerFaultFromCap', () => {
     expect(runsPerFaultFromCap(1000)).toBe(20)
   })
 
-  it('treats NaN as the minimum (1) instead of NaN-propagating', () => {
+  it('treats every non-finite input as the minimum (1)', () => {
+    // The hint label in the wizard reads this value verbatim — a NaN
+    // or Infinity slipping through would render "runs NaN probes total"
+    // to the operator. `Number.isFinite` is the single guard.
     expect(runsPerFaultFromCap(Number.NaN)).toBe(1)
+    expect(runsPerFaultFromCap(Number.POSITIVE_INFINITY)).toBe(1)
+    expect(runsPerFaultFromCap(Number.NEGATIVE_INFINITY)).toBe(1)
   })
 })
