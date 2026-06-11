@@ -63,12 +63,24 @@ class GitLabUnavailableError(GitLabOAuthError):
 
 def oauth_configured() -> bool:
     s = get_settings()
-    return bool(
-        s.GITLAB_OAUTH_CLIENT_ID
-        and s.GITLAB_OAUTH_CLIENT_SECRET is not None
-        and s.GITLAB_OAUTH_CLIENT_SECRET.get_secret_value()
-        and s.GITLAB_OAUTH_REDIRECT_URI
-    )
+    missing = [
+        name
+        for name, present in (
+            ("GITLAB_OAUTH_CLIENT_ID", bool(s.GITLAB_OAUTH_CLIENT_ID)),
+            (
+                "GITLAB_OAUTH_CLIENT_SECRET",
+                s.GITLAB_OAUTH_CLIENT_SECRET is not None
+                and bool(s.GITLAB_OAUTH_CLIENT_SECRET.get_secret_value()),
+            ),
+            ("GITLAB_OAUTH_REDIRECT_URI", bool(s.GITLAB_OAUTH_REDIRECT_URI)),
+        )
+        if not present
+    ]
+    if missing:
+        # Name the exact gap — a generic 503 burns ops time on the wrong var.
+        _log.warning("gitlab_oauth_not_configured", missing=missing)
+        return False
+    return True
 
 
 def _client() -> AsyncOAuth2Client:
@@ -131,13 +143,14 @@ async def exchange_code(*, code: str, state: str, uid: str) -> GitLabConnection:
                 connected_at=utc_now_iso(),
             )
         except Exception as exc:
-            # str(exc) carries authlib's error/description (invalid_grant vs
-            # redirect mismatch) — actionable, and never a token value.
+            # Log the structured OAuth error CODE only (invalid_grant vs
+            # redirect mismatch) — never str(exc), whose rendering of HTTP
+            # errors can embed response bodies/headers (PR #112 H-3).
             _log.error(
                 "gitlab_oauth_exchange_failed",
                 uid=doc.uid,
                 error_type=type(exc).__name__,
-                error=str(exc),
+                oauth_error=getattr(exc, "error", None),
             )
             raise ExchangeError(f"token exchange failed: {type(exc).__name__}") from exc
     await _persist(doc.uid, connection)

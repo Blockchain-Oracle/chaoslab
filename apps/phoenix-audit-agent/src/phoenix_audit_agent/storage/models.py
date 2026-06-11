@@ -150,8 +150,9 @@ class GitLabConnection(BaseModel):
     access_token: str = Field(min_length=1)
     refresh_token: str = Field(min_length=1)
     # Epoch seconds (authlib token shape). GitLab access tokens live 2h;
-    # the refresh gate compares against now+60s.
-    expires_at: float
+    # the refresh gate compares against now+60s. gt=0 keeps a clock-skewed
+    # or zeroed value from reading as expired-forever (refresh storm).
+    expires_at: float = Field(gt=0)
     username: str = Field(min_length=1)
     gitlab_user_id: int
     connected_at: str = Field(min_length=1)

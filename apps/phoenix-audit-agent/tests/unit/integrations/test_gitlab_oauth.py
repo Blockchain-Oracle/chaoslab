@@ -160,6 +160,35 @@ async def test_exchange_happy_path_persists_connection_and_consumes_state() -> N
         await gitlab_oauth.exchange_code(code="authcode-1", state=state, uid="user-a")
 
 
+@respx.mock
+async def test_concurrent_exchange_same_state_single_use() -> None:
+    """Double-fired callback (same state, concurrent): exactly one exchange
+    succeeds; the other gets StateError — never two connections minted
+    (PR #112 H-2)."""
+    import asyncio
+
+    from phoenix_audit_agent.integrations import gitlab_oauth
+
+    token_route = respx.post(TOKEN_URL).mock(
+        return_value=httpx.Response(200, json=_token_payload())
+    )
+    respx.get(USER_URL).mock(return_value=httpx.Response(200, json={"username": "abu", "id": 42}))
+
+    url = await gitlab_oauth.build_authorization_redirect("user-a")
+    state = parse_qs(urlparse(url).query)["state"][0]
+
+    results = await asyncio.gather(
+        gitlab_oauth.exchange_code(code="c1", state=state, uid="user-a"),
+        gitlab_oauth.exchange_code(code="c1", state=state, uid="user-a"),
+        return_exceptions=True,
+    )
+    successes = [r for r in results if not isinstance(r, BaseException)]
+    failures = [r for r in results if isinstance(r, gitlab_oauth.StateError)]
+    assert len(successes) == 1
+    assert len(failures) == 1
+    assert token_route.call_count == 1
+
+
 async def test_exchange_unknown_state_rejected_without_http() -> None:
     from phoenix_audit_agent.integrations import gitlab_oauth
 

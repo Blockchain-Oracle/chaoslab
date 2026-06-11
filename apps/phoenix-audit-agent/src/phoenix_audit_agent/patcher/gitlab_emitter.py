@@ -110,6 +110,9 @@ class GitLabMREmitter:
         # Story-9.17: when set, BOTH halves (REST branch+files, MCP MR) run
         # as the USER — never mixed identities, never a service-token
         # fallback (filing as the wrong identity is worse than failing).
+        # The official MCP endpoint is OAuth-only (PAT support is an open
+        # GitLab issue, #586184) — the user OAuth bearer is the DOCUMENTED
+        # credential here, verified 2026-06-11 (PR #112 M-2).
         self._oauth_token = oauth_token
         self._rest_client = rest_client
         self._mcp_client = mcp_client or GitLabMcpClient(

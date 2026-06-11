@@ -38,16 +38,12 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     return settingsRedirect(req, 'error')
   }
 
-  const location = upstream.headers.get('location')
-  if (upstream.status === 307 && location) {
-    // The agent's redirect targets PUBLIC_WEB_URL; re-derive the path on
-    // THIS origin so staging (Cloud Run URL) and the domain both work.
-    try {
-      const target = new URL(location)
-      return NextResponse.redirect(new URL(target.pathname + target.search, req.url))
-    } catch {
-      return settingsRedirect(req, 'error')
-    }
+  // NEVER re-mount the upstream Location on this origin — a protocol-relative
+  // or tampered path would become an open redirect. The agent's 307 carries
+  // exactly one bit (connected|error); extract the bit, hard-code the path.
+  if (upstream.status === 307) {
+    const connected = upstream.headers.get('location')?.includes('gitlab=connected') ?? false
+    return settingsRedirect(req, connected ? 'connected' : 'error')
   }
   return settingsRedirect(req, 'error')
 }
