@@ -767,6 +767,26 @@ stories:
     pr_url: "https://github.com/Blockchain-Oracle/phoenix-audit/pull/113"
     merged_at: "2026-06-11T17:30:00Z"
 
+  - id: story-9.19-mobile-responsive
+    epic: "Epic 9 — product surfaces real"
+    # Wave A4: built from a full-surface 390x844 audit on live staging (12
+    # surfaces, overflow + offenders measured per page → 5 breakage classes,
+    # one fix each): MobileNav hamburger+drawer (full aria-modal contract:
+    # focus trap, inert, scroll lock — PR review B1/H1), ledger tables
+    # scroll-in-place, chamber single-column + scrollable phase rail +
+    # wrapping SSE feed, hero grid minmax(0,1fr) + fluid specimen, report
+    # thumb strip. Desktop untouched (every rule behind the media query;
+    # the one desktop-affecting wrapper was removed in review). Designer
+    # brief: assets.md Surface M. Verified locally on the public surfaces;
+    # authed-surface staging walk follows the deploy.
+    status: COMPLETE
+    estimate_hours: 0.0
+    tags: [web, p0, responsive, assets]
+    depends_on: [story-9.13-report-presentation, story-9.15-phoenix-datasets]
+    issue_url: ""
+    pr_url: "https://github.com/Blockchain-Oracle/phoenix-audit/pull/115"
+    merged_at: "2026-06-11T17:50:00Z"
+
 # Totals: 58 stories across 9 epics.
 # Aggregate estimate: ~78 hours of coding-agent work.
 # 9 days × multiple parallel coding agents = comfortably fits.
