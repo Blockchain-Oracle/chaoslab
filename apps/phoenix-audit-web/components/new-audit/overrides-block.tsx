@@ -80,7 +80,10 @@ export function OverridesBlock(props: OverridesBlockProps) {
               })}
             </div>
           </Field>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+          <div
+            className="grid-2up"
+            style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}
+          >
             <Field
               label="Cap number of tests"
               hint={`runs ${runsPerFaultFromCap(cap) * 4} probes total (rounded to multiples of 4 across the fault classes)`}

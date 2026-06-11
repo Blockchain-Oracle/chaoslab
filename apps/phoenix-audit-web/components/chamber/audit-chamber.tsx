@@ -119,7 +119,10 @@ export function AuditChamber({
             phoenixProject={phoenixProject}
           />
           <LiveReportRow report={stream.report} />
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 22 }}>
+          <div
+            className="cluster-recipe-grid grid-2up"
+            style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 22 }}
+          >
             <LiveClusterCard cluster={stream.cluster} phase={stream.phase} />
             <LiveRecipeCard recipe={stream.recipe} phase={stream.phase} />
           </div>

@@ -186,6 +186,7 @@ function NewAuditForm() {
             }
           />
           <div
+            className="grid-2up"
             style={{
               display: 'grid',
               gridTemplateColumns: '1fr 1fr',
@@ -226,7 +227,10 @@ function NewAuditForm() {
                 title="Your Phoenix instance"
                 right={<span className="tag">BYO hosting mode</span>}
               />
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+              <div
+                className="grid-2up"
+                style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}
+              >
                 <Field label="Phoenix endpoint URL">
                   <input
                     className="text-input"

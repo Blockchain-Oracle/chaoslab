@@ -242,7 +242,10 @@ export function DatasetsListingClient({ rows, liveError }: DatasetsListingClient
     <>
       <TopBar />
       <div className="shell" style={{ padding: '50px 40px 30px' }}>
-        <div style={{ display: 'flex', alignItems: 'flex-end', gap: 20, marginBottom: 10 }}>
+        <div
+          className="page-hero-row"
+          style={{ display: 'flex', alignItems: 'flex-end', gap: 20, marginBottom: 10 }}
+        >
           <div style={{ flex: 1 }}>
             <div className="kicker" style={{ marginBottom: 12 }}>
               Test-case registry

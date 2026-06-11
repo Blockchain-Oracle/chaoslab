@@ -26,6 +26,7 @@ export function Transport({ t, duration, playing, setPlaying, seek, restart }: T
       }}
     >
       <div
+        className="replay-transport"
         style={{
           maxWidth: 1180,
           margin: '0 auto',
