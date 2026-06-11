@@ -55,26 +55,36 @@ export function DsCaseRow({ row, hasNotes }: { row: DatasetItemDto; hasNotes: bo
         onClick={() => setOpen(!open)}
         title={open ? 'Collapse prompt' : 'Expand the full prompt'}
       >
-        <td className="mono" style={{ fontSize: 11, whiteSpace: 'nowrap' }}>
+        <td className="mono" data-label="case_id" style={{ fontSize: 11, whiteSpace: 'nowrap' }}>
           {row.case_id}
         </td>
-        <td>
+        <td data-label="fault_class">
           <FaultClass name={row.fault_class} />
         </td>
-        <td className="ds-prompt-cell" style={{ maxWidth: 320 }}>
+        <td className="ds-prompt-cell" data-label="Prompt" style={{ maxWidth: 320 }}>
           <span className="crop" style={{ fontSize: 12.5, lineHeight: 1.5, color: 'var(--ink)' }}>
             {row.prompt}
           </span>
         </td>
-        <td style={{ fontSize: 12.5, color: 'var(--ink-2)', maxWidth: 230 }}>{row.expected}</td>
-        <td className="mono muted" style={{ fontSize: 10, whiteSpace: 'nowrap' }}>
+        <td data-label="Expected" style={{ fontSize: 12.5, color: 'var(--ink-2)', maxWidth: 230 }}>
+          {row.expected}
+        </td>
+        <td
+          className="mono muted"
+          data-label="Source"
+          style={{ fontSize: 10, whiteSpace: 'nowrap' }}
+        >
           {row.source}
         </td>
-        <td>
+        <td data-label="Severity">
           <SevDot s={row.severity} />
         </td>
         {hasNotes ? (
-          <td className="mono muted" style={{ fontSize: 10.5, whiteSpace: 'nowrap' }}>
+          <td
+            className="mono muted"
+            data-label="Notes"
+            style={{ fontSize: 10.5, whiteSpace: 'nowrap' }}
+          >
             {row.notes ? (open ? '▾ notes' : '▸ notes') : '—'}
           </td>
         ) : null}

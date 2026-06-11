@@ -40,16 +40,16 @@ function HistoryRow({ run, agents }: RowProps) {
   const stop = (e: React.MouseEvent) => e.stopPropagation()
   return (
     <tr className="clickable" onClick={open}>
-      <td className="mono" style={{ fontSize: 11.5, whiteSpace: 'nowrap' }}>
+      <td className="mono" data-label="Audit run" style={{ fontSize: 11.5, whiteSpace: 'nowrap' }}>
         {run.id}
       </td>
-      <td>
+      <td data-label="Target agent">
         <div style={{ fontSize: 13.5 }}>{name}</div>
         <div className="mono muted" style={{ fontSize: 10.5 }}>
           {url.replace('https://', '').replace('http://', '')}
         </div>
       </td>
-      <td>
+      <td data-label="Framework">
         <span className="tag">{run.framework}</span>
         {run.tier3 ? (
           <span className="mono muted" style={{ fontSize: 10, marginLeft: 6 }}>
@@ -57,7 +57,7 @@ function HistoryRow({ run, agents }: RowProps) {
           </span>
         ) : null}
       </td>
-      <td className="mono num" style={{ whiteSpace: 'nowrap' }}>
+      <td className="mono num" data-label="Verdicts" style={{ whiteSpace: 'nowrap' }}>
         <span style={{ color: 'var(--pass)' }}>{run.pass}✓</span>
         <span className="muted"> / </span>
         <span style={{ color: run.fail ? 'var(--fail)' : 'var(--ink-3)' }}>{run.fail}✕</span>
@@ -71,7 +71,7 @@ function HistoryRow({ run, agents }: RowProps) {
           </span>
         ) : null}
       </td>
-      <td className="mono muted" style={{ fontSize: 11, whiteSpace: 'nowrap' }}>
+      <td className="mono muted" data-label="Filed" style={{ fontSize: 11, whiteSpace: 'nowrap' }}>
         {fmtDate(run.date)}
         {run.source === 'scheduled' ? (
           <span className="tag" style={{ marginLeft: 8, fontSize: 9.5 }}>
@@ -80,7 +80,7 @@ function HistoryRow({ run, agents }: RowProps) {
         ) : null}
         {run.sample ? <SampleChip /> : null}
       </td>
-      <td onClick={stop} style={{ whiteSpace: 'nowrap' }}>
+      <td data-label="Artifacts" onClick={stop} style={{ whiteSpace: 'nowrap' }}>
         {run.reportAvailable ? (
           <A to={'report/' + run.id} className="span-link" style={{ marginRight: 12 }}>
             signed PDF
@@ -140,7 +140,10 @@ export function AuditsClient({ rows: allRows, agents, liveError }: AuditsClientP
     <div className="page-enter">
       <TopBar />
       <div className="shell" style={{ padding: '50px 40px 30px' }}>
-        <div style={{ display: 'flex', alignItems: 'flex-end', gap: 20, marginBottom: 38 }}>
+        <div
+          className="page-hero-row"
+          style={{ display: 'flex', alignItems: 'flex-end', gap: 20, marginBottom: 38 }}
+        >
           <div style={{ flex: 1 }}>
             <div className="kicker" style={{ marginBottom: 12 }}>
               Audit registry
