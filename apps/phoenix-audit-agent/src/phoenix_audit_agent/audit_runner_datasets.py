@@ -361,13 +361,15 @@ async def try_regression_upsert(
             now=utc_now_iso(),
         )
     except PhoenixDatasetNotFoundError as e:
-        # Round-3 MED-2: split bridge-drift (index says Phoenix has the
-        # dataset, Phoenix says NotFound) from outage so the two are
-        # distinguishable in the audit log.
+        # Round-3 MED-2 + round-5 MED-2: split bridge-drift (index says
+        # Phoenix has the dataset, Phoenix says NotFound) from outage so the
+        # two are distinguishable in the audit log. The `phoenix_dataset_id`
+        # key mirrors the dataset-side split for log-analyzer symmetry.
         _log.warning(
             "finalize.regression_bridge_drift",
             run_id=run_id,
             agent_id=agent_id,
+            phoenix_dataset_id=str(e),
             error=str(e),
         )
         return None

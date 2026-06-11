@@ -46,6 +46,47 @@ EmitFn = Callable[[str, dict[str, Any]], Awaitable[None]]
 REGRESSION_OVERWRITE_NEWEST_WINS = "newest_wins"
 
 
+def _check_dataset_snapshot_keys_match_completion() -> None:
+    """Round-5 LOW-1: module-load drift guard. `_apply_dataset_evidence`
+    setattr's the snapshot dict keys onto `RunCompletion`. If
+    `dataset_snapshot_fields` ever returns a key that isn't a
+    `RunCompletion` field, the setattr raises on a `extra="forbid"`
+    Pydantic model and crashloops the audit at finalize. Surface that
+    contract drift at import time so deployments fail fast on rollout,
+    not silently mid-audit. (CLAUDE.md silent-failure pattern: module-
+    load drift guards.)
+    """
+    from phoenix_audit_agent.audit_runner_datasets import dataset_snapshot_fields
+    from phoenix_audit_agent.storage.models import DatasetIndex, RunCompletion
+
+    sentinel = DatasetIndex(
+        dataset_id="x",
+        phoenix_dataset_id="x",
+        name="x",
+        kind="battery",
+        owner_uid=None,
+        agent_id=None,
+        row_count=0,
+        source_url=None,
+        content_hash="sha256:x",
+        created_at="2026-01-01T00:00:00+00:00",
+        updated_at="2026-01-01T00:00:00+00:00",
+    )
+    snapshot_keys = set(dataset_snapshot_fields(idx=sentinel, version_id="x").keys())
+    completion_keys = set(RunCompletion.model_fields)
+    missing = snapshot_keys - completion_keys
+    if missing:
+        msg = (
+            f"dataset_snapshot_fields emits keys absent from RunCompletion: "
+            f"{sorted(missing)!r}. Add the fields to RunCompletion or trim "
+            f"the snapshot — silent-failure pattern (module-load drift)."
+        )
+        raise RuntimeError(msg)
+
+
+_check_dataset_snapshot_keys_match_completion()
+
+
 async def emit_signed_report(
     report_data: ReportData,
     *,

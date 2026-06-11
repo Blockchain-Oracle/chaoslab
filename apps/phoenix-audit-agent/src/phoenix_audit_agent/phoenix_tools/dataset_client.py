@@ -133,10 +133,19 @@ async def _partition_sdk_call(phoenix_dataset_id: str, coro: Any) -> Any:
     try:
         return await coro
     except httpx.HTTPStatusError as e:
-        if e.response.status_code == _HTTP_NOT_FOUND:
+        # Round-5 LOW-2: defensive — every well-formed HTTPStatusError carries
+        # `.response`, but a malformed instance shouldn't crash us into the
+        # wrong typed error.
+        response = getattr(e, "response", None)
+        status_code = response.status_code if response is not None else None
+        if status_code == _HTTP_NOT_FOUND:
             raise PhoenixDatasetNotFoundError(phoenix_dataset_id) from e
         raise PhoenixUnavailableError(str(e)) from e
-    except (httpx.RequestError, TimeoutError) as e:
+    except (httpx.HTTPError, TimeoutError) as e:
+        # Round-5 MED-1: broadened from RequestError to the httpx.HTTPError
+        # base class so sibling families (InvalidURL, CookieConflict,
+        # StreamError) also surface as a typed PhoenixUnavailableError
+        # instead of escaping the wrapper as raw httpx exceptions.
         raise PhoenixUnavailableError(str(e)) from e
 
 
