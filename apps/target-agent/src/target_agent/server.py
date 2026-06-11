@@ -121,6 +121,7 @@ def _assemble_app() -> object:
 
     from target_agent.agent import root_agent as _agent
     from target_agent.fault_hooks import build_hook_routes
+    from target_agent.session_attrs import SessionAttributesMiddleware
     from target_agent.trace_context import TraceContextMiddleware
 
     inner = _build_a2a_app()
@@ -138,7 +139,13 @@ def _assemble_app() -> object:
         routes=[*build_hook_routes(_agent), Mount("", app=inner)],  # ty: ignore[invalid-argument-type]
         lifespan=_delegate_inner_lifespan,
     )
+    # Starlette runs middleware in REVERSE add order — the LAST add_middleware
+    # call wraps the outermost layer. We want session attributes attached
+    # BEFORE TraceContextMiddleware extracts the W3C context, so add
+    # TraceContextMiddleware first and SessionAttributesMiddleware second
+    # (story-9.7).
     app.add_middleware(TraceContextMiddleware)
+    app.add_middleware(SessionAttributesMiddleware)
     return app
 
 
