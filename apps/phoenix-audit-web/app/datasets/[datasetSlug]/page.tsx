@@ -24,7 +24,7 @@ export default async function DatasetDetailPage({ params }: PageProps) {
 
   return (
     <PageShell label="datasets">
-      <DatasetDetailClient slug={datasetSlug} result={result} />
+      <DatasetDetailClient result={result} />
     </PageShell>
   )
 }

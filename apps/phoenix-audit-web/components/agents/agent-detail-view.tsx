@@ -9,6 +9,7 @@ import { SectionHead } from '@/components/ui/section-head'
 import { TopBar } from '@/components/ui/topbar'
 import { historyRowDest, runAuditHref } from '@/lib/cta'
 import { fmtDate } from '@/lib/format'
+import type { DatasetListRowDto } from '@/lib/datasets'
 import type { AgentSpec, HistoryRow } from '@/lib/types'
 import { useSafeTimeout } from '@/lib/use-safe-timeout'
 
@@ -25,9 +26,12 @@ interface AgentDetailViewProps {
   agent?: AgentSpec
   /** Registry run history for this agent (samples labeled). */
   runs: HistoryRow[]
+  /** The auto-populated regression dataset for this agent, if it exists.
+   *  null = the agent has no finished failing audits yet, so no CTA. */
+  regression?: DatasetListRowDto | null
 }
 
-export function AgentDetailView({ id, agent, runs }: AgentDetailViewProps) {
+export function AgentDetailView({ id, agent, runs, regression }: AgentDetailViewProps) {
   const router = useRouter()
   const [copied, setCopied] = useState(false)
   const schedule = useSafeTimeout()
@@ -77,6 +81,20 @@ export function AgentDetailView({ id, agent, runs }: AgentDetailViewProps) {
           <h1 className="display" style={{ fontSize: 38, flex: 1 }}>
             {a.name}
           </h1>
+          {regression ? (
+            <button
+              className="btn ghost"
+              onClick={() =>
+                router.push(
+                  `/new?dataset=${encodeURIComponent(regression.dataset_id)}&agent=${encodeURIComponent(a.id)}&url=${encodeURIComponent(a.url)}`,
+                )
+              }
+              disabled={err}
+              title={`Re-run with the regression set — ${regression.row_count} rows of failures previously found on ${a.name}`}
+            >
+              ↻ Run regression ({regression.row_count} rows)
+            </button>
+          ) : null}
           <button className="btn ember" onClick={() => router.push(wizardHref)} disabled={err}>
             Run audit now
           </button>

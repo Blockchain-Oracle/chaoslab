@@ -2,6 +2,7 @@
 
 import { Suspense, useEffect, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
+import { DatasetPicker } from '@/components/new-audit/dataset-picker'
 import { DepthOption } from '@/components/new-audit/depth-option'
 import { FrameworkPicker } from '@/components/new-audit/framework-picker'
 import { OverridesBlock } from '@/components/new-audit/overrides-block'
@@ -37,9 +38,12 @@ function NewAuditForm() {
   const params = useSearchParams()
   // Agent CTAs prefill the wizard (/new?agent=<id>&url=<url>) — the wizard
   // stays the single confirm surface; runs stay associated to the agent.
+  // /datasets CTAs prefill the dataset picker (/new?dataset=<slug>).
   const agentId = params.get('agent')
+  const datasetParam = params.get('dataset')
   const [hosting, setHosting] = useState<'default' | 'byo'>('default')
   const [url, setUrl] = useState(() => params.get('url') ?? '')
+  const [datasetId, setDatasetId] = useState<string | null>(datasetParam)
   const [touched, setTouched] = useState(false)
   const [pinging, setPinging] = useState(false)
   const [pinged, setPinged] = useState(false)
@@ -110,6 +114,7 @@ function NewAuditForm() {
         body: JSON.stringify({
           target_url: url.trim(),
           agent_id: agentId ?? undefined,
+          dataset_id: datasetId ?? undefined,
           source: 'manual',
           runs_per_fault: runsPerFault,
         }),
@@ -208,6 +213,12 @@ function NewAuditForm() {
           </div>
 
           <FrameworkPicker framework={framework} setFramework={setFramework} />
+
+          <DatasetPicker
+            value={datasetId}
+            onChange={setDatasetId}
+            initiallyOpen={Boolean(datasetParam)}
+          />
 
           {hosting === 'byo' ? (
             <div>

@@ -1,78 +1,209 @@
 'use client'
 
-// Story-9.15 — /datasets listing client (Surface S). Three sections in the
-// reading order from the designer brief (battery / regression / uploaded).
-// Each section always renders; empty sections show their "where these
-// come from" affordance. liveError surfaces as a banner so an outage
-// never displays a silent empty page.
+// Story-9.15 — /datasets listing (Surface S). Ported from the designer
+// prototype (Phoenix Audit(4)/js/datasets.jsx, /shots/{01,02}-ds-listing.jpg)
+// to TSX with our real wire types.
+//
+// Three sections in reading order: §S.1 Standing battery (read-only,
+// ships with the product), §S.2 Regression sets (auto-populated from
+// the operator's own audits), §S.3 Your uploads (operator's corpus).
+// Every section always renders so the empty-state editorial copy has
+// a home — that's how an empty regression section teaches the operator
+// what regression sets ARE.
+//
+// liveError surfaces as a banner so an outage never displays a silent
+// empty page.
 
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { A } from '@/components/ui/link'
 import { PageFoot } from '@/components/ui/page-foot'
+import { SectionHead } from '@/components/ui/section-head'
 import { TopBar } from '@/components/ui/topbar'
 import { fmtDate } from '@/lib/format'
 import { groupDatasetsByKind, type DatasetSection } from '@/lib/datasets-grouping'
 import type { DatasetKind, DatasetListRowDto } from '@/lib/datasets'
 import { DatasetUploadCard } from './dataset-upload-card'
+import { DeleteDatasetModal } from './delete-dataset-modal'
+
+const KIND_GLYPH: Record<DatasetKind, string> = {
+  battery: '▣',
+  regression: '↻',
+  uploaded: '▲',
+}
 
 function KindChip({ kind }: { kind: DatasetKind }) {
   return (
-    <span className="tag" style={{ fontSize: 9.5, letterSpacing: '0.04em' }}>
-      {kind.toUpperCase()}
+    <span className={`kind-chip ${kind}`}>
+      <span className="k-glyph">{KIND_GLYPH[kind]}</span>
+      {kind}
     </span>
   )
 }
 
-function DatasetRow({ row }: { row: DatasetListRowDto }) {
+interface RowProps {
+  row: DatasetListRowDto
+  landed: boolean
+  onDelete?: (row: DatasetListRowDto) => void
+}
+
+function DsRow({ row, landed, onDelete }: RowProps) {
+  const detailHref = `datasets/${row.dataset_id}`
+  const sublabel =
+    row.kind === 'regression' && row.agent_id
+      ? `tracks ${row.agent_id}`
+      : row.kind === 'uploaded'
+        ? `${row.dataset_id} · only you can see this`
+        : row.dataset_id
+  const newAuditHref =
+    row.kind === 'regression' && row.agent_id
+      ? `new?dataset=${encodeURIComponent(row.dataset_id)}&agent=${encodeURIComponent(row.agent_id)}`
+      : `new?dataset=${encodeURIComponent(row.dataset_id)}`
   return (
-    <li
-      className="clickable"
-      style={{
-        display: 'flex',
-        alignItems: 'baseline',
-        gap: 16,
-        padding: '12px 0',
-        borderBottom: '1px solid var(--hairline-soft)',
-      }}
-    >
-      <KindChip kind={row.kind} />
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <A to={`datasets/${row.dataset_id}`} style={{ fontSize: 14 }}>
-          {row.name}
+    <tr className={landed ? 'clickable ds-landed' : 'clickable'}>
+      <td style={{ minWidth: 230 }}>
+        <A to={detailHref} style={{ display: 'block', textDecoration: 'none' }}>
+          <span className="serif" style={{ fontSize: 15.5, lineHeight: 1.25, color: 'var(--ink)' }}>
+            {row.name}
+          </span>
         </A>
-        <div className="mono muted" style={{ fontSize: 10.5 }}>
-          {row.dataset_id}
-          {row.source_url ? ` · ${row.source_url.replace('https://', '')}` : ''}
+        <div className="mono muted" style={{ fontSize: 10, marginTop: 4, lineHeight: 1.4 }}>
+          {sublabel}
         </div>
-      </div>
-      <span className="mono muted" style={{ fontSize: 11 }}>
-        {row.row_count} rows
-      </span>
-      <span className="mono muted" style={{ fontSize: 11, minWidth: 80, textAlign: 'right' }}>
+      </td>
+      <td>
+        <KindChip kind={row.kind} />
+      </td>
+      <td className="mono num" style={{ whiteSpace: 'nowrap' }}>
+        {row.row_count}
+        {row.kind === 'regression' ? (
+          <span className="muted" style={{ fontSize: 10 }}>
+            {' '}
+            / 200
+          </span>
+        ) : null}
+      </td>
+      <td className="mono muted" style={{ fontSize: 11, whiteSpace: 'nowrap' }}>
         {fmtDate(row.updated_at)}
-      </span>
-    </li>
+      </td>
+      <td style={{ whiteSpace: 'nowrap', textAlign: 'right' }}>
+        <A to={newAuditHref} className="span-link" style={{ marginRight: 12 }}>
+          {row.kind === 'regression' ? 'Re-audit →' : 'Use in audit →'}
+        </A>
+        {row.kind === 'uploaded' && onDelete ? (
+          <button
+            onClick={() => onDelete(row)}
+            title={`Delete ${row.name}`}
+            aria-label={`Delete ${row.name}`}
+            style={{
+              background: 'none',
+              border: 'none',
+              color: 'var(--ink-3)',
+              fontSize: 13,
+              lineHeight: 1,
+              padding: '0 2px',
+              cursor: 'pointer',
+            }}
+          >
+            ✕
+          </button>
+        ) : null}
+      </td>
+    </tr>
   )
 }
 
-function SectionPanel({ section }: { section: DatasetSection }) {
+function DsEmptyRow({ children }: { children: React.ReactNode }) {
   return (
-    <section style={{ marginBottom: 36 }}>
-      <h2 className="serif" style={{ fontSize: 18, marginBottom: 6 }}>
-        {section.label}
-      </h2>
-      {section.rows.length === 0 ? (
-        <p className="muted" style={{ fontSize: 12.5, fontStyle: 'italic' }}>
-          {section.emptyCaption}
-        </p>
+    <div
+      style={{
+        border: '1px dashed var(--hairline)',
+        borderRadius: 'var(--r-lg)',
+        padding: '16px 20px',
+        display: 'flex',
+        gap: 12,
+        alignItems: 'baseline',
+      }}
+    >
+      <span className="mono" style={{ fontSize: 10, color: 'var(--ember-deep)' }}>
+        ◇
+      </span>
+      <span
+        style={{
+          fontSize: 13,
+          color: 'var(--ink-2)',
+          lineHeight: 1.6,
+          flex: 1,
+        }}
+      >
+        {children}
+      </span>
+    </div>
+  )
+}
+
+const TABLE_HEAD = (
+  <thead>
+    <tr>
+      <th>Dataset</th>
+      <th>Kind</th>
+      <th>Rows</th>
+      <th>Updated</th>
+      <th style={{ textAlign: 'right' }}>Actions</th>
+    </tr>
+  </thead>
+)
+
+function DsSection({
+  no,
+  title,
+  note,
+  rows,
+  landedId,
+  onDelete,
+  emptyState,
+  closer,
+}: {
+  no: string
+  title: string
+  note: string
+  rows: DatasetListRowDto[]
+  landedId: string | null
+  onDelete?: (row: DatasetListRowDto) => void
+  emptyState: React.ReactNode
+  closer?: React.ReactNode
+}) {
+  return (
+    <div style={{ marginBottom: 52 }}>
+      <SectionHead
+        no={no}
+        title={title}
+        right={
+          <span className="mono muted" style={{ fontSize: 10.5 }}>
+            {note}
+          </span>
+        }
+      />
+      {rows.length === 0 ? (
+        emptyState
       ) : (
-        <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
-          {section.rows.map((row) => (
-            <DatasetRow key={row.dataset_id} row={row} />
-          ))}
-        </ul>
+        <div className="ledger-wrap">
+          <table className="ledger">
+            {TABLE_HEAD}
+            <tbody>
+              {rows.map((row) => (
+                <DsRow
+                  key={row.dataset_id}
+                  row={row}
+                  landed={row.dataset_id === landedId}
+                  onDelete={onDelete}
+                />
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
-    </section>
+      {closer}
+    </div>
   )
 }
 
@@ -82,23 +213,55 @@ export interface DatasetsListingClientProps {
 }
 
 export function DatasetsListingClient({ rows, liveError }: DatasetsListingClientProps) {
-  // Optimistic insert state — when the upload card returns a new row, we
-  // prepend it so the user sees it appear without a page reload. The
-  // authoritative store still reflects on next navigation.
   const [optimistic, setOptimistic] = useState<DatasetListRowDto[]>([])
+  const [landedId, setLandedId] = useState<string | null>(null)
+  const [deleting, setDeleting] = useState<DatasetListRowDto | null>(null)
+  const uploadRef = useRef<HTMLDivElement>(null)
+
   const all = [...optimistic, ...rows]
   const sections = groupDatasetsByKind(all)
+  const battery = sections.find((s) => s.kind === 'battery') as DatasetSection
+  const regression = sections.find((s) => s.kind === 'regression') as DatasetSection
+  const uploaded = sections.find((s) => s.kind === 'uploaded') as DatasetSection
+
+  const onUploaded = (row: DatasetListRowDto) => {
+    setOptimistic((prev) => [row, ...prev])
+    setLandedId(row.dataset_id)
+    setTimeout(() => setLandedId(null), 3200)
+  }
+  const scrollToUpload = () => {
+    const el = uploadRef.current
+    if (el)
+      window.scrollTo({
+        top: el.getBoundingClientRect().top + window.scrollY - 90,
+        behavior: 'smooth',
+      })
+  }
 
   return (
     <>
       <TopBar />
-      <div className="shell" style={{ padding: '40px 32px 60px', maxWidth: 900 }}>
-        <div className="kicker" style={{ marginBottom: 12 }}>
-          Datasets
+      <div className="shell" style={{ padding: '50px 40px 30px' }}>
+        <div style={{ display: 'flex', alignItems: 'flex-end', gap: 20, marginBottom: 10 }}>
+          <div style={{ flex: 1 }}>
+            <div className="kicker" style={{ marginBottom: 12 }}>
+              Test-case registry
+            </div>
+            <h1 className="display" style={{ fontSize: 38 }}>
+              Datasets.
+            </h1>
+          </div>
+          <button className="btn ghost" onClick={scrollToUpload}>
+            Upload a dataset
+          </button>
         </div>
-        <h1 className="display" style={{ fontSize: 32, marginBottom: 28 }}>
-          Test-case corpora
-        </h1>
+        <p className="muted" style={{ maxWidth: 620, marginBottom: 44 }}>
+          Every dataset is a named, persistent battery of adversarial test cases — run it today, run
+          it again after the fix, and the report shows the regulator the{' '}
+          <em style={{ fontStyle: 'italic', color: 'var(--ember-deep)' }}>same conditions twice</em>
+          .
+        </p>
+
         {liveError ? (
           <div
             className="auth-notice warn"
@@ -110,12 +273,77 @@ export function DatasetsListingClient({ rows, liveError }: DatasetsListingClient
           </div>
         ) : null}
 
-        <DatasetUploadCard onUploaded={(row) => setOptimistic((prev) => [row, ...prev])} />
+        <DsSection
+          no="§S.1"
+          title="Standing battery"
+          note="ships with Phoenix Audit · read-only · identical for every operator"
+          rows={battery.rows}
+          landedId={landedId}
+          emptyState={
+            <DsEmptyRow>
+              No battery datasets have been seeded yet — run the seed script. Battery sets ship with
+              Phoenix Audit and are identical for every operator.
+            </DsEmptyRow>
+          }
+          closer={
+            <p
+              className="mono muted"
+              style={{ fontSize: 10, letterSpacing: '0.06em', marginTop: 10 }}
+            >
+              CURATED FROM PUBLISHED CORPORA — EACH SET LINKS TO ITS SOURCE AND TO PHOENIX&rsquo;S
+              OWN DATASET VIEW ↗
+            </p>
+          }
+        />
 
-        {sections.map((section) => (
-          <SectionPanel key={section.kind} section={section} />
-        ))}
+        <DsSection
+          no="§S.2"
+          title="Regression sets"
+          note="one per target agent · written by your audits, not by you"
+          rows={regression.rows}
+          landedId={landedId}
+          emptyState={
+            <DsEmptyRow>
+              Regression sets appear after your first finished audit. Every failing probe files
+              itself here — one set per agent, one row per failure, capped at the most-recent 200 —
+              so tomorrow&rsquo;s audit can re-run <em>the same evidence</em>.{' '}
+              <A to="new" className="span-link">
+                Run your first audit →
+              </A>
+            </DsEmptyRow>
+          }
+        />
+
+        <DsSection
+          no="§S.3"
+          title="Your uploads"
+          note="scoped to you · JSONL or CSV · rename or delete anytime"
+          rows={uploaded.rows}
+          landedId={landedId}
+          onDelete={setDeleting}
+          emptyState={
+            <DsEmptyRow>
+              Your own corpus runs <em>alongside</em> the synthetic battery, not instead of it —
+              prior incidents, internal red-team cases, your domain&rsquo;s must-refuse list. Drop a
+              file below to file the first one.
+            </DsEmptyRow>
+          }
+        />
+
+        <div ref={uploadRef} style={{ marginTop: 4 }}>
+          <DatasetUploadCard onUploaded={onUploaded} />
+        </div>
       </div>
+      {deleting ? (
+        <DeleteDatasetModal
+          row={deleting}
+          onCancel={() => setDeleting(null)}
+          onDeleted={(deletedId) => {
+            setOptimistic((prev) => prev.filter((r) => r.dataset_id !== deletedId))
+            setDeleting(null)
+          }}
+        />
+      ) : null}
       <PageFoot />
     </>
   )

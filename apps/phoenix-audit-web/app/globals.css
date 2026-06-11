@@ -1170,3 +1170,309 @@ textarea {
     padding: 28px 24px 24px;
   }
 }
+
+/* --------------------------------------------------------------------
+   Surface S — datasets (story-9.15). Ported from designer prototype
+   (Phoenix Audit(4)/styles.css lines 976–1202). Three kinds of dataset
+   sit on one shelf: battery (▣) / regression (↻) / uploaded (▲).
+   -------------------------------------------------------------------- */
+.kind-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+  font-family: var(--mono);
+  font-size: 9.5px;
+  font-weight: 500;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  padding: 3px 8px 2px;
+  border-radius: 2px;
+  line-height: 1.5;
+  white-space: nowrap;
+}
+.kind-chip .k-glyph {
+  font-size: 10px;
+  line-height: 1;
+  transform: translateY(-0.5px);
+}
+.kind-chip.battery {
+  border: 1px solid var(--hairline);
+  background: var(--paper-2);
+  color: var(--ink-2);
+}
+.kind-chip.regression {
+  border: 1px dashed var(--ink-3);
+  background: rgba(255, 255, 255, 0.4);
+  color: var(--ink-2);
+}
+.kind-chip.uploaded {
+  border: 1px solid var(--ember-deep);
+  background: var(--ember-faint);
+  color: var(--ember-deep);
+}
+
+/* S-3 · upload drop zone */
+.ds-drop {
+  border: 1.5px dashed var(--hairline);
+  border-radius: var(--r-lg);
+  background: rgba(255, 255, 255, 0.42);
+  padding: 22px 24px;
+  transition:
+    border-color 0.18s ease,
+    background 0.18s ease;
+  position: relative;
+}
+.ds-drop.armed {
+  border-color: var(--ember-deep);
+  background: var(--ember-faint);
+}
+.ds-drop.busy {
+  border-style: solid;
+  border-color: var(--hairline);
+}
+.ds-drop input[type='file'] {
+  display: none;
+}
+
+/* validation scan — thin progress filament */
+.ds-scan {
+  height: 2px;
+  background: var(--paper-3);
+  border-radius: 2px;
+  overflow: hidden;
+  position: relative;
+}
+.ds-scan .fill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  background: var(--ember-deep);
+  transition: width 0.18s linear;
+}
+
+/* S-7 · persistent validation error panel — attached, never a toast */
+.ds-errpanel {
+  border: 1px solid var(--fail);
+  border-top: none;
+  background: var(--fail-soft);
+  border-radius: 0 0 var(--r-lg) var(--r-lg);
+  margin: 0 14px;
+  padding: 16px 20px 18px;
+}
+.ds-errpanel .err-row {
+  display: grid;
+  grid-template-columns: 64px 1fr;
+  gap: 4px 14px;
+  padding: 10px 0;
+  border-top: 1px solid rgba(160, 60, 40, 0.18);
+}
+.ds-errpanel .raw {
+  grid-column: 2;
+  font-family: var(--mono);
+  font-size: 10.5px;
+  line-height: 1.65;
+  color: var(--ink-2);
+  background: rgba(255, 255, 255, 0.55);
+  border: 1px solid rgba(160, 60, 40, 0.2);
+  border-radius: 2px;
+  padding: 7px 10px;
+  overflow-x: auto;
+  white-space: pre;
+}
+
+/* upload success — the row lands with a brief ember wash */
+@media (prefers-reduced-motion: no-preference) {
+  tr.ds-landed td {
+    animation: dsLanded 2.6s ease 0.15s both;
+  }
+  @keyframes dsLanded {
+    0% {
+      background: var(--ember-soft);
+    }
+    100% {
+      background: transparent;
+    }
+  }
+  .ds-filed-flash {
+    animation: dsFiled 0.45s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+  }
+  @keyframes dsFiled {
+    from {
+      transform: scale(1.4);
+      opacity: 0;
+    }
+    to {
+      transform: scale(1);
+      opacity: 1;
+    }
+  }
+}
+
+/* S-5 · expandable prompt — evidence in full */
+.ds-row-exp td {
+  background: rgba(255, 255, 255, 0.5);
+  border-bottom: 1px solid var(--hairline-soft);
+}
+.ds-prompt-cell {
+  cursor: pointer;
+}
+.ds-prompt-cell .crop {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.ds-expand-wrap {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 0.28s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.ds-expand-wrap.open {
+  grid-template-rows: 1fr;
+}
+.ds-expand-wrap > div {
+  overflow: hidden;
+  min-height: 0;
+}
+
+/* S-8 · regression provenance banner */
+.ds-provenance {
+  border: 1px dashed var(--ink-3);
+  border-left: 3px solid var(--ember-deep);
+  border-radius: 0 var(--r-lg) var(--r-lg) 0;
+  background: rgba(255, 255, 255, 0.5);
+  padding: 16px 22px 14px;
+}
+
+/* S-6 · wizard dataset combobox */
+.ds-combo {
+  position: relative;
+}
+.ds-combo-btn {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  text-align: left;
+  background: rgba(255, 255, 255, 0.7);
+  border: 1px solid var(--hairline);
+  border-radius: var(--r);
+  padding: 12px 14px;
+  font-size: 13.5px;
+  transition:
+    border-color 0.15s ease,
+    box-shadow 0.15s ease;
+}
+.ds-combo-btn:hover {
+  border-color: var(--ink-3);
+}
+.ds-combo-btn[aria-expanded='true'] {
+  border-color: var(--ink);
+  box-shadow: 0 0 0 3px var(--ember-faint);
+}
+.ds-combo-pop {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  right: 0;
+  background: #fff;
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-lg);
+  box-shadow: 0 18px 44px rgba(28, 23, 18, 0.16);
+  z-index: 40;
+  max-height: 340px;
+  overflow-y: auto;
+}
+.ds-combo-group {
+  font-family: var(--mono);
+  font-size: 9.5px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+  padding: 11px 14px 5px;
+  position: sticky;
+  top: 0;
+  background: #fff;
+}
+.ds-combo-row {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  text-align: left;
+  background: none;
+  border: none;
+  padding: 9px 14px;
+  font-size: 13px;
+  transition: background 0.12s ease;
+}
+.ds-combo-row:hover,
+.ds-combo-row.hl {
+  background: var(--ember-faint);
+}
+.ds-combo-row .nm {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* S-11 · destructive modal */
+.ds-modal-veil {
+  position: fixed;
+  inset: 0;
+  background: rgba(28, 23, 18, 0.42);
+  backdrop-filter: blur(2px);
+  display: grid;
+  place-items: center;
+  z-index: 90;
+  padding: 24px;
+}
+.ds-modal {
+  width: 100%;
+  max-width: 480px;
+  background: var(--paper);
+  border: 1px solid var(--hairline);
+  border-top: 3px solid var(--fail);
+  border-radius: var(--r-lg);
+  padding: 26px 30px 24px;
+  box-shadow: 0 30px 80px rgba(0, 0, 0, 0.35);
+}
+.btn.danger {
+  border-color: var(--fail);
+  color: var(--fail);
+}
+.btn.danger:hover {
+  background: var(--fail);
+  border-color: var(--fail);
+  color: #fff;
+}
+
+/* severity dot */
+.sev {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--mono);
+  font-size: 10.5px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.sev::before {
+  content: '';
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+}
+.sev.high {
+  color: var(--fail);
+}
+.sev.medium {
+  color: var(--warn);
+}
+.sev.low {
+  color: var(--ink-3);
+}

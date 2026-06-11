@@ -1,14 +1,26 @@
 'use client'
 
-// Story-9.15 Surface S — dataset detail page. Handles every result branch
-// from fetchDatasetDetail: ok (rows table), phoenix_outage (header + banner,
-// brief BDD), error (full disclosure). Pagination is client-side over the
-// already-loaded payload (no infinite scroll — the server caps regression
-// sets at 200 + uploaded at 500).
+// Story-9.15 Surface S — dataset detail page. Ported from the designer
+// prototype (Phoenix Audit(4)/js/dataset-detail.jsx) to TSX with our
+// real wire types. The page has three result branches from the
+// fetchDatasetDetail discriminated union:
+//
+//   - ok            → header + per-kind banner + paginated evidence table
+//   - phoenix_outage → header from the index + banner ("rows live in
+//                      Phoenix; refresh once it's back"). No table.
+//   - error         → minimal recovery surface.
+//
+// Provenance banner (S-8): for regression sets, the designer renders a
+// rich auto-populated treatment listing contributing audit runs +
+// per-run row counts. Our wire DTO doesn't carry that yet (would need
+// a backend extension to emit `audit_count` and `contributing[]`), so
+// we render a degraded provenance treatment that still teaches the
+// operator what regression sets ARE.
 
-import { useMemo, useState } from 'react'
+import { useMemo, useState, type ReactNode } from 'react'
 import { A } from '@/components/ui/link'
 import { PageFoot } from '@/components/ui/page-foot'
+import { SectionHead } from '@/components/ui/section-head'
 import { TopBar } from '@/components/ui/topbar'
 import { fmtDate } from '@/lib/format'
 import type {
@@ -18,35 +30,122 @@ import type {
   DatasetKind,
   DatasetUnavailableDto,
 } from '@/lib/datasets'
+import { DeleteDatasetModal } from './delete-dataset-modal'
+import { DsCaseRow } from './dataset-case-row'
 
 const PAGE_SIZE = 50
 
+const KIND_GLYPH: Record<DatasetKind, string> = {
+  battery: '▣',
+  regression: '↻',
+  uploaded: '▲',
+}
+
 function KindChip({ kind }: { kind: DatasetKind }) {
   return (
-    <span className="tag" style={{ fontSize: 10, letterSpacing: '0.06em' }}>
-      {kind.toUpperCase()}
+    <span className={`kind-chip ${kind}`}>
+      <span className="k-glyph">{KIND_GLYPH[kind]}</span>
+      {kind}
     </span>
   )
 }
 
-function DetailHeader({ data }: { data: DatasetDetailDto | DatasetUnavailableDto }) {
+function ProvenanceBanner({ data }: { data: DatasetDetailDto }) {
+  // Designer's S-8 banner — degraded for slice 8: contributing audit
+  // runs aren't in the wire DTO yet (backend follow-up). We still teach
+  // the operator what auto-population means.
   return (
-    <header style={{ marginBottom: 28 }}>
-      <div className="kicker" style={{ marginBottom: 10 }}>
-        Dataset
+    <div className="ds-provenance" style={{ marginBottom: 36 }}>
+      <div style={{ display: 'flex', gap: 12, alignItems: 'baseline', flexWrap: 'wrap' }}>
+        <span
+          className="mono"
+          style={{
+            fontSize: 10,
+            letterSpacing: '0.18em',
+            color: 'var(--ember-deep)',
+            whiteSpace: 'nowrap',
+          }}
+        >
+          ↻ AUTO-POPULATED
+        </span>
+        <span style={{ fontSize: 13.5, lineHeight: 1.6, flex: 1, minWidth: 260 }}>
+          Built from finished audits of{' '}
+          {data.agent_id ? <strong>{data.agent_id}</strong> : <span>a target agent</span>}. Every
+          failing probe upserts here — one row per probe, capped at the most-recent 200. You
+          can&rsquo;t edit these rows; they are evidence your audits produced.
+        </span>
       </div>
-      <h1 className="display" style={{ fontSize: 30, marginBottom: 8 }}>
-        {data.name}
-      </h1>
-      <div style={{ display: 'flex', gap: 10, alignItems: 'baseline', flexWrap: 'wrap' }}>
+    </div>
+  )
+}
+
+function CtaCluster({ data, onDelete }: { data: DatasetDetailDto; onDelete: () => void }) {
+  const slug = data.dataset_id
+  const newAuditHref =
+    data.kind === 'regression' && data.agent_id
+      ? `new?dataset=${encodeURIComponent(slug)}&agent=${encodeURIComponent(data.agent_id)}`
+      : `new?dataset=${encodeURIComponent(slug)}`
+  return (
+    <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+      <A to={newAuditHref} className="btn ember">
+        {data.kind === 'regression' ? 'Re-audit with this set' : 'Use in new audit'}
+      </A>
+      {data.kind === 'uploaded' ? (
+        <button className="btn ghost danger" onClick={onDelete}>
+          Delete
+        </button>
+      ) : null}
+    </div>
+  )
+}
+
+function DetailHeader({
+  data,
+  cta,
+}: {
+  data: DatasetDetailDto | DatasetUnavailableDto
+  cta?: ReactNode
+}) {
+  return (
+    <>
+      <div className="mono muted" style={{ fontSize: 11, marginBottom: 16 }}>
+        <A to="datasets" style={{ color: 'var(--ember-deep)', textDecoration: 'none' }}>
+          DATASETS
+        </A>{' '}
+        / {data.dataset_id}
+      </div>
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'flex-end',
+          gap: 18,
+          marginBottom: 12,
+          flexWrap: 'wrap',
+        }}
+      >
+        <h1
+          className="display"
+          style={{ fontSize: 36, flex: 1, minWidth: 280, overflowWrap: 'anywhere' }}
+        >
+          {data.name}
+        </h1>
+        {cta}
+      </div>
+      <div
+        style={{
+          display: 'flex',
+          gap: 12,
+          alignItems: 'center',
+          flexWrap: 'wrap',
+          marginBottom: data.kind === 'regression' ? 22 : 34,
+        }}
+      >
         <KindChip kind={data.kind} />
-        <span className="mono muted" style={{ fontSize: 11 }}>
-          {data.dataset_id}
+        <span className="mono muted" style={{ fontSize: 11.5 }}>
+          {data.row_count} rows
+          {data.kind === 'regression' ? ' of 200 cap' : ''}
         </span>
-        <span className="mono muted" style={{ fontSize: 11 }}>
-          · {data.row_count} rows
-        </span>
-        <span className="mono muted" style={{ fontSize: 11 }}>
+        <span className="mono muted" style={{ fontSize: 11.5 }}>
           · updated {fmtDate(data.updated_at)}
         </span>
         {data.source_url ? (
@@ -55,112 +154,31 @@ function DetailHeader({ data }: { data: DatasetDetailDto | DatasetUnavailableDto
             href={data.source_url}
             target="_blank"
             rel="noreferrer"
-            style={{ fontSize: 11.5 }}
+            title="Open the upstream source corpus"
           >
-            source ↗
+            View source ↗
           </a>
         ) : null}
       </div>
-    </header>
+    </>
   )
 }
 
-function CTACluster({
-  slug,
-  kind,
-  agentId,
-}: {
-  slug: string
-  kind: DatasetKind
-  agentId: string | null
-}) {
-  const newAuditHref =
-    kind === 'regression' && agentId
-      ? `/new?dataset=${encodeURIComponent(slug)}&agent=${encodeURIComponent(agentId)}`
-      : `/new?dataset=${encodeURIComponent(slug)}`
+function BatteryReadOnlyBanner({ rowCount }: { rowCount: number }) {
   return (
-    <div style={{ display: 'flex', gap: 12, marginBottom: 24, flexWrap: 'wrap' }}>
-      <A to={newAuditHref.slice(1)} className="btn primary small">
-        {kind === 'regression' ? 'Re-audit with this set' : 'Use in new audit'}
-      </A>
-    </div>
-  )
-}
-
-function ItemsTable({ items }: { items: DatasetItemDto[] }) {
-  const [page, setPage] = useState(0)
-  const pages = useMemo(() => Math.max(1, Math.ceil(items.length / PAGE_SIZE)), [items.length])
-  const slice = items.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE)
-  return (
-    <div>
-      <table className="reg-table" style={{ width: '100%', borderCollapse: 'collapse' }}>
-        <thead>
-          <tr style={{ textAlign: 'left' }}>
-            <th className="mono" style={{ fontSize: 10.5, padding: '8px 0' }}>
-              CASE
-            </th>
-            <th className="mono" style={{ fontSize: 10.5, padding: '8px 0' }}>
-              FAULT
-            </th>
-            <th className="mono" style={{ fontSize: 10.5, padding: '8px 0' }}>
-              PROMPT
-            </th>
-            <th className="mono" style={{ fontSize: 10.5, padding: '8px 0' }}>
-              EXPECTED
-            </th>
-            <th className="mono" style={{ fontSize: 10.5, padding: '8px 0' }}>
-              SOURCE
-            </th>
-          </tr>
-        </thead>
-        <tbody>
-          {slice.map((item) => (
-            <tr key={item.case_id} style={{ borderTop: '1px solid var(--hairline-soft)' }}>
-              <td className="mono" style={{ fontSize: 11.5, padding: '8px 12px 8px 0' }}>
-                {item.case_id}
-              </td>
-              <td>
-                <span className="tag" style={{ fontSize: 10 }}>
-                  {item.fault_class}
-                </span>
-              </td>
-              <td style={{ fontSize: 12.5, padding: '8px 12px 8px 0', maxWidth: 420 }}>
-                {item.prompt.length > 140 ? `${item.prompt.slice(0, 140)}…` : item.prompt}
-              </td>
-              <td className="muted" style={{ fontSize: 11.5, padding: '8px 12px 8px 0' }}>
-                {item.expected}
-              </td>
-              <td className="mono muted" style={{ fontSize: 11, padding: '8px 0' }}>
-                {item.source}
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-      {pages > 1 ? (
-        <div
-          className="mono"
-          style={{ marginTop: 16, fontSize: 11, display: 'flex', gap: 10, alignItems: 'center' }}
-        >
-          <button
-            className="btn small ghost"
-            onClick={() => setPage((p) => Math.max(p - 1, 0))}
-            disabled={page === 0}
-          >
-            Prev
-          </button>
-          <span>
-            Page {page + 1} of {pages}
-          </span>
-          <button
-            className="btn small ghost"
-            onClick={() => setPage((p) => Math.min(p + 1, pages - 1))}
-            disabled={page === pages - 1}
-          >
-            Next
-          </button>
-        </div>
-      ) : null}
+    <div
+      className="mono muted"
+      style={{
+        fontSize: 10.5,
+        letterSpacing: '0.06em',
+        marginBottom: 26,
+        display: 'flex',
+        gap: 8,
+        alignItems: 'baseline',
+      }}
+    >
+      <span style={{ color: 'var(--ember-deep)' }}>▣</span>
+      READ-ONLY — SHIPS WITH THE PRODUCT. EVERY OPERATOR RUNS THESE EXACT {rowCount} ROWS.
     </div>
   )
 }
@@ -177,17 +195,95 @@ function OutageBanner({ reason }: { reason: string }) {
   )
 }
 
+function CaseTable({
+  items,
+  hasNotes,
+  page,
+  pages,
+  onPrev,
+  onNext,
+}: {
+  items: DatasetItemDto[]
+  hasNotes: boolean
+  page: number
+  pages: number
+  onPrev: () => void
+  onNext: () => void
+}) {
+  return (
+    <>
+      <div className="ledger-wrap">
+        <table className="ledger">
+          <thead>
+            <tr>
+              <th>case_id</th>
+              <th>fault_class</th>
+              <th>Prompt</th>
+              <th>Expected</th>
+              <th>Source</th>
+              <th>Severity</th>
+              {hasNotes ? <th>Notes</th> : null}
+            </tr>
+          </thead>
+          <tbody>
+            {items.map((row) => (
+              <DsCaseRow key={row.case_id} row={row} hasNotes={hasNotes} />
+            ))}
+          </tbody>
+        </table>
+      </div>
+      {pages > 1 ? (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginTop: 18 }}>
+          <button className="btn small ghost" disabled={page === 0} onClick={onPrev}>
+            ← Prev {PAGE_SIZE}
+          </button>
+          <span className="mono muted" style={{ fontSize: 11 }}>
+            page {page + 1} / {pages}
+          </span>
+          <button className="btn small ghost" disabled={page >= pages - 1} onClick={onNext}>
+            Next {PAGE_SIZE} →
+          </button>
+          <span
+            className="mono muted"
+            style={{ fontSize: 10, marginLeft: 'auto', letterSpacing: '0.06em' }}
+          >
+            CLIENT-SIDE — ALL {items.length} ROWS ARE IN THIS PAGE&rsquo;S PAYLOAD
+          </span>
+        </div>
+      ) : null}
+    </>
+  )
+}
+
 export interface DatasetDetailClientProps {
-  slug: string
   result: Exclude<DatasetDetailResult, { kind: 'not_found' }>
 }
 
-export function DatasetDetailClient({ slug, result }: DatasetDetailClientProps) {
+export function DatasetDetailClient({ result }: DatasetDetailClientProps) {
+  const [page, setPage] = useState(0)
+  const [deleting, setDeleting] = useState(false)
+
+  const data = result.kind === 'ok' ? result.data : null
+  const pages = useMemo(
+    () => (data ? Math.max(1, Math.ceil(data.items.length / PAGE_SIZE)) : 1),
+    [data],
+  )
+  const hasNotes = useMemo(() => Boolean(data && data.items.some((i) => i.notes)), [data])
+  const slice = useMemo(
+    () => (data ? data.items.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE) : []),
+    [data, page],
+  )
+
   if (result.kind === 'error') {
     return (
       <>
         <TopBar />
-        <div className="shell" style={{ padding: '40px 32px 60px', maxWidth: 720 }}>
+        <div className="shell" style={{ padding: '50px 40px 30px', maxWidth: 720 }}>
+          <div className="mono muted" style={{ fontSize: 11, marginBottom: 16 }}>
+            <A to="datasets" style={{ color: 'var(--ember-deep)', textDecoration: 'none' }}>
+              DATASETS
+            </A>
+          </div>
           <h1 className="serif" style={{ fontSize: 22, marginBottom: 12 }}>
             Couldn&rsquo;t load the dataset
           </h1>
@@ -207,7 +303,7 @@ export function DatasetDetailClient({ slug, result }: DatasetDetailClientProps) 
     return (
       <>
         <TopBar />
-        <div className="shell" style={{ padding: '40px 32px 60px', maxWidth: 900 }}>
+        <div className="shell" style={{ padding: '50px 40px 30px' }}>
           <DetailHeader data={result.header} />
           <OutageBanner reason={result.header.reason} />
         </div>
@@ -216,15 +312,55 @@ export function DatasetDetailClient({ slug, result }: DatasetDetailClientProps) 
     )
   }
 
-  const data = result.data
+  if (!data) return null
+
   return (
     <>
       <TopBar />
-      <div className="shell" style={{ padding: '40px 32px 60px', maxWidth: 900 }}>
-        <DetailHeader data={data} />
-        <CTACluster slug={slug} kind={data.kind} agentId={data.agent_id} />
-        <ItemsTable items={data.items} />
+      <div className="shell" style={{ padding: '50px 40px 30px' }}>
+        <DetailHeader
+          data={data}
+          cta={<CtaCluster data={data} onDelete={() => setDeleting(true)} />}
+        />
+
+        {data.kind === 'regression' ? <ProvenanceBanner data={data} /> : null}
+        {data.kind === 'battery' ? <BatteryReadOnlyBanner rowCount={data.row_count} /> : null}
+
+        <SectionHead
+          no="§1"
+          title="Test cases"
+          right={
+            <span className="mono muted" style={{ fontSize: 10.5 }}>
+              rows {page * PAGE_SIZE + 1}–{Math.min(data.items.length, (page + 1) * PAGE_SIZE)} of{' '}
+              {data.items.length} · click a row for the full prompt
+            </span>
+          }
+        />
+        <CaseTable
+          items={slice}
+          hasNotes={hasNotes}
+          page={page}
+          pages={pages}
+          onPrev={() => {
+            setPage((p) => Math.max(0, p - 1))
+            window.scrollTo({ top: 0 })
+          }}
+          onNext={() => {
+            setPage((p) => Math.min(pages - 1, p + 1))
+            window.scrollTo({ top: 0 })
+          }}
+        />
       </div>
+      {deleting ? (
+        <DeleteDatasetModal
+          row={data}
+          onCancel={() => setDeleting(false)}
+          onDeleted={() => {
+            setDeleting(false)
+            window.location.href = '/datasets'
+          }}
+        />
+      ) : null}
       <PageFoot />
     </>
   )
