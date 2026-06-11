@@ -109,6 +109,27 @@ describe('onboarding wizard reducer', () => {
     expect(s.skipped.has('welcome')).toBe(true)
   })
 
+  it('JUMP_TO with markSkipped flags every bypassed step (Welcome → Skip to finish)', () => {
+    // Reviewer-flagged silent failure: a "Skip to the finish" click that
+    // doesn't mark org/framework/gitlab as skipped lets buildFinalPatch
+    // PATCH framework_default = 'EU AI Act' (the seed default) as if the
+    // operator chose it. The regulator-facing report then cites a
+    // framework the operator never picked. Mark them explicitly.
+    let s = initialWizardState(baseProfile)
+    s = onboardingReducer(s, {
+      kind: 'jumpTo',
+      step: 'cta',
+      markSkipped: ['org', 'framework', 'gitlab'],
+    })
+    expect(s.step).toBe('cta')
+    expect(s.skipped.has('org')).toBe(true)
+    expect(s.skipped.has('framework')).toBe(true)
+    expect(s.skipped.has('gitlab')).toBe(true)
+    // welcome is not in markSkipped — and it's not the kind of step a
+    // user "skips" anyway (no answer to omit) — so it's not flagged.
+    expect(s.skipped.has('welcome')).toBe(false)
+  })
+
   it('SET_ORG_NAME updates the org field', () => {
     let s = initialWizardState(baseProfile)
     s = onboardingReducer(s, { kind: 'setOrgName', value: 'Meridian Mutual' })
@@ -157,6 +178,21 @@ describe('buildFinalPatch — what gets sent on Finish', () => {
     const { buildFinalPatch } = await import('@/lib/onboarding')
     let s = initialWizardState(baseProfile)
     for (let i = 0; i < 4; i++) s = onboardingReducer(s, { kind: 'skip' })
+    expect(buildFinalPatch(s)).toEqual({ onboarded: true })
+  })
+
+  it('Welcome → Skip to finish emits ONLY {onboarded:true} (regulator-facing fields stay un-PATCHed)', async () => {
+    // Reviewer-flagged silent failure: prior to markSkipped, this same
+    // sequence would PATCH framework_default = 'EU AI Act' (seed default)
+    // as if the operator chose it. The cover sheet would then cite a
+    // framework the operator never picked. Pin the fix.
+    const { buildFinalPatch } = await import('@/lib/onboarding')
+    let s = initialWizardState(baseProfile)
+    s = onboardingReducer(s, {
+      kind: 'jumpTo',
+      step: 'cta',
+      markSkipped: ['org', 'framework', 'gitlab'],
+    })
     expect(buildFinalPatch(s)).toEqual({ onboarded: true })
   })
 })

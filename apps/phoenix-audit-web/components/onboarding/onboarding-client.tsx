@@ -8,7 +8,7 @@
 // All other behavior — single Finish PATCH, per-step skip semantics,
 // server-gate redirect — stays byte-identical to S9.14.
 
-import { useReducer, useState } from 'react'
+import { useEffect, useReducer, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Field } from '@/components/ui/field'
 import { PageFoot } from '@/components/ui/page-foot'
@@ -39,6 +39,14 @@ export function OnboardingClient({ profile }: OnboardingClientProps) {
   const [maxVisited, setMaxVisited] = useState<WizardStep>('welcome')
   const [destination, setDestination] = useState<'new' | 'audits' | null>(null)
 
+  // Reviewer-flagged silent-failure: destination was set BEFORE runFinish
+  // and stayed set on submitError, so the Docket rendered the failed
+  // choice as if it were filed. Clear it the moment the reducer signals
+  // an error — retry picks a fresh choice with no stale rail label.
+  useEffect(() => {
+    if (state.submitError) setDestination(null)
+  }, [state.submitError])
+
   const advanceMaxVisited = (next: WizardStep) => {
     const ni = WIZARD_STEPS.indexOf(next)
     const mi = WIZARD_STEPS.indexOf(maxVisited)
@@ -59,7 +67,14 @@ export function OnboardingClient({ profile }: OnboardingClientProps) {
   }
   const onJumpToFinish = () => {
     advanceMaxVisited('cta')
-    dispatch({ kind: 'jumpTo', step: 'cta' })
+    // Mark every bypassed step explicitly skipped so buildFinalPatch
+    // omits their seed defaults instead of silently writing them as if
+    // they were the operator's choice. See reducer comment on jumpTo.
+    dispatch({
+      kind: 'jumpTo',
+      step: 'cta',
+      markSkipped: ['org', 'framework', 'gitlab'],
+    })
   }
 
   const finish = (dest: 'new' | 'audits') => {

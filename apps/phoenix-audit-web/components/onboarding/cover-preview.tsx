@@ -24,6 +24,13 @@ const FRAMEWORK_CITATIONS: Record<string, string> = {
   Custom: 'YOUR CONTROL IDs, CITED VERBATIM',
 }
 
+// Module-load guard — the render code has a non-null assertion on the
+// 'EU AI Act' fallback, so a future key rename would otherwise crash
+// silently at render time. Surface it at import.
+if (!('EU AI Act' in FRAMEWORK_CITATIONS)) {
+  throw new Error("cover-preview: FRAMEWORK_CITATIONS lost its 'EU AI Act' fallback key")
+}
+
 export function CoverPreview({ org, framework, email, caption = true }: Props) {
   const cited = FRAMEWORK_CITATIONS[framework] ?? FRAMEWORK_CITATIONS['EU AI Act']!
   const filer = email ? email.toUpperCase() : 'YOUR ACCOUNT'

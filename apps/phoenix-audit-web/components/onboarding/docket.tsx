@@ -40,7 +40,10 @@ function valueFor(
 ): string {
   if (row === step) return 'now'
   const rowIdx = STEP_ORDER.indexOf(row)
-  const visitedIdx = STEP_ORDER.indexOf(maxVisited)
+  // Clamp negative indexOf so a future drift in WizardStep names doesn't
+  // silently render every row as "·" (which would make the TOC look like
+  // the user has visited nothing).
+  const visitedIdx = Math.max(0, STEP_ORDER.indexOf(maxVisited))
   if (row === 'welcome') return visitedIdx > 0 ? 'done' : '·'
   if (row === 'org') {
     if (orgName) return orgName
@@ -48,6 +51,10 @@ function valueFor(
     return rowIdx <= visitedIdx ? 'blank · Settings' : '·'
   }
   if (row === 'framework') {
+    // Skipped framework must NOT render its seed value as if the operator
+    // chose it — the rail is the editorial promise that what's shown is
+    // what gets filed (matches the org row's skip handling).
+    if (skipped.has('framework')) return 'skipped · Settings'
     return rowIdx <= visitedIdx ? framework : `${framework} · dflt`
   }
   if (row === 'gitlab') return 'no input'

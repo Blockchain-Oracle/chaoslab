@@ -62,6 +62,10 @@ function Card({ mark, title, route, body, chosen, paused, error, onPick }: CardP
       className={cls}
       role="button"
       aria-disabled={paused || undefined}
+      // Drop the card out of the tab order while paused so the moment
+      // someone adds keyboard activation, the disabled state actually
+      // disables — instead of producing a double-PATCH on Enter.
+      tabIndex={paused ? -1 : 0}
       onClick={paused ? undefined : onPick}
       style={{ cursor: paused ? 'default' : 'pointer' }}
     >
