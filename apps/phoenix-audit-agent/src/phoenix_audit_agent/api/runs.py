@@ -113,6 +113,53 @@ async def get_run(
     return await _detail_response(record)
 
 
+class EmailReportResponse(BaseModel):
+    sent: bool
+    to: str
+    # False ⇒ the mail went out link-only (oversize PDF fallback) — the
+    # caller must be able to tell, never assume the PDF rode along.
+    attachment_included: bool
+
+
+@router.post("/runs/{run_id}/email", response_model=EmailReportResponse)
+async def email_report(
+    run_id: str, user: Annotated[AuthedUser, Depends(require_user)]
+) -> EmailReportResponse:
+    """Email the signed report PDF to the VERIFIED token email — no free-text
+    recipient, so this can never become a spam relay (story-9.5)."""
+    # Lazy import: report_mail imports sign_blob_url from this module.
+    from phoenix_audit_agent.notifier import report_mail
+    from phoenix_audit_agent.notifier.email import email_configured
+
+    if not email_configured():
+        raise HTTPException(
+            status_code=503, detail="email delivery not configured (RESEND_API_KEY unset)"
+        )
+    record = await get_run_store().get(run_id)
+    if record is None or record.owner_uid not in (None, user.uid):
+        raise HTTPException(status_code=404, detail=f"run_id not found: {run_id}")
+    if not record.report_available:
+        raise HTTPException(status_code=409, detail="report not yet available for this run")
+    if not user.email:
+        raise HTTPException(
+            status_code=422, detail="signed-in account has no email address on its token"
+        )
+    try:
+        result = await report_mail.send_report_email(record, to=user.email)
+    except Exception as exc:
+        # PDF download / signing infrastructure failure — visible, never a
+        # pretend-sent. The class name is enough detail for the UI + logs.
+        _log.error("report_email_failed", run_id=run_id, exc_info=True)
+        raise HTTPException(
+            status_code=502, detail=f"report email failed: {type(exc).__name__}"
+        ) from exc
+    if not result.sent:
+        raise HTTPException(status_code=502, detail=f"report email failed: {result.error}")
+    return EmailReportResponse(
+        sent=True, to=result.to, attachment_included=result.attachment_included
+    )
+
+
 @router.get("/featured-run", response_model=RunDetailResponse)
 async def featured_run() -> RunDetailResponse:
     """Public (deliberately unauthenticated) — the newest ownerless finished

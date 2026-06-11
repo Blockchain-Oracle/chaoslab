@@ -227,7 +227,7 @@ async def test_drive_audit_failure_arm_runs_under_session_scope(
     seen_in_failure_arm: list[dict[str, Any]] = []
 
     async def recording_persist(
-        *, run_id: str, target_url: str, created_at: str, frames: list[Any]
+        *, run_id: str, target_url: str, created_at: str, frames: list[Any], **kwargs: Any
     ) -> None:
         seen_in_failure_arm.append(dict(get_attributes_from_context()))
 
