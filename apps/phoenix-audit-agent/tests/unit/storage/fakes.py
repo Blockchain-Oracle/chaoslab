@@ -125,3 +125,132 @@ class InMemoryProfileStore:
         # Field-level merge like Firestore set(merge=True): unknown stored
         # fields survive (the contract test_patch_preserves_unknown_stored_fields pins).
         self._docs[uid] = {**self._docs.get(uid, {}), **fields}
+
+
+class FakePhoenixDatasetClient:
+    """In-memory `PhoenixDatasetClient` for unit tests.
+
+    Mints Phoenix-ish ids deterministically (`phx_ds_<n>`, `phx_v_<n>`) so
+    snapshot assertions stay stable. Supports an `outage=True` switch for
+    the 503-graceful-degrade contract on `/datasets/<slug>`.
+    """
+
+    def __init__(self) -> None:
+        from phoenix_audit_agent.phoenix_tools.dataset_client import FlatDatasetItem
+
+        self._FlatDatasetItem = FlatDatasetItem
+        self._datasets: dict[str, list[Any]] = {}
+        self._latest_version: dict[str, str] = {}
+        self._next_ds = 0
+        self._next_v = 0
+        self.outage: bool = False
+
+    def _mint_ds(self) -> str:
+        self._next_ds += 1
+        return f"phx_ds_{self._next_ds:06d}"
+
+    def _mint_v(self) -> str:
+        self._next_v += 1
+        return f"phx_v_{self._next_v:06d}"
+
+    @staticmethod
+    def _normalize(row: Any) -> dict[str, Any]:
+        # FlatDatasetItem.model_dump() or already a dict.
+        if hasattr(row, "model_dump"):
+            return row.model_dump()
+        return dict(row)
+
+    async def create(
+        self,
+        *,
+        name: str,
+        examples: Any,
+        description: str | None,
+        source_url: str | None,
+    ) -> Any:
+        from phoenix_audit_agent.phoenix_tools.dataset_client import CreatedDataset
+
+        ds_id = self._mint_ds()
+        rows = [self._normalize(r) for r in examples]
+        # Validate by round-tripping through the flat model so a malformed row
+        # raises at create time, mirroring the production wrapper's strictness.
+        validated = [self._FlatDatasetItem.model_validate(r) for r in rows]
+        self._datasets[ds_id] = validated
+        v_id = self._mint_v()
+        self._latest_version[ds_id] = v_id
+        return CreatedDataset(
+            phoenix_dataset_id=ds_id,
+            version_id=v_id,
+            example_count=len(validated),
+        )
+
+    async def add_examples(self, phoenix_dataset_id: str, examples: Any) -> str:
+        from phoenix_audit_agent.phoenix_tools.dataset_client import (
+            PhoenixDatasetNotFoundError,
+        )
+
+        if phoenix_dataset_id not in self._datasets:
+            raise PhoenixDatasetNotFoundError(phoenix_dataset_id)
+        rows = [self._normalize(r) for r in examples]
+        validated = [self._FlatDatasetItem.model_validate(r) for r in rows]
+        # Newest-wins dedup-on-case_id mirrors Phoenix Datasets' regression-
+        # upsert semantics: a same-case_id append replaces the older row.
+        existing = self._datasets[phoenix_dataset_id]
+        new_case_ids = {v.case_id for v in validated}
+        kept = [e for e in existing if e.case_id not in new_case_ids]
+        self._datasets[phoenix_dataset_id] = kept + validated
+        v_id = self._mint_v()
+        self._latest_version[phoenix_dataset_id] = v_id
+        return v_id
+
+    async def get_examples(self, phoenix_dataset_id: str) -> list[Any]:
+        from phoenix_audit_agent.phoenix_tools.dataset_client import (
+            PhoenixDatasetNotFoundError,
+            PhoenixUnavailableError,
+        )
+
+        if self.outage:
+            raise PhoenixUnavailableError("fake-outage")
+        if phoenix_dataset_id not in self._datasets:
+            raise PhoenixDatasetNotFoundError(phoenix_dataset_id)
+        return list(self._datasets[phoenix_dataset_id])
+
+    async def get_current_version_id(self, phoenix_dataset_id: str) -> str:
+        from phoenix_audit_agent.phoenix_tools.dataset_client import (
+            PhoenixDatasetNotFoundError,
+            PhoenixUnavailableError,
+        )
+
+        if self.outage:
+            raise PhoenixUnavailableError("fake-outage")
+        if phoenix_dataset_id not in self._latest_version:
+            raise PhoenixDatasetNotFoundError(phoenix_dataset_id)
+        return self._latest_version[phoenix_dataset_id]
+
+    async def delete(self, phoenix_dataset_id: str) -> None:
+        self._datasets.pop(phoenix_dataset_id, None)
+        self._latest_version.pop(phoenix_dataset_id, None)
+
+
+class InMemoryDatasetIndexStore:
+    """In-memory `DatasetIndexStore` for unit tests."""
+
+    def __init__(self) -> None:
+        from phoenix_audit_agent.storage.models import DatasetIndex
+
+        self._DatasetIndex = DatasetIndex
+        self._docs: dict[str, dict[str, Any]] = {}
+
+    async def upsert(self, index: Any) -> None:
+        self._docs[index.dataset_id] = index.model_dump()
+
+    async def get_by_slug(self, slug: str) -> Any:
+        doc = self._docs.get(slug)
+        return self._DatasetIndex.model_validate(doc) if doc else None
+
+    async def list_visible(self, uid: str | None) -> list[Any]:
+        rows = [self._DatasetIndex.model_validate(d) for d in self._docs.values()]
+        return [r for r in rows if r.owner_uid is None or (uid is not None and r.owner_uid == uid)]
+
+    async def delete_by_slug(self, slug: str) -> None:
+        self._docs.pop(slug, None)

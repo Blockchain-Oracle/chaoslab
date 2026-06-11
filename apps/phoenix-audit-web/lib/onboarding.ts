@@ -52,6 +52,15 @@ export type WizardAction =
   | { kind: 'next' }
   | { kind: 'back' }
   | { kind: 'skip' }
+  /** Navigation — used by the Docket TOC (jump-back to a visited
+   *  step) and by Welcome's "In a hurry? Skip to the finish" affordance.
+   *
+   *  By default does NOT touch the skipped set; an existing skip remains
+   *  a skip. Welcome's "Skip to the finish" passes `markSkipped` for the
+   *  steps it's bypassing so unanswered defaults aren't silently PATCHed
+   *  as if the operator chose them (regulator-facing fields must
+   *  distinguish "answered with X" from "skipped — kept default X"). */
+  | { kind: 'jumpTo'; step: WizardStep; markSkipped?: ReadonlyArray<WizardStep> }
   | { kind: 'setOrgName'; value: string }
   | { kind: 'setFramework'; value: string }
   | { kind: 'submitStart' }
@@ -81,6 +90,17 @@ export function onboardingReducer(state: WizardState, action: WizardAction): Wiz
       const skipped = new Set(state.skipped)
       skipped.add(state.step)
       return { ...state, step: neighborStep(state.step, 1), skipped }
+    }
+    case 'jumpTo': {
+      // Asymmetric with `back`: jumpTo is revisit/review (TOC) or batch-
+      // skip (Welcome → Finish), not a single-step correction. Existing
+      // skips persist; new ones are added when `markSkipped` is passed.
+      if (!action.markSkipped || action.markSkipped.length === 0) {
+        return { ...state, step: action.step }
+      }
+      const skipped = new Set(state.skipped)
+      for (const s of action.markSkipped) skipped.add(s)
+      return { ...state, step: action.step, skipped }
     }
     case 'setOrgName':
       return { ...state, orgName: action.value }

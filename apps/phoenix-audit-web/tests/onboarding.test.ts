@@ -95,6 +95,41 @@ describe('onboarding wizard reducer', () => {
     expect(s.skipped.has('org')).toBe(false)
   })
 
+  it('JUMP_TO routes to any step without disturbing existing skips (Docket TOC + "Skip to finish")', () => {
+    let s = initialWizardState(baseProfile)
+    s = onboardingReducer(s, { kind: 'skip' }) // welcome → org, welcome skipped
+    s = onboardingReducer(s, { kind: 'jumpTo', step: 'cta' })
+    expect(s.step).toBe('cta')
+    // Existing skips persist — jumpTo doesn't enter or leave a step in the
+    // "I made a choice" sense; it's pure navigation.
+    expect(s.skipped.has('welcome')).toBe(true)
+
+    s = onboardingReducer(s, { kind: 'jumpTo', step: 'org' })
+    expect(s.step).toBe('org')
+    expect(s.skipped.has('welcome')).toBe(true)
+  })
+
+  it('JUMP_TO with markSkipped flags every bypassed step (Welcome → Skip to finish)', () => {
+    // Reviewer-flagged silent failure: a "Skip to the finish" click that
+    // doesn't mark org/framework/gitlab as skipped lets buildFinalPatch
+    // PATCH framework_default = 'EU AI Act' (the seed default) as if the
+    // operator chose it. The regulator-facing report then cites a
+    // framework the operator never picked. Mark them explicitly.
+    let s = initialWizardState(baseProfile)
+    s = onboardingReducer(s, {
+      kind: 'jumpTo',
+      step: 'cta',
+      markSkipped: ['org', 'framework', 'gitlab'],
+    })
+    expect(s.step).toBe('cta')
+    expect(s.skipped.has('org')).toBe(true)
+    expect(s.skipped.has('framework')).toBe(true)
+    expect(s.skipped.has('gitlab')).toBe(true)
+    // welcome is not in markSkipped — and it's not the kind of step a
+    // user "skips" anyway (no answer to omit) — so it's not flagged.
+    expect(s.skipped.has('welcome')).toBe(false)
+  })
+
   it('SET_ORG_NAME updates the org field', () => {
     let s = initialWizardState(baseProfile)
     s = onboardingReducer(s, { kind: 'setOrgName', value: 'Meridian Mutual' })
@@ -143,6 +178,39 @@ describe('buildFinalPatch — what gets sent on Finish', () => {
     const { buildFinalPatch } = await import('@/lib/onboarding')
     let s = initialWizardState(baseProfile)
     for (let i = 0; i < 4; i++) s = onboardingReducer(s, { kind: 'skip' })
+    expect(buildFinalPatch(s)).toEqual({ onboarded: true })
+  })
+
+  it('skipped flag wins over a typed-then-backed-out org_name (rail and patch agree)', async () => {
+    // Reviewer-flagged: a user who types an org name, then hits Back,
+    // then Skip on the org step ends up with `state.orgName === '<typed>'`
+    // AND `state.skipped` containing 'org'. buildFinalPatch must omit
+    // org_name (skip = "no write"), and the Docket must render
+    // 'skipped · Settings' (not the typed value) so the rail's editorial
+    // promise matches what gets PATCHed.
+    const { buildFinalPatch } = await import('@/lib/onboarding')
+    let s = initialWizardState(baseProfile)
+    s = onboardingReducer(s, { kind: 'next' }) // welcome → org
+    s = onboardingReducer(s, { kind: 'setOrgName', value: 'Meridian Mutual' })
+    s = onboardingReducer(s, { kind: 'skip' }) // org skipped, name still in state
+    expect(s.orgName).toBe('Meridian Mutual')
+    expect(s.skipped.has('org')).toBe(true)
+    const patch = buildFinalPatch(s)
+    expect(patch).not.toHaveProperty('org_name')
+  })
+
+  it('Welcome → Skip to finish via jumpTo+markSkipped emits ONLY {onboarded:true}', async () => {
+    // Reviewer-flagged silent failure: prior to markSkipped, this same
+    // sequence would PATCH framework_default = 'EU AI Act' (seed default)
+    // as if the operator chose it. The cover sheet would then cite a
+    // framework the operator never picked. Pin the fix.
+    const { buildFinalPatch } = await import('@/lib/onboarding')
+    let s = initialWizardState(baseProfile)
+    s = onboardingReducer(s, {
+      kind: 'jumpTo',
+      step: 'cta',
+      markSkipped: ['org', 'framework', 'gitlab'],
+    })
     expect(buildFinalPatch(s)).toEqual({ onboarded: true })
   })
 })

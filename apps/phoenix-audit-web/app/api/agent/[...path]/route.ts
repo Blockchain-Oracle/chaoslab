@@ -25,6 +25,12 @@ const ALLOWED = [
   /^schedules\/[a-zA-Z0-9_-]+$/,
   /^profile$/,
   /^health$/,
+  // Story-9.15: datasets listing + detail. The slug pattern matches the
+  // backend DatasetIndex regex (lowercase + alphanumerics + `_` + `-`),
+  // so a mixed-case or special-char slug 404s here and never reaches the
+  // agent.
+  /^datasets$/,
+  /^datasets\/[a-z0-9_-]+$/,
 ]
 
 function allowed(path: string): boolean {
@@ -92,6 +98,13 @@ export async function POST(req: NextRequest, ctx: Ctx): Promise<Response> {
 }
 
 export async function PATCH(req: NextRequest, ctx: Ctx): Promise<Response> {
+  const { path } = await ctx.params
+  return proxy(req, path)
+}
+
+export async function DELETE(req: NextRequest, ctx: Ctx): Promise<Response> {
+  // Story-9.15: uploaded datasets are user-deletable. The allowlist gates
+  // which slugs reach the agent; the agent enforces ownership.
   const { path } = await ctx.params
   return proxy(req, path)
 }

@@ -1,9 +1,17 @@
 // Server-side auth config. Fails CLOSED naming the missing env var — a
 // deploy with auth half-configured must break loudly, never serve open.
 //
-// No serviceAccount: on Cloud Run, next-firebase-auth-edge reads credentials
-// from the environment (runtime SA needs roles/iam.serviceAccountTokenCreator
-// signBlob + the IAM Service Account Credentials API — see infra/README.md).
+// On Cloud Run: omit serviceAccount; next-firebase-auth-edge falls back to
+// ComputeEngineCredential, which uses the metadata server + keyless signBlob
+// (runtime SA needs roles/iam.serviceAccountTokenCreator + the IAM Service
+// Account Credentials API — see infra/README.md).
+//
+// Off Cloud Run: the library has no metadata server and its public API
+// won't accept a custom credential whose getAccessToken() returns a
+// gcloud-impersonated token (only ServiceAccountCredential or the metadata
+// ADC path). So local sign-in is verify-only: ID-token verification with
+// Google's public certs works (apiKey is enough), but /api/login fails
+// because there's no signer to mint the session cookie. Preview on staging.
 
 export interface ServerAuthConfig {
   apiKey: string
@@ -14,12 +22,6 @@ export interface ServerAuthConfig {
 
 const MIN_SIGNATURE_KEY_BYTES = 32
 
-// Local dev has no GCP metadata server, and the library's ADC path is
-// metadata-only — so off Cloud Run we hand it a projectId-bearing credential.
-// VERIFY-ONLY: ID-token verification needs only Google's public certs +
-// apiKey. Exception: /api/login signs a custom token and DOES need a real
-// signer — which is why the full sign-in round trip only works on Cloud Run
-// (keyless signBlob) and is the known local limitation in .env.example.
 function localVerifyOnlyCredential():
   | { projectId: string; clientEmail: string; privateKey: string }
   | undefined {
