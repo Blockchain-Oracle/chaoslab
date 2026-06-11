@@ -26,14 +26,27 @@ import argparse
 import asyncio
 import logging
 import sys
+from enum import StrEnum
 from typing import Any
+
+
+class SeedOutcome(StrEnum):
+    """M4 (review-fleet): make seed/skip/fail distinguishable in summary
+    counts. A CI/cron caller that always sees "all OK" can no longer tell
+    a stale-hash skip from a real seed."""
+
+    SEEDED = "SEEDED"
+    SKIPPED = "SKIPPED"
+    FAILED = "FAILED"
+
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 _log = logging.getLogger("seed_datasets")
 
 
-async def _seed_one(definition: Any, *, dry_run: bool) -> bool:
-    """Returns True on seeded-or-skipped (success), False on error."""
+async def _seed_one(definition: Any, *, dry_run: bool) -> SeedOutcome:
+    """M4: returns the precise outcome (SEEDED / SKIPPED / FAILED) so the
+    summary can show counts."""
     from phoenix_audit_agent._time import utc_now_iso
     from phoenix_audit_agent.api.datasets import get_phoenix_client
     from phoenix_audit_agent.storage.datasets import get_dataset_index_store
@@ -45,13 +58,13 @@ async def _seed_one(definition: Any, *, dry_run: bool) -> bool:
         loaded = load_battery_dataset(definition)
     except Exception as e:
         _log.error("seed:%s load_failed error=%r", slug, e)
-        return False
+        return SeedOutcome.FAILED
 
     store = get_dataset_index_store()
     existing = await store.get_by_slug(slug)
     if existing is not None and existing.content_hash == loaded.content_hash:
         _log.info("seed:%s unchanged (hash=%s) — skipped", slug, loaded.content_hash[:14])
-        return True
+        return SeedOutcome.SKIPPED
 
     if dry_run:
         _log.info(
@@ -60,7 +73,7 @@ async def _seed_one(definition: Any, *, dry_run: bool) -> bool:
             existing is None,
             len(loaded.items),
         )
-        return True
+        return SeedOutcome.SKIPPED
 
     phoenix = get_phoenix_client()
     try:
@@ -72,7 +85,7 @@ async def _seed_one(definition: Any, *, dry_run: bool) -> bool:
         )
     except Exception as e:
         _log.error("seed:%s phoenix_create_failed error=%r", slug, e)
-        return False
+        return SeedOutcome.FAILED
 
     now = utc_now_iso()
     try:
@@ -92,7 +105,7 @@ async def _seed_one(definition: Any, *, dry_run: bool) -> bool:
         await store.upsert(idx)
     except Exception as e:
         _log.error("seed:%s index_upsert_failed error=%r", slug, e)
-        return False
+        return SeedOutcome.FAILED
 
     _log.info(
         "seed:%s OK (phoenix_id=%s, %d items)",
@@ -100,21 +113,26 @@ async def _seed_one(definition: Any, *, dry_run: bool) -> bool:
         created.phoenix_dataset_id,
         created.example_count,
     )
-    return True
+    return SeedOutcome.SEEDED
 
 
 async def main_async(args: argparse.Namespace) -> int:
     from phoenix_audit_agent.storage.datasets_battery import BATTERY_DATASETS
 
-    failures = 0
+    counts: dict[SeedOutcome, int] = dict.fromkeys(SeedOutcome, 0)
     for definition in BATTERY_DATASETS:
-        ok = await _seed_one(definition, dry_run=args.dry_run)
-        if not ok:
-            failures += 1
+        outcome = await _seed_one(definition, dry_run=args.dry_run)
+        counts[outcome] += 1
+    failures = counts[SeedOutcome.FAILED]
+    _log.info(
+        "seed summary: seeded=%d skipped=%d failed=%d (total=%d)",
+        counts[SeedOutcome.SEEDED],
+        counts[SeedOutcome.SKIPPED],
+        failures,
+        len(BATTERY_DATASETS),
+    )
     if failures:
-        _log.error("seed: %d/%d datasets failed", failures, len(BATTERY_DATASETS))
         return 1
-    _log.info("seed: all %d datasets OK", len(BATTERY_DATASETS))
     return 0
 
 

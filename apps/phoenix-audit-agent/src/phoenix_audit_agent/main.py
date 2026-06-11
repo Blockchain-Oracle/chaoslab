@@ -178,6 +178,11 @@ async def _drive_orchestrator(run_id: str) -> None:
             # Story 9.7: feeds OpenInference user.id => Phoenix Sessions tab
             # filters by tenant. None on sample runs => empty-string no-op.
             owner_uid=state.owner_uid,
+            # Story 9.15: forward the operator-picked dataset slug. drive_audit
+            # snapshots dataset_name + Phoenix ids onto the RunRecord at finalize
+            # so the signed report cover can name the corpus.
+            dataset_id=state.request.dataset_id,
+            agent_id=state.request.agent_id,
         )
     except asyncio.CancelledError:
         state.phase = "failed"

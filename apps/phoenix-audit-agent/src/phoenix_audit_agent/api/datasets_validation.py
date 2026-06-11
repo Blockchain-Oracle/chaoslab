@@ -22,6 +22,7 @@ will actually run.
 from __future__ import annotations
 
 import base64
+import binascii
 import csv
 import io
 import json
@@ -49,19 +50,34 @@ class RowError:
 
 @dataclass(frozen=True)
 class UploadValidationError:
-    """The 422 body shape. `parse_error` and `row_errors` are mutually exclusive."""
+    """The 422 body shape. `parse_error` and `row_errors` are mutually
+    exclusive — enforced by `__post_init__` so a maintainer can't violate
+    the partition silently (L1 review-fleet finding)."""
 
     parse_error: str | None = None
     row_errors: list[RowError] = field(default_factory=list)
 
+    def __post_init__(self) -> None:
+        if self.parse_error is not None and self.row_errors:
+            msg = (
+                "UploadValidationError.parse_error and row_errors are mutually "
+                "exclusive — set exactly one"
+            )
+            raise ValueError(msg)
+
 
 def _decode(body_b64: bytes) -> str | None:
-    """Strict base64 → text, or None on failure."""
+    """Strict base64 → text, or None on failure.
+
+    C3 (review-fleet): narrow the catch to the actual decode-error families.
+    `MemoryError`, programming bugs, and any future SDK exception now
+    surface their real stack trace instead of silently degrading to "empty".
+    """
     if not body_b64:
         return None
     try:
         raw = base64.b64decode(body_b64, validate=True)
-    except (ValueError, Exception):
+    except (binascii.Error, ValueError):
         return None
     try:
         return raw.decode("utf-8-sig")  # strips BOM if present

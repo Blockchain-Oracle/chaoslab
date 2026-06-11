@@ -149,13 +149,22 @@ def _to_list_row(idx: DatasetIndex) -> DatasetListRow:
 
 
 def _new_uploaded_slug() -> str:
-    # 8 hex chars: 32 bits, far below the slug-collision risk threshold for
-    # per-user upload counts. Slug format pinned by DatasetIndex regex.
-    return "ds_" + secrets.token_hex(4)
+    # S2 (review-fleet): 16 hex chars / 64 bits. The Firestore upsert here
+    # is a blind write (no read-before-write), so we need real collision
+    # resistance even at thousands of uploads per user. Slug format pinned
+    # by DatasetIndex regex.
+    return "ds_" + secrets.token_hex(8)
 
 
 def _can_see(idx: DatasetIndex, uid: str) -> bool:
-    return idx.kind == "battery" or idx.owner_uid == uid
+    # L3 (review-fleet): defense-in-depth. A corrupted index row with
+    # kind != "battery" and owner_uid is None would fall through the OR
+    # since `None == uid` is False — but in case a future bug makes
+    # `uid` None too, require an explicit kind check before letting an
+    # ownerless row past.
+    if idx.kind == "battery":
+        return idx.owner_uid is None
+    return idx.owner_uid is not None and idx.owner_uid == uid
 
 
 def _upload_error_response(err: UploadValidationError) -> dict[str, object]:

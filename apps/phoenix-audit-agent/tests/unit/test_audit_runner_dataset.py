@@ -150,7 +150,7 @@ async def test_dataset_snapshot_lands_on_run_record_at_finalize() -> None:
     """When `dataset_id` is set on the run, the finalize write captures
     name + phoenix_dataset_id + version_id so the signed report cover
     + the JSON artifact have the canonical strings."""
-    from phoenix_audit_agent import audit_runner_emit as are
+    from phoenix_audit_agent import audit_runner_datasets as ard
     from phoenix_audit_agent.storage.models import DatasetIndex, RunCompletion
 
     # Snapshot helper takes (idx, version_id) and produces the merge fields
@@ -169,7 +169,7 @@ async def test_dataset_snapshot_lands_on_run_record_at_finalize() -> None:
         updated_at="2026-06-11T07:00:00+00:00",
     )
 
-    fields = are.dataset_snapshot_fields(idx=idx, version_id="phx_v_000007")
+    fields = ard.dataset_snapshot_fields(idx=idx, version_id="phx_v_000007")
     assert fields == {
         "dataset_id": "harmbench-v1-sample",
         "dataset_name": "HarmBench v1 (sample)",
@@ -197,7 +197,7 @@ async def test_dataset_snapshot_lands_on_run_record_at_finalize() -> None:
 async def test_regression_upsert_creates_then_appends() -> None:
     """First failing audit for an agent creates `regression-<slug>`;
     subsequent failures `add_examples` into it (Phoenix versioning)."""
-    from phoenix_audit_agent import audit_runner_emit as are
+    from phoenix_audit_agent import audit_runner_datasets as ard
 
     fake_phx = FakePhoenixDatasetClient()
 
@@ -242,7 +242,7 @@ async def test_regression_upsert_creates_then_appends() -> None:
     ]
 
     # Round 1: no existing regression set → create.
-    snap1 = await are.upsert_regression_set(
+    snap1 = await ard.upsert_regression_set(
         agent_id="agt_meridian001",
         owner_uid="uid_alice",
         failing_rows=failing_rows_round_1,
@@ -260,7 +260,7 @@ async def test_regression_upsert_creates_then_appends() -> None:
     assert saved.agent_id == "agt_meridian001"
 
     # Round 2: existing regression set → add_examples (new version).
-    snap2 = await are.upsert_regression_set(
+    snap2 = await ard.upsert_regression_set(
         agent_id="agt_meridian001",
         owner_uid="uid_alice",
         failing_rows=failing_rows_round_2,
@@ -281,7 +281,7 @@ async def test_regression_upsert_creates_then_appends() -> None:
 async def test_regression_upsert_dedupes_by_case_id() -> None:
     """If a second audit hits the same `case_id`, the newest row wins —
     no Phoenix-side duplication."""
-    from phoenix_audit_agent import audit_runner_emit as are
+    from phoenix_audit_agent import audit_runner_datasets as ard
 
     fake_phx = FakePhoenixDatasetClient()
 
@@ -306,7 +306,7 @@ async def test_regression_upsert_dedupes_by_case_id() -> None:
             "source": "audit:run_first",
         },
     ]
-    await are.upsert_regression_set(
+    await ard.upsert_regression_set(
         agent_id="agt_x",
         owner_uid="uid_alice",
         failing_rows=initial,
@@ -325,7 +325,7 @@ async def test_regression_upsert_dedupes_by_case_id() -> None:
             "source": "audit:run_second",
         },
     ]
-    snap = await are.upsert_regression_set(
+    snap = await ard.upsert_regression_set(
         agent_id="agt_x",
         owner_uid="uid_alice",
         failing_rows=update,

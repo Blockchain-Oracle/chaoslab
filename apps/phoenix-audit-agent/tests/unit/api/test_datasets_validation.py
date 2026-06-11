@@ -157,9 +157,11 @@ def test_non_base64_body_is_parse_error() -> None:
 
 @pytest.mark.parametrize("fmt", ["jsonl", "csv"])
 def test_known_fault_classes_match_injector_canon(fmt: str) -> None:
-    """The fault_class accept-list must match `injector/agent.py`'s
-    canonical Literal so an upload validating here cannot ever be rejected
-    deeper in the pipeline."""
+    """Module-load drift guard. `KNOWN_FAULT_CLASSES` is derived from
+    `injector.agent._FAULT_CLASSES` at import time, so they cannot diverge
+    today. This test exists to fail loudly IF a future refactor splits
+    them — at which point either (a) re-derive at import time, or (b) add
+    a CI step (CLAUDE.md silent-failure pattern #3) that diffs the two."""
     from phoenix_audit_agent.api.datasets_validation import KNOWN_FAULT_CLASSES
     from phoenix_audit_agent.injector.agent import _FAULT_CLASSES
 

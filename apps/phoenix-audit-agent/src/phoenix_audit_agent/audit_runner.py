@@ -159,6 +159,8 @@ async def drive_audit(
     prompt: str = DEFAULT_AUDIT_PROMPT,
     created_at: str | None = None,
     owner_uid: str | None = None,
+    dataset_id: str | None = None,
+    agent_id: str | None = None,
 ) -> None:
     """Run one full audit and emit the SSE event stream.
 
@@ -167,6 +169,14 @@ async def drive_audit(
     so the Phoenix Sessions tab groups by run_id; `user_id=owner_uid` only
     when owner_uid is a non-empty string — None and "" both collapse to
     "scope without user.id" (OpenInference empty-string is a contract no-op).
+
+    Story 9.15: `dataset_id` (when set) is the slug the operator picked at
+    `/new`. drive_audit (a) tags SSE probe frames with `origin="battery"` (the
+    dataset-row probes get `origin=f"dataset:{slug}"` when the row-interleave
+    loop ships in story-9.16), (b) snapshots the dataset name + Phoenix ids
+    onto the RunRecord at finalize so the signed report cover can name the
+    corpus, and (c) upserts failing-probe rows into `regression-<agent_id>`
+    when `agent_id` is set + the audit produced failures.
     """
     created_at = created_at or utc_now_iso()
     frames: list[dict[str, Any]] = []
@@ -190,6 +200,7 @@ async def drive_audit(
                 runs_per_fault=runs_per_fault,
                 prompt=prompt,
                 emit=emit,
+                dataset_slug=dataset_id,
             )
 
             # ---- judge ------------------------------------------------------------
@@ -334,6 +345,12 @@ async def drive_audit(
             )
 
             set_phase("succeeded")
+            # Story 9.15 evidence chain: build the failing-probe rows that the
+            # regression upsert will append into `regression-<agent_id>`. Only
+            # fires when agent_id is set + the audit had failures we can
+            # source-tag back to a case_id. We pull from tally.failures (the
+            # rubric-judged real failures, excluding transport errors).
+            failing_rows = _failing_rows_from_tally(tally, run_id=run_id)
             await finalize_run(
                 run_id=run_id,
                 target_url=target_url,
@@ -344,6 +361,10 @@ async def drive_audit(
                 report_urls=report_urls,
                 frames=frames,
                 emit=emit,
+                dataset_id=dataset_id,
+                agent_id=agent_id,
+                owner_uid=owner_uid,
+                failing_rows=failing_rows,
             )
         except Exception:
             # The partial timeline of a FAILED audit is exactly when replay
@@ -352,3 +373,34 @@ async def drive_audit(
                 run_id=run_id, target_url=target_url, created_at=created_at, frames=frames
             )
             raise
+
+
+def _failing_rows_from_tally(tally: Any, *, run_id: str) -> list[dict[str, Any]]:
+    """Build FlatDatasetItem-shaped rows from the judged failures.
+
+    Used by `finalize_run` to upsert a regression set per agent. Pure: takes
+    only the verdict tally + the run_id provenance string, returns rows the
+    `PhoenixDatasetClient.add_examples` API accepts. Skipped failures (no
+    usable span id / transport errors) are excluded — those carry no
+    case-id we could surface as evidence.
+    """
+    rows: list[dict[str, Any]] = []
+    failures = getattr(tally, "failures", []) or []
+    for f in failures:
+        # Each failure has a span_id (the auditor's adapter span) we use as
+        # a stable case_id within the regression set. The prompt is the
+        # auditor's adversarial input that fired this failure. fault_class
+        # comes off the InjectorState attack record.
+        case_id = getattr(f, "case_id", None) or f"fail-{f.span_id[:12]}"
+        rows.append(
+            {
+                "case_id": case_id,
+                "prompt": getattr(f, "prompt", "") or "<unknown prompt>",
+                "fault_class": f.fault_class,
+                "expected": "refuse and stay in policy",
+                "source": f"audit:{run_id}",
+                "severity": "high",
+                "notes": None,
+            }
+        )
+    return rows

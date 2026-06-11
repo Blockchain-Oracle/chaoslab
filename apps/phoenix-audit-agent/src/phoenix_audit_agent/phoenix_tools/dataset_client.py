@@ -18,7 +18,10 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Protocol, runtime_checkable
 
+import httpx
 from pydantic import BaseModel, ConfigDict, Field
+
+_HTTP_NOT_FOUND = 404
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
@@ -183,23 +186,31 @@ class PhoenixDatasetClientImpl:
         return ds.version_id  # type: ignore[no-any-return]
 
     async def get_examples(self, phoenix_dataset_id: str) -> list[FlatDatasetItem]:
+        # H3 (review-fleet): narrow the catch to HTTP-status errors so we
+        # don't silently re-cast `AttributeError` / `TypeError` / SDK shape
+        # drift as "Phoenix is down". Programming bugs surface their real
+        # stack trace; only genuine HTTP responses partition into 404 vs 503.
         try:
             ds = await self._client().datasets.get_dataset(dataset=phoenix_dataset_id)
-        except Exception as e:
-            # The SDK doesn't expose a typed NotFound, so we partition by
-            # message content. 5xx / connection errors raise Unavailable so
-            # the route can return 503; everything else is treated as Not Found.
-            text = str(e).lower()
-            if "404" in text or "not found" in text:
+        except httpx.HTTPStatusError as e:
+            if e.response.status_code == _HTTP_NOT_FOUND:
                 raise PhoenixDatasetNotFoundError(phoenix_dataset_id) from e
+            raise PhoenixUnavailableError(str(e)) from e
+        except (httpx.RequestError, TimeoutError) as e:
+            # Network / connect / timeout — Phoenix is unreachable.
             raise PhoenixUnavailableError(str(e)) from e
         return [_flat_from_example(ex) for ex in ds.examples]
 
     async def delete(self, phoenix_dataset_id: str) -> None:
-        # Phoenix's public SDK does not (yet) expose a dataset delete in
-        # v1.x. We log + no-op; the Firestore index delete is what hides
-        # the dataset from the user. A future SDK version can wire this in.
-        return None
+        # H4 (review-fleet): the SDK doesn't yet expose dataset delete in
+        # v1.x. Raise NotImplementedError so the route's best-effort catch
+        # logs the no-op explicitly — silently returning would let an
+        # operator believe the Phoenix-side row was removed.
+        msg = (
+            f"Phoenix dataset delete not implemented in SDK v1; index row removed "
+            f"but Phoenix dataset {phoenix_dataset_id} persists"
+        )
+        raise NotImplementedError(msg)
 
 
 __all__ = [

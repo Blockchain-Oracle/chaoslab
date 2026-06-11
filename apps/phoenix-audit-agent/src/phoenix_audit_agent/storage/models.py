@@ -49,6 +49,18 @@ class RunRecord(BaseModel):
     mr_url: str | None = None
     org_id: str = "default"
     owner_uid: str | None = None
+    # Story 9.15: dataset snapshot. Set at finalize when the run was launched
+    # with `RunRequest.dataset_id`. The signed report cover renders
+    # `Dataset: <dataset_name>` (and `source_url` when present); the JSON
+    # artifact emits all six fields. `dataset_name` is the canonical string
+    # snapshot — when the dataset is later deleted, the run record + signed
+    # PDF stay valid evidence.
+    dataset_id: str | None = None
+    dataset_name: str | None = None
+    dataset_phoenix_id: str | None = None
+    dataset_version_id: str | None = None
+    dataset_kind: str | None = None
+    dataset_source_url: str | None = None
 
 
 class RunCompletion(BaseModel):
@@ -73,6 +85,21 @@ class RunCompletion(BaseModel):
     report_available: bool | None = None
     events_available: bool | None = None
     mr_url: str | None = None
+    # Story 9.15: same shape as `RunRecord` so the finalize path can write
+    # the dataset snapshot through `merge_fields` without a side-channel.
+    # The fields live on `RunRecord` (extra="ignore") AND here (extra="forbid")
+    # so a typo'd snapshot key fails loudly at finalize, never silently drops.
+    dataset_id: str | None = None
+    dataset_name: str | None = None
+    dataset_phoenix_id: str | None = None
+    dataset_version_id: str | None = None
+    dataset_kind: str | None = None
+    dataset_source_url: str | None = None
+    # Story 9.15: marker for the regression-set upsert. "fake_only" when the
+    # in-memory FakePhoenixDatasetClient handled the upsert (its newest-wins
+    # semantics); None when no regression upsert ran. The real Phoenix SDK
+    # path will add other markers in story-9.16 (see audit_runner_emit notes).
+    regression_overwrite_mode: str | None = None
 
     def merge_fields(self) -> dict[str, object]:
         """Only the fields actually set — merge must not null-out create data."""
