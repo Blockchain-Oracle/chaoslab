@@ -60,7 +60,7 @@ function DsRow({ row, landed, onDelete }: RowProps) {
       : `new?dataset=${encodeURIComponent(row.dataset_id)}`
   return (
     <tr className={landed ? 'clickable ds-landed' : 'clickable'}>
-      <td style={{ minWidth: 230 }}>
+      <td data-label="Dataset" style={{ minWidth: 230 }}>
         <A to={detailHref} style={{ display: 'block', textDecoration: 'none' }}>
           <span className="serif" style={{ fontSize: 15.5, lineHeight: 1.25, color: 'var(--ink)' }}>
             {row.name}
@@ -70,10 +70,10 @@ function DsRow({ row, landed, onDelete }: RowProps) {
           {sublabel}
         </div>
       </td>
-      <td>
+      <td data-label="Kind">
         <KindChip kind={row.kind} />
       </td>
-      <td className="mono num" style={{ whiteSpace: 'nowrap' }}>
+      <td className="mono num" data-label="Rows" style={{ whiteSpace: 'nowrap' }}>
         {row.row_count}
         {row.kind === 'regression' ? (
           <span className="muted" style={{ fontSize: 10 }}>
@@ -82,10 +82,14 @@ function DsRow({ row, landed, onDelete }: RowProps) {
           </span>
         ) : null}
       </td>
-      <td className="mono muted" style={{ fontSize: 11, whiteSpace: 'nowrap' }}>
+      <td
+        className="mono muted"
+        data-label="Updated"
+        style={{ fontSize: 11, whiteSpace: 'nowrap' }}
+      >
         {fmtDate(row.updated_at)}
       </td>
-      <td style={{ whiteSpace: 'nowrap', textAlign: 'right' }}>
+      <td data-label="Actions" style={{ whiteSpace: 'nowrap', textAlign: 'right' }}>
         <A to={newAuditHref} className="span-link" style={{ marginRight: 12 }}>
           {row.kind === 'regression' ? 'Re-audit →' : 'Use in audit →'}
         </A>

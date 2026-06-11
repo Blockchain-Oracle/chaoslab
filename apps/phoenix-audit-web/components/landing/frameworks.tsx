@@ -37,16 +37,18 @@ export function Frameworks() {
             <tbody>
               {ROWS.map(([f, t, tr, c]) => (
                 <tr key={f}>
-                  <td className="serif" style={{ fontSize: 15.5 }}>
+                  <td className="serif" data-label="Framework" style={{ fontSize: 15.5 }}>
                     {f}
                   </td>
-                  <td>
+                  <td data-label="Support">
                     <span className="tag">{t}</span>
                   </td>
-                  <td className="mono" style={{ fontSize: 12 }}>
+                  <td className="mono" data-label="Transport" style={{ fontSize: 12 }}>
                     {tr}
                   </td>
-                  <td style={{ fontSize: 13, color: 'var(--ink-2)' }}>{c}</td>
+                  <td data-label="Clustering" style={{ fontSize: 13, color: 'var(--ink-2)' }}>
+                    {c}
+                  </td>
                 </tr>
               ))}
             </tbody>

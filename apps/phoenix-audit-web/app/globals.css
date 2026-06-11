@@ -1945,34 +1945,32 @@ textarea {
   pointer-events: auto;
 }
 .nav-drawer {
+  /* Story-9.19 + 2026-06-11 user feedback: the drawer used to slide in
+   * from the right as a sidebar — users found it "down-side" and asked
+   * for a top dropdown instead. New shape: full-width sheet that slides
+   * DOWN from below the topbar. Closed = translateY(-100%) (off-screen
+   * above), open = translateY(0). No fixed height — content sizes the
+   * sheet so a 5-item nav doesn't take the whole screen. */
   position: fixed;
   top: 0;
+  left: 0;
   right: 0;
-  bottom: 0;
-  /* Live-deploy diagnosis 2026-06-11: with only top:0 + bottom:0 the
-   * drawer was sizing to padding-only (96px tall) and clipping the 5
-   * nav links + UserMenu below — operators reported "I click the
-   * hamburger and can't see anything." Explicit height: 100dvh fills
-   * the viewport regardless of any ancestor-stacking quirks, and dvh
-   * survives iOS Safari's collapsing address bar (regular vh would
-   * leave a 60-80px dead zone). 100vh falls back for older engines. */
-  height: 100vh;
-  height: 100dvh;
-  width: min(320px, 84vw);
+  width: 100%;
   background: var(--paper, #fff);
-  border-left: 1px solid var(--ink);
+  border-bottom: 1px solid var(--ink);
+  box-shadow: 0 8px 24px rgba(20, 16, 12, 0.12);
   z-index: 61;
   display: flex;
   flex-direction: column;
-  padding: 72px 0 24px;
-  transform: translateX(100%);
+  padding: 64px 0 16px;
+  transform: translateY(-100%);
   visibility: hidden;
   transition:
     transform 0.2s ease-out,
     visibility 0s linear 0.2s;
 }
 .nav-drawer.open {
-  transform: translateX(0);
+  transform: translateY(0);
   visibility: visible;
   transition: transform 0.2s ease-out;
 }
@@ -2156,19 +2154,67 @@ textarea {
     max-width: 320px;
   }
 
-  /* ---- class 4e: frameworks-table swipeable -----------------------------
-   * The 4-col cross-framework ledger can't usefully stack as a card layout
-   * (column headers carry the meaning). Wrap it in a horizontal scroller
-   * so the user can swipe across without overflowing the page.
+  /* ---- class 4e: tables → stacked cards at mobile ---------------------
+   * User explicitly rejected horizontal swipe ("scrolling to the left
+   * doesn't make sense"). Every .ledger table at ≤768px:
+   *   - hide the thead
+   *   - render each tr as a stacked card with rounded border
+   *   - render each td as a labelled block via the data-label attribute
+   *     (consumers add data-label to td if they want a label; otherwise
+   *     the cell just stacks without a label).
+   * The wrapping .ledger-wrap loses its horizontal-scroll so columns
+   * can't push past the viewport.
    */
+  .ledger-wrap,
   .frameworks-scroll {
-    overflow-x: auto;
-    -webkit-overflow-scrolling: touch;
-    margin: 0 -16px;
-    padding: 0 16px;
+    overflow-x: visible !important;
+    margin: 0 !important;
+    padding: 0 !important;
   }
-  .frameworks-scroll > table {
-    min-width: 540px;
+  .ledger {
+    display: block;
+    min-width: 0 !important;
+    width: 100%;
+    border-collapse: separate;
+  }
+  .ledger thead {
+    display: none;
+  }
+  .ledger tbody,
+  .ledger tr {
+    display: block;
+    width: 100%;
+  }
+  .ledger tr {
+    border: 1px solid var(--hairline);
+    border-radius: var(--r);
+    padding: 12px 14px;
+    margin-bottom: 12px;
+    background: var(--paper);
+  }
+  .ledger td {
+    display: block;
+    width: 100% !important;
+    padding: 6px 0 !important;
+    border: none !important;
+    text-align: left !important;
+  }
+  .ledger td[data-label]::before {
+    content: attr(data-label);
+    display: block;
+    font-family: var(--mono);
+    font-size: 9.5px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+    margin-bottom: 4px;
+  }
+  /* Action cell on the right edge stays right-aligned on the card */
+  .ledger td:last-child {
+    text-align: right !important;
+    padding-top: 10px !important;
+    border-top: 1px solid var(--hairline-soft, var(--hairline)) !important;
+    margin-top: 6px;
   }
 
   /* ---- class 4f: section heads — flow the right-note onto its own row -
