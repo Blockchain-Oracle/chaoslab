@@ -61,7 +61,7 @@ export const SECTIONS: DocSection[] = [
     no: '§5',
     title: 'Bring your own test cases',
     body: [
-      'The Datasets page holds three kinds of evidence corpora. The battery sets (HarmBench, OWASP LLM Top 10, MITRE ATLAS samples) ship with the product and are visible to every account. Your uploaded sets are JSONL or CSV files of test cases — prompt, expected behavior, fault class — validated row-by-row at upload (a malformed row blocks the upload with the exact line and reason; nothing partial is stored). Regression sets accumulate automatically: every failing probe from an audit of your agent is upserted into that agent’s regression set, so the cases that caught it once run again next time.',
+      'The Datasets page holds three kinds of evidence corpora. The battery sets (HarmBench, OWASP LLM Top 10, MITRE ATLAS samples) ship with the product and are visible to every account. Your uploaded sets are JSONL or CSV files of test cases — prompt, expected behavior, fault class — validated row-by-row at upload (a malformed row blocks the upload with the exact line and reason; nothing partial is stored). Regression sets accumulate automatically: every failing probe from an audit of your agent is upserted into that agent’s regression set (capped at the most-recent 200 cases per agent, newest kept), so the cases that caught it once run again next time.',
       'Run any audit with a dataset from the wizard — its rows join the synthetic battery, and the signed report cover names the dataset it ran with.',
     ],
     shot: 'datasets.png',
@@ -83,7 +83,7 @@ export const SECTIONS: DocSection[] = [
     no: '§7',
     title: 'File fixes as a GitLab merge request',
     body: [
-      'Connect your GitLab account from Settings — a standard OAuth authorization, no tokens to paste. Filing is review-first: after you have read a hardening recipe, choose “File as GitLab MR”, pick one of your projects, and the MR is opened with your GitLab identity. The MR only adds files under phoenix-audit/ in the project you chose — prompt patches, validation diffs and regression tests as reviewable files. Phoenix Audit never reads or modifies your code, and nothing is ever filed automatically.',
+      'Connect your GitLab account from Settings — a standard OAuth authorization, no tokens to paste. Filing is review-first: after you have read a hardening recipe, choose “File as GitLab MR” on the recipe page, pick one of your projects, and the MR is opened with your GitLab identity — the button becomes a “GitLab MR ↗” link to it. The MR only adds files under phoenix-audit/ in the project you chose — prompt patches, validation diffs and regression tests as reviewable files. Phoenix Audit never reads or modifies your code, and nothing is ever filed automatically.',
     ],
     shot: 'gitlab.png',
     shotAlt: 'The GitLab connection card in settings',
@@ -122,7 +122,7 @@ export const SECTIONS: DocSection[] = [
     title: 'Auth & privacy',
     body: [
       'Public: the landing page, the demo replay, and this documentation. Private: everything else — your audits, agents, schedules, datasets and settings are scoped to your account and invisible to anyone else. Sample runs are the one deliberate exception: ownerless, read-only, labeled.',
-      'Data residency is stated on every signed report and renders verbatim: audit traces are retained in Phoenix Audit’s hosted Phoenix project for 24 hours after the report’s signature is emitted, then cryptographically erased. The signed PDF is the durable artifact.',
+      'Data residency is stated on every signed report and renders verbatim: “Audit traces are retained in Phoenix Audit’s hosted Phoenix project for 24 hours after this report’s cryptographic signature is emitted, then cryptographically erased via Cloud KMS key-shred. Phoenix Audit acts as a GDPR Article 28 data processor for the duration of the retention window. This signed PDF is the durable artifact; all underlying probe-and-response data is destroyed after the retention window closes.”',
     ],
   },
 ]
