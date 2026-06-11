@@ -204,3 +204,26 @@ The designer needs visual answers for the following discrete states. Each is a r
 - The wizard combobox lists every dataset the user can see — battery + their uploaded + every regression set across every agent they own. There is intentionally no "filter by agent" affordance on the combobox; Maya can already pick the dataset she wants by name. The grouped-by-kind layout is the only structural organization.
 
 ---
+
+## Story-9.19 — Mobile responsiveness (Surface M)
+
+**What ships:** every public + product surface usable at 390×844 (iPhone 14 class). This is responsive execution on EXISTING designer surfaces — no new visual language; the system you own stays intact. The one genuinely new component is the mobile nav.
+
+### M-1 — MobileNav (hamburger + drawer)
+
+- Replaces the inline `topbar.tsx` nav (Audits / Target agents / Monitoring / Settings) and `landing-nav.tsx` links at ≤768px. Wordmark stays left; "Run audit" CTA stays visible (it is THE product action — never buried in the drawer); UserMenu + nav links move into the drawer.
+- Designer owns: the hamburger glyph idiom (the product's mono/etched register, not a stock icon), drawer surface treatment (full-height right sheet vs top drop — your call), open/close motion (Framer Motion 12 available), active-route treatment inside the drawer, and how the signed-in identity renders in drawer context.
+- Constraints: drawer must be dismissible by backdrop tap + Escape; focus-trapped while open; nav targets ≥44px tall.
+
+### M-2 — Chamber single-column
+
+- `audit-chamber.tsx` grid `'390px 1fr'` → single column at ≤768px: probe rail stacks ABOVE the live event feed (the rail is the demo's heartbeat — it leads). Designer call: whether the rail collapses to a horizontal scroller or stays a full vertical stack.
+
+### M-3 — Landing compare + typography pass
+
+- `compare.tsx` 1fr/1fr grid stacks; the `borderRight` hairline becomes a `borderBottom`.
+- ≤390px: display-type scale steps down (the 36–44px display sizes overflow); mono metadata rows wrap with intent rather than truncate.
+
+### Verification
+
+- Playwright at 390×844 across landing / replay / login / audits / chamber / report / datasets — screenshots land in the PR for your review pass.
