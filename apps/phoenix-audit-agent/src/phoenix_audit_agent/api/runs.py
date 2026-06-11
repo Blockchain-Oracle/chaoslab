@@ -57,6 +57,10 @@ class RunDetailResponse(BaseModel):
     # Artifacts whose URL signing FAILED — distinct from "artifact does not
     # exist" so the UI can show retry vs absent (CLAUDE.md pattern #4).
     artifact_url_errors: dict[str, str] = {}
+    # Story-9.21: Phoenix deep-link config. null when PHOENIX_UI_BASE is
+    # unset — the web renders NO deep-link affordance rather than a dead one.
+    phoenix_ui_base: str | None = None
+    phoenix_project: str | None = None
 
 
 @router.get("/runs", response_model=RunListResponse)
@@ -99,7 +103,15 @@ async def _detail_response(record: RunRecord) -> RunDetailResponse:
                 errors[name] = type(result).__name__
                 continue
             urls[name] = result
-    return RunDetailResponse(run=record, artifact_urls=urls, artifact_url_errors=errors)
+    settings = get_settings()
+    ui_base = settings.PHOENIX_UI_BASE.rstrip("/") or None
+    return RunDetailResponse(
+        run=record,
+        artifact_urls=urls,
+        artifact_url_errors=errors,
+        phoenix_ui_base=ui_base,
+        phoenix_project=settings.TARGET_PHOENIX_PROJECT if ui_base else None,
+    )
 
 
 @router.get("/runs/{run_id}", response_model=RunDetailResponse)

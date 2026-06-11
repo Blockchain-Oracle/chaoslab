@@ -198,6 +198,15 @@ class Settings(BaseSettings):
             "(https://<web>/integrations/gitlab/callback)."
         ),
     )
+    PHOENIX_UI_BASE: str = Field(
+        default="",
+        description=(
+            "Phoenix UI origin for human-facing deep links (e.g. "
+            "https://app.phoenix.arize.com/s/<space>). Distinct from the OTLP "
+            "collector endpoint. Empty => every deep-link affordance is "
+            "absent (web + PDF) — never a dead link (story-9.21)."
+        ),
+    )
     RESEND_API_KEY: SecretStr | None = Field(
         default=None,
         description=(
@@ -248,7 +257,7 @@ class Settings(BaseSettings):
         case_sensitive=False,
     )
 
-    @field_validator("PUBLIC_WEB_URL")
+    @field_validator("PUBLIC_WEB_URL", "PHOENIX_UI_BASE")
     @classmethod
     def _public_web_url_https_only(cls, v: str) -> str:
         # Empty ⇒ portal rows omitted from emails. Non-empty MUST be https —

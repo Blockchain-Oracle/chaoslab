@@ -27,6 +27,20 @@ export interface RunRecordDto {
   events_available: boolean
   mr_url: string | null
   owner_uid: string | null
+  /** Story-9.21: cluster_id → exemplar span_id; supports the "Review in
+   *  Phoenix" deep-link per failure cluster. */
+  cluster_spans?: Record<string, string>
+  /** Story-9.21: cluster_id → officer review. Renders alongside the signed
+   *  artifact (the PDF stays immutable; this is the dated human-review trail). */
+  cluster_reviews?: Record<
+    string,
+    {
+      verdict: 'confirmed' | 'disputed'
+      note: string | null
+      reviewer_email: string
+      reviewed_at: string
+    }
+  >
 }
 
 export interface AgentRecordDto {
@@ -58,6 +72,9 @@ export interface RunDetailDto {
   run: RunRecordDto
   artifact_urls: Record<string, string>
   artifact_url_errors: Record<string, string>
+  /** Story-9.21: Phoenix UI deep-link config — null when unconfigured. */
+  phoenix_ui_base?: string | null
+  phoenix_project?: string | null
 }
 
 export interface Live<T> {

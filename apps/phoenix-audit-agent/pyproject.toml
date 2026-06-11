@@ -25,10 +25,10 @@ dependencies = [
   "arize-phoenix-otel>=0.10,<1.0.0",
   "arize-phoenix-client>=2.7.0,<3.0.0",
   # phoenix.evals — the judge rubrics import HallucinationEvaluator et al.
-  # MUST be declared: locally it rides in transitively via arize-phoenix,
-  # but the production image installs only declared deps. Staging's judge
-  # errored EVERY rubric with ModuleNotFoundError until this line was added
-  # (found 2026-06-11 via story-9.21 live verification).
+  # MUST be declared: locally it rides in transitively, but the production
+  # image installs only declared deps — staging's judge errored EVERY rubric
+  # with ModuleNotFoundError until this line (found 2026-06-11, story-9.21
+  # live verification).
   "arize-phoenix-evals>=3.1,<4.0",
   # Pydantic + settings — Settings(BaseSettings) loads PHOENIX_*, GEMINI_*, etc. from env.
   "pydantic>=2",

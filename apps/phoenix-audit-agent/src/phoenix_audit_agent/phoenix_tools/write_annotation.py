@@ -105,15 +105,25 @@ def _iso_now() -> str:
     return _dt.datetime.now(_dt.UTC).strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z"
 
 
-def _default_identifier(span_id: str, cluster_id: str, settings: Settings) -> str:
+def _default_identifier(
+    span_id: str, cluster_id: str, settings: Settings, annotator: str = "phoenix_audit_judge"
+) -> str:
     """Stable, addressable identifier for a cluster annotation.
 
     Phoenix dedups on `(name, span_id, identifier)`. An empty identifier means
     "second write overwrites first" — which silently loses Judge cluster scores
     when more than one cluster targets the same span. The default carries the
     Phoenix Audit version + cluster id so multiple judges coexist.
+
+    PR #120 BLOCKER-1: `annotator` participates in the identifier too — without
+    it, the officer HUMAN annotation would silently overwrite the LLM Judge's
+    score on the same cluster's exemplar span, destroying the dual-track audit
+    trail a regulator expects. With this, Phoenix shows BOTH rows side-by-side.
     """
-    return f"phoenix-audit/{settings.service_version}/{cluster_id or 'default'}/{span_id[:16]}"
+    return (
+        f"phoenix-audit/{settings.service_version}/{cluster_id or 'default'}"
+        f"/{annotator}/{span_id[:16]}"
+    )
 
 
 def _validate_cluster_id(cluster_id: str) -> None:
@@ -232,7 +242,7 @@ async def write_span_annotation(
     settings = get_settings()
     _validate_cluster_id(cluster_id)
     annotator_kind = _validate_inputs(span_id, score, reason, annotator)
-    identifier = _default_identifier(span_id, cluster_id, settings)
+    identifier = _default_identifier(span_id, cluster_id, settings, annotator)
     annotation = _build_annotation(
         span_id, annotator_kind, label, score, reason, identifier, settings
     )

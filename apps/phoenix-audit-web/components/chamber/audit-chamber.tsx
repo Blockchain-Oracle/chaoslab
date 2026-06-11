@@ -29,9 +29,20 @@ interface AuditChamberProps {
   elapsed: number
   /** Replay-only transport controls. */
   replay?: ReplayControls
+  /** Story-9.21: Phoenix UI deep-link config (forwarded to the probe rows). */
+  phoenixUiBase?: string | null
+  phoenixProject?: string | null
 }
 
-export function AuditChamber({ mode, runLabel, stream, elapsed, replay }: AuditChamberProps) {
+export function AuditChamber({
+  mode,
+  runLabel,
+  stream,
+  elapsed,
+  replay,
+  phoenixUiBase = null,
+  phoenixProject = null,
+}: AuditChamberProps) {
   return (
     <div className="chamber-scope" style={{ paddingBottom: 90 }}>
       <div className="grain"></div>
@@ -101,7 +112,12 @@ export function AuditChamber({ mode, runLabel, stream, elapsed, replay }: AuditC
 
         {/* right canvas: wire-truth ledger + cluster + recipe + report */}
         <div style={{ display: 'grid', gap: 22, alignContent: 'start' }}>
-          <LiveProbeLedger probes={stream.probes} summary={stream.summary} />
+          <LiveProbeLedger
+            probes={stream.probes}
+            summary={stream.summary}
+            phoenixUiBase={phoenixUiBase}
+            phoenixProject={phoenixProject}
+          />
           <LiveReportRow report={stream.report} />
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 22 }}>
             <LiveClusterCard cluster={stream.cluster} phase={stream.phase} />
