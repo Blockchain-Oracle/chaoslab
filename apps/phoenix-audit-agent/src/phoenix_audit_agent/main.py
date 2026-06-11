@@ -80,6 +80,14 @@ class RunRequest(BaseModel):
         default="manual",
         description="manual (operator-initiated) or scheduled (monitoring tick).",
     )
+    # Story-9.15: optional Phoenix dataset slug. None = synthetic battery only
+    # (backward compat). The visibility check happens at launch_run time so a
+    # foreign slug 422s with the BDD-mandated reason — never 403, never silent.
+    dataset_id: str | None = Field(
+        default=None,
+        description="Optional dataset slug to interleave with the synthetic battery.",
+        pattern=r"^[a-z0-9_-]+$",
+    )
 
     @field_validator("target_url")
     @classmethod
@@ -293,6 +301,18 @@ async def start_run(
 
 async def launch_run(payload: RunRequest, *, owner_uid: str | None = None) -> RunResponse:
     """Shared run launcher — POST /run and the scheduler tick both land here."""
+    # Story-9.15 visibility check. A foreign / missing dataset 422s here so the
+    # error surfaces at the launch boundary — never deeper. The same reason
+    # covers "doesn't exist" and "exists but you can't see it" to avoid the
+    # existence-leak (BDD 404-vs-403 rule applied at the run boundary too).
+    if payload.dataset_id is not None:
+        from phoenix_audit_agent.storage.datasets import get_dataset_index_store
+
+        idx = await get_dataset_index_store().get_by_slug(payload.dataset_id)
+        visible = idx is not None and (idx.kind == "battery" or idx.owner_uid == owner_uid)
+        if not visible:
+            raise HTTPException(status_code=422, detail="dataset not found or not accessible")
+
     run_id = _new_run_id()
     created = utc_now_iso()
     _RUN_REGISTRY[run_id] = _RunState(
