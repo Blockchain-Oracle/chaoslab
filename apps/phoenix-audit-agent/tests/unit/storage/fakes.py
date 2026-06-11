@@ -213,3 +213,27 @@ class FakePhoenixDatasetClient:
     async def delete(self, phoenix_dataset_id: str) -> None:
         self._datasets.pop(phoenix_dataset_id, None)
         self._latest_version.pop(phoenix_dataset_id, None)
+
+
+class InMemoryDatasetIndexStore:
+    """In-memory `DatasetIndexStore` for unit tests."""
+
+    def __init__(self) -> None:
+        from phoenix_audit_agent.storage.models import DatasetIndex
+
+        self._DatasetIndex = DatasetIndex
+        self._docs: dict[str, dict[str, Any]] = {}
+
+    async def upsert(self, index: Any) -> None:
+        self._docs[index.dataset_id] = index.model_dump()
+
+    async def get_by_slug(self, slug: str) -> Any:
+        doc = self._docs.get(slug)
+        return self._DatasetIndex.model_validate(doc) if doc else None
+
+    async def list_visible(self, uid: str | None) -> list[Any]:
+        rows = [self._DatasetIndex.model_validate(d) for d in self._docs.values()]
+        return [r for r in rows if r.owner_uid is None or (uid is not None and r.owner_uid == uid)]
+
+    async def delete_by_slug(self, slug: str) -> None:
+        self._docs.pop(slug, None)
