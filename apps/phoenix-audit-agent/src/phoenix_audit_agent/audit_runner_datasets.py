@@ -42,17 +42,16 @@ from phoenix_audit_agent.phoenix_tools.dataset_client import (
 
 _log = structlog.get_logger(__name__)
 
-# Round-3 review: the contained-failure paths must cover ALL the error
-# families that can arise from the Firestore client + the Phoenix SDK
-# wrapper + Pydantic model validation. Missing ANY one of them turns a
-# downstream outage / corrupt-doc / bridge-drift into a finalize crash
-# (HIGH-1, HIGH-3, I-1). We bind the tuple in one place so both the
-# snapshot and upsert paths catch consistently.
+# Round-3+4 review: contained-failure tuple covers the NETWORK / STORE
+# OUTAGE families only. ValidationError is read-path-specific (a corrupt
+# Firestore DatasetIndex doc) and is handled at the read call sites in
+# build_dataset_snapshot — NOT in this shared tuple, so the upsert write
+# path's `DatasetIndex(...)` construction doesn't silently swallow
+# programming errors (round-4 HIGH-3).
 _CONTAINED_STORE_ERRORS: tuple[type[BaseException], ...] = (
     httpx.HTTPError,
     TimeoutError,
     ConnectionError,
-    ValidationError,  # HIGH-3: malformed DatasetIndex doc on read
 )
 
 try:
@@ -284,12 +283,13 @@ async def build_dataset_snapshot(*, dataset_id: str, run_id: str) -> dict[str, A
     from phoenix_audit_agent.api.datasets import get_phoenix_client
     from phoenix_audit_agent.storage.datasets import get_dataset_index_store
 
-    # Round-3 review: contained catch must cover Firestore + Pydantic
-    # families too — see _CONTAINED_STORE_ERRORS. Programming bugs
-    # (AttributeError / TypeError) still surface naturally.
+    # Contained catch families (round-3 + round-4 HIGH-3): ValidationError
+    # is specific to corrupt-doc-on-READ and is caught HERE, not in the
+    # shared tuple — the upsert write path must not silently swallow a
+    # `DatasetIndex(...)` construction error.
     try:
         idx = await get_dataset_index_store().get_by_slug(dataset_id)
-    except _CONTAINED_STORE_ERRORS as e:
+    except (*_CONTAINED_STORE_ERRORS, ValidationError) as e:
         _log.warning(
             "finalize.dataset_index_lookup_failed",
             run_id=run_id,
@@ -302,19 +302,29 @@ async def build_dataset_snapshot(*, dataset_id: str, run_id: str) -> dict[str, A
         _log.warning("finalize.dataset_index_missing", run_id=run_id, dataset_id=dataset_id)
         return None
 
-    # H-NEW-2 + Round-3 HIGH-1 + MED-1: capture the REAL Phoenix version_id;
-    # if the lookup fails (outage OR TOCTOU delete between the index read
-    # and now), return None so the SIGNED report falls back cleanly to
-    # "synthetic battery". A "version_id=unknown" snapshot would silently
-    # pin regulator-facing evidence to a meaningless string.
+    # Capture the REAL Phoenix version_id; if the lookup fails (outage OR
+    # TOCTOU delete between the index read and now), return None so the
+    # signed report falls back cleanly to "synthetic battery". A
+    # "version_id=unknown" snapshot would silently pin regulator-facing
+    # evidence to a meaningless string. Round-4 MED: split bridge-drift
+    # (Phoenix says NotFound) from outage so they're distinguishable in
+    # the audit log.
     try:
         version_id = await get_phoenix_client().get_current_version_id(idx.phoenix_dataset_id)
-    except (PhoenixUnavailableError, PhoenixDatasetNotFoundError) as e:
+    except PhoenixDatasetNotFoundError as e:
         _log.warning(
-            "finalize.dataset_version_lookup_failed",
+            "finalize.dataset_bridge_drift",
             run_id=run_id,
             dataset_id=dataset_id,
-            error_type=type(e).__name__,
+            phoenix_dataset_id=idx.phoenix_dataset_id,
+            error=str(e),
+        )
+        return None
+    except PhoenixUnavailableError as e:
+        _log.warning(
+            "finalize.dataset_version_outage",
+            run_id=run_id,
+            dataset_id=dataset_id,
             error=str(e),
         )
         return None

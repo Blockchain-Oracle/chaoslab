@@ -282,16 +282,22 @@ async def delete_dataset(
         )
     # Uploaded — best-effort Phoenix delete, authoritative Firestore delete.
     # Phoenix outage must not block the index delete (the index is what hides
-    # the dataset from the user). Log + continue.
+    # the dataset from the user). Log + continue. Round-4 LOW-2: narrow to
+    # the actual expected error families so KeyboardInterrupt-adjacent
+    # issues + programming bugs surface naturally.
+    import httpx
+    import structlog
+
+    from phoenix_audit_agent.phoenix_tools.dataset_client import PhoenixDatasetError
+
     try:
         await get_phoenix_client().delete(idx.phoenix_dataset_id)
-    except Exception as e:
-        import structlog
-
+    except (PhoenixDatasetError, NotImplementedError, httpx.HTTPError, TimeoutError) as e:
         structlog.get_logger(__name__).warning(
             "datasets.phoenix_delete_failed",
             slug=slug,
             phoenix_dataset_id=idx.phoenix_dataset_id,
+            error_type=type(e).__name__,
             error=str(e),
         )
     await store.delete_by_slug(slug)

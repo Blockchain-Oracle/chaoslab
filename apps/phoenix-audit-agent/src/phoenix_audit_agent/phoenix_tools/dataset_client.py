@@ -122,6 +122,24 @@ def _normalize_row(row: dict[str, Any] | FlatDatasetItem) -> dict[str, Any]:
     return dict(row)
 
 
+async def _partition_sdk_call(phoenix_dataset_id: str, coro: Any) -> Any:
+    """Round-4 HIGH-2: uniform error partitioning for every SDK call. Every
+    `PhoenixDatasetClientImpl` method routes through here so 404 always
+    becomes `PhoenixDatasetNotFoundError` and other-HTTP/Network always
+    becomes `PhoenixUnavailableError`. Without this, `create()` and
+    `add_examples()` leaked raw `httpx.HTTPStatusError` to the caller,
+    making the contained-finalize path's bridge-drift catch unreachable
+    in production (it only fired in tests that used the fake)."""
+    try:
+        return await coro
+    except httpx.HTTPStatusError as e:
+        if e.response.status_code == _HTTP_NOT_FOUND:
+            raise PhoenixDatasetNotFoundError(phoenix_dataset_id) from e
+        raise PhoenixUnavailableError(str(e)) from e
+    except (httpx.RequestError, TimeoutError) as e:
+        raise PhoenixUnavailableError(str(e)) from e
+
+
 def _flat_from_example(example: dict[str, Any]) -> FlatDatasetItem:
     """Pull a Phoenix `DatasetExample` back into our flat shape. The example
     is the v1 wire form: `{id, node_id, input, output, metadata}`."""
@@ -163,13 +181,18 @@ class PhoenixDatasetClientImpl:
         full_desc = description or ""
         if source_url:
             full_desc = f"{full_desc}\nSource: {source_url}".strip()
-        ds = await self._client().datasets.create_dataset(
-            name=name,
-            examples=rows,
-            input_keys=_INPUT_KEYS,
-            output_keys=_OUTPUT_KEYS,
-            metadata_keys=_METADATA_KEYS,
-            dataset_description=full_desc or None,
+        # Uniform partitioning per `_partition_sdk_call` — create() now
+        # raises typed errors instead of leaking httpx.HTTPStatusError.
+        ds = await _partition_sdk_call(
+            "<create>",
+            self._client().datasets.create_dataset(
+                name=name,
+                examples=rows,
+                input_keys=_INPUT_KEYS,
+                output_keys=_OUTPUT_KEYS,
+                metadata_keys=_METADATA_KEYS,
+                dataset_description=full_desc or None,
+            ),
         )
         return CreatedDataset(
             phoenix_dataset_id=ds.id,
@@ -183,41 +206,36 @@ class PhoenixDatasetClientImpl:
         examples: Sequence[dict[str, Any]] | Sequence[FlatDatasetItem],
     ) -> str:
         rows = [_normalize_row(r) for r in examples]
-        ds = await self._client().datasets.add_examples_to_dataset(
-            dataset=phoenix_dataset_id,
-            examples=rows,
-            input_keys=_INPUT_KEYS,
-            output_keys=_OUTPUT_KEYS,
-            metadata_keys=_METADATA_KEYS,
+        # Uniform partitioning: a stale `phoenix_dataset_id` (the bridge-
+        # drift case) now raises `PhoenixDatasetNotFoundError`, making the
+        # `try_regression_upsert` bridge_drift log event reachable in prod.
+        ds = await _partition_sdk_call(
+            phoenix_dataset_id,
+            self._client().datasets.add_examples_to_dataset(
+                dataset=phoenix_dataset_id,
+                examples=rows,
+                input_keys=_INPUT_KEYS,
+                output_keys=_OUTPUT_KEYS,
+                metadata_keys=_METADATA_KEYS,
+            ),
         )
         return ds.version_id  # type: ignore[no-any-return]
 
     async def get_examples(self, phoenix_dataset_id: str) -> list[FlatDatasetItem]:
-        # H3 (review-fleet): narrow the catch to HTTP-status errors so we
-        # don't silently re-cast `AttributeError` / `TypeError` / SDK shape
-        # drift as "Phoenix is down". Programming bugs surface their real
-        # stack trace; only genuine HTTP responses partition into 404 vs 503.
-        try:
-            ds = await self._client().datasets.get_dataset(dataset=phoenix_dataset_id)
-        except httpx.HTTPStatusError as e:
-            if e.response.status_code == _HTTP_NOT_FOUND:
-                raise PhoenixDatasetNotFoundError(phoenix_dataset_id) from e
-            raise PhoenixUnavailableError(str(e)) from e
-        except (httpx.RequestError, TimeoutError) as e:
-            # Network / connect / timeout — Phoenix is unreachable.
-            raise PhoenixUnavailableError(str(e)) from e
+        # Uniform partitioning via `_partition_sdk_call` (round-4 HIGH-2).
+        # Programming bugs (AttributeError / TypeError) surface naturally.
+        ds = await _partition_sdk_call(
+            phoenix_dataset_id,
+            self._client().datasets.get_dataset(dataset=phoenix_dataset_id),
+        )
         return [_flat_from_example(ex) for ex in ds.examples]
 
     async def get_current_version_id(self, phoenix_dataset_id: str) -> str:
         """Read the current `version_id` off the SDK's `Dataset` object."""
-        try:
-            ds = await self._client().datasets.get_dataset(dataset=phoenix_dataset_id)
-        except httpx.HTTPStatusError as e:
-            if e.response.status_code == _HTTP_NOT_FOUND:
-                raise PhoenixDatasetNotFoundError(phoenix_dataset_id) from e
-            raise PhoenixUnavailableError(str(e)) from e
-        except (httpx.RequestError, TimeoutError) as e:
-            raise PhoenixUnavailableError(str(e)) from e
+        ds = await _partition_sdk_call(
+            phoenix_dataset_id,
+            self._client().datasets.get_dataset(dataset=phoenix_dataset_id),
+        )
         # `Dataset.version_id` is the canonical wire field per the SDK.
         # Round-3 LOW: defensive str-coerce + non-empty check so an SDK
         # shape drift (returning None / int) raises a typed error here

@@ -128,16 +128,47 @@ async def test_try_regression_upsert_splits_bridge_drift_from_outage(
 
     monkeypatch.setattr(ard._log, "warning", _capture)
 
-    class _Idx:
-        async def get_by_slug(self, slug: str) -> None:
-            return None
+    # Round-4 test-analyzer #1 + silent-failure HIGH-2: exercise the
+    # REAL production bridge-drift surface — index points at a stale
+    # phoenix_dataset_id, append-path's `get_examples` raises NotFound.
+    # The previous version exercised create() which can't actually raise
+    # NotFound in production.
+    from phoenix_audit_agent.storage.models import DatasetIndex
+
+    stale_idx = DatasetIndex(
+        dataset_id="regression-agt_x",
+        phoenix_dataset_id="phx_ds_phantom",
+        name="Regression — agt_x",
+        kind="regression",
+        owner_uid="uid_a",
+        agent_id="agt_x",
+        row_count=0,
+        source_url=None,
+        content_hash="sha256:stale",
+        created_at="2026-06-11T07:00:00+00:00",
+        updated_at="2026-06-11T07:00:00+00:00",
+    )
+
+    class _IdxDrift:
+        async def get_by_slug(self, slug: str) -> Any:
+            return stale_idx
 
         async def upsert(self, idx: Any) -> None:
             return None
 
     class _PhoenixDrift:
-        async def create(self, **_kwargs: Any) -> Any:
-            raise PhoenixDatasetNotFoundError("phx_drift")
+        """Append-path bridge drift: stale phoenix_dataset_id → NotFound
+        from get_examples (the realistic production scenario)."""
+
+        async def get_examples(self, phoenix_dataset_id: str) -> Any:
+            raise PhoenixDatasetNotFoundError(phoenix_dataset_id)
+
+    class _IdxEmpty:
+        async def get_by_slug(self, slug: str) -> None:
+            return None
+
+        async def upsert(self, idx: Any) -> None:
+            return None
 
     class _PhoenixOutage:
         async def create(self, **_kwargs: Any) -> Any:
@@ -153,8 +184,8 @@ async def test_try_regression_upsert_splits_bridge_drift_from_outage(
         }
     ]
 
-    # Bridge drift path.
-    dataset_storage.set_dataset_index_store(_Idx())  # ty: ignore[invalid-argument-type]
+    # Bridge drift path — REALISTIC: stale index, NotFound on get_examples.
+    dataset_storage.set_dataset_index_store(_IdxDrift())  # ty: ignore[invalid-argument-type]
     datasets_api.set_phoenix_client(_PhoenixDrift())  # ty: ignore[invalid-argument-type]
     try:
         result = await ard.try_regression_upsert(
@@ -168,8 +199,8 @@ async def test_try_regression_upsert_splits_bridge_drift_from_outage(
 
     captured.clear()
 
-    # Outage path.
-    dataset_storage.set_dataset_index_store(_Idx())  # ty: ignore[invalid-argument-type]
+    # Outage path — create() raises Unavailable (genuine outage).
+    dataset_storage.set_dataset_index_store(_IdxEmpty())  # ty: ignore[invalid-argument-type]
     datasets_api.set_phoenix_client(_PhoenixOutage())  # ty: ignore[invalid-argument-type]
     try:
         result = await ard.try_regression_upsert(
@@ -252,3 +283,67 @@ def test_get_current_version_id_typed_guard_against_sdk_drift() -> None:
 
     with pytest.raises(PhoenixUnavailableError, match="non-string version_id"):
         asyncio.run(impl.get_current_version_id("phx_x"))
+
+
+@pytest.mark.asyncio
+async def test_phoenix_create_raises_typed_error_on_http_status() -> None:
+    """Round-4 HIGH-2: `PhoenixDatasetClientImpl.create()` must translate raw
+    `httpx.HTTPStatusError` into the typed `PhoenixUnavailableError`. Without
+    this, callers (including the regression upsert path) see raw httpx
+    exceptions and the bridge-drift / outage partitioning silently breaks."""
+    from phoenix_audit_agent.phoenix_tools.dataset_client import (
+        PhoenixDatasetClientImpl,
+        PhoenixUnavailableError,
+    )
+
+    class _BadCreate:
+        async def create_dataset(self, **_kwargs: Any) -> Any:
+            req = httpx.Request("POST", "http://fake")
+            raise httpx.HTTPStatusError(
+                "boom", request=req, response=httpx.Response(503, request=req)
+            )
+
+    class _BadClient:
+        datasets = _BadCreate()
+
+    impl = PhoenixDatasetClientImpl()
+    bad_client = _BadClient()
+
+    def _get_bad_client(_self: Any = None) -> Any:
+        return bad_client
+
+    impl._client = _get_bad_client  # ty: ignore[invalid-assignment]
+
+    with pytest.raises(PhoenixUnavailableError):
+        await impl.create(name="x", examples=[], description=None, source_url=None)
+
+
+@pytest.mark.asyncio
+async def test_phoenix_add_examples_raises_not_found_on_404() -> None:
+    """Round-4 HIGH-2: stale `phoenix_dataset_id` in `add_examples` must
+    raise `PhoenixDatasetNotFoundError` (bridge drift), not raw HTTP error."""
+    from phoenix_audit_agent.phoenix_tools.dataset_client import (
+        PhoenixDatasetClientImpl,
+        PhoenixDatasetNotFoundError,
+    )
+
+    class _BadAddExamples:
+        async def add_examples_to_dataset(self, **_kwargs: Any) -> Any:
+            req = httpx.Request("POST", "http://fake")
+            raise httpx.HTTPStatusError(
+                "missing", request=req, response=httpx.Response(404, request=req)
+            )
+
+    class _BadClient:
+        datasets = _BadAddExamples()
+
+    impl = PhoenixDatasetClientImpl()
+    bad_client = _BadClient()
+
+    def _get_bad_client(_self: Any = None) -> Any:
+        return bad_client
+
+    impl._client = _get_bad_client  # ty: ignore[invalid-assignment]
+
+    with pytest.raises(PhoenixDatasetNotFoundError):
+        await impl.add_examples("phx_stale", [])

@@ -451,3 +451,71 @@ async def test_get_runs_id_surfaces_dataset_snapshot(
     assert run["dataset_version_id"].startswith("phx_v_")
     assert run["dataset_kind"] == "battery"
     assert run["dataset_source_url"] == "https://example.test/source"
+
+
+@pytest.mark.asyncio
+async def test_drive_audit_append_path_accumulates_different_case_ids(
+    wired,  # noqa: F811
+    monkeypatch: pytest.MonkeyPatch,
+    index_store: InMemoryDatasetIndexStore,
+    phoenix_client: FakePhoenixDatasetClient,
+) -> None:
+    """Round-4 test-analyzer (5): two audits producing DIFFERENT failures
+    accumulate in the regression set. The previous append test only
+    exercised the dedup branch — a `_append_regression_examples` bug that
+    silently dropped genuinely-new rows would pass that test."""
+    import phoenix_audit_agent.audit_runner as ar
+    from phoenix_audit_agent._time import utc_now_iso
+    from phoenix_audit_agent.injector.agent import AttackResult
+    from phoenix_audit_agent.storage import runs as run_storage
+    from phoenix_audit_agent.storage.models import RunRecord
+
+    async def fake_rubric(inp: Any) -> EvalScore:
+        # Every probe fails — both audits.
+        return EvalScore(passed=False, score=0.0, reason=inp.span_id[:8])
+
+    monkeypatch.setattr(ar, "apply_rubric", fake_rubric)
+
+    # Audit 1: SPAN_OK_FAIL ("b" * 16)
+    async def _run(span_marker: str, run_id: str) -> None:
+        _FakeInjector.results = [
+            AttackResult(
+                run_idx=0,
+                fault_class="prompt_injection",
+                span_id=span_marker * 16,
+                trace_id=span_marker * 32,
+                status="ok",
+                duration_ms=10.0,
+            )
+        ]
+        await run_storage.create_run_record(
+            RunRecord(
+                run_id=run_id,
+                target_url="https://t.example",
+                created_at=utc_now_iso(),
+                owner_uid="uid_alice",
+                agent_id="agt_accum001",
+            )
+        )
+        await ar.drive_audit(
+            run_id=run_id,
+            target_url="https://t.example",
+            runs_per_fault=1,
+            emit=wired.emit,
+            set_phase=lambda _p: None,
+            created_at=utc_now_iso(),
+            owner_uid="uid_alice",
+            agent_id="agt_accum001",
+        )
+
+    await _run("a", "run_accum00001")
+    await _run("c", "run_accum00002")
+    # The two trace excerpts the FakeSpans fixture emits differ across
+    # span markers (the suite fixture's trace_excerpt prefixes the
+    # span_id), so the (fault_class, trace_excerpt) digest differs and
+    # we should have TWO distinct case_ids in the regression set.
+    regression_idx = await index_store.get_by_slug("regression-agt_accum001")
+    assert regression_idx is not None
+    items = await phoenix_client.get_examples(regression_idx.phoenix_dataset_id)
+    case_ids = {i.case_id for i in items}
+    assert len(case_ids) >= 2, sorted(case_ids)
