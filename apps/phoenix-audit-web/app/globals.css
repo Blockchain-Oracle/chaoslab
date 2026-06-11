@@ -875,7 +875,9 @@ textarea {
 }
 @media (max-width: 1040px) {
   .hero-grid {
-    grid-template-columns: 1fr;
+    /* minmax(0,1fr) not bare 1fr: a 1fr track's auto-minimum lets nowrap
+       children (the specimen ledger) blow the column past the viewport. */
+    grid-template-columns: minmax(0, 1fr);
     gap: 70px;
   }
 }
@@ -1900,4 +1902,229 @@ textarea {
   opacity: 1;
   border-color: var(--ember-deep);
   box-shadow: none;
+}
+
+/* ---------- story-9.19: mobile responsiveness (Surface M) ---------- */
+/* Breakpoint mirrors MOBILE_BREAKPOINT_PX in lib/mobile-nav.ts — the
+   vitest stylesheet pin keeps the two from drifting. Fix classes come from
+   the 2026-06-11 full-surface audit at 390x844 (12 surfaces walked on
+   staging): (1) topbar, (2) ledger tables, (3) chamber, (4) landing hero,
+   (5) report paper. One rule per breakage class. */
+
+.nav-mobile {
+  display: none;
+}
+span.nav-desktop-contents {
+  display: contents;
+}
+.nav-burger {
+  background: none;
+  border: 1px solid var(--hairline);
+  border-radius: 2px;
+  color: var(--ink);
+  font-size: 16px;
+  line-height: 1;
+  min-width: 44px;
+  min-height: 40px;
+  cursor: pointer;
+}
+.nav-drawer-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(20, 16, 12, 0.45);
+  z-index: 60;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.15s ease;
+}
+.nav-drawer-backdrop.open {
+  opacity: 1;
+  pointer-events: auto;
+}
+.nav-drawer {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: min(320px, 84vw);
+  background: var(--paper, #fff);
+  border-left: 1px solid var(--ink);
+  z-index: 61;
+  display: flex;
+  flex-direction: column;
+  padding: 72px 0 24px;
+  transform: translateX(100%);
+  visibility: hidden;
+  transition:
+    transform 0.2s ease-out,
+    visibility 0s linear 0.2s;
+}
+.nav-drawer.open {
+  transform: translateX(0);
+  visibility: visible;
+  transition: transform 0.2s ease-out;
+}
+.nav-drawer-links {
+  display: flex;
+  flex-direction: column;
+}
+.nav-drawer-links a {
+  font-family: var(--mono);
+  font-size: 12.5px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  text-decoration: none;
+  color: var(--ink-3);
+  padding: 14px 24px; /* >=44px touch target */
+  border-bottom: 1px solid var(--hairline);
+}
+.nav-drawer-links a.active {
+  color: var(--ink);
+  box-shadow: inset 3px 0 0 var(--ember);
+}
+.nav-drawer-foot {
+  margin-top: auto;
+  padding: 16px 24px 0;
+  border-top: 1px solid var(--hairline);
+}
+
+@media (max-width: 768px) {
+  /* (mop-up) decorative absolute-positioned art (hero seal, login SVG)
+     may poke past the edge by design — clip the residue, never pan. */
+  html,
+  body {
+    overflow-x: hidden;
+  }
+
+  /* ---- class 1: topbar / landing-nav --------------------------------- */
+  /* !important: landing-nav's inline style={{display:'flex'}} must lose. */
+  .topbar nav.nav-desktop,
+  nav.nav-desktop,
+  a.nav-desktop,
+  span.nav-desktop-contents {
+    display: none !important;
+  }
+  .nav-mobile {
+    display: flex;
+    align-items: center;
+  }
+  /* The desktop nav's flex:1 was the spacer; push CTA+burger right. */
+  .topbar-inner > .btn.ember {
+    margin-left: auto;
+  }
+  .topbar-inner {
+    gap: 10px;
+  }
+  .landing-nav-row > .btn.primary {
+    margin-left: auto;
+  }
+
+  /* ---- class 2: evidence tables --------------------------------------- */
+  /* The registry/ledger tables are evidence — scroll them in place rather
+     than reflow (audit: /audits table measured 891px). */
+  table.ledger {
+    display: block;
+    max-width: 100%;
+    overflow-x: auto;
+  }
+
+  /* ---- class 3: chamber (replay / live run) --------------------------- */
+  .chamber-grid {
+    grid-template-columns: minmax(0, 1fr) !important;
+    padding-left: 16px !important;
+    padding-right: 16px !important;
+  }
+  .chamber-header-row {
+    padding-left: 16px !important;
+    padding-right: 16px !important;
+    flex-wrap: wrap;
+    height: auto !important;
+    min-height: 58px;
+    row-gap: 0;
+  }
+  /* The phase rail is the audit's heartbeat — keep it one line, scroll it. */
+  .phase-rail {
+    overflow-x: auto;
+    padding-left: 16px !important;
+    padding-right: 16px !important;
+    scrollbar-width: none;
+  }
+  .phase-rail::-webkit-scrollbar {
+    display: none;
+  }
+  .phase-rail > span[style*='flex'] {
+    min-width: 14px;
+  }
+  /* Event feed lines wrap instead of widening the page (inline nowrap loses). */
+  .feed-line {
+    white-space: normal !important;
+    overflow-wrap: anywhere;
+  }
+
+  /* ---- class 4: landing hero + compare -------------------------------- */
+  .hero-specimen {
+    width: auto !important;
+    max-width: 100%;
+  }
+  .hero-seal {
+    right: 6px !important;
+    bottom: -24px !important;
+  }
+  .compare-grid {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+  .compare-grid > div:first-child {
+    border-right: none !important;
+    border-bottom: 1px solid var(--hairline);
+    padding-right: 0 !important;
+  }
+  .compare-grid > div:last-child {
+    padding-left: 0 !important;
+  }
+
+  /* ---- class 5: signed-report preview ---------------------------------- */
+  /* Thumb rail stacks above the sheet as a horizontal strip. */
+  .report-preview-grid {
+    grid-template-columns: minmax(0, 1fr) !important;
+    gap: 18px !important;
+  }
+  .report-preview-grid > div:first-child {
+    display: flex;
+    overflow-x: auto;
+    position: static !important;
+    max-height: none !important;
+    gap: 10px;
+  }
+  .report-sheet {
+    padding: 26px 18px !important;
+  }
+
+  /* ---- shared shrink-to-fit guardrails --------------------------------- */
+  .shell {
+    padding-left: 16px;
+    padding-right: 16px;
+  }
+  .display {
+    overflow-wrap: anywhere;
+  }
+  .mono {
+    overflow-wrap: anywhere;
+  }
+  .kicker {
+    white-space: normal;
+  }
+  span.tag {
+    max-width: 100%;
+    white-space: normal;
+  }
+  input.text-input {
+    max-width: 100%;
+  }
+}
+
+@media (max-width: 390px) {
+  .display {
+    font-size: clamp(24px, 8.5vw, 34px) !important;
+    line-height: 1.12;
+  }
 }

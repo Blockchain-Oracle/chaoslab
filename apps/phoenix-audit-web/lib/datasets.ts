@@ -24,6 +24,7 @@ export type {
   DatasetKind,
   DatasetListRowDto,
   DatasetUnavailableDto,
+  UploadValidationErrorDto,
 } from './datasets-types'
 
 async function _identityHeaders(): Promise<Record<string, string>> {

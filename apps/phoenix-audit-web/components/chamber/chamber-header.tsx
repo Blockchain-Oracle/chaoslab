@@ -35,6 +35,7 @@ export function ChamberHeader({
       }}
     >
       <div
+        className="chamber-header-row"
         style={{
           maxWidth: 1180,
           margin: '0 auto',
@@ -133,6 +134,7 @@ export function ChamberHeader({
       </div>
       {/* phase rail */}
       <div
+        className="phase-rail"
         style={{
           maxWidth: 1180,
           margin: '0 auto',
