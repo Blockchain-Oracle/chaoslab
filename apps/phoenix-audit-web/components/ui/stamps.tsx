@@ -1,4 +1,4 @@
-import type { MouseEvent, ReactNode } from 'react'
+import type { ReactNode } from 'react'
 
 // Small chrome primitives — citations, verdict stamps, mode tags, honored
 // indicator, span deep-links. Used across the audit chamber, report preview,
@@ -91,18 +91,26 @@ export function HonoredDot({ honored, dark }: HonoredDotProps) {
 
 interface SpanLinkProps {
   id: string
+  /** Story-9.21: when set, the link opens the span in Phoenix. Absent →
+   *  text-only id, never a dead link. */
+  href?: string | null
 }
 
-export function SpanLink({ id }: SpanLinkProps) {
-  const handleClick = (e: MouseEvent<HTMLAnchorElement>) => {
-    e.preventDefault()
+export function SpanLink({ id, href }: SpanLinkProps) {
+  if (!href) {
+    return (
+      <span className="span-link" title="Phoenix UI not configured — span id only">
+        {id}
+      </span>
+    )
   }
   return (
     <a
       className="span-link"
-      href="#phoenix-trace"
-      title="Opens this span in the Phoenix observability UI (new tab)"
-      onClick={handleClick}
+      href={href}
+      target="_blank"
+      rel="noreferrer"
+      title="Open this span in Phoenix (new tab)"
     >
       {id} ↗
     </a>

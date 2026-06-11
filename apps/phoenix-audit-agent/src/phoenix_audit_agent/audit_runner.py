@@ -343,6 +343,11 @@ async def drive_audit(
                 markdown_url=markdown_url,
                 honored_missing_count=tally.honored_missing,
                 honored_unreadable_count=tally.honored_unreadable,
+                # Story-9.21: clickable span links in the signed PDF. The
+                # URLs go in at SIGNING TIME — the Ed25519 signature covers
+                # them. Empty config ⇒ today's plain text (no dead links).
+                phoenix_ui_base=(_s := get_settings()).PHOENIX_UI_BASE or None,
+                phoenix_project=_s.TARGET_PHOENIX_PROJECT if _s.PHOENIX_UI_BASE else None,
             )
             report_urls = await emit_signed_report(
                 report_data, emit=emit, run_id=run_id, recipe_markdown=recipe_markdown
@@ -371,6 +376,15 @@ async def drive_audit(
                 failing_rows=failing_rows,
                 schedule_id=schedule_id,
                 source=source,
+                # Story-9.21: exemplar span per cluster (first failing
+                # span_id); supports the report page "Review in Phoenix"
+                # deep-link AND tells the review endpoint which span to
+                # annotate with the officer verdict.
+                cluster_spans=(
+                    {c.cluster_id: c.span_ids[0] for c in cluster_set.clusters}
+                    if cluster_set
+                    else None
+                ),
             )
         except Exception:
             # The partial timeline of a FAILED audit is exactly when replay

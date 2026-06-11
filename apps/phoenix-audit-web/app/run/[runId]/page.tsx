@@ -50,7 +50,12 @@ export default async function RunPage({ params }: PageProps) {
     if (events?.doc) {
       return (
         <PageShell label="replay">
-          <ReplayShell doc={events.doc} runLabel={runReplayLabel(run)} />
+          <ReplayShell
+            doc={events.doc}
+            runLabel={runReplayLabel(run)}
+            phoenixUiBase={detail.data.phoenix_ui_base ?? null}
+            phoenixProject={detail.data.phoenix_project ?? null}
+          />
         </PageShell>
       )
     }

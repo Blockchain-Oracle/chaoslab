@@ -11,6 +11,7 @@ from __future__ import annotations
 import html as html_mod
 import re
 from pathlib import Path
+from urllib.parse import quote
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -82,6 +83,11 @@ class ReportData(BaseModel):
     # Response spans the auditor could NOT read from Phoenix. Disclosed so the
     # report never implies "verified compliant" for spans nobody inspected.
     honored_unreadable_count: int = Field(default=0, ge=0)
+    # Story-9.21: when set, span-id cells in the probe table become real
+    # PDF hyperlinks (WeasyPrint emits link annotations) to the Phoenix UI.
+    # Empty ⇒ today's plain monospace text — never a dead link.
+    phoenix_ui_base: str | None = None
+    phoenix_project: str | None = None
 
 
 def _esc(value: str) -> str:
@@ -98,6 +104,19 @@ def _verdict_cell(p: ReportProbe) -> str:
     return f'<span class="stamp {cls}">{p.verdict.upper()}</span>{suffix}'
 
 
+def _span_cell(data: ReportData, span_id: str) -> str:
+    """Story-9.21: real PDF hyperlink when Phoenix UI is configured;
+    otherwise the existing plain monospace cell. Quoted URL-safe pieces
+    only — empty config never emits a dead link."""
+    if data.phoenix_ui_base and data.phoenix_project:
+        base = data.phoenix_ui_base.rstrip("/")
+        project = quote(data.phoenix_project, safe="")
+        sid = quote(span_id, safe="")
+        href = f"{base}/projects/{project}/spans/{sid}"
+        return f"<td class='mono small'><a href='{_esc(href)}'>{_esc(span_id)}</a></td>"
+    return f"<td class='mono small'>{_esc(span_id)}</td>"
+
+
 def _probe_rows(data: ReportData) -> str:
     rows = []
     for p in data.probes:
@@ -106,7 +125,7 @@ def _probe_rows(data: ReportData) -> str:
             f"<td class='mono'>{p.n:02d}</td>"
             f"<td class='mono'>{_esc(p.fault_class)}</td>"
             f"<td>{_verdict_cell(p)}</td>"
-            f"<td class='mono small'>{_esc(p.span_id)}</td>"
+            f"{_span_cell(data, p.span_id)}"
             f"<td class='mono small'>{p.score:.2f}</td>"
             "</tr>"
         )
