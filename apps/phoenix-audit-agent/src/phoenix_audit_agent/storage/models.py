@@ -5,7 +5,7 @@ from __future__ import annotations
 
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 Framework = Literal[
     "adk-a2a",
@@ -143,9 +143,66 @@ class ScheduleRecord(BaseModel):
     owner_uid: str | None = None
 
 
+DatasetKind = Literal["battery", "regression", "uploaded"]
+
+
+class DatasetIndex(BaseModel):
+    """The thin Firestore `datasets/{slug}` index row.
+
+    Phoenix Datasets holds the actual examples — this index carries only the
+    bridge fields our app needs: slug + phoenix_dataset_id mapping, ownership,
+    kind, agent linkage (regression only), and an idempotency hash for the
+    seed script.
+
+    Three-kinds invariant (story-9.15):
+    - `battery`    ⇒ `owner_uid is None` and `agent_id is None`
+    - `uploaded`   ⇒ `owner_uid` is set and `agent_id is None`
+    - `regression` ⇒ both `owner_uid` and `agent_id` are set
+
+    The model_validator enforces all three in one place so a future kind
+    addition has a single touch-point.
+    """
+
+    model_config = ConfigDict(extra="ignore")
+
+    # `[a-z0-9_-]+`: URL-safe so the slug travels verbatim in routes.
+    dataset_id: str = Field(min_length=1, pattern=r"^[a-z0-9_-]+$")
+    # Bridge to Phoenix. Empty string would silently break the deep-link.
+    phoenix_dataset_id: str = Field(min_length=1)
+    name: str = Field(min_length=1)
+    kind: DatasetKind
+    owner_uid: str | None = None
+    agent_id: str | None = None
+    row_count: int = Field(ge=0)
+    source_url: str | None = None
+    # SHA-256 over (items + name + description + source_url) — the seed script
+    # skips writes when the stored hash matches.
+    content_hash: str = Field(min_length=1)
+    created_at: str = Field(min_length=1)
+    updated_at: str = Field(min_length=1)
+
+    @model_validator(mode="after")
+    def _enforce_kind_invariants(self) -> DatasetIndex:
+        if self.kind == "battery" and (self.owner_uid is not None or self.agent_id is not None):
+            msg = "battery dataset must have owner_uid=None and agent_id=None"
+            raise ValueError(msg)
+        if self.kind == "uploaded" and self.owner_uid is None:
+            msg = "uploaded dataset must carry owner_uid"
+            raise ValueError(msg)
+        if self.kind == "uploaded" and self.agent_id is not None:
+            msg = "uploaded dataset must have agent_id=None"
+            raise ValueError(msg)
+        if self.kind == "regression" and (self.owner_uid is None or self.agent_id is None):
+            msg = "regression dataset must carry both owner_uid and agent_id"
+            raise ValueError(msg)
+        return self
+
+
 __all__ = [
     "AgentRecord",
     "Cadence",
+    "DatasetIndex",
+    "DatasetKind",
     "Framework",
     "HostingPref",
     "RunCompletion",
