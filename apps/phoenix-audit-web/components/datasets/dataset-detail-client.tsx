@@ -115,6 +115,7 @@ function DetailHeader({
         / {data.dataset_id}
       </div>
       <div
+        className="page-hero-row"
         style={{
           display: 'flex',
           alignItems: 'flex-end',
