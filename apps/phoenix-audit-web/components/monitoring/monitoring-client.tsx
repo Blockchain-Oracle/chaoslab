@@ -117,6 +117,7 @@ export function MonitoringClient({
         ) : null}
 
         <div
+          className="grid-2up"
           style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 44, alignItems: 'start' }}
         >
           <div>
