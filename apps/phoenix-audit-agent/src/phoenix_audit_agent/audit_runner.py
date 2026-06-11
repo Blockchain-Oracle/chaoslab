@@ -15,6 +15,7 @@ Collaborators are module attributes so tests can monkeypatch the seams
 
 from __future__ import annotations
 
+import hashlib
 from collections.abc import Awaitable, Callable
 from time import monotonic
 from typing import Any
@@ -93,11 +94,24 @@ def build_adapter(target_url: str) -> Any:
 
 
 async def _run_injector(
-    *, run_id: str, target_url: str, runs_per_fault: int, prompt: str, emit: EmitFn
+    *,
+    run_id: str,
+    target_url: str,
+    runs_per_fault: int,
+    prompt: str,
+    emit: EmitFn,
+    dataset_slug: str | None = None,
 ) -> InjectorState:
-    """Injector phase: drive the attack battery, emitting per-probe frames."""
+    """Injector phase: drive the attack battery, emitting per-probe frames.
+
+    Story-9.15: `dataset_slug` (when set) tags the synthetic-battery probes
+    with `origin="battery"` (the dataset-row probes get `origin=f"dataset:{slug}"`
+    when the row-interleave loop lands). The discriminator on the SSE frame
+    lets the chamber UI label each probe row by where it came from.
+    """
     adapter = build_adapter(target_url)
     state = InjectorState()
+    _ = dataset_slug  # reserved for the row-interleave loop in a follow-up
 
     async def _on_start(attack: AttackRun) -> None:
         await emit(
@@ -105,6 +119,7 @@ async def _run_injector(
             {
                 "n": attack.run_idx + 1,
                 "fault_class": attack.fault_class,
+                "origin": "battery",
                 "run_id": run_id,
             },
         )
@@ -115,6 +130,7 @@ async def _run_injector(
             {
                 "n": result.run_idx + 1,
                 "fault_class": result.fault_class,
+                "origin": "battery",
                 "status": result.status,
                 "span_id": result.span_id,
                 "duration_ms": result.duration_ms,
@@ -144,6 +160,8 @@ async def drive_audit(
     prompt: str = DEFAULT_AUDIT_PROMPT,
     created_at: str | None = None,
     owner_uid: str | None = None,
+    dataset_id: str | None = None,
+    agent_id: str | None = None,
 ) -> None:
     """Run one full audit and emit the SSE event stream.
 
@@ -152,6 +170,14 @@ async def drive_audit(
     so the Phoenix Sessions tab groups by run_id; `user_id=owner_uid` only
     when owner_uid is a non-empty string — None and "" both collapse to
     "scope without user.id" (OpenInference empty-string is a contract no-op).
+
+    Story 9.15: `dataset_id` (when set) is the slug the operator picked at
+    `/new`. drive_audit (a) tags SSE probe frames with `origin="battery"` (the
+    dataset-row probes get `origin=f"dataset:{slug}"` when the row-interleave
+    loop ships in story-9.16), (b) snapshots the dataset name + Phoenix ids
+    onto the RunRecord at finalize so the signed report cover can name the
+    corpus, and (c) upserts failing-probe rows into `regression-<agent_id>`
+    when `agent_id` is set + the audit produced failures.
     """
     created_at = created_at or utc_now_iso()
     frames: list[dict[str, Any]] = []
@@ -175,6 +201,7 @@ async def drive_audit(
                 runs_per_fault=runs_per_fault,
                 prompt=prompt,
                 emit=emit,
+                dataset_slug=dataset_id,
             )
 
             # ---- judge ------------------------------------------------------------
@@ -319,6 +346,12 @@ async def drive_audit(
             )
 
             set_phase("succeeded")
+            # Story 9.15 evidence chain: build the failing-probe rows that the
+            # regression upsert will append into `regression-<agent_id>`. Only
+            # fires when agent_id is set + the audit had failures we can
+            # source-tag back to a case_id. We pull from tally.failures (the
+            # rubric-judged real failures, excluding transport errors).
+            failing_rows = _failing_rows_from_tally(tally, run_id=run_id)
             await finalize_run(
                 run_id=run_id,
                 target_url=target_url,
@@ -329,6 +362,10 @@ async def drive_audit(
                 report_urls=report_urls,
                 frames=frames,
                 emit=emit,
+                dataset_id=dataset_id,
+                agent_id=agent_id,
+                owner_uid=owner_uid,
+                failing_rows=failing_rows,
             )
         except Exception:
             # The partial timeline of a FAILED audit is exactly when replay
@@ -337,3 +374,48 @@ async def drive_audit(
                 run_id=run_id, target_url=target_url, created_at=created_at, frames=frames
             )
             raise
+
+
+def _failing_rows_from_tally(tally: Any, *, run_id: str) -> list[dict[str, Any]]:
+    """Build FlatDatasetItem-shaped rows from the judged failures.
+
+    Round-3 HIGH-2: `case_id` is a stable digest over the FAILURE CONTENT —
+    `(fault_class, trace_excerpt)` — not a per-audit positional `n`. The
+    `n` from `tally.report_probes` is recompute-unstable across audits
+    (different probe orderings), which silently broke cross-audit dedup
+    in the regression set. The content digest stays stable: the same
+    probe failing the same way produces the same case_id every audit.
+
+    - `prompt` = `failure.trace_excerpt` — the actual trace content the
+      judge saw. `FailedSpan` enforces `min_length=1` at construction,
+      so the defensive empty-string skip is unreachable in practice
+      (kept as defense-in-depth, noted in round-3 S-1).
+    - `source` = `f"audit:{run_id}"` provenance.
+    """
+    failures = getattr(tally, "failures", []) or []
+    if not failures:
+        return []
+    rows: list[dict[str, Any]] = []
+    for f in failures:
+        # FailedSpan invariant guarantees min_length=1 trace_excerpt; the
+        # `.strip()` here is the defense-in-depth round-3 S-1 noted.
+        excerpt = (getattr(f, "trace_excerpt", "") or "").strip()
+        if not excerpt:
+            continue
+        # SHA-256 keeps the digest URL-safe in the slug + collision-safe
+        # for the regression-set scale (cap=200/agent). 16 hex chars is
+        # ~64 bits — far more than enough.
+        digest_input = f"{f.fault_class}|{excerpt}".encode()
+        digest = hashlib.sha256(digest_input).hexdigest()[:16]
+        rows.append(
+            {
+                "case_id": f"battery-{f.fault_class}-{digest}",
+                "prompt": excerpt,
+                "fault_class": f.fault_class,
+                "expected": "refuse and stay in policy",
+                "source": f"audit:{run_id}",
+                "severity": "high",
+                "notes": None,
+            }
+        )
+    return rows
