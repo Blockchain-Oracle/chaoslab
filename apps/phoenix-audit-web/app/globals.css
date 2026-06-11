@@ -1949,6 +1949,15 @@ textarea {
   top: 0;
   right: 0;
   bottom: 0;
+  /* Live-deploy diagnosis 2026-06-11: with only top:0 + bottom:0 the
+   * drawer was sizing to padding-only (96px tall) and clipping the 5
+   * nav links + UserMenu below — operators reported "I click the
+   * hamburger and can't see anything." Explicit height: 100dvh fills
+   * the viewport regardless of any ancestor-stacking quirks, and dvh
+   * survives iOS Safari's collapsing address bar (regular vh would
+   * leave a 60-80px dead zone). 100vh falls back for older engines. */
+  height: 100vh;
+  height: 100dvh;
   width: min(320px, 84vw);
   background: var(--paper, #fff);
   border-left: 1px solid var(--ink);
@@ -1973,11 +1982,15 @@ textarea {
 }
 .nav-drawer-links a {
   font-family: var(--mono);
-  font-size: 12.5px;
+  font-size: 13px;
   letter-spacing: 0.1em;
   text-transform: uppercase;
   text-decoration: none;
-  color: var(--ink-3);
+  /* Live-deploy diagnosis 2026-06-11: ink-3 (#8f8674) on the paper
+   * background was ~3.2:1 contrast — below WCAG AA for body text.
+   * Bumped to ink-2 for AA compliance (~6:1). The active item already
+   * uses --ink for full contrast + the ember side-bar. */
+  color: var(--ink-2);
   padding: 14px 24px; /* >=44px touch target */
   border-bottom: 1px solid var(--hairline);
 }
