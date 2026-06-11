@@ -8,12 +8,18 @@ from __future__ import annotations
 
 from typing import Any, Protocol
 
+import structlog
 from pydantic import ValidationError
 
 from phoenix_audit_agent.storage.firestore_client import get_firestore
 from phoenix_audit_agent.storage.models import GitLabOAuthState
 
+_log = structlog.get_logger(__name__)
+
 _COLLECTION = "gitlab_oauth_states"
+# Ops note (story-9.17): abandoned state docs outlive their 10-min TTL —
+# the TTL is enforced at consume time; storage cleanup needs a Firestore
+# TTL policy on `created_at` (deploy step, see story Notes).
 
 
 class GitLabStateStore(Protocol):
@@ -49,16 +55,29 @@ class FirestoreGitLabStateStore:
         )
 
     async def consume(self, state: str) -> GitLabOAuthState | None:
+        from google.cloud import firestore
+
         ref = self.db.collection(_COLLECTION).document(state)
-        doc = await ref.get()
-        if not doc.exists:
+        transaction = self.db.transaction()
+
+        # Transactional read-and-delete — two concurrent callbacks with the
+        # same state must not BOTH consume it (single-use is the invariant
+        # the in-memory fake's atomic pop already pins).
+        @firestore.async_transactional
+        async def _take(tx: Any) -> dict[str, Any] | None:
+            snap = await ref.get(transaction=tx)
+            if not snap.exists:
+                return None
+            tx.delete(ref)
+            return snap.to_dict()
+
+        data = await _take(transaction)
+        if data is None:
             return None
-        # Delete BEFORE returning — a crash between read and delete must err
-        # on the unusable side (single-use beats replayable).
-        await ref.delete()
         try:
-            return GitLabOAuthState.model_validate(doc.to_dict())
+            return GitLabOAuthState.model_validate(data)
         except ValidationError:
+            _log.warning("gitlab_oauth_state_doc_corrupted", state_present=True)
             return None
 
 

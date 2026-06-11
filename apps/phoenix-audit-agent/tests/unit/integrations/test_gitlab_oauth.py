@@ -139,7 +139,7 @@ async def test_exchange_happy_path_persists_connection_and_consumes_state() -> N
     url = await gitlab_oauth.build_authorization_redirect("user-a")
     state = parse_qs(urlparse(url).query)["state"][0]
 
-    conn = await gitlab_oauth.exchange_code(code="authcode-1", state=state)
+    conn = await gitlab_oauth.exchange_code(code="authcode-1", state=state, uid="user-a")
     assert conn.username == "abu"
     assert conn.gitlab_user_id == 42
 
@@ -157,14 +157,14 @@ async def test_exchange_happy_path_persists_connection_and_consumes_state() -> N
 
     # Single-use: the same state must never exchange twice.
     with pytest.raises(gitlab_oauth.StateError):
-        await gitlab_oauth.exchange_code(code="authcode-1", state=state)
+        await gitlab_oauth.exchange_code(code="authcode-1", state=state, uid="user-a")
 
 
 async def test_exchange_unknown_state_rejected_without_http() -> None:
     from phoenix_audit_agent.integrations import gitlab_oauth
 
     with pytest.raises(gitlab_oauth.StateError):
-        await gitlab_oauth.exchange_code(code="c", state="state-nobody-minted")
+        await gitlab_oauth.exchange_code(code="c", state="state-nobody-minted", uid="user-a")
 
 
 async def test_exchange_expired_state_rejected() -> None:
@@ -176,7 +176,7 @@ async def test_exchange_expired_state_rejected() -> None:
         "state-old", uid="user-a", code_verifier="v" * 48, created_at=stale
     )
     with pytest.raises(gitlab_oauth.StateError):
-        await gitlab_oauth.exchange_code(code="c", state="state-old")
+        await gitlab_oauth.exchange_code(code="c", state="state-old", uid="user-a")
 
 
 @respx.mock
@@ -188,7 +188,7 @@ async def test_exchange_token_endpoint_failure_persists_nothing() -> None:
     state = parse_qs(urlparse(url).query)["state"][0]
 
     with pytest.raises(gitlab_oauth.ExchangeError):
-        await gitlab_oauth.exchange_code(code="bad", state=state)
+        await gitlab_oauth.exchange_code(code="bad", state=state, uid="user-a")
     profile = await profile_storage.get_profile_store().get("user-a")
     assert profile is None or profile.gitlab is None
 
@@ -242,6 +242,78 @@ async def test_refresh_failure_clears_connection() -> None:
     profile = await profile_storage.get_profile_store().get("user-a")
     assert profile is not None
     assert profile.gitlab is None
+
+
+@respx.mock
+async def test_refresh_transport_error_preserves_connection() -> None:
+    """A network blip must NOT destroy a healthy connection — distinct
+    retryable error, stored pair untouched (slice-1 review HIGH-1)."""
+    from phoenix_audit_agent.integrations import gitlab_oauth
+
+    respx.post(TOKEN_URL).mock(side_effect=httpx.ConnectError("dns down"))
+    await _seed_connection(expires_at=datetime.now(UTC).timestamp() - 10)
+
+    with pytest.raises(gitlab_oauth.GitLabUnavailableError):
+        await gitlab_oauth.get_valid_access_token("user-a")
+    profile = await profile_storage.get_profile_store().get("user-a")
+    assert profile is not None
+    assert profile.gitlab is not None
+    assert profile.gitlab.refresh_token == "glrt-old"
+
+
+@respx.mock
+async def test_concurrent_callers_refresh_exactly_once() -> None:
+    """Two expired-token callers must serialize — the loser re-reads the
+    winner's rotated pair instead of double-refreshing (review HIGH-2)."""
+    import asyncio
+
+    from phoenix_audit_agent.integrations import gitlab_oauth
+
+    refresh_route = respx.post(TOKEN_URL).mock(
+        return_value=httpx.Response(200, json=_token_payload("rotated"))
+    )
+    await _seed_connection(expires_at=datetime.now(UTC).timestamp() - 10)
+
+    tokens = await asyncio.gather(
+        gitlab_oauth.get_valid_access_token("user-a"),
+        gitlab_oauth.get_valid_access_token("user-a"),
+    )
+    assert tokens == ["glat-rotated", "glat-rotated"]
+    assert refresh_route.call_count == 1
+
+
+@respx.mock
+async def test_refresh_unparseable_response_clears_and_discloses() -> None:
+    """A 200 whose body can't mint a connection means the old pair is
+    already dead at GitLab — clear + ConnectionExpired, never a silent
+    brick (review MED-1)."""
+    from phoenix_audit_agent.integrations import gitlab_oauth
+
+    respx.post(TOKEN_URL).mock(
+        return_value=httpx.Response(200, json={"access_token": "glat-x", "token_type": "bearer"})
+    )
+    await _seed_connection(expires_at=datetime.now(UTC).timestamp() - 10)
+
+    with pytest.raises(gitlab_oauth.ConnectionExpiredError):
+        await gitlab_oauth.get_valid_access_token("user-a")
+    profile = await profile_storage.get_profile_store().get("user-a")
+    assert profile is not None
+    assert profile.gitlab is None
+
+
+@respx.mock
+async def test_exchange_user_fetch_missing_fields_is_exchange_error() -> None:
+    from phoenix_audit_agent.integrations import gitlab_oauth
+
+    respx.post(TOKEN_URL).mock(return_value=httpx.Response(200, json=_token_payload()))
+    respx.get(USER_URL).mock(return_value=httpx.Response(200, json={}))
+    url = await gitlab_oauth.build_authorization_redirect("user-a")
+    state = parse_qs(urlparse(url).query)["state"][0]
+
+    with pytest.raises(gitlab_oauth.ExchangeError):
+        await gitlab_oauth.exchange_code(code="c", state=state, uid="user-a")
+    profile = await profile_storage.get_profile_store().get("user-a")
+    assert profile is None or profile.gitlab is None
 
 
 async def test_not_connected_raises() -> None:

@@ -9,10 +9,14 @@ the connection silently.
 
 from __future__ import annotations
 
+import asyncio
+from collections import defaultdict
 from datetime import UTC, datetime, timedelta
 
+import httpx
 import structlog
 from authlib.common.security import generate_token
+from authlib.integrations.base_client.errors import OAuthError
 from authlib.integrations.httpx_client import AsyncOAuth2Client
 
 from phoenix_audit_agent._time import parse_iso, utc_now_iso
@@ -52,6 +56,11 @@ class ConnectionExpiredError(GitLabOAuthError):
     """Refresh failed (revoked upstream) — the stored connection was cleared."""
 
 
+class GitLabUnavailableError(GitLabOAuthError):
+    """Transport-level failure talking to GitLab — the stored pair is still
+    valid; retry later. NEVER clears the connection."""
+
+
 def oauth_configured() -> bool:
     s = get_settings()
     return bool(
@@ -87,11 +96,17 @@ async def build_authorization_redirect(uid: str) -> str:
     return url
 
 
-async def exchange_code(*, code: str, state: str) -> GitLabConnection:
-    """Single-use state → token exchange → user fetch → persist connection."""
+async def exchange_code(*, code: str, state: str, uid: str) -> GitLabConnection:
+    """Single-use state → token exchange → user fetch → persist connection.
+
+    `uid` is the SESSION user — a state minted for someone else must never
+    connect on this session (cross-account linkage via a leaked state)."""
     doc = await get_gitlab_state_store().consume(state)
     if doc is None:
         raise StateError("unknown or already-used state")
+    if doc.uid != uid:
+        _log.warning("gitlab_oauth_state_uid_mismatch", state_uid=doc.uid, session_uid=uid)
+        raise StateError("state was minted for a different session")
     try:
         minted = parse_iso(doc.created_at)
     except ValueError as exc:
@@ -106,54 +121,95 @@ async def exchange_code(*, code: str, state: str) -> GitLabConnection:
             )
             user_resp = await client.get(f"{GITLAB_API_BASE}/user")
             user_resp.raise_for_status()
+            user = user_resp.json()
+            connection = GitLabConnection(
+                access_token=token["access_token"],
+                refresh_token=token["refresh_token"],
+                expires_at=float(token["expires_at"]),
+                username=user["username"],
+                gitlab_user_id=int(user["id"]),
+                connected_at=utc_now_iso(),
+            )
         except Exception as exc:
-            _log.error("gitlab_oauth_exchange_failed", uid=doc.uid, error=type(exc).__name__)
+            # str(exc) carries authlib's error/description (invalid_grant vs
+            # redirect mismatch) — actionable, and never a token value.
+            _log.error(
+                "gitlab_oauth_exchange_failed",
+                uid=doc.uid,
+                error_type=type(exc).__name__,
+                error=str(exc),
+            )
             raise ExchangeError(f"token exchange failed: {type(exc).__name__}") from exc
-    user = user_resp.json()
-    connection = GitLabConnection(
-        access_token=token["access_token"],
-        refresh_token=token["refresh_token"],
-        expires_at=float(token["expires_at"]),
-        username=user["username"],
-        gitlab_user_id=int(user["id"]),
-        connected_at=utc_now_iso(),
-    )
     await _persist(doc.uid, connection)
     _log.info("gitlab_connected", uid=doc.uid, username=connection.username)
     return connection
 
 
+# Per-uid refresh serialization: two concurrent expired-token callers must
+# not both refresh — the loser's invalid_grant would clear the winner's
+# freshly-rotated pair. Process-local; cross-instance races are bounded by
+# the re-read-before-clear check below.
+_refresh_locks: defaultdict[str, asyncio.Lock] = defaultdict(asyncio.Lock)
+
+
 async def get_valid_access_token(uid: str) -> str:
     """Access token gated on expiry; refresh persists the ROTATED pair first."""
+    connection = await _connection_or_raise(uid)
+    if not _expired(connection):
+        return connection.access_token
+    async with _refresh_locks[uid]:
+        # Re-read under the lock — a concurrent caller may have rotated.
+        connection = await _connection_or_raise(uid)
+        if not _expired(connection):
+            return connection.access_token
+        return await _refresh(uid, connection)
+
+
+def _expired(connection: GitLabConnection) -> bool:
+    return connection.expires_at <= datetime.now(UTC).timestamp() + EXPIRY_SLACK_SECONDS
+
+
+async def _connection_or_raise(uid: str) -> GitLabConnection:
     profile = await get_profile_store().get(uid)
     connection = profile.gitlab if profile is not None else None
     if connection is None:
         raise NotConnectedError("no GitLab connection — connect in settings")
-    now = datetime.now(UTC).timestamp()
-    if connection.expires_at > now + EXPIRY_SLACK_SECONDS:
-        return connection.access_token
+    return connection
 
+
+async def _refresh(uid: str, connection: GitLabConnection) -> str:
     async with _client() as client:
         try:
             token = await client.refresh_token(
                 GITLAB_TOKEN_URL, refresh_token=connection.refresh_token
             )
-        except Exception as exc:
-            # The old pair is dead either way — keeping it would produce an
-            # infinite refresh-fail loop. Clear, disclose, make the user
-            # reconnect (the API maps this to 409).
+            rotated = connection.model_copy(
+                update={
+                    "access_token": token["access_token"],
+                    # A provider that ever omits the new refresh token means
+                    # the old one is still live — keep it over storing nothing.
+                    "refresh_token": token.get("refresh_token") or connection.refresh_token,
+                    "expires_at": float(token["expires_at"]),
+                }
+            )
+        except (TimeoutError, httpx.HTTPError) as exc:
+            # Transport failure: the stored pair is STILL VALID — clearing it
+            # here would destroy a healthy connection over a network blip.
+            _log.warning("gitlab_refresh_unreachable", uid=uid, error=type(exc).__name__)
+            raise GitLabUnavailableError("GitLab unreachable — retry shortly") from exc
+        except (OAuthError, KeyError, TypeError, ValueError) as exc:
+            # invalid_grant (revoked / consumed by another instance) or an
+            # unparseable token response — the stored pair can't be trusted.
+            # Re-read before clearing: a cross-instance worker may have
+            # rotated while we held only the process-local lock.
+            stored = await _connection_or_raise(uid)
+            if stored.refresh_token != connection.refresh_token and not _expired(stored):
+                return stored.access_token
             await get_profile_store().merge(uid, {"gitlab": None})
-            _log.warning("gitlab_connection_expired", uid=uid, error=type(exc).__name__)
+            _log.warning(
+                "gitlab_connection_expired", uid=uid, error_type=type(exc).__name__, error=str(exc)
+            )
             raise ConnectionExpiredError("GitLab connection expired — reconnect") from exc
-    rotated = connection.model_copy(
-        update={
-            "access_token": token["access_token"],
-            # A provider that ever omits the new refresh token means the old
-            # one is still live — keep it rather than storing nothing.
-            "refresh_token": token.get("refresh_token") or connection.refresh_token,
-            "expires_at": float(token["expires_at"]),
-        }
-    )
     await _persist(uid, rotated)
     return rotated.access_token
 

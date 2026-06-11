@@ -200,11 +200,19 @@ class UserProfile(BaseModel):
     def _gitlab_lenient(cls, v: Any) -> Any:
         # A malformed/legacy gitlab blob must degrade to "not connected"
         # (reconnect fixes it) — never 500 every /profile read for the user.
+        # The degradation is LOGGED (error keys only, never values) so schema
+        # drift doesn't silently disconnect a cohort.
         if v is None or isinstance(v, GitLabConnection):
             return v
         try:
             return GitLabConnection.model_validate(v)
-        except ValidationError:
+        except ValidationError as exc:
+            import structlog
+
+            structlog.get_logger(__name__).warning(
+                "gitlab_blob_degraded_to_disconnected",
+                invalid_fields=[str(e["loc"]) for e in exc.errors()],
+            )
             return None
 
 
