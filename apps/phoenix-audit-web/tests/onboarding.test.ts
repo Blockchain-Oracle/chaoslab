@@ -95,6 +95,20 @@ describe('onboarding wizard reducer', () => {
     expect(s.skipped.has('org')).toBe(false)
   })
 
+  it('JUMP_TO routes to any step without disturbing existing skips (Docket TOC + "Skip to finish")', () => {
+    let s = initialWizardState(baseProfile)
+    s = onboardingReducer(s, { kind: 'skip' }) // welcome → org, welcome skipped
+    s = onboardingReducer(s, { kind: 'jumpTo', step: 'cta' })
+    expect(s.step).toBe('cta')
+    // Existing skips persist — jumpTo doesn't enter or leave a step in the
+    // "I made a choice" sense; it's pure navigation.
+    expect(s.skipped.has('welcome')).toBe(true)
+
+    s = onboardingReducer(s, { kind: 'jumpTo', step: 'org' })
+    expect(s.step).toBe('org')
+    expect(s.skipped.has('welcome')).toBe(true)
+  })
+
   it('SET_ORG_NAME updates the org field', () => {
     let s = initialWizardState(baseProfile)
     s = onboardingReducer(s, { kind: 'setOrgName', value: 'Meridian Mutual' })

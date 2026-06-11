@@ -1476,3 +1476,428 @@ textarea {
 .sev.low {
   color: var(--ink-3);
 }
+
+/* --------------------------------------------------------------------
+   Surface O — onboarding (story-9.14 designer redesign). Two-column
+   layout: Docket + CoverPreview aside on the left, step body on the
+   right. The cover sheet fills in as the operator answers.
+   -------------------------------------------------------------------- */
+.onb-grid {
+  display: grid;
+  grid-template-columns: 252px minmax(0, 1fr);
+  gap: 40px;
+  align-items: start;
+}
+.onb-rail {
+  position: sticky;
+  top: 86px;
+}
+@media (max-width: 820px) {
+  .onb-grid {
+    grid-template-columns: 1fr;
+    gap: 36px;
+  }
+  .onb-rail {
+    position: static;
+  }
+}
+
+/* O-1 · docket — fractional counter + TOC */
+.onb-fraction {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  margin-bottom: 14px;
+  white-space: nowrap;
+}
+.onb-fraction .num {
+  font-family: var(--serif);
+  font-size: 36px;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.onb-toc {
+  display: grid;
+  border-top: 1px solid var(--ink);
+}
+.onb-toc-row {
+  display: flex;
+  align-items: baseline;
+  gap: 9px;
+  width: 100%;
+  text-align: left;
+  background: none;
+  border: none;
+  border-bottom: 1px solid var(--hairline-soft);
+  padding: 9px 2px 8px;
+  font-family: var(--sans);
+  font-size: 12.5px;
+  color: var(--ink-2);
+  transition: color 0.15s ease;
+}
+.onb-toc-row:disabled {
+  cursor: default;
+}
+.onb-toc-row .q {
+  font-family: var(--mono);
+  font-size: 9.5px;
+  letter-spacing: 0.1em;
+  color: var(--ink-3);
+  width: 20px;
+  flex-shrink: 0;
+}
+.onb-toc-row span:nth-child(2) {
+  white-space: nowrap;
+}
+.onb-toc-row .fill {
+  flex: 1;
+  border-bottom: 1px dotted var(--hairline);
+  transform: translateY(-3px);
+  min-width: 14px;
+}
+.onb-toc-row .val {
+  font-family: var(--mono);
+  font-size: 9.5px;
+  color: var(--ink-3);
+  max-width: 110px;
+  padding-right: 1px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.onb-toc-row.done .val {
+  color: var(--ink-2);
+}
+.onb-toc-row.current {
+  color: var(--ink);
+}
+.onb-toc-row.current .q,
+.onb-toc-row.current .val {
+  color: var(--ember-deep);
+}
+.onb-toc-row:not(:disabled):hover {
+  color: var(--ember-deep);
+}
+.onb-contract {
+  margin-top: 14px;
+  font-size: 11.5px;
+  line-height: 1.6;
+  color: var(--ink-3);
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+}
+.onb-contract .mark {
+  color: var(--ember-deep);
+  font-family: var(--mono);
+  font-size: 10px;
+  flex-shrink: 0;
+}
+
+/* O-2/O-3 · the live cover sheet */
+.onb-cover {
+  background: #fffdf8;
+  border: 1px solid var(--hairline);
+  border-radius: var(--r);
+  padding: 15px 17px 13px;
+  position: relative;
+  box-shadow:
+    0 1px 0 var(--hairline-soft),
+    0 10px 26px rgba(28, 23, 18, 0.05);
+}
+.onb-cover .cover-seal {
+  position: absolute;
+  top: 11px;
+  right: 11px;
+}
+.onb-cover .blank {
+  display: inline-block;
+  min-width: 140px;
+  border-bottom: 1px dotted var(--ink-3);
+  color: var(--ink-3);
+}
+
+/* the step card */
+.onb-step {
+  background: rgba(255, 255, 255, 0.55);
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-lg);
+  padding: 38px 42px 26px;
+  min-height: 470px;
+  display: flex;
+  flex-direction: column;
+}
+.onb-step .onb-step-body {
+  flex: 1;
+}
+@media (max-width: 700px) {
+  .onb-step {
+    padding: 24px 20px 18px;
+  }
+}
+.onb-foot {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  border-top: 1px solid var(--hairline-soft);
+  margin-top: 30px;
+  padding-top: 18px;
+}
+.onb-skip {
+  background: none;
+  border: none;
+  font-family: var(--mono);
+  font-size: 10.5px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+  border-bottom: 1px dotted var(--ink-3);
+  padding: 0 0 1px;
+  transition:
+    color 0.15s ease,
+    border-color 0.15s ease;
+  cursor: pointer;
+}
+.onb-skip:hover {
+  color: var(--ember-deep);
+  border-color: var(--ember-deep);
+}
+
+/* O-2 · audit loop welcome illustration */
+.onb-welcome {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 336px;
+  gap: 26px;
+  align-items: center;
+}
+@media (max-width: 1100px) {
+  .onb-welcome {
+    grid-template-columns: 1fr;
+  }
+}
+.audit-loop {
+  position: relative;
+  width: 330px;
+  height: 300px;
+  margin: 0 auto;
+}
+.audit-loop .loop-center {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+}
+.audit-loop .loop-orbit {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 184px;
+  height: 184px;
+  margin: -92px 0 0 -92px;
+}
+.audit-loop .orbiter {
+  position: absolute;
+  top: -13px;
+  left: 50%;
+  margin-left: -13px;
+  width: 26px;
+  height: 26px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--paper);
+  border: 1px solid var(--hairline-soft);
+  border-radius: 50%;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .audit-loop .loop-orbit {
+    animation: loopOrbit 18s linear infinite;
+  }
+  .audit-loop .orbiter {
+    animation: loopCounter 18s linear infinite;
+  }
+  @keyframes loopOrbit {
+    to {
+      transform: rotate(360deg);
+    }
+  }
+  @keyframes loopCounter {
+    to {
+      transform: rotate(-360deg);
+    }
+  }
+}
+.loop-label {
+  position: absolute;
+  font-family: var(--mono);
+  font-size: 9px;
+  letter-spacing: 0.14em;
+  color: var(--ink-3);
+  white-space: nowrap;
+}
+.loop-label .no {
+  color: var(--ember-deep);
+}
+.loop-label.n {
+  top: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+}
+.loop-label.s {
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+}
+.loop-label.e {
+  left: calc(50% + 104px);
+  top: 50%;
+  transform: translateY(-50%);
+}
+.loop-label.w {
+  right: calc(50% + 104px);
+  top: 50%;
+  transform: translateY(-50%);
+}
+
+/* O-4 · framework rows */
+.fw-group {
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-lg);
+  overflow: hidden;
+  display: grid;
+}
+.fw-row {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  width: 100%;
+  text-align: left;
+  background: transparent;
+  border: none;
+  padding: 13px 18px;
+  border-top: 1px solid var(--hairline-soft);
+  transition: background 0.15s ease;
+  font-size: inherit;
+  cursor: pointer;
+}
+.fw-row:first-child {
+  border-top: none;
+}
+.fw-row:hover {
+  background: rgba(255, 255, 255, 0.6);
+}
+.fw-row .fw-name {
+  font-family: var(--serif);
+  font-size: 16.5px;
+  color: var(--ink);
+  width: 152px;
+  flex-shrink: 0;
+}
+.fw-row .fw-sub {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  letter-spacing: 0.02em;
+  color: var(--ink-3);
+  flex: 1;
+  min-width: 0;
+}
+.fw-row .fw-cited {
+  font-family: var(--mono);
+  font-size: 9px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ember-deep);
+  opacity: 0;
+  transition: opacity 0.2s ease;
+  white-space: nowrap;
+}
+.fw-row.selected {
+  background: #fff;
+}
+.fw-row.selected .fw-sub {
+  color: var(--ink-2);
+}
+.fw-row.selected .fw-cited {
+  opacity: 1;
+}
+.fw-ring {
+  width: 15px;
+  height: 15px;
+  border-radius: 50%;
+  border: 1.5px solid var(--hairline);
+  position: relative;
+  flex-shrink: 0;
+}
+.fw-row.selected .fw-ring {
+  border-color: var(--ember-deep);
+}
+.fw-row.selected .fw-ring::before {
+  content: '';
+  position: absolute;
+  inset: 3px;
+  border-radius: 50%;
+  background: var(--ember-deep);
+}
+.fw-row.selected .fw-ring::after {
+  content: '';
+  position: absolute;
+  inset: -5px;
+  border-radius: 50%;
+  border: 1px dashed var(--ember-deep);
+}
+.fw-row.custom {
+  border-top: 1px dashed var(--hairline);
+  background: var(--paper-2);
+}
+.fw-row.custom:hover {
+  background: var(--paper-3);
+}
+.fw-row.custom.selected {
+  background: #fff;
+}
+@media (max-width: 760px) {
+  .fw-row {
+    flex-wrap: wrap;
+  }
+  .fw-row .fw-name {
+    width: auto;
+  }
+  .fw-row .fw-sub {
+    flex-basis: 100%;
+    order: 4;
+    padding-left: 31px;
+  }
+}
+
+/* O-5 · GitLab specimen */
+.promise-specimen {
+  border: 1px dashed var(--hairline);
+  border-radius: var(--r-lg);
+  padding: 15px 18px 13px;
+  background: rgba(255, 255, 255, 0.4);
+}
+
+/* O-6 · destination cards */
+.onb-dest-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+@media (max-width: 760px) {
+  .onb-dest-grid {
+    grid-template-columns: 1fr;
+  }
+}
+.onb-dest-grid.paused .opt-card {
+  opacity: 0.5;
+  pointer-events: none;
+}
+.onb-dest-grid.paused .opt-card.chosen {
+  opacity: 1;
+  border-color: var(--ember-deep);
+  box-shadow: none;
+}

@@ -52,6 +52,10 @@ export type WizardAction =
   | { kind: 'next' }
   | { kind: 'back' }
   | { kind: 'skip' }
+  /** Pure navigation — used by the Docket TOC (jump-back to a visited
+   *  step) and by Welcome's "In a hurry? Skip to the finish" affordance.
+   *  Does NOT touch the skipped set; an existing skip remains a skip. */
+  | { kind: 'jumpTo'; step: WizardStep }
   | { kind: 'setOrgName'; value: string }
   | { kind: 'setFramework'; value: string }
   | { kind: 'submitStart' }
@@ -82,6 +86,8 @@ export function onboardingReducer(state: WizardState, action: WizardAction): Wiz
       skipped.add(state.step)
       return { ...state, step: neighborStep(state.step, 1), skipped }
     }
+    case 'jumpTo':
+      return { ...state, step: action.step }
     case 'setOrgName':
       return { ...state, orgName: action.value }
     case 'setFramework':
