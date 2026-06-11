@@ -14,7 +14,7 @@ const SPECIMEN_ROWS: ReadonlyArray<[string, string]> = [
 
 function HeroSpecimen() {
   return (
-    <div className="rise rise-3" style={{ position: 'relative', width: 372 }}>
+    <div className="rise rise-3 hero-specimen" style={{ position: 'relative', width: 372 }}>
       <div
         style={{
           background: '#fff',
@@ -68,6 +68,7 @@ function HeroSpecimen() {
         </div>
       </div>
       <div
+        className="hero-seal"
         style={{
           position: 'absolute',
           right: -42,

@@ -25,6 +25,7 @@ export function Compare() {
         arrival.
       </h2>
       <div
+        className="compare-grid"
         style={{
           display: 'grid',
           gridTemplateColumns: '1fr 1fr',

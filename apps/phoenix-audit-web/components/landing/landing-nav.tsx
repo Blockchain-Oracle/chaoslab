@@ -1,4 +1,5 @@
 import { A } from '../ui/link'
+import { MobileNav } from '../ui/mobile-nav'
 import { Wordmark } from '../ui/wordmark'
 
 const ANCHORS: ReadonlyArray<[string, string]> = [
@@ -10,9 +11,13 @@ const ANCHORS: ReadonlyArray<[string, string]> = [
 export function LandingNav() {
   return (
     <header style={{ borderBottom: '1px solid var(--hairline)' }}>
-      <div className="shell" style={{ height: 64, display: 'flex', alignItems: 'center', gap: 28 }}>
+      <div
+        className="shell landing-nav-row"
+        style={{ height: 64, display: 'flex', alignItems: 'center', gap: 28 }}
+      >
         <Wordmark size={17} glyph={20} />
         <nav
+          className="nav-desktop"
           style={{
             display: 'flex',
             gap: 26,
@@ -38,12 +43,13 @@ export function LandingNav() {
             </a>
           ))}
         </nav>
-        <A to="replay" className="btn small ghost">
+        <A to="replay" className="btn small ghost nav-desktop">
           Watch a sample audit
         </A>
         <A to="new" className="btn small primary">
           Run audit
         </A>
+        <MobileNav />
       </div>
     </header>
   )

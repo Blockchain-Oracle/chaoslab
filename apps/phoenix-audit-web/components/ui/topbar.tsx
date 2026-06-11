@@ -2,29 +2,22 @@
 
 import { usePathname } from 'next/navigation'
 import { UserMenu } from '@/components/auth/user-menu'
+import { NAV_ITEMS, isNavActive } from '@/lib/mobile-nav'
 import { A } from './link'
+import { MobileNav } from './mobile-nav'
 import { Wordmark } from './wordmark'
-
-const NAV: ReadonlyArray<[string, string]> = [
-  ['audits', 'Audits'],
-  ['agents', 'Target agents'],
-  ['monitoring', 'Monitoring'],
-  ['settings', 'Settings'],
-]
 
 export function TopBar() {
   const pathname = usePathname() ?? ''
-  // Strip the leading slash so 'audits' matches /audits and /audits/...
-  const route = pathname.replace(/^\//, '')
   return (
     <header className="topbar">
       <div className="topbar-inner">
         <A to="" style={{ textDecoration: 'none', color: 'inherit', display: 'flex' }}>
           <Wordmark size={16} glyph={18} />
         </A>
-        <nav>
-          {NAV.map(([slug, label]) => (
-            <A key={slug} to={slug} className={route.startsWith(slug) ? 'active' : ''}>
+        <nav className="nav-desktop">
+          {NAV_ITEMS.map(([slug, label]) => (
+            <A key={slug} to={slug} className={isNavActive(pathname, slug) ? 'active' : ''}>
               {label}
             </A>
           ))}
@@ -33,6 +26,7 @@ export function TopBar() {
         <A to="new" className="btn ember small">
           Run audit
         </A>
+        <MobileNav />
       </div>
     </header>
   )
