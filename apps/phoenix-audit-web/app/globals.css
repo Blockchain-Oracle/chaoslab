@@ -1914,9 +1914,6 @@ textarea {
 .nav-mobile {
   display: none;
 }
-span.nav-desktop-contents {
-  display: contents;
-}
 .nav-burger {
   background: none;
   border: 1px solid var(--hairline);
@@ -1925,7 +1922,7 @@ span.nav-desktop-contents {
   font-size: 16px;
   line-height: 1;
   min-width: 44px;
-  min-height: 40px;
+  min-height: 44px;
   cursor: pointer;
 }
 .nav-drawer-backdrop {
@@ -2001,7 +1998,7 @@ span.nav-desktop-contents {
   .topbar nav.nav-desktop,
   nav.nav-desktop,
   a.nav-desktop,
-  span.nav-desktop-contents {
+  .topbar-inner > .user-menu {
     display: none !important;
   }
   .nav-mobile {

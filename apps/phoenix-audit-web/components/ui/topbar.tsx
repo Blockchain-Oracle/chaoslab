@@ -22,9 +22,7 @@ export function TopBar() {
             </A>
           ))}
         </nav>
-        <span className="nav-desktop nav-desktop-contents">
-          <UserMenu />
-        </span>
+        <UserMenu />
         <A to="new" className="btn ember small">
           Run audit
         </A>
