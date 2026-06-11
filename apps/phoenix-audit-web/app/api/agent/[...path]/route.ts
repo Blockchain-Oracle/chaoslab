@@ -26,6 +26,9 @@ const ALLOWED = [
   // /integrations/gitlab/callback server route may reach it.
   /^runs\/[a-zA-Z0-9_-]+\/gitlab-mr$/,
   /^integrations\/gitlab\/(connect|status|projects|connection)$/,
+  // Story-9.21: officer review on a failure cluster (POST only); cluster
+  // ids match the FailureCluster regex (`cluster_` + 8 hex chars).
+  /^runs\/[a-zA-Z0-9_-]+\/clusters\/[a-zA-Z0-9_-]+\/review$/,
   /^stream$/,
   /^agents$/,
   /^agents\/[a-zA-Z0-9_-]+$/,

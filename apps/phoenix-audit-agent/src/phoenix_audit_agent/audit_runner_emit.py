@@ -260,6 +260,7 @@ async def finalize_run(
     failing_rows: list[dict[str, Any]] | None = None,
     schedule_id: str | None = None,
     source: RunSource | None = None,
+    cluster_spans: dict[str, str] | None = None,
 ) -> None:
     """Registry finalize + complete frame + replay-timeline persistence.
 
@@ -283,6 +284,10 @@ async def finalize_run(
     completion.owner_uid = owner_uid
     completion.schedule_id = schedule_id
     completion.source = source
+    # Story-9.21: exemplar span per cluster — must ride the completion or
+    # the heal-path merge strips it (same lesson as 9.5/9.15).
+    if cluster_spans is not None:
+        completion.cluster_spans = cluster_spans
     await _apply_dataset_evidence(
         completion,
         run_id=run_id,

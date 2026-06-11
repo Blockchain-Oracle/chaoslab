@@ -1,4 +1,5 @@
 import { FaultClass, SpanLink, Verdict } from '@/components/ui/stamps'
+import { phoenixSpanUrl } from '@/lib/phoenix-links'
 import type { LiveCluster, LiveProbe, LiveRecipe, LiveReport } from '@/lib/sse-bridge'
 
 // Renders REAL backend per-probe events. Deliberately leaner than the
@@ -6,8 +7,17 @@ import type { LiveCluster, LiveProbe, LiveRecipe, LiveReport } from '@/lib/sse-b
 // because the backend doesn't report those yet — showing them would be
 // invention, not telemetry. Rows carry exactly what the wire carries.
 
-function LiveProbeRow({ probe }: { probe: LiveProbe }) {
+function LiveProbeRow({
+  probe,
+  phoenixUiBase,
+  phoenixProject,
+}: {
+  probe: LiveProbe
+  phoenixUiBase: string | null
+  phoenixProject: string | null
+}) {
   const landed = probe.state === 'done'
+  const spanHref = phoenixSpanUrl(phoenixUiBase, phoenixProject, probe.spanId)
   return (
     <div className={'probe-row ' + (landed ? 'landed' : 'running')}>
       <span className="mono" style={{ fontSize: 11, color: 'var(--chamber-ink-3)' }}>
@@ -43,7 +53,7 @@ function LiveProbeRow({ probe }: { probe: LiveProbe }) {
         </div>
         <div style={{ display: 'flex', gap: 14, alignItems: 'center', flexWrap: 'wrap' }}>
           {probe.spanId ? (
-            <SpanLink id={probe.spanId} />
+            <SpanLink id={probe.spanId} href={spanHref} />
           ) : (
             <span className="mono" style={{ fontSize: 10.5, color: 'var(--chamber-ink-3)' }}>
               {landed ? (
@@ -80,9 +90,18 @@ interface LiveProbeLedgerProps {
   /** Authoritative tally from the backend's complete frame — preferred over
    *  frontend-derived counts (which undercount on late join). */
   summary?: { passed: number; failed: number; errored: number } | null
+  /** Story-9.21: Phoenix UI deep-link config from RunDetailResponse. Null
+   *  ⇒ no link on any span (handled by phoenixSpanUrl + SpanLink). */
+  phoenixUiBase?: string | null
+  phoenixProject?: string | null
 }
 
-export function LiveProbeLedger({ probes, summary }: LiveProbeLedgerProps) {
+export function LiveProbeLedger({
+  probes,
+  summary,
+  phoenixUiBase = null,
+  phoenixProject = null,
+}: LiveProbeLedgerProps) {
   const done = probes.filter((p) => p.state === 'done').length
   const pass = summary?.passed ?? probes.filter((p) => p.verdict === 'pass').length
   const fail = summary?.failed ?? probes.filter((p) => p.verdict === 'fail').length
@@ -121,7 +140,12 @@ export function LiveProbeLedger({ probes, summary }: LiveProbeLedgerProps) {
         </span>
       </div>
       {probes.map((p) => (
-        <LiveProbeRow key={p.n} probe={p} />
+        <LiveProbeRow
+          key={p.n}
+          probe={p}
+          phoenixUiBase={phoenixUiBase}
+          phoenixProject={phoenixProject}
+        />
       ))}
     </div>
   )

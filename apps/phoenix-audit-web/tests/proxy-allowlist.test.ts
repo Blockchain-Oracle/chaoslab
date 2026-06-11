@@ -91,6 +91,21 @@ describe('proxy allowlist', () => {
     expect(upstream).not.toHaveBeenCalled()
   })
 
+  it('forwards runs/{id}/clusters/{id}/review POST upstream (story-9.21)', async () => {
+    const res = await POST(
+      req('POST'),
+      ctx(['runs', 'run_abc123def456', 'clusters', 'cl_01', 'review']),
+    )
+    expect(res.status).toBe(200)
+    expect(upstream).toHaveBeenCalledOnce()
+  })
+
+  it('blocks review sub-paths', async () => {
+    const res = await POST(req('POST'), ctx(['runs', 'run_a', 'clusters', 'cl', 'review', 'x']))
+    expect(res.status).toBe(404)
+    expect(upstream).not.toHaveBeenCalled()
+  })
+
   it('forwards runs/{id}/gitlab-mr POST upstream (story-9.17)', async () => {
     const res = await POST(req('POST'), ctx(['runs', 'run_abc123def456', 'gitlab-mr']))
     expect(res.status).toBe(200)

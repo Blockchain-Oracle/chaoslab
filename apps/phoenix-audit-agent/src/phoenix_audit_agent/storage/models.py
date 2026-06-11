@@ -70,6 +70,27 @@ class RunRecord(BaseModel):
     # read-back via model_validate doesn't drop it (silent-failure H-NEW-1
     # from the second review pass).
     regression_overwrite_mode: str | None = None
+    # Story 9.21: cluster_id -> exemplar span_id (the first failing probe in
+    # the cluster), snapshotted at finalize so the report page can deep-link
+    # "Review in Phoenix" and the officer review knows which span to annotate.
+    cluster_spans: dict[str, str] = {}
+    # Story 9.21: the human review layer. Keyed by cluster_id; last write
+    # wins. NEVER mutates the signed PDF — it is a separate, dated trail.
+    cluster_reviews: dict[str, ClusterReview] = {}
+
+
+ReviewVerdict = Literal["confirmed", "disputed"]
+
+
+class ClusterReview(BaseModel):
+    """One officer verdict on one failure cluster (story-9.21)."""
+
+    model_config = ConfigDict(extra="ignore")
+
+    verdict: ReviewVerdict
+    note: str | None = Field(default=None, max_length=500)
+    reviewer_email: str = Field(min_length=1)
+    reviewed_at: str = Field(min_length=1)
 
 
 class RunCompletion(BaseModel):
@@ -94,6 +115,12 @@ class RunCompletion(BaseModel):
     report_available: bool | None = None
     events_available: bool | None = None
     mr_url: str | None = None
+    # Story 9.21: finalize snapshot of cluster exemplar spans (heal-path
+    # rule: anything finalize writes must ride the completion).
+    cluster_spans: dict[str, str] | None = None
+    # Story 9.21: officer reviews ride the SAME merge path as finalize
+    # writes (runs_review.py does a read-modify-write of the whole dict).
+    cluster_reviews: dict[str, ClusterReview] | None = None
     # Story 9.5: launch-time identity the heal-path merge must NOT drop —
     # when the launch-time create failed (contained Firestore blip), the
     # finalize merge is the record's ONLY write. Without these, a healed
