@@ -116,10 +116,26 @@ class PhoenixDatasetClient(Protocol):
 
 
 def _normalize_row(row: dict[str, Any] | FlatDatasetItem) -> dict[str, Any]:
-    """Coerce either input shape into a flat dict the SDK accepts."""
+    """Coerce either input shape into a flat dict."""
     if isinstance(row, FlatDatasetItem):
         return row.model_dump()
     return dict(row)
+
+
+def _bucket_row(row: dict[str, Any] | FlatDatasetItem) -> dict[str, dict[str, Any]]:
+    """Slice a flat row into the SDK's pre-bucketed example shape.
+
+    The SDK's `examples=` parameter REQUIRES `{input, output, metadata}`
+    dicts — the `input_keys`/`output_keys`/`metadata_keys` kwargs apply only
+    to the dataframe/CSV ingestion paths. Passing flat rows raised
+    ValueError on the first real call (staging seed, 2026-06-11); the fake
+    had accepted the flat shape, masking it."""
+    flat = _normalize_row(row)
+    return {
+        "input": {k: flat.get(k) for k in _INPUT_KEYS},
+        "output": {k: flat.get(k) for k in _OUTPUT_KEYS},
+        "metadata": {k: flat.get(k) for k in _METADATA_KEYS},
+    }
 
 
 async def _partition_sdk_call(phoenix_dataset_id: str, coro: Any) -> Any:
@@ -183,7 +199,7 @@ class PhoenixDatasetClientImpl:
         description: str | None,
         source_url: str | None,
     ) -> CreatedDataset:
-        rows = [_normalize_row(r) for r in examples]
+        rows = [_bucket_row(r) for r in examples]
         # `source_url` is appended to the description for now — Phoenix's
         # Dataset has a description field but no native source_url. The
         # Firestore index carries the canonical source_url.
@@ -197,9 +213,6 @@ class PhoenixDatasetClientImpl:
             self._client().datasets.create_dataset(
                 name=name,
                 examples=rows,
-                input_keys=_INPUT_KEYS,
-                output_keys=_OUTPUT_KEYS,
-                metadata_keys=_METADATA_KEYS,
                 dataset_description=full_desc or None,
             ),
         )
@@ -214,7 +227,7 @@ class PhoenixDatasetClientImpl:
         phoenix_dataset_id: str,
         examples: Sequence[dict[str, Any]] | Sequence[FlatDatasetItem],
     ) -> str:
-        rows = [_normalize_row(r) for r in examples]
+        rows = [_bucket_row(r) for r in examples]
         # Uniform partitioning: a stale `phoenix_dataset_id` (the bridge-
         # drift case) now raises `PhoenixDatasetNotFoundError`, making the
         # `try_regression_upsert` bridge_drift log event reachable in prod.
@@ -223,9 +236,6 @@ class PhoenixDatasetClientImpl:
             self._client().datasets.add_examples_to_dataset(
                 dataset=phoenix_dataset_id,
                 examples=rows,
-                input_keys=_INPUT_KEYS,
-                output_keys=_OUTPUT_KEYS,
-                metadata_keys=_METADATA_KEYS,
             ),
         )
         return ds.version_id  # type: ignore[no-any-return]
