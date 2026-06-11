@@ -16,11 +16,8 @@
 // Both block the upload; nothing is persisted unless every row passes.
 
 import { useRef, useState, type ChangeEvent, type DragEvent } from 'react'
-import {
-  uploadDataset,
-  type DatasetListRowDto,
-  type UploadValidationErrorDto,
-} from '@/lib/datasets'
+import { uploadDataset } from '@/lib/datasets-client'
+import type { DatasetListRowDto, UploadValidationErrorDto } from '@/lib/datasets-types'
 import { approxRowCount, detectFormat } from '@/lib/dataset-upload'
 
 type UploadState =

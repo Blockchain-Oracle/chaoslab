@@ -86,6 +86,11 @@ jobs:
         run: pnpm format:check
       - name: typecheck
         run: pnpm typecheck
+      # Production build — tsc/eslint/vitest all miss client/server module
+      # violations (a client component importing next/headers transitively
+      # held staging-web deploys back across PRs #110-#113 undetected).
+      - name: production build
+        run: pnpm --filter phoenix-audit-web build
 
   max-lines-check:
     runs-on: ubuntu-latest

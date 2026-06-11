@@ -29,7 +29,7 @@ import type {
   DatasetItemDto,
   DatasetKind,
   DatasetUnavailableDto,
-} from '@/lib/datasets'
+} from '@/lib/datasets-types'
 import { DeleteDatasetModal } from './delete-dataset-modal'
 import { DsCaseRow } from './dataset-case-row'
 
