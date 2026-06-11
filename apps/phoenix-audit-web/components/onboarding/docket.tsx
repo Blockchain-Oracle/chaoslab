@@ -46,8 +46,11 @@ function valueFor(
   const visitedIdx = Math.max(0, STEP_ORDER.indexOf(maxVisited))
   if (row === 'welcome') return visitedIdx > 0 ? 'done' : '·'
   if (row === 'org') {
-    if (orgName) return orgName
+    // Skip wins over typed value — mirrors buildFinalPatch's precedence
+    // (skipped fields are omitted from the PATCH even when state still
+    // holds the value the operator typed before backing out + skipping).
     if (skipped.has('org')) return 'skipped · Settings'
+    if (orgName) return orgName
     return rowIdx <= visitedIdx ? 'blank · Settings' : '·'
   }
   if (row === 'framework') {

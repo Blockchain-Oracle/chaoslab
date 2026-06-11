@@ -181,7 +181,25 @@ describe('buildFinalPatch — what gets sent on Finish', () => {
     expect(buildFinalPatch(s)).toEqual({ onboarded: true })
   })
 
-  it('Welcome → Skip to finish emits ONLY {onboarded:true} (regulator-facing fields stay un-PATCHed)', async () => {
+  it('skipped flag wins over a typed-then-backed-out org_name (rail and patch agree)', async () => {
+    // Reviewer-flagged: a user who types an org name, then hits Back,
+    // then Skip on the org step ends up with `state.orgName === '<typed>'`
+    // AND `state.skipped` containing 'org'. buildFinalPatch must omit
+    // org_name (skip = "no write"), and the Docket must render
+    // 'skipped · Settings' (not the typed value) so the rail's editorial
+    // promise matches what gets PATCHed.
+    const { buildFinalPatch } = await import('@/lib/onboarding')
+    let s = initialWizardState(baseProfile)
+    s = onboardingReducer(s, { kind: 'next' }) // welcome → org
+    s = onboardingReducer(s, { kind: 'setOrgName', value: 'Meridian Mutual' })
+    s = onboardingReducer(s, { kind: 'skip' }) // org skipped, name still in state
+    expect(s.orgName).toBe('Meridian Mutual')
+    expect(s.skipped.has('org')).toBe(true)
+    const patch = buildFinalPatch(s)
+    expect(patch).not.toHaveProperty('org_name')
+  })
+
+  it('Welcome → Skip to finish via jumpTo+markSkipped emits ONLY {onboarded:true}', async () => {
     // Reviewer-flagged silent failure: prior to markSkipped, this same
     // sequence would PATCH framework_default = 'EU AI Act' (seed default)
     // as if the operator chose it. The cover sheet would then cite a
