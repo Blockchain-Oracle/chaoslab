@@ -110,9 +110,14 @@ export function FrameworkStep({
       <h1 className="display" style={{ fontSize: 33, marginBottom: 14 }}>
         Which control set anchors your reports?
       </h1>
-      <p className="muted" style={{ marginBottom: 28, maxWidth: 520 }}>
+      <p className="muted" style={{ marginBottom: 14, maxWidth: 520 }}>
         This framework&rsquo;s articles are cited on every report cover and in the
         regulatory-mapping appendix. You can override it per audit when starting a run.
+      </p>
+      <p className="muted" style={{ marginBottom: 28, maxWidth: 520, fontSize: 13 }}>
+        After this, every audit runs the standard adversarial battery. You can also upload your own
+        test cases or use the built-in HarmBench / OWASP LLM sets from the <strong>Datasets</strong>{' '}
+        page once you&rsquo;re in.
       </p>
       <FrameworkRows value={value} onChange={onChange} />
     </div>
