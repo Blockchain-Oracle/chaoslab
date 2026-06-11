@@ -22,11 +22,10 @@ vi.mock('@/lib/server/user-fetch', () => ({
   userIdentityHeaders: async () => ({}),
 }))
 
+import { uploadDataset, deleteDataset } from '@/lib/datasets-client'
 import {
   fetchDatasets,
   fetchDatasetDetail,
-  uploadDataset,
-  deleteDataset,
   type DatasetListRowDto,
   type DatasetDetailDto,
   type DatasetUnavailableDto,
