@@ -11,6 +11,7 @@ from typing import Any
 from phoenix_audit_agent.storage.agents import demo_target_seed
 from phoenix_audit_agent.storage.models import (
     AgentRecord,
+    GitLabOAuthState,
     RunCompletion,
     RunRecord,
     ScheduleRecord,
@@ -254,3 +255,18 @@ class InMemoryDatasetIndexStore:
 
     async def delete_by_slug(self, slug: str) -> None:
         self._docs.pop(slug, None)
+
+
+class InMemoryGitLabStateStore:
+    """Story-9.17 OAuth state docs — consume() is get-and-delete (single-use)."""
+
+    def __init__(self) -> None:
+        self._docs: dict[str, GitLabOAuthState] = {}
+
+    async def put(self, state: str, *, uid: str, code_verifier: str, created_at: str) -> None:
+        self._docs[state] = GitLabOAuthState(
+            state=state, uid=uid, code_verifier=code_verifier, created_at=created_at
+        )
+
+    async def consume(self, state: str) -> GitLabOAuthState | None:
+        return self._docs.pop(state, None)

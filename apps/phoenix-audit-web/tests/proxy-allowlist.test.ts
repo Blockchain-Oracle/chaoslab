@@ -74,6 +74,29 @@ describe('proxy allowlist', () => {
     },
   )
 
+  it.each([
+    ['integrations/gitlab/connect'],
+    ['integrations/gitlab/status'],
+    ['integrations/gitlab/projects'],
+    ['integrations/gitlab/connection'],
+  ])('forwards %s upstream (story-9.17)', async (path) => {
+    const res = await GET(req('GET'), ctx(path.split('/')))
+    expect(res.status).toBe(200)
+    expect(upstream).toHaveBeenCalledOnce()
+  })
+
+  it('blocks the exchange endpoint — only the callback server route may reach it', async () => {
+    const res = await GET(req('GET'), ctx(['integrations', 'gitlab', 'exchange']))
+    expect(res.status).toBe(404)
+    expect(upstream).not.toHaveBeenCalled()
+  })
+
+  it('forwards runs/{id}/gitlab-mr POST upstream (story-9.17)', async () => {
+    const res = await POST(req('POST'), ctx(['runs', 'run_abc123def456', 'gitlab-mr']))
+    expect(res.status).toBe(200)
+    expect(upstream).toHaveBeenCalledOnce()
+  })
+
   it('forwards runs/{id}/email POST upstream (story-9.5)', async () => {
     const res = await POST(req('POST'), ctx(['runs', 'run_abc123def456', 'email']))
     expect(res.status).toBe(200)
