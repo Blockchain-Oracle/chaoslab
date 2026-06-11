@@ -93,11 +93,24 @@ def build_adapter(target_url: str) -> Any:
 
 
 async def _run_injector(
-    *, run_id: str, target_url: str, runs_per_fault: int, prompt: str, emit: EmitFn
+    *,
+    run_id: str,
+    target_url: str,
+    runs_per_fault: int,
+    prompt: str,
+    emit: EmitFn,
+    dataset_slug: str | None = None,
 ) -> InjectorState:
-    """Injector phase: drive the attack battery, emitting per-probe frames."""
+    """Injector phase: drive the attack battery, emitting per-probe frames.
+
+    Story-9.15: `dataset_slug` (when set) tags the synthetic-battery probes
+    with `origin="battery"` (the dataset-row probes get `origin=f"dataset:{slug}"`
+    when the row-interleave loop lands). The discriminator on the SSE frame
+    lets the chamber UI label each probe row by where it came from.
+    """
     adapter = build_adapter(target_url)
     state = InjectorState()
+    _ = dataset_slug  # reserved for the row-interleave loop in a follow-up
 
     async def _on_start(attack: AttackRun) -> None:
         await emit(
@@ -105,6 +118,7 @@ async def _run_injector(
             {
                 "n": attack.run_idx + 1,
                 "fault_class": attack.fault_class,
+                "origin": "battery",
                 "run_id": run_id,
             },
         )
@@ -115,6 +129,7 @@ async def _run_injector(
             {
                 "n": result.run_idx + 1,
                 "fault_class": result.fault_class,
+                "origin": "battery",
                 "status": result.status,
                 "span_id": result.span_id,
                 "duration_ms": result.duration_ms,

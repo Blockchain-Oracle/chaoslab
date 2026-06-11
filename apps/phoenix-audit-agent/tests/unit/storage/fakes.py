@@ -193,7 +193,12 @@ class FakePhoenixDatasetClient:
             raise PhoenixDatasetNotFoundError(phoenix_dataset_id)
         rows = [self._normalize(r) for r in examples]
         validated = [self._FlatDatasetItem.model_validate(r) for r in rows]
-        self._datasets[phoenix_dataset_id].extend(validated)
+        # Newest-wins dedup-on-case_id mirrors Phoenix Datasets' regression-
+        # upsert semantics: a same-case_id append replaces the older row.
+        existing = self._datasets[phoenix_dataset_id]
+        new_case_ids = {v.case_id for v in validated}
+        kept = [e for e in existing if e.case_id not in new_case_ids]
+        self._datasets[phoenix_dataset_id] = kept + validated
         v_id = self._mint_v()
         self._latest_version[phoenix_dataset_id] = v_id
         return v_id
