@@ -154,6 +154,86 @@ async def test_report_email_download_failure_propagates(
     assert send_spy.calls == []
 
 
+async def test_report_email_sign_failure_contained(
+    monkeypatch: pytest.MonkeyPatch, send_spy: _SendSpy
+) -> None:
+    """A broken link row must never block a perfectly good PDF — the mail
+    still sends, attachment intact, link row omitted."""
+    from phoenix_audit_agent.notifier import report_mail
+
+    async def fake_download(run_id: str) -> bytes:
+        return b"%PDF-1.7 fine"
+
+    async def bad_sign(blob_name: str) -> str:
+        raise RuntimeError("signing infrastructure down")
+
+    monkeypatch.setattr(report_mail, "download_report_pdf", fake_download)
+    monkeypatch.setattr(report_mail, "sign_blob_url", bad_sign)
+    result = await report_mail.send_report_email(_record(), to="a@example.com")
+
+    assert result.sent is True
+    assert result.attachment_included is True
+    assert "Download the signed report" not in send_spy.calls[0]["html"]
+
+
+async def test_report_email_raises_when_no_attachment_and_no_link(
+    monkeypatch: pytest.MonkeyPatch, send_spy: _SendSpy
+) -> None:
+    """The two contained fallbacks must not COMPOSE into an artifact email
+    with neither artifact nor route to it — raise (endpoint maps to 502)."""
+    from phoenix_audit_agent.notifier import report_mail
+
+    monkeypatch.setattr(report_mail, "ATTACHMENT_CAP_BYTES", 8)
+
+    async def fake_download(run_id: str) -> bytes:
+        return b"way more than eight bytes"
+
+    async def bad_sign(blob_name: str) -> str:
+        raise RuntimeError("signing infrastructure down")
+
+    monkeypatch.setattr(report_mail, "download_report_pdf", fake_download)
+    monkeypatch.setattr(report_mail, "sign_blob_url", bad_sign)
+    with pytest.raises(RuntimeError, match="neither attachment nor link"):
+        await report_mail.send_report_email(_record(), to="a@example.com")
+    assert send_spy.calls == []
+
+
+async def test_report_email_escapes_hostile_target_url(
+    monkeypatch: pytest.MonkeyPatch, send_spy: _SendSpy
+) -> None:
+    from phoenix_audit_agent.notifier import report_mail
+
+    async def fake_download(run_id: str) -> bytes:
+        return b"%PDF-1.7"
+
+    monkeypatch.setattr(report_mail, "download_report_pdf", fake_download)
+    record = _record(target_url="https://x.example/<script>alert(1)</script>")
+    await report_mail.send_report_email(record, to="a@example.com")
+    html = send_spy.calls[0]["html"]
+    assert "<script>" not in html
+    assert "&lt;script&gt;" in html
+
+
+async def test_report_email_portal_link_branches(
+    monkeypatch: pytest.MonkeyPatch, send_spy: _SendSpy
+) -> None:
+    """Empty PUBLIC_WEB_URL ⇒ no portal row (never a localhost link in a
+    customer inbox); set ⇒ rstripped origin + /report/{run_id}."""
+    from phoenix_audit_agent.notifier import report_mail
+
+    async def fake_download(run_id: str) -> bytes:
+        return b"%PDF-1.7"
+
+    monkeypatch.setattr(report_mail, "download_report_pdf", fake_download)
+    await report_mail.send_report_email(_record(), to="a@example.com")
+    assert "View this audit" not in send_spy.calls[0]["html"]
+
+    monkeypatch.setenv("PUBLIC_WEB_URL", "https://phxaudit.xyz/")
+    get_settings.cache_clear()
+    await report_mail.send_report_email(_record(), to="a@example.com")
+    assert "https://phxaudit.xyz/report/run_abc123def456" in send_spy.calls[1]["html"]
+
+
 # --- maybe_send_scheduled_summary -----------------------------------------------
 
 
@@ -162,6 +242,7 @@ async def _seed(
     deliver_email: bool = True,
     profile_email: str | None = "a@example.com",
     schedule_owner: str | None = "user-a",
+    email_recipient: str | None = None,
     record_kw: dict[str, Any] | None = None,
 ) -> RunRecord:
     record = _record(schedule_id="sch_1", **(record_kw or {}))
@@ -172,6 +253,7 @@ async def _seed(
             target_url="https://target.example",
             owner_uid=schedule_owner,
             deliver_email=deliver_email,
+            email_recipient=email_recipient,
             next_fire_at="2026-06-11T00:00:00+00:00",
             created_at="2026-06-11T00:00:00+00:00",
         )
@@ -200,6 +282,42 @@ async def test_summary_sent_when_deliver_email(send_spy: _SendSpy) -> None:
     assert "https://signed.example/reports/run_abc123def456/report.pdf" in call["html"]
     # Summaries never attach the PDF — link-only by design.
     assert call.get("attachment") is None
+
+
+async def test_summary_prefers_schedule_email_recipient(send_spy: _SendSpy) -> None:
+    """story-9.3 contract: the schedules API requires email_recipient when
+    deliver_email=true and the UI collects it — it must NOT be silently
+    rerouted to the profile address."""
+    from phoenix_audit_agent.notifier import report_mail
+
+    await _seed(email_recipient="compliance-team@corp.example")
+    await report_mail.maybe_send_scheduled_summary("run_abc123def456")
+    assert len(send_spy.calls) == 1
+    assert send_spy.calls[0]["to"] == "compliance-team@corp.example"
+
+
+async def test_summary_crashed_run_sends_failure_wording(send_spy: _SendSpy) -> None:
+    """A crashed monitoring run must email too — and must never read as
+    'complete — 0 passed / 0 failed'."""
+    from phoenix_audit_agent.notifier import report_mail
+
+    await _seed(record_kw={"phase": "failed", "passed": 0, "failed": 0})
+    await report_mail.maybe_send_scheduled_summary("run_abc123def456")
+    assert len(send_spy.calls) == 1
+    call = send_spy.calls[0]
+    assert "FAILED" in call["subject"]
+    assert "complete" not in call["subject"]
+    assert "FAILED before completing" in call["html"]
+
+
+async def test_summary_mid_pipeline_phase_reads_as_crash(send_spy: _SendSpy) -> None:
+    """When the crash-path events write also failed, the record keeps a
+    mid-pipeline phase — any non-succeeded phase gets crash wording."""
+    from phoenix_audit_agent.notifier import report_mail
+
+    await _seed(record_kw={"phase": "judge"})
+    await report_mail.maybe_send_scheduled_summary("run_abc123def456")
+    assert "FAILED" in send_spy.calls[0]["subject"]
 
 
 async def test_summary_skipped_when_deliver_email_false(send_spy: _SendSpy) -> None:
@@ -235,6 +353,63 @@ async def test_summary_skipped_on_owner_mismatch(send_spy: _SendSpy) -> None:
     await _seed(schedule_owner="user-b")
     await report_mail.maybe_send_scheduled_summary("run_abc123def456")
     assert send_spy.calls == []
+
+
+async def test_summary_skipped_when_schedule_deleted(send_spy: _SendSpy) -> None:
+    """Lifecycle race: schedule deleted while its run was in flight — the
+    record's schedule_id dangles; finalize must skip, not AttributeError."""
+    from phoenix_audit_agent.notifier import report_mail
+
+    record = _record(schedule_id="sch_gone")
+    await run_storage.get_run_store().create(record)
+    await report_mail.maybe_send_scheduled_summary(record.run_id)
+    assert send_spy.calls == []
+
+
+async def test_summary_skipped_with_blank_profile_email(send_spy: _SendSpy) -> None:
+    """email='' is falsy-but-present (silent-failure pattern #1) — a profile
+    stored with a blank address must skip, never send to ''."""
+    from phoenix_audit_agent.notifier import report_mail
+
+    await _seed(profile_email="")
+    await report_mail.maybe_send_scheduled_summary("run_abc123def456")
+    assert send_spy.calls == []
+
+
+async def test_summary_skipped_with_null_profile_email(send_spy: _SendSpy) -> None:
+    from phoenix_audit_agent.notifier import report_mail
+
+    await _seed(profile_email=None)
+    await profile_storage.get_profile_store().merge("user-a", {"uid": "user-a", "email": None})
+    await report_mail.maybe_send_scheduled_summary("run_abc123def456")
+    assert send_spy.calls == []
+
+
+async def test_summary_sign_failure_still_sends(
+    monkeypatch: pytest.MonkeyPatch, send_spy: _SendSpy
+) -> None:
+    """A signing outage degrades the summary (no link row) — it must not
+    kill the send."""
+    from phoenix_audit_agent.notifier import report_mail
+
+    await _seed()
+
+    async def bad_sign(blob_name: str) -> str:
+        raise RuntimeError("signing infrastructure down")
+
+    monkeypatch.setattr(report_mail, "sign_blob_url", bad_sign)
+    await report_mail.maybe_send_scheduled_summary("run_abc123def456")
+    assert len(send_spy.calls) == 1
+    assert "Download the signed report" not in send_spy.calls[0]["html"]
+
+
+async def test_summary_without_report_omits_link_row(send_spy: _SendSpy) -> None:
+    from phoenix_audit_agent.notifier import report_mail
+
+    await _seed(record_kw={"report_available": False})
+    await report_mail.maybe_send_scheduled_summary("run_abc123def456")
+    assert len(send_spy.calls) == 1
+    assert "Download the signed report" not in send_spy.calls[0]["html"]
 
 
 async def test_summary_send_failure_contained(send_spy: _SendSpy) -> None:

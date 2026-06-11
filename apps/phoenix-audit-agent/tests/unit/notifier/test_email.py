@@ -47,6 +47,16 @@ def test_configured_with_key(monkeypatch: pytest.MonkeyPatch) -> None:
     assert email.email_configured() is True
 
 
+def test_empty_key_is_not_configured(monkeypatch: pytest.MonkeyPatch) -> None:
+    """`RESEND_API_KEY=` (present but empty) must fail the gate — an empty
+    SecretStr would otherwise pass is-None and auth-fail on every send."""
+    from phoenix_audit_agent.notifier import email
+
+    monkeypatch.setenv("RESEND_API_KEY", "")
+    get_settings.cache_clear()
+    assert email.email_configured() is False
+
+
 async def test_send_unconfigured_fails_closed_without_sdk_call(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

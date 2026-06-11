@@ -94,6 +94,14 @@ class RunCompletion(BaseModel):
     report_available: bool | None = None
     events_available: bool | None = None
     mr_url: str | None = None
+    # Story 9.5: launch-time identity the heal-path merge must NOT drop —
+    # when the launch-time create failed (contained Firestore blip), the
+    # finalize merge is the record's ONLY write. Without these, a healed
+    # scheduled run reads back as a manual, ownerless run and the summary
+    # email silently never sends.
+    source: RunSource | None = None
+    owner_uid: str | None = None
+    schedule_id: str | None = None
     # Story 9.15: same shape as `RunRecord` so the finalize path can write
     # the dataset snapshot through `merge_fields` without a side-channel.
     # The fields live on `RunRecord` (extra="ignore") AND here (extra="forbid")

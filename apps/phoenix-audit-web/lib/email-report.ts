@@ -30,8 +30,25 @@ export async function requestReportEmail(
     }
     return { status: 'failed', error: detail }
   }
-  const body = (await res.json()) as { to: string; attachment_included: boolean }
-  return { status: 'sent', to: body.to, attachmentIncluded: body.attachment_included }
+  // The SUCCESS parse needs the same protection as the error parse — an
+  // unguarded throw here would escape the component's send() and leave the
+  // button stuck on a disabled "Sending…" forever.
+  let body: { to?: unknown; attachment_included?: unknown }
+  try {
+    body = (await res.json()) as { to?: unknown; attachment_included?: unknown }
+  } catch {
+    return { status: 'failed', error: 'unreadable response from server' }
+  }
+  if (typeof body.to !== 'string' || body.to.length === 0) {
+    return { status: 'failed', error: 'malformed response: missing recipient' }
+  }
+  return { status: 'sent', to: body.to, attachmentIncluded: body.attachment_included === true }
+}
+
+// Re-entrancy guard — prevents duplicate emails on double-click and after
+// a successful send (failed stays clickable: retry).
+export function shouldAllowSend(state: EmailReportState): boolean {
+  return state.status === 'idle' || state.status === 'failed'
 }
 
 export function emailButtonLabel(state: EmailReportState): string {

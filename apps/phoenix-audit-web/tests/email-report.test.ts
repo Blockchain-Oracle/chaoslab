@@ -3,7 +3,7 @@
 // here ARE the button's honest sent/failed disclosure.
 
 import { describe, expect, it, vi } from 'vitest'
-import { emailButtonLabel, requestReportEmail } from '@/lib/email-report'
+import { emailButtonLabel, requestReportEmail, shouldAllowSend } from '@/lib/email-report'
 
 function fetchReturning(status: number, body: unknown) {
   return vi.fn(async () => new Response(JSON.stringify(body), { status }))
@@ -48,6 +48,18 @@ describe('requestReportEmail', () => {
     const state = await requestReportEmail('run_abc123def456', f)
     expect(state).toEqual({ status: 'failed', error: expect.stringContaining('504') })
   })
+
+  it('contains an unparseable 200 body — the button must never stick on Sending…', async () => {
+    const f = vi.fn(async () => new Response('not json', { status: 200 }))
+    const state = await requestReportEmail('run_abc123def456', f)
+    expect(state).toEqual({ status: 'failed', error: expect.stringContaining('unreadable') })
+  })
+
+  it('treats a 200 missing the recipient as failed, not "Sent to undefined"', async () => {
+    const f = fetchReturning(200, { sent: true })
+    const state = await requestReportEmail('run_abc123def456', f)
+    expect(state).toEqual({ status: 'failed', error: expect.stringContaining('missing recipient') })
+  })
 })
 
 describe('emailButtonLabel', () => {
@@ -67,5 +79,19 @@ describe('emailButtonLabel', () => {
 
   it('failed state invites retry', () => {
     expect(emailButtonLabel({ status: 'failed', error: 'x' })).toBe('✕ Send failed — retry')
+  })
+})
+
+describe('shouldAllowSend', () => {
+  it('blocks re-entry while sending and after success — duplicate-email guard', () => {
+    expect(shouldAllowSend({ status: 'sending' })).toBe(false)
+    expect(shouldAllowSend({ status: 'sent', to: 'a@example.com', attachmentIncluded: true })).toBe(
+      false,
+    )
+  })
+
+  it('allows idle and failed (retry)', () => {
+    expect(shouldAllowSend({ status: 'idle' })).toBe(true)
+    expect(shouldAllowSend({ status: 'failed', error: 'x' })).toBe(true)
   })
 })

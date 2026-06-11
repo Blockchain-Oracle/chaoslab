@@ -190,6 +190,10 @@ async def _drive_orchestrator(run_id: str) -> None:
             # so the signed report cover can name the corpus.
             dataset_id=state.request.dataset_id,
             agent_id=state.request.agent_id,
+            # Story 9.5: launch-time identity rides to finalize so the
+            # heal-path merge can't strip schedule linkage (MED-1, PR #111).
+            schedule_id=state.request.schedule_id,
+            source=state.request.source,
         )
     except asyncio.CancelledError:
         state.phase = "failed"

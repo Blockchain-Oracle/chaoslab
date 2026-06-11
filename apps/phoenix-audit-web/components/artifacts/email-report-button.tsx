@@ -5,13 +5,13 @@
 
 import { useState } from 'react'
 import type { EmailReportState } from '@/lib/email-report'
-import { emailButtonLabel, requestReportEmail } from '@/lib/email-report'
+import { emailButtonLabel, requestReportEmail, shouldAllowSend } from '@/lib/email-report'
 
 export function EmailReportButton({ runId }: { runId: string }) {
   const [state, setState] = useState<EmailReportState>({ status: 'idle' })
 
   async function send() {
-    if (state.status === 'sending' || state.status === 'sent') return
+    if (!shouldAllowSend(state)) return
     setState({ status: 'sending' })
     setState(await requestReportEmail(runId))
   }
@@ -22,7 +22,7 @@ export function EmailReportButton({ runId }: { runId: string }) {
         type="button"
         className="btn ghost"
         onClick={send}
-        disabled={state.status === 'sending' || state.status === 'sent'}
+        disabled={!shouldAllowSend(state)}
         style={state.status === 'sent' ? { color: 'var(--pass)' } : undefined}
       >
         {emailButtonLabel(state)}

@@ -34,7 +34,7 @@ from phoenix_audit_agent.audit_runner_datasets import (
     try_regression_upsert,
 )
 from phoenix_audit_agent.reporter import ReportData
-from phoenix_audit_agent.storage.models import RunCompletion
+from phoenix_audit_agent.storage.models import RunCompletion, RunSource
 
 _log = structlog.get_logger(__name__)
 
@@ -177,7 +177,14 @@ def completion_fields(
 
 
 async def persist_failure_timeline(
-    *, run_id: str, target_url: str, created_at: str, frames: list[dict[str, Any]]
+    *,
+    run_id: str,
+    target_url: str,
+    created_at: str,
+    frames: list[dict[str, Any]],
+    owner_uid: str | None = None,
+    schedule_id: str | None = None,
+    source: RunSource | None = None,
 ) -> None:
     """Best-effort partial-timeline write so /replay still works for crashed runs."""
     from phoenix_audit_agent import audit_runner as _ar
@@ -191,8 +198,15 @@ async def persist_failure_timeline(
                 created_at=created_at,
                 phase="failed",
                 events_available=True,
+                owner_uid=owner_uid,
+                schedule_id=schedule_id,
+                source=source,
             ),
         )
+    # Story-9.5: a crashed MONITORING run must email too — a silent inbox
+    # being indistinguishable from "all healthy" is the worst failure mode
+    # continuous monitoring can have. Contained like the success-path hook.
+    await _contained_summary_email(run_id)
 
 
 async def _apply_dataset_evidence(
@@ -244,6 +258,8 @@ async def finalize_run(
     agent_id: str | None = None,
     owner_uid: str | None = None,
     failing_rows: list[dict[str, Any]] | None = None,
+    schedule_id: str | None = None,
+    source: RunSource | None = None,
 ) -> None:
     """Registry finalize + complete frame + replay-timeline persistence.
 
@@ -262,6 +278,11 @@ async def finalize_run(
         recipe_id=recipe_id,
         report_available=report_urls is not None,
     )
+    # Launch-time identity rides the completion so the heal-path merge (a
+    # failed create at launch) can't strip schedule linkage / ownership.
+    completion.owner_uid = owner_uid
+    completion.schedule_id = schedule_id
+    completion.source = source
     await _apply_dataset_evidence(
         completion,
         run_id=run_id,
@@ -309,13 +330,19 @@ async def finalize_run(
                 run_id=run_id,
                 blob=f"reports/{run_id}/events.json",
             )
-    # Story-9.5: scheduled-summary email, LAST — mail must never delay the
-    # complete frame or the replay timeline. Double-contained: the hook
-    # contains internally, and this guard keeps a monkeypatched/future hook
-    # from ever failing a finalize.
-    from phoenix_audit_agent.notifier import report_mail
+    await _contained_summary_email(run_id)
 
+
+async def _contained_summary_email(run_id: str) -> None:
+    """Story-9.5 scheduled-summary email — fired LAST on both the success and
+    crash finalize paths (mail must never delay the complete frame or the
+    replay timeline). Double-contained: the hook contains internally, and
+    this guard (import INSIDE the try — a broken resend install or a
+    circular-import regression must not escape either) keeps any failure
+    from ever reaching a finalize."""
     try:
+        from phoenix_audit_agent.notifier import report_mail
+
         await report_mail.maybe_send_scheduled_summary(run_id)
     except Exception:
         _log.error("schedule_email_hook_failed", run_id=run_id, exc_info=True)

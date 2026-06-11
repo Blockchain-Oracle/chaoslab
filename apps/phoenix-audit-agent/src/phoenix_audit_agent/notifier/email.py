@@ -33,7 +33,10 @@ class EmailSendResult(BaseModel):
 
 
 def email_configured() -> bool:
-    return get_settings().RESEND_API_KEY is not None
+    # `RESEND_API_KEY=` (present but empty) must fail the gate too — an empty
+    # SecretStr would pass an is-None check and then auth-fail on every send.
+    key = get_settings().RESEND_API_KEY
+    return key is not None and bool(key.get_secret_value())
 
 
 async def send_email(
