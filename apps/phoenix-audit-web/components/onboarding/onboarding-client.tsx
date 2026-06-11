@@ -9,12 +9,7 @@ import { useReducer } from 'react'
 import { useRouter } from 'next/navigation'
 import { PageFoot } from '@/components/ui/page-foot'
 import { TopBar } from '@/components/ui/topbar'
-import {
-  WIZARD_STEPS,
-  buildFinalPatch,
-  initialWizardState,
-  onboardingReducer,
-} from '@/lib/onboarding'
+import { WIZARD_STEPS, initialWizardState, onboardingReducer, runFinish } from '@/lib/onboarding'
 import { saveProfile, type ProfileDto } from '@/lib/profile'
 import { StepCta } from './steps/cta'
 import { StepFramework } from './steps/framework'
@@ -36,15 +31,17 @@ export function OnboardingClient({ profile }: OnboardingClientProps) {
   const isFirst = stepIdx === 0
   const isLast = state.step === 'cta'
 
-  const finish = async (destination: '/new' | '/audits') => {
-    dispatch({ kind: 'submitStart' })
-    const { profile: saved, error } = await saveProfile(buildFinalPatch(state))
-    if (!saved) {
-      dispatch({ kind: 'submitError', error: error ?? 'unknown error' })
-      return
-    }
-    router.push(destination)
-  }
+  const finish = (destination: '/new' | '/audits') =>
+    // The decision tree lives in lib/onboarding.runFinish so the in-flight
+    // guard, build-patch errors, save-success/failure, and navigation are
+    // unit-tested without a DOM render.
+    void runFinish({
+      state,
+      destination,
+      save: saveProfile,
+      push: router.push,
+      dispatch,
+    })
 
   return (
     <div className="page-enter">

@@ -2,10 +2,17 @@
 // + the wizard's reducer. Source-level pins on the server gates mirror the
 // audits-recipe-link.test.ts pattern: cheap to write, catches reverts.
 
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { needsOnboarding, onboardingReducer, initialWizardState } from '@/lib/onboarding'
+import {
+  initialWizardState,
+  needsOnboarding,
+  onboardingReducer,
+  runFinish,
+  type SaveResult,
+  type WizardAction,
+} from '@/lib/onboarding'
 import type { ProfileDto } from '@/lib/profile'
 
 const baseProfile: ProfileDto = {
@@ -137,6 +144,165 @@ describe('buildFinalPatch — what gets sent on Finish', () => {
     let s = initialWizardState(baseProfile)
     for (let i = 0; i < 4; i++) s = onboardingReducer(s, { kind: 'skip' })
     expect(buildFinalPatch(s)).toEqual({ onboarded: true })
+  })
+})
+
+describe('reducer — submit actions + boundary clamps', () => {
+  it('submitStart sets submitting and clears any prior submitError', () => {
+    let s = initialWizardState(baseProfile)
+    s = onboardingReducer(s, { kind: 'submitError', error: 'old' })
+    s = onboardingReducer(s, { kind: 'submitStart' })
+    expect(s.submitting).toBe(true)
+    expect(s.submitError).toBeNull()
+  })
+
+  it('submitError clears submitting so the CTA re-enables for retry', () => {
+    let s = initialWizardState(baseProfile)
+    s = onboardingReducer(s, { kind: 'submitStart' })
+    s = onboardingReducer(s, { kind: 'submitError', error: 'network down' })
+    expect(s.submitting).toBe(false)
+    expect(s.submitError).toBe('network down')
+  })
+
+  it('submitSuccess clears submitting and any prior error (future-proofs against layout changes)', () => {
+    let s = initialWizardState(baseProfile)
+    s = onboardingReducer(s, { kind: 'submitError', error: 'transient' })
+    s = onboardingReducer(s, { kind: 'submitStart' })
+    s = onboardingReducer(s, { kind: 'submitSuccess' })
+    expect(s.submitting).toBe(false)
+    expect(s.submitError).toBeNull()
+  })
+
+  it('back from the first step does NOT wrap to the last step', () => {
+    const start = initialWizardState(baseProfile)
+    const after = onboardingReducer(start, { kind: 'back' })
+    expect(after.step).toBe('welcome')
+  })
+
+  it('next from the last step does NOT wrap to the first step', () => {
+    let s = initialWizardState(baseProfile)
+    for (let i = 0; i < 4; i++) s = onboardingReducer(s, { kind: 'next' })
+    expect(s.step).toBe('cta')
+    s = onboardingReducer(s, { kind: 'next' })
+    expect(s.step).toBe('cta')
+  })
+
+  it('setOrgName / setFramework do NOT silently coerce step or other state', () => {
+    let s = initialWizardState(baseProfile)
+    s = onboardingReducer(s, { kind: 'next' })
+    s = onboardingReducer(s, { kind: 'next' })
+    expect(s.step).toBe('framework')
+    s = onboardingReducer(s, { kind: 'setOrgName', value: 'X' })
+    expect(s.step).toBe('framework')
+    expect(s.framework).toBe('EU AI Act')
+    s = onboardingReducer(s, { kind: 'setFramework', value: 'HIPAA' })
+    expect(s.step).toBe('framework')
+    expect(s.orgName).toBe('X')
+  })
+})
+
+describe('buildFinalPatch — defends the framework default', () => {
+  it('THROWS when framework step is visited but value is empty (no silent fallback)', async () => {
+    const { buildFinalPatch } = await import('@/lib/onboarding')
+    let s = initialWizardState(baseProfile)
+    s = onboardingReducer(s, { kind: 'setFramework', value: '' })
+    // The user didn't skip — they're on a state where they cleared framework.
+    // Falling back to the stored profile default would silently disagree with
+    // what /new shows them later (silent-failure-hunter Finding 5).
+    expect(() => buildFinalPatch(s)).toThrow(/no value selected/)
+  })
+
+  it('does NOT throw when framework step is explicitly SKIPPED with empty value', async () => {
+    const { buildFinalPatch } = await import('@/lib/onboarding')
+    let s = initialWizardState(baseProfile)
+    s = onboardingReducer(s, { kind: 'setFramework', value: '' })
+    s = onboardingReducer(s, { kind: 'next' }) // welcome → org
+    s = onboardingReducer(s, { kind: 'next' }) // org → framework
+    s = onboardingReducer(s, { kind: 'skip' }) // framework skipped
+    expect(() => buildFinalPatch(s)).not.toThrow()
+  })
+})
+
+describe('runFinish — the wizard hot path that decides whether onboarding completes', () => {
+  function harness(
+    opts: {
+      save: (p: object) => Promise<SaveResult>
+      stateOverrides?: Partial<ReturnType<typeof initialWizardState>>
+    } = {} as never,
+  ) {
+    const dispatched: WizardAction[] = []
+    const pushed: string[] = []
+    const baseState = { ...initialWizardState(baseProfile), ...(opts.stateOverrides ?? {}) }
+    return {
+      dispatched,
+      pushed,
+      run: (destination: '/new' | '/audits') =>
+        runFinish({
+          state: baseState,
+          destination,
+          save: opts.save ?? (async () => ({ profile: null, error: 'no save mock' })),
+          push: (p: string) => pushed.push(p),
+          dispatch: (a: WizardAction) => dispatched.push(a),
+        }),
+    }
+  }
+
+  it('SUCCESS path: save then dispatch submitStart/submitSuccess then push the destination', async () => {
+    const save = vi.fn(async () => ({ profile: { onboarded: true }, error: null }))
+    const h = harness({ save })
+    const result = await h.run('/audits')
+    expect(result).toBe('navigated')
+    expect(save).toHaveBeenCalledOnce()
+    expect(save).toHaveBeenCalledWith(expect.objectContaining({ onboarded: true }))
+    expect(h.dispatched.map((a) => a.kind)).toEqual(['submitStart', 'submitSuccess'])
+    expect(h.pushed).toEqual(['/audits'])
+  })
+
+  it('SUCCESS path: routes to /new when that destination was picked', async () => {
+    const h = harness({ save: async () => ({ profile: { onboarded: true }, error: null }) })
+    await h.run('/new')
+    expect(h.pushed).toEqual(['/new'])
+  })
+
+  it('SAVE-FAILURE path: dispatches submitError with the server message and does NOT push', async () => {
+    const h = harness({ save: async () => ({ profile: null, error: 'profile API answered 503' }) })
+    const result = await h.run('/audits')
+    expect(result).toBe('save-error')
+    expect(h.pushed).toEqual([])
+    const err = h.dispatched.find((a) => a.kind === 'submitError')
+    expect(err && 'error' in err ? err.error : null).toBe('profile API answered 503')
+  })
+
+  it("SAVE-FAILURE path with null error: falls back to 'unknown error' (defense in depth)", async () => {
+    const h = harness({ save: async () => ({ profile: null, error: null }) })
+    await h.run('/audits')
+    const err = h.dispatched.find((a) => a.kind === 'submitError')
+    expect(err && 'error' in err ? err.error : null).toBe('unknown error')
+  })
+
+  it('IN-FLIGHT GUARD: a second call while submitting=true returns "guarded" without calling save', async () => {
+    const save = vi.fn(async () => ({ profile: { onboarded: true }, error: null }))
+    const h = harness({ save, stateOverrides: { submitting: true } })
+    const result = await h.run('/audits')
+    expect(result).toBe('guarded')
+    expect(save).not.toHaveBeenCalled()
+    expect(h.pushed).toEqual([])
+    expect(h.dispatched).toEqual([])
+  })
+
+  it('PATCH-ERROR path: buildFinalPatch throws → dispatch submitError, save is never called', async () => {
+    // Reach the throw via "framework step visited but value empty" — exactly
+    // the silent-failure shape Finding 5 patched.
+    let state = initialWizardState(baseProfile)
+    state = onboardingReducer(state, { kind: 'setFramework', value: '' })
+    const save = vi.fn(async () => ({ profile: { onboarded: true }, error: null }))
+    const h = harness({ save, stateOverrides: state })
+    const result = await h.run('/audits')
+    expect(result).toBe('patch-error')
+    expect(save).not.toHaveBeenCalled()
+    expect(h.pushed).toEqual([])
+    const err = h.dispatched.find((a) => a.kind === 'submitError')
+    expect(err && 'error' in err ? err.error : null).toMatch(/no value selected/)
   })
 })
 
