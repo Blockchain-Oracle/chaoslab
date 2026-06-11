@@ -105,6 +105,14 @@ B1-B13 listed in `spec-audit/00-audit-summary.md` §"Minor amendments." Doc-hygi
 
 ## Implementation findings (logged during TDD execution)
 
+### IF-17 — Turbopack/Lightning CSS merges duplicate media-query blocks UPWARD (2026-06-11, S9.19/S9.20)
+
+Two `@media (max-width: 1040px)` blocks in globals.css get merged into the FIRST occurrence at build time — a late-in-file responsive override can land ABOVE the base rules it must beat, silently losing the cascade. Bit twice in one day (hero-grid track, docs-rail hide). Rules: (a) prefer editing the existing media block in place over appending a duplicate; (b) for new responsive surfaces write MOBILE-FIRST (base = mobile, `min-width` adds desktop) — min-width queries collide with nothing; (c) the dev server does NOT reliably pick up scripted full-file rewrites of globals.css — restart it before trusting a verification walk.
+
+### IF-18 — Phoenix SDK `examples=` requires pre-bucketed dicts (2026-06-11, PR #118)
+
+`datasets.create_dataset(examples=...)` / `add_examples_to_dataset(examples=...)` REQUIRE `{input, output, metadata}` dicts; the `input_keys`/`output_keys`/`metadata_keys` kwargs apply ONLY to the dataframe/CSV ingestion paths. Flat rows + key kwargs raise ValueError on the first real call. The unit fake accepted the flat shape for three review rounds — when a wrapper crosses a real SDK boundary, pin the WIRE shape with a recording fake, not just the Protocol shape.
+
 Discoveries made while implementing stories that contradict spec text. Each one updates this section so the next story doesn't re-hit the same wall.
 
 ### IF-16 — Staging had five stacked silent misconfigurations; no deployed audit had ever produced a real verdict (A1 seeding, 2026-06-10)
