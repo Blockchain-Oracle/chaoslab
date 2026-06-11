@@ -805,6 +805,34 @@ stories:
     pr_url: "https://github.com/Blockchain-Oracle/phoenix-audit/pull/117"
     merged_at: "2026-06-11T18:25:00Z"
 
+  - id: story-9.21-officer-annotations
+    epic: "Epic 9 — product surfaces real"
+    # Wave C4: officer human-review layer (POST review + retry-annotation
+    # endpoint; ClusterReview persists phoenix_annotated so refresh
+    # preserves the "(annotation pending)" disclosure) + Phoenix UI
+    # deep-links (PDF probe rows hyperlinked at SIGNING time; web SpanLink
+    # opens in Phoenix; PHOENIX_UI_BASE setting, null fields ⇒ no link
+    # affordance, never a dead link). The signed PDF stays IMMUTABLE — the
+    # recovered plan's "PDF reviewed-by-human line" is replaced by a
+    # separate dated trail alongside the artifact (rationale in spec).
+    # Closes issue #109 items 1 & 3. Review fleet caught HUMAN-overwrites-
+    # LLM identifier collision (B1) and refresh-loses-disclosure (B2);
+    # both fixed + tests pinned. Bundled fixes: PR #119 (phoenix-evals dep)
+    # was the production rubric blocker found here. Open follow-up:
+    # IF-19 trace-routing — target spans not joining auditor project after
+    # the Jun 10 20:10 endpoint switch (predates story-9.7, middleware
+    # exonerated by reproduction).
+    status: COMPLETE
+    estimate_hours: 0.0
+    tags: [fullstack, p0, phoenix, demo-narrative, issue-109]
+    depends_on:
+      - story-9.7-phoenix-sessions
+      - story-9.13-report-presentation
+      - story-9.20-docs-v2
+    issue_url: "https://github.com/Blockchain-Oracle/phoenix-audit/issues/109"
+    pr_url: "https://github.com/Blockchain-Oracle/phoenix-audit/pull/120"
+    merged_at: "2026-06-11T19:35:00Z"
+
 # Totals: 58 stories across 9 epics.
 # Aggregate estimate: ~78 hours of coding-agent work.
 # 9 days × multiple parallel coding agents = comfortably fits.
