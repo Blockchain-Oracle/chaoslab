@@ -14,7 +14,7 @@
 // liveError surfaces as a banner so an outage never displays a silent
 // empty page.
 
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { A } from '@/components/ui/link'
 import { PageFoot } from '@/components/ui/page-foot'
 import { SectionHead } from '@/components/ui/section-head'
@@ -234,16 +234,9 @@ export function DatasetsListingClient({ rows, liveError }: DatasetsListingClient
     setTimeout(() => setLandedId(null), 3200)
   }
 
-  // Escape closes the modal (mirrors DeleteDatasetModal behavior; ds-modal-veil
-  // owns the backdrop-click close).
-  useEffect(() => {
-    if (!uploadOpen) return
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setUploadOpen(false)
-    }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  }, [uploadOpen])
+  // Escape + backdrop + ✕ close are all owned by DatasetUploadModal
+  // itself so the busy-guard (refuse close while parsing) lives in one
+  // place (PR #122 silent-failure HIGH).
 
   return (
     <>
@@ -331,8 +324,21 @@ export function DatasetsListingClient({ rows, liveError }: DatasetsListingClient
           emptyState={
             <DsEmptyRow>
               Your own corpus runs <em>alongside</em> the synthetic battery, not instead of it —
-              prior incidents, internal red-team cases, your domain&rsquo;s must-refuse list. Drop a
-              file below to file the first one.
+              prior incidents, internal red-team cases, your domain&rsquo;s must-refuse list.{' '}
+              <button
+                type="button"
+                onClick={() => setUploadOpen(true)}
+                className="span-link"
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  padding: 0,
+                  font: 'inherit',
+                  cursor: 'pointer',
+                }}
+              >
+                Upload your first one →
+              </button>
             </DsEmptyRow>
           }
         />

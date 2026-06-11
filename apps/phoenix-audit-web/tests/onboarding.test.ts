@@ -404,6 +404,9 @@ describe('framework step mentions the Datasets surface (story-9.15 follow-up)', 
     const frameworkEnd = src.indexOf('export function', frameworkStart + 1)
     expect(frameworkStart).toBeGreaterThan(-1)
     const body = src.slice(frameworkStart, frameworkEnd)
-    expect(body).toMatch(/[Dd]ataset/)
+    // PR #122 review I5: tighten the pin — `[Dd]ataset` would pass on
+    // `datasetting` or a typo. Require the visible page name, which is
+    // <strong>Datasets</strong> in the actual copy.
+    expect(body).toMatch(/<strong>Datasets<\/strong>/)
   })
 })

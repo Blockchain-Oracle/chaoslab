@@ -57,9 +57,37 @@ describe('DatasetsListingClient — opens the modal on the CTA, not via scroll',
 
   it('still renders DatasetUploadCard exactly once — through the modal', () => {
     // The inline render at the page bottom is replaced; the modal is the
-    // sole mount point now. A duplicate render would mean the upload
-    // state can split across two trees.
-    const occurrences = (listingSrc.match(/<DatasetUploadCard/g) || []).length
-    expect(occurrences).toBe(0)
+    // sole mount point now. PR #122 code-reviewer I4: assert BOTH sides
+    // — zero in the listing client AND exactly one in the modal — so a
+    // future fork that double-mounts the card (e.g. a second hidden
+    // instance) trips the test.
+    expect((listingSrc.match(/<DatasetUploadCard/g) || []).length).toBe(0)
+    expect((modalSrc.match(/<DatasetUploadCard/g) || []).length).toBe(1)
+  })
+})
+
+describe('DatasetUploadModal — close behavior + accessibility', () => {
+  it('declares aria-modal="true" so screen readers announce the dialog', () => {
+    // I3/F3 finding — role="dialog" alone is insufficient for AT
+    // announcement. aria-modal=true is the canonical signal that
+    // the rest of the page is inert.
+    expect(modalSrc).toMatch(/aria-modal=['"]?true/)
+  })
+
+  it('autofocuses a close affordance on mount (keyboard nav entry)', () => {
+    // useRef + ref.current?.focus() inside useEffect is the documented
+    // pattern. A future revert that drops the ref would silently
+    // re-introduce the "Tab from page-bottom into modal" bug.
+    expect(modalSrc).toMatch(/useRef<HTMLButtonElement>/)
+    expect(modalSrc).toMatch(/\.current\?\.focus\(\)/)
+  })
+
+  it('busy-guards close — backdrop / Escape / ✕ refuse to close mid-parse', () => {
+    // PR #122 silent-failure HIGH: an accidental click during parsing
+    // killed the UI while the fetch kept running server-side. tryClose
+    // is the single guard; every close path must route through it.
+    expect(modalSrc).toMatch(/if \(busy\) return/)
+    // tryClose must be wired to the veil + Escape + ✕
+    expect(modalSrc).toMatch(/onClick=\{tryClose\}/)
   })
 })
