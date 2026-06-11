@@ -121,6 +121,7 @@ def _assemble_app() -> object:
 
     from target_agent.agent import root_agent as _agent
     from target_agent.fault_hooks import build_hook_routes
+    from target_agent.force_flush_middleware import ForceFlushMiddleware
     from target_agent.session_attrs import SessionAttributesMiddleware
     from target_agent.trace_context import TraceContextMiddleware
 
@@ -143,9 +144,14 @@ def _assemble_app() -> object:
     # OUTERMOST layer (runs FIRST on the inbound request, LAST on outbound).
     # Story-9.7 wants SessionAttributesMiddleware outside TraceContextMiddleware
     # so OpenInference's session attributes are on the contextvar before any
-    # tracer instrumentation starts span work. Order: inner first, outer last.
-    app.add_middleware(TraceContextMiddleware)  # inner
-    app.add_middleware(SessionAttributesMiddleware)  # outer
+    # tracer instrumentation starts span work. ForceFlushMiddleware is the
+    # OUTERMOST layer so its finally-block runs AFTER every inner span has
+    # ended — required to drain the BatchSpanProcessor before Cloud Run
+    # throttles CPU on response (IF-19, 2026-06-11). Order: inner first,
+    # outer last.
+    app.add_middleware(TraceContextMiddleware)  # innermost
+    app.add_middleware(SessionAttributesMiddleware)  # middle
+    app.add_middleware(ForceFlushMiddleware, tracer_provider=_TRACER_PROVIDER)  # outermost
     return app
 
 
