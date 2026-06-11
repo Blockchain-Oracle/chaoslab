@@ -265,6 +265,17 @@ def test_setup_observability_uses_cloud_run_default_flags() -> None:
     assert "batch=False" not in contents, (
         "must not pass batch=False on Cloud Run — see audit-notes D4-8"
     )
+    # IF-19 (2026-06-11): `batch=True` is load-bearing. Phoenix's register()
+    # otherwise defaults to SimpleSpanProcessor which synchronously POSTs
+    # each span on on_end — that fails silently on Cloud Run under audit
+    # concurrency (250 HTTPS round-trips per request, response-flush race
+    # with CPU throttling). The absence-only check on `batch=False` would
+    # pass whether `batch=True` was present, absent, or commented out;
+    # presence-check makes the regression visible. See audit-notes IF-19.
+    assert "batch=True" in contents, (
+        "batch=True is REQUIRED on Cloud Run — see audit-notes IF-19. "
+        "Without it, SimpleSpanProcessor drops spans under audit concurrency."
+    )
 
 
 def test_setup_observability_degrades_in_local_dev_without_credentials() -> None:
