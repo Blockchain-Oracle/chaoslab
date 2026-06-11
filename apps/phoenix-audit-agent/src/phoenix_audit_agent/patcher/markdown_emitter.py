@@ -154,6 +154,21 @@ class MarkdownEmitter:
             gcs_uri,
             len(markdown_bytes),
         )
+        # Story-9.17 sidecar: the STRUCTURED recipe, so the review-first MR
+        # endpoint can rehydrate it after the run. Contained — a sidecar
+        # failure only disables MR filing for this run (disclosed via the
+        # endpoint's 409), never fails the audit.
+        try:
+            await asyncio.to_thread(
+                self._upload_sidecar,
+                f"{recipe.recipe_id}.json",
+                recipe.model_dump_json(indent=2).encode("utf-8"),
+            )
+        except Exception:
+            logger.exception(
+                "recipe_json_sidecar_failed recipe_id=%s — MR filing will 409 for this run",
+                recipe.recipe_id,
+            )
         return EmitResult(
             recipe_id=recipe.recipe_id,
             gcs_uri=gcs_uri,
@@ -175,6 +190,12 @@ class MarkdownEmitter:
         if not exists:
             msg = f"GCS bucket {self._bucket_name!r} does not exist"
             raise BucketMissingError(msg)
+
+    def _upload_sidecar(self, blob_name: str, content: bytes) -> None:
+        """Plain upload, no signing, clobber-tolerant — the sidecar mirrors
+        whatever recipe the run last produced."""
+        bucket = self._client.bucket(self._bucket_name)
+        bucket.blob(blob_name).upload_from_string(content, content_type="application/json")
 
     def _upload_and_sign(self, blob_name: str, content: bytes) -> str:
         bucket = self._client.bucket(self._bucket_name)

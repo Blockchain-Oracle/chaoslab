@@ -21,6 +21,11 @@ const ALLOWED = [
   // Story-9.5: "Email me this report" — recipient is server-derived from
   // the verified token; the POST carries no body.
   /^runs\/[a-zA-Z0-9_-]+\/email$/,
+  // Story-9.17: review-first GitLab MR filing + the connect flow.
+  // NOTE: integrations/gitlab/exchange is deliberately ABSENT — only the
+  // /integrations/gitlab/callback server route may reach it.
+  /^runs\/[a-zA-Z0-9_-]+\/gitlab-mr$/,
+  /^integrations\/gitlab\/(connect|status|projects|connection)$/,
   /^stream$/,
   /^agents$/,
   /^agents\/[a-zA-Z0-9_-]+$/,

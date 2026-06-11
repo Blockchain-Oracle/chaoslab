@@ -3,9 +3,9 @@ auth scoping (story-9.4) is a query filter, not a migration."""
 
 from __future__ import annotations
 
-from typing import Literal
+from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator, model_validator
 
 Framework = Literal[
     "adk-a2a",
@@ -140,6 +140,36 @@ class AgentRecord(BaseModel):
     owner_uid: str | None = None
 
 
+class GitLabConnection(BaseModel):
+    """Per-user GitLab OAuth connection (story-9.17), stored on
+    `users/{uid}.gitlab`. Tokens live ONLY in Firestore — `UserProfile`
+    excludes this field from every dump so /profile can't leak them."""
+
+    model_config = ConfigDict(extra="ignore")
+
+    access_token: str = Field(min_length=1)
+    refresh_token: str = Field(min_length=1)
+    # Epoch seconds (authlib token shape). GitLab access tokens live 2h;
+    # the refresh gate compares against now+60s. gt=0 keeps a clock-skewed
+    # or zeroed value from reading as expired-forever (refresh storm).
+    expires_at: float = Field(gt=0)
+    username: str = Field(min_length=1)
+    gitlab_user_id: int
+    connected_at: str = Field(min_length=1)
+
+
+class GitLabOAuthState(BaseModel):
+    """Single-use PKCE state doc (`gitlab_oauth_states/{state}`) — the
+    code_verifier never leaves the server."""
+
+    model_config = ConfigDict(extra="ignore")
+
+    state: str = Field(min_length=1)
+    uid: str = Field(min_length=1)
+    code_verifier: str = Field(min_length=1)
+    created_at: str = Field(min_length=1)
+
+
 HostingPref = Literal["default", "byo"]
 
 
@@ -161,6 +191,30 @@ class UserProfile(BaseModel):
     # carries both timestamps; empty strings are unrepresentable.
     created_at: str | None = Field(default=None, min_length=1)
     updated_at: str | None = Field(default=None, min_length=1)
+    # Story-9.17: populated on VALIDATION (the backend reads tokens off the
+    # model) but `exclude=True` strips it from every dump — GET /profile
+    # returns this model verbatim, and tokens must never reach a browser.
+    gitlab: GitLabConnection | None = Field(default=None, exclude=True)
+
+    @field_validator("gitlab", mode="before")
+    @classmethod
+    def _gitlab_lenient(cls, v: Any) -> Any:
+        # A malformed/legacy gitlab blob must degrade to "not connected"
+        # (reconnect fixes it) — never 500 every /profile read for the user.
+        # The degradation is LOGGED (error keys only, never values) so schema
+        # drift doesn't silently disconnect a cohort.
+        if v is None or isinstance(v, GitLabConnection):
+            return v
+        try:
+            return GitLabConnection.model_validate(v)
+        except ValidationError as exc:
+            import structlog
+
+            structlog.get_logger(__name__).warning(
+                "gitlab_blob_degraded_to_disconnected",
+                invalid_fields=[str(e["loc"]) for e in exc.errors()],
+            )
+            return None
 
 
 Cadence = Literal["hourly", "daily"]

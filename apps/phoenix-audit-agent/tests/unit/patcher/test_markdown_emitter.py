@@ -52,7 +52,10 @@ def _recipe() -> HardeningRecipe:
 
 class _RecordingBlob(_Blob):
     def __init__(self) -> None:
+        # `uploaded` = FIRST upload (the .md artifact); `uploads` = all of
+        # them — story-9.17 adds a {recipe_id}.json sidecar second.
         self.uploaded: tuple[bytes, str] | None = None
+        self.uploads: list[tuple[bytes, str]] = []
         self.signed_args: dict[str, Any] = {}
         self.if_generation_match: int | None = None
 
@@ -62,8 +65,10 @@ class _RecordingBlob(_Blob):
         content_type: str,
         if_generation_match: int = 0,
     ) -> None:
-        self.uploaded = (data, content_type)
-        self.if_generation_match = if_generation_match
+        if self.uploaded is None:
+            self.uploaded = (data, content_type)
+            self.if_generation_match = if_generation_match
+        self.uploads.append((data, content_type))
 
     def generate_signed_url(
         self,
@@ -118,8 +123,13 @@ async def test_emit_uploads_to_gcs_with_correct_uri() -> None:
     result = await MarkdownEmitter(storage_client=client).emit(_recipe())
     assert isinstance(result, EmitResult)
     assert result.gcs_uri == "gs://chaoslab-recipes/recipe_abc123def456.md"
-    assert client.bucket_names == ["chaoslab-recipes"]
-    assert client.bucket_obj.blob_names == ["recipe_abc123def456.md"]
+    assert "chaoslab-recipes" in client.bucket_names
+    # .md first (the regulator-facing artifact), .json sidecar second
+    # (story-9.17 — rehydrates the structured recipe for MR filing).
+    assert client.bucket_obj.blob_names == [
+        "recipe_abc123def456.md",
+        "recipe_abc123def456.json",
+    ]
 
 
 async def test_emit_uploads_with_markdown_content_type() -> None:
@@ -130,6 +140,32 @@ async def test_emit_uploads_with_markdown_content_type() -> None:
     content, content_type = uploaded
     assert content_type == "text/markdown; charset=utf-8"
     assert content.startswith(b"# PhoenixAudit Hardening Recipe")
+
+
+async def test_emit_uploads_structured_recipe_sidecar() -> None:
+    """story-9.17: the JSON sidecar must rehydrate to the SAME recipe."""
+    from phoenix_audit_agent.patcher import HardeningRecipe
+
+    client = _RecordingClient()
+    await MarkdownEmitter(storage_client=client).emit(_recipe())
+    assert len(client.blob.uploads) == 2
+    data, content_type = client.blob.uploads[1]
+    assert content_type == "application/json"
+    rehydrated = HardeningRecipe.model_validate_json(data)
+    assert rehydrated.recipe_id == "recipe_abc123def456"
+
+
+async def test_emit_sidecar_failure_contained(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A sidecar outage only disables later MR filing — never fails the audit."""
+    client = _RecordingClient()
+    emitter = MarkdownEmitter(storage_client=client)
+
+    def boom(blob_name: str, content: bytes) -> None:
+        raise RuntimeError("gcs hiccup")
+
+    monkeypatch.setattr(emitter, "_upload_sidecar", boom)
+    result = await emitter.emit(_recipe())
+    assert isinstance(result, EmitResult)
 
 
 async def test_emit_returns_signed_url_with_expected_query_params() -> None:

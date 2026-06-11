@@ -180,6 +180,24 @@ class Settings(BaseSettings):
         min_length=1,
         description="Target branch for hardening-recipe MRs (typical: 'main').",
     )
+    GITLAB_OAUTH_CLIENT_ID: str = Field(
+        default="",
+        description=(
+            "GitLab OAuth application id (story-9.17 per-user connect). "
+            "Empty ⇒ /integrations/gitlab/* fails closed (503)."
+        ),
+    )
+    GITLAB_OAUTH_CLIENT_SECRET: SecretStr | None = Field(
+        default=None,
+        description="GitLab OAuth application secret (Secret Manager-injected).",
+    )
+    GITLAB_OAUTH_REDIRECT_URI: str = Field(
+        default="",
+        description=(
+            "The web callback URL registered on the GitLab OAuth app "
+            "(https://<web>/integrations/gitlab/callback)."
+        ),
+    )
     RESEND_API_KEY: SecretStr | None = Field(
         default=None,
         description=(
