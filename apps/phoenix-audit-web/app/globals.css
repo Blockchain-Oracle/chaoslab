@@ -1441,6 +1441,12 @@ textarea {
   padding: 26px 30px 24px;
   box-shadow: 0 30px 80px rgba(0, 0, 0, 0.35);
 }
+/* story-9.15 follow-up: upload modal variant — wider to host the
+ * drop-zone, ember accent (not destructive-red) on the top border. */
+.ds-modal.ds-modal-upload {
+  max-width: 620px;
+  border-top-color: var(--ember-deep);
+}
 .btn.danger {
   border-color: var(--fail);
   color: var(--fail);

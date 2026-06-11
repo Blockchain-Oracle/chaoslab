@@ -15,7 +15,7 @@
 //
 // Both block the upload; nothing is persisted unless every row passes.
 
-import { useRef, useState, type ChangeEvent, type DragEvent } from 'react'
+import { useEffect, useRef, useState, type ChangeEvent, type DragEvent } from 'react'
 import { uploadDataset } from '@/lib/datasets-client'
 import type { DatasetListRowDto, UploadValidationErrorDto } from '@/lib/datasets-types'
 import { approxRowCount, detectFormat } from '@/lib/dataset-upload'
@@ -36,10 +36,22 @@ async function fileToBase64(file: File): Promise<string> {
 
 interface Props {
   onUploaded(row: DatasetListRowDto): void
+  /** PR #122 silent-failure HIGH: when the card lives inside a modal,
+   *  the parent needs to block backdrop / Escape closes mid-upload so an
+   *  accidental click doesn't silently kill the UI for an in-flight POST.
+   *  Fires on every state transition with the new kind. */
+  onStateChange?(kind: UploadState['kind']): void
 }
 
-export function DatasetUploadCard({ onUploaded }: Props) {
+export function DatasetUploadCard({ onUploaded, onStateChange }: Props) {
   const [state, setState] = useState<UploadState>({ kind: 'idle' })
+  // PR #122 silent-failure HIGH: notify the parent on every state-kind
+  // transition so it can block backdrop / Escape closes while the upload
+  // is in flight. Keeping this in one effect (vs. lifting the state
+  // machine outward) preserves the card's existing internal contract.
+  useEffect(() => {
+    onStateChange?.(state.kind)
+  }, [state.kind, onStateChange])
   const [armed, setArmed] = useState(false)
   const [flash, setFlash] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)

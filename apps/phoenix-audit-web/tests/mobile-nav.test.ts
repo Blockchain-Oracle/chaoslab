@@ -8,8 +8,17 @@ import { describe, expect, it } from 'vitest'
 import { MOBILE_BREAKPOINT_PX, NAV_ITEMS, drawerReducer, isNavActive } from '@/lib/mobile-nav'
 
 describe('NAV_ITEMS — single nav model for inline topbar AND drawer', () => {
-  it('carries the four product destinations in order', () => {
-    expect(NAV_ITEMS.map(([slug]) => slug)).toEqual(['audits', 'agents', 'monitoring', 'settings'])
+  it('carries the five product destinations in order, with Datasets between Target agents and Monitoring', () => {
+    // story-9.15 follow-up: Datasets was invisible to users who hadn't read the
+    // spec. Placing it BETWEEN Target agents and Monitoring matches the mental
+    // flow "what am I auditing → what data am I auditing with → how it's going."
+    expect(NAV_ITEMS.map(([slug]) => slug)).toEqual([
+      'audits',
+      'agents',
+      'datasets',
+      'monitoring',
+      'settings',
+    ])
   })
 
   it('topbar.tsx renders from THIS model (no second copy to drift)', () => {

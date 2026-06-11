@@ -14,7 +14,7 @@
 // liveError surfaces as a banner so an outage never displays a silent
 // empty page.
 
-import { useRef, useState } from 'react'
+import { useState } from 'react'
 import { A } from '@/components/ui/link'
 import { PageFoot } from '@/components/ui/page-foot'
 import { SectionHead } from '@/components/ui/section-head'
@@ -22,7 +22,7 @@ import { TopBar } from '@/components/ui/topbar'
 import { fmtDate } from '@/lib/format'
 import { groupDatasetsByKind, type DatasetSection } from '@/lib/datasets-grouping'
 import type { DatasetKind, DatasetListRowDto } from '@/lib/datasets-types'
-import { DatasetUploadCard } from './dataset-upload-card'
+import { DatasetUploadModal } from './dataset-upload-modal'
 import { DeleteDatasetModal } from './delete-dataset-modal'
 
 const KIND_GLYPH: Record<DatasetKind, string> = {
@@ -216,7 +216,10 @@ export function DatasetsListingClient({ rows, liveError }: DatasetsListingClient
   const [optimistic, setOptimistic] = useState<DatasetListRowDto[]>([])
   const [landedId, setLandedId] = useState<string | null>(null)
   const [deleting, setDeleting] = useState<DatasetListRowDto | null>(null)
-  const uploadRef = useRef<HTMLDivElement>(null)
+  // story-9.15 follow-up: upload UX moved from inline-at-page-bottom (+
+  // scroll-to-anchor) to a centered modal. The CTA opens the modal; the
+  // modal closes itself on successful upload via onUploaded.
+  const [uploadOpen, setUploadOpen] = useState(false)
 
   const all = [...optimistic, ...rows]
   const sections = groupDatasetsByKind(all)
@@ -227,16 +230,13 @@ export function DatasetsListingClient({ rows, liveError }: DatasetsListingClient
   const onUploaded = (row: DatasetListRowDto) => {
     setOptimistic((prev) => [row, ...prev])
     setLandedId(row.dataset_id)
+    setUploadOpen(false)
     setTimeout(() => setLandedId(null), 3200)
   }
-  const scrollToUpload = () => {
-    const el = uploadRef.current
-    if (el)
-      window.scrollTo({
-        top: el.getBoundingClientRect().top + window.scrollY - 90,
-        behavior: 'smooth',
-      })
-  }
+
+  // Escape + backdrop + ✕ close are all owned by DatasetUploadModal
+  // itself so the busy-guard (refuse close while parsing) lives in one
+  // place (PR #122 silent-failure HIGH).
 
   return (
     <>
@@ -251,7 +251,7 @@ export function DatasetsListingClient({ rows, liveError }: DatasetsListingClient
               Datasets.
             </h1>
           </div>
-          <button className="btn ghost" onClick={scrollToUpload}>
+          <button className="btn ghost" onClick={() => setUploadOpen(true)}>
             Upload a dataset
           </button>
         </div>
@@ -324,16 +324,28 @@ export function DatasetsListingClient({ rows, liveError }: DatasetsListingClient
           emptyState={
             <DsEmptyRow>
               Your own corpus runs <em>alongside</em> the synthetic battery, not instead of it —
-              prior incidents, internal red-team cases, your domain&rsquo;s must-refuse list. Drop a
-              file below to file the first one.
+              prior incidents, internal red-team cases, your domain&rsquo;s must-refuse list.{' '}
+              <button
+                type="button"
+                onClick={() => setUploadOpen(true)}
+                className="span-link"
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  padding: 0,
+                  font: 'inherit',
+                  cursor: 'pointer',
+                }}
+              >
+                Upload your first one →
+              </button>
             </DsEmptyRow>
           }
         />
-
-        <div ref={uploadRef} style={{ marginTop: 4 }}>
-          <DatasetUploadCard onUploaded={onUploaded} />
-        </div>
       </div>
+      {uploadOpen ? (
+        <DatasetUploadModal onCancel={() => setUploadOpen(false)} onUploaded={onUploaded} />
+      ) : null}
       {deleting ? (
         <DeleteDatasetModal
           row={deleting}
