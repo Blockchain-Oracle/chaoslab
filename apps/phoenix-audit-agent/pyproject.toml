@@ -44,6 +44,8 @@ dependencies = [
   "google-crc32c>=1.8.0",
   "google-cloud-firestore>=2.19",
   "email-validator>=2.0",
+  # Resend — story-9.5 email delivery (scheduled summaries + email-me-this-report).
+  "resend>=2.0,<3.0",
 ]
 
 [dependency-groups]

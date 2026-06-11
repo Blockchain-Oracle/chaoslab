@@ -180,6 +180,27 @@ class Settings(BaseSettings):
         min_length=1,
         description="Target branch for hardening-recipe MRs (typical: 'main').",
     )
+    RESEND_API_KEY: SecretStr | None = Field(
+        default=None,
+        description=(
+            "Resend API key (Secret Manager-injected on Cloud Run). Unset ⇒ "
+            "email features fail closed: the email endpoint 503s and the "
+            "scheduled-summary hook skips loudly (story-9.5)."
+        ),
+    )
+    EMAIL_FROM: str = Field(
+        default="Phoenix Audit <reports@phxaudit.xyz>",
+        min_length=1,
+        description="Verified Resend sender for summary + report emails.",
+    )
+    PUBLIC_WEB_URL: str = Field(
+        default="",
+        description=(
+            "Public web origin (https://phxaudit.xyz) for portal links inside "
+            "emails. Empty ⇒ the portal-link row is omitted — never a "
+            "localhost link in a customer inbox."
+        ),
+    )
     environment: Environment = Field(
         default="dev",
         description="dev | staging | prod — gates fail-loud vs degraded paths.",

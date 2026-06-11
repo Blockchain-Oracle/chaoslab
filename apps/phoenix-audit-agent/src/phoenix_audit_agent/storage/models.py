@@ -46,6 +46,9 @@ class RunRecord(BaseModel):
     report_available: bool = False
     # A replay timeline (reports/{run_id}/events.json) exists for this run.
     events_available: bool = False
+    # Story 9.5: the monitoring schedule that launched this run (None for
+    # manual runs). The finalize email hook resolves `deliver_email` from it.
+    schedule_id: str | None = None
     mr_url: str | None = None
     org_id: str = "default"
     owner_uid: str | None = None

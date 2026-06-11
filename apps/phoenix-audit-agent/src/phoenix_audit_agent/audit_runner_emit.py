@@ -309,6 +309,16 @@ async def finalize_run(
                 run_id=run_id,
                 blob=f"reports/{run_id}/events.json",
             )
+    # Story-9.5: scheduled-summary email, LAST — mail must never delay the
+    # complete frame or the replay timeline. Double-contained: the hook
+    # contains internally, and this guard keeps a monkeypatched/future hook
+    # from ever failing a finalize.
+    from phoenix_audit_agent.notifier import report_mail
+
+    try:
+        await report_mail.maybe_send_scheduled_summary(run_id)
+    except Exception:
+        _log.error("schedule_email_hook_failed", run_id=run_id, exc_info=True)
 
 
 __all__ = [
