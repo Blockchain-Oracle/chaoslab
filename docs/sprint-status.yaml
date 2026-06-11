@@ -748,6 +748,25 @@ stories:
     pr_url: "https://github.com/Blockchain-Oracle/phoenix-audit/pull/112"
     merged_at: "2026-06-11T17:15:00Z"
 
+  - id: story-9.18-domain-go-live
+    epic: "Epic 9 — product surfaces real"
+    # Wave C3: phxaudit.xyz live end-to-end. Infra (done directly, verified):
+    # Cloud Run mappings apex+www→web, api→agent (TLS issued, 200 on
+    # https://phxaudit.xyz); Resend domain VERIFIED (DKIM/SPF/MX) with a real
+    # production send from reports@phxaudit.xyz; Firebase authorized domains
+    # += phxaudit.xyz + www; Firestore TTL on gitlab_oauth_states.expire_at.
+    # Repo side (PR #113): metadataBase, deploy env (PUBLIC_WEB_URL,
+    # GITLAB_OAUTH_REDIRECT_URI) + secret bindings (RESEND_API_KEY,
+    # GITLAB_OAUTH_CLIENT_ID/SECRET), expire_at Timestamp on state docs
+    # (TTL ignores string fields).
+    status: COMPLETE
+    estimate_hours: 0.0
+    tags: [infra, p0, domain]
+    depends_on: [story-9.5-email-summaries, story-9.17-gitlab-oauth-connect]
+    issue_url: ""
+    pr_url: "https://github.com/Blockchain-Oracle/phoenix-audit/pull/113"
+    merged_at: "2026-06-11T17:30:00Z"
+
 # Totals: 58 stories across 9 epics.
 # Aggregate estimate: ~78 hours of coding-agent work.
 # 9 days × multiple parallel coding agents = comfortably fits.
