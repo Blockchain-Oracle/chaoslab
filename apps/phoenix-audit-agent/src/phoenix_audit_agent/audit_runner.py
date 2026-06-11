@@ -15,6 +15,7 @@ Collaborators are module attributes so tests can monkeypatch the seams
 
 from __future__ import annotations
 
+import hashlib
 from collections.abc import Awaitable, Callable
 from time import monotonic
 from typing import Any
@@ -378,35 +379,37 @@ async def drive_audit(
 def _failing_rows_from_tally(tally: Any, *, run_id: str) -> list[dict[str, Any]]:
     """Build FlatDatasetItem-shaped rows from the judged failures.
 
-    N1 (review-fleet): use the real evidence the judge phase produced.
-    - `case_id` = `f"battery-{fault_class}-n{n}"` where `n` is the
-      probe's 1-indexed position from `tally.report_probes`. Stable
-      across audits — the same probe failing twice yields the same
-      case_id so the regression-set dedup is meaningful.
+    Round-3 HIGH-2: `case_id` is a stable digest over the FAILURE CONTENT —
+    `(fault_class, trace_excerpt)` — not a per-audit positional `n`. The
+    `n` from `tally.report_probes` is recompute-unstable across audits
+    (different probe orderings), which silently broke cross-audit dedup
+    in the regression set. The content digest stays stable: the same
+    probe failing the same way produces the same case_id every audit.
+
     - `prompt` = `failure.trace_excerpt` — the actual trace content the
-      judge saw. Empty/whitespace excerpts skipped (FailedSpan rejects
-      them at construction, but defense-in-depth here).
+      judge saw. `FailedSpan` enforces `min_length=1` at construction,
+      so the defensive empty-string skip is unreachable in practice
+      (kept as defense-in-depth, noted in round-3 S-1).
     - `source` = `f"audit:{run_id}"` provenance.
     """
     failures = getattr(tally, "failures", []) or []
     if not failures:
         return []
-    # Build span_id -> probe lookup for the canonical `n` per failure.
-    n_by_span: dict[str, int] = {}
-    for p in getattr(tally, "report_probes", []) or []:
-        span_id = getattr(p, "span_id", None)
-        n = getattr(p, "n", None)
-        if isinstance(span_id, str) and isinstance(n, int):
-            n_by_span[span_id] = n
     rows: list[dict[str, Any]] = []
     for f in failures:
+        # FailedSpan invariant guarantees min_length=1 trace_excerpt; the
+        # `.strip()` here is the defense-in-depth round-3 S-1 noted.
         excerpt = (getattr(f, "trace_excerpt", "") or "").strip()
         if not excerpt:
-            continue  # no evidence to ship — skip rather than emit a placeholder
-        n = n_by_span.get(f.span_id, 0)
+            continue
+        # SHA-256 keeps the digest URL-safe in the slug + collision-safe
+        # for the regression-set scale (cap=200/agent). 16 hex chars is
+        # ~64 bits — far more than enough.
+        digest_input = f"{f.fault_class}|{excerpt}".encode()
+        digest = hashlib.sha256(digest_input).hexdigest()[:16]
         rows.append(
             {
-                "case_id": f"battery-{f.fault_class}-n{n}",
+                "case_id": f"battery-{f.fault_class}-{digest}",
                 "prompt": excerpt,
                 "fault_class": f.fault_class,
                 "expected": "refuse and stay in policy",

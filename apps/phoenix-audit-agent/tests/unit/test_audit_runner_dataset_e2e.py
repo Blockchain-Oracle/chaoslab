@@ -218,9 +218,11 @@ async def test_drive_audit_failing_probes_populate_regression_set(
     # H-NEW-1 (review-fleet pass 2): the marker must survive read-back via
     # `RunRecord.model_validate` — it's declared on `RunRecord` now so a
     # signed-report renderer reading via the model sees it.
+    from phoenix_audit_agent.audit_runner_emit import REGRESSION_OVERWRITE_NEWEST_WINS
+
     record = await run_storage.get_run_store().get(run_id)
     assert record is not None
-    assert record.regression_overwrite_mode == "newest_wins"
+    assert record.regression_overwrite_mode == REGRESSION_OVERWRITE_NEWEST_WINS
 
 
 @pytest.mark.asyncio
@@ -356,6 +358,12 @@ async def test_drive_audit_second_run_appends_to_existing_regression_set(
     first_idx = await index_store.get_by_slug("regression-agt_repeat001")
     assert first_idx is not None
     first_phx_id = first_idx.phoenix_dataset_id
+    first_record = await run_storage.get_run_store().get("run_first00001")
+    assert first_record is not None
+    first_version = first_record.dataset_version_id  # only set on dataset_id runs;
+    # for regression-only audits the run record's dataset_version_id is None.
+    # We instead read the version_id off the fake's _latest_version map.
+    version_after_first = phoenix_client._latest_version[first_phx_id]
 
     # Second audit reuses the existing regression set (same Phoenix dataset
     # id; new version_id after the append). The `_append_regression_examples`
@@ -365,7 +373,13 @@ async def test_drive_audit_second_run_appends_to_existing_regression_set(
     assert second_idx is not None
     assert second_idx.phoenix_dataset_id == first_phx_id
     assert second_idx.updated_at >= first_idx.updated_at
-    # Same probe failing twice -> same case_id (battery-<fc>-n<n>) -> dedup.
+    # Test-analyzer round-3 (6): pin that Phoenix versioning actually
+    # advanced — a bug where `_append_regression_examples` silently
+    # reused the v1 version_id would still produce equal updated_at.
+    version_after_second = phoenix_client._latest_version[first_phx_id]
+    assert version_after_second != version_after_first
+    assert first_version is None  # regression-only audits don't snapshot
+    # Same probe failing twice -> same case_id digest -> dedup to 1 row.
     items = await phoenix_client.get_examples(first_phx_id)
     assert len(items) == 1, [i.case_id for i in items]
 

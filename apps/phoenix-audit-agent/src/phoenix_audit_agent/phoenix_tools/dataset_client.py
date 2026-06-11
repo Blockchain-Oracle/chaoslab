@@ -219,7 +219,17 @@ class PhoenixDatasetClientImpl:
         except (httpx.RequestError, TimeoutError) as e:
             raise PhoenixUnavailableError(str(e)) from e
         # `Dataset.version_id` is the canonical wire field per the SDK.
-        return ds.version_id
+        # Round-3 LOW: defensive str-coerce + non-empty check so an SDK
+        # shape drift (returning None / int) raises a typed error here
+        # instead of corrupting the downstream Pydantic str field.
+        version_id = ds.version_id
+        if not isinstance(version_id, str) or not version_id:
+            msg = (
+                f"Phoenix SDK returned non-string version_id "
+                f"for {phoenix_dataset_id}: {version_id!r}"
+            )
+            raise PhoenixUnavailableError(msg)
+        return version_id
 
     async def delete(self, phoenix_dataset_id: str) -> None:
         # H4 (review-fleet): the SDK doesn't yet expose dataset delete in

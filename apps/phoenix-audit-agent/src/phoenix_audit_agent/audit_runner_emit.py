@@ -40,6 +40,11 @@ _log = structlog.get_logger(__name__)
 
 EmitFn = Callable[[str, dict[str, Any]], Awaitable[None]]
 
+# Round-3 S-2: literal for `RunCompletion.regression_overwrite_mode` —
+# one canonical string so tests + code never drift. Story-9.16 will add
+# SDK-side strategies (e.g. "phoenix_delete_then_recreate") alongside.
+REGRESSION_OVERWRITE_NEWEST_WINS = "newest_wins"
+
 
 async def emit_signed_report(
     report_data: ReportData,
@@ -177,11 +182,10 @@ async def _apply_dataset_evidence(
             run_id=run_id,
         )
         if version_id is not None:
-            # N2 (review-fleet pass 2): "newest_wins" describes the dedup
-            # semantics, true on both fake AND real SDK paths. The old
-            # "fake_newest_wins" misled the regulator-facing metadata into
-            # claiming production runs were fake-handled.
-            completion.regression_overwrite_mode = "newest_wins"
+            # "newest_wins" describes the dedup semantics, true on both
+            # fake AND real SDK paths. The constant lives at module top
+            # (round-3 S-2) so tests + code never drift on the literal.
+            completion.regression_overwrite_mode = REGRESSION_OVERWRITE_NEWEST_WINS
 
 
 async def finalize_run(
@@ -267,6 +271,7 @@ async def finalize_run(
 
 
 __all__ = [
+    "REGRESSION_OVERWRITE_NEWEST_WINS",
     "completion_fields",
     "emit_signed_report",
     "finalize_run",
