@@ -8,9 +8,10 @@ same Protocol so the unit suite is offline by construction.
 
 Flat-row contract: our code passes a list of `FlatDatasetItem`-shaped
 mappings (the columns the operator sees — `case_id / prompt / fault_class /
-expected / source / severity / notes`). The wrapper slices them into
-Phoenix's `input / output / metadata` buckets via `input_keys` / `output_keys`
-/ `metadata_keys` per the SDK convention. The buckets never leak out.
+expected / source / severity / notes`). The wrapper VALIDATES each row and
+slices it into the pre-bucketed `{input, output, metadata}` example shape the
+SDK's `examples=` parameter requires (the `*_keys` kwargs apply only to the
+dataframe/CSV ingestion paths). The buckets never leak out.
 """
 
 from __future__ import annotations
@@ -116,10 +117,31 @@ class PhoenixDatasetClient(Protocol):
 
 
 def _normalize_row(row: dict[str, Any] | FlatDatasetItem) -> dict[str, Any]:
-    """Coerce either input shape into a flat dict the SDK accepts."""
+    """Coerce either input shape into a flat dict."""
     if isinstance(row, FlatDatasetItem):
         return row.model_dump()
     return dict(row)
+
+
+def _bucket_row(row: dict[str, Any] | FlatDatasetItem) -> dict[str, dict[str, Any]]:
+    """Validate a flat row, then slice it into the SDK's pre-bucketed shape.
+
+    The SDK's `examples=` parameter REQUIRES `{input, output, metadata}`
+    dicts — the `input_keys`/`output_keys`/`metadata_keys` kwargs apply only
+    to the dataframe/CSV ingestion paths. Passing flat rows raised
+    ValueError on the first real call (staging seed, 2026-06-11); the fake
+    had accepted the flat shape, masking it.
+
+    Validation is write-time ON PURPOSE (PR #118 HIGH-1): an invalid row
+    (e.g. a regression row missing `prompt`) must fail HERE, loudly, not
+    write `None` into Phoenix and detonate every later read of the dataset
+    as an unpartitioned ValidationError."""
+    flat = FlatDatasetItem.model_validate(_normalize_row(row)).model_dump()
+    return {
+        "input": {k: flat.get(k) for k in _INPUT_KEYS},
+        "output": {k: flat.get(k) for k in _OUTPUT_KEYS},
+        "metadata": {k: flat.get(k) for k in _METADATA_KEYS},
+    }
 
 
 async def _partition_sdk_call(phoenix_dataset_id: str, coro: Any) -> Any:
@@ -183,7 +205,7 @@ class PhoenixDatasetClientImpl:
         description: str | None,
         source_url: str | None,
     ) -> CreatedDataset:
-        rows = [_normalize_row(r) for r in examples]
+        rows = [_bucket_row(r) for r in examples]
         # `source_url` is appended to the description for now — Phoenix's
         # Dataset has a description field but no native source_url. The
         # Firestore index carries the canonical source_url.
@@ -197,9 +219,6 @@ class PhoenixDatasetClientImpl:
             self._client().datasets.create_dataset(
                 name=name,
                 examples=rows,
-                input_keys=_INPUT_KEYS,
-                output_keys=_OUTPUT_KEYS,
-                metadata_keys=_METADATA_KEYS,
                 dataset_description=full_desc or None,
             ),
         )
@@ -214,7 +233,7 @@ class PhoenixDatasetClientImpl:
         phoenix_dataset_id: str,
         examples: Sequence[dict[str, Any]] | Sequence[FlatDatasetItem],
     ) -> str:
-        rows = [_normalize_row(r) for r in examples]
+        rows = [_bucket_row(r) for r in examples]
         # Uniform partitioning: a stale `phoenix_dataset_id` (the bridge-
         # drift case) now raises `PhoenixDatasetNotFoundError`, making the
         # `try_regression_upsert` bridge_drift log event reachable in prod.
@@ -223,9 +242,6 @@ class PhoenixDatasetClientImpl:
             self._client().datasets.add_examples_to_dataset(
                 dataset=phoenix_dataset_id,
                 examples=rows,
-                input_keys=_INPUT_KEYS,
-                output_keys=_OUTPUT_KEYS,
-                metadata_keys=_METADATA_KEYS,
             ),
         )
         return ds.version_id  # type: ignore[no-any-return]
