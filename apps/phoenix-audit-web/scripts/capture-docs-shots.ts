@@ -25,7 +25,12 @@ const SHOTS: Array<{ file: string; path: string; authed: boolean; settleMs?: num
   { file: 'monitoring.png', path: '/monitoring', authed: true },
   // The docs caption says "a signed audit report" — capture an actual report
   // view (the labeled sample), not the history table.
-  { file: 'report.png', path: '/report/run_9f3c2ab81d4e', authed: true },
+  { file: 'report.png', path: '/report/run_ddf8b97511ca', authed: true },
+  // Story-9.20 sections: datasets, GitLab connect (settings card), email
+  // (the report action row carries the "Email me this report" button).
+  { file: 'datasets.png', path: '/datasets', authed: true },
+  { file: 'gitlab.png', path: '/settings', authed: true },
+  { file: 'email.png', path: '/report/run_ddf8b97511ca', authed: true },
 ]
 
 async function main(): Promise<void> {
