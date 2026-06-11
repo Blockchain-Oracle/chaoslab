@@ -17,10 +17,16 @@ pattern is shown in `research/.../architecture/02-phoenix-deep-dive.md §3.4`
 - `set_global_tracer_provider=True` (default) — Cloud Run is our locked
   deploy target per ADR-003. §3.5 explicitly recommends defaults on Cloud
   Run; we honor that. Vertex Agent Engine portability is a non-goal.
-- `batch=True` (default) — Cloud Run does NOT pause CPU between requests
-  like Agent Engine, so BatchSpanProcessor's 5s flush interval is fine.
-  Demo-urgency flushing is handled by the orchestrator calling
-  `force_flush()` at audit-end, not by switching the processor type.
+- `batch=True` (default) — Phoenix's register() returns a
+  `SimpleSpanProcessor` (despite the kwarg name; see the boot banner). On
+  Cloud Run this REQUIRES `--no-cpu-throttling` because the SDK's
+  synchronous OTLP POST stalls the moment CPU drops below ~5%, and ADK's
+  `agent_run` / `call_llm` / `execute_tool` spans end during exactly that
+  window (after the HTTP response is on the wire). Diagnosed 2026-06-11
+  (IF-19): live target produced 0 spans across 24h+ with the Cloud Run
+  default `cpu-throttling=true`, while local target on the same image
+  emitted 50 spans per probe. The `--no-cpu-throttling` flag is wired
+  per-service via `extra_flags` in `.github/workflows/staging-deploy.yaml`.
 - `auto_instrument=False` — we explicitly wire `GoogleADKInstrumentor`;
   do not let Phoenix hook every installed openinference-* package and
   pollute spans.
@@ -283,12 +289,22 @@ def setup_observability(
         )
         raise ConfigurationError(msg) from e
 
-    # Cloud Run defaults per architecture/02 §3.5: set_global_tracer_provider=True
-    # and batch=True. tools.py's module-level `trace.get_tracer()` will
+    # batch=True is critical on Cloud Run. With Phoenix's default
+    # SimpleSpanProcessor, each span exports via a synchronous OTLP POST
+    # on `on_end()`. Under audit concurrency (5 baseline probes in flight,
+    # ~50 spans each), the synchronous chain serializes ~250 HTTPS POSTs
+    # per request, and per-trace throughput drops far enough that most
+    # spans never flush before the request returns and CPU throttling
+    # kicks in. Diagnosed 2026-06-11 (IF-19): live audits produced 0
+    # target spans for 11 of 13 traces; direct single curls produced
+    # 48-50 spans cleanly. BatchSpanProcessor's queue absorbs the burst
+    # and force_flush() at the end of each request guarantees pre-
+    # response export. tools.py's module-level `trace.get_tracer()` will
     # automatically pick up the global Phoenix-wired provider.
     tracer_provider = register(
         project_name=project_name,
         auto_instrument=False,
+        batch=True,
     )
 
     # Defensive runtime check: if some upstream code already installed a

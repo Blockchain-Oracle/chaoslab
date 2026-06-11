@@ -72,10 +72,18 @@ jobs:
             # KMS_SIGNING_KEY_VERSION: without it every run logs CRITICAL and
             # skips the signed report (key provisioned by infra/workload-
             # identity-federation.sh; staging never had it until 2026-06-10).
-            # TARGET_PHOENIX_PROJECT=phoenix-audit: when the auditor joins
-            # trace context onto probes, Phoenix routes the target's spans
-            # into the AUDITOR's project — the judge must read evidence there,
-            # not from the target's own resource project (verified 2026-06-10).
+            # TARGET_PHOENIX_PROJECT=phoenix-audit: re-verified 2026-06-11
+            # while diagnosing IF-19 — Phoenix Cloud routes child spans to
+            # whichever project owns the trace_id's root/parent span. Since
+            # the auditor's `phoenix-audit.adapter.adk.invoke` span lands
+            # first under phoenix-audit, the target's downstream agent_run/
+            # call_llm/execute_tool spans (sharing the trace_id via
+            # W3C traceparent propagation) get routed into phoenix-audit
+            # too. The earlier `target-agent` value was wrong: the target's
+            # tracer is registered with project_name=target-agent, but
+            # Phoenix overrides per-trace based on root-span ownership.
+            # Verified with traces `3043eca1...` and `c72c3e3b...` from
+            # run_fddd5de82845.
             # PUBLIC_WEB_URL (story-9.5/C3): portal links in emails + the
             # OAuth exchange's settings-redirect target — the live domain.
             # GITLAB_OAUTH_REDIRECT_URI (story-9.17): must EXACTLY match a
@@ -105,6 +113,18 @@ jobs:
             # http://localhost:8001 and every A2A message/send dispatches to
             # localhost — baseline fails 0/5 on any audit against this target.
             extra_env: ",FAULT_HOOKS_ENABLED=true,PUBLIC_URL=__RESOLVE_SELF_URL__"
+            # --no-cpu-throttling: Phoenix's SimpleSpanProcessor exports each
+            # span synchronously via HTTPS POST. With Cloud Run's default
+            # cpu-throttling=true, CPU is throttled to ~5% the moment the HTTP
+            # response is sent — ADK's `agent_run`/`call_llm`/`execute_tool`
+            # spans end during a window where the OTLP POST stalls and the
+            # span is silently dropped. The auditor service avoids this
+            # because its SSE stream stays open for the full audit (~90s) so
+            # CPU stays allocated. The target serves short, discrete probes
+            # and needs always-allocated CPU to flush spans. Diagnosed
+            # 2026-06-11: live target produced 0 spans across 24h+ while
+            # local target with same image+env emitted 50 spans per probe.
+            extra_flags: --no-cpu-throttling
             max_instances: 10
           - service: phoenix-audit-web
             path: apps/phoenix-audit-web
@@ -260,6 +280,7 @@ jobs:
             --port=8080 \
             --cpu-boost \
             ${{ matrix.auth_flag }} \
+            ${{ matrix.extra_flags || '' }} \
             --set-env-vars=ENVIRONMENT=staging,JUDGE_LLM=gemini-3.5-flash,SERVICE_VERSION="${GITHUB_SHA}",PHOENIX_PROVIDER=${PHOENIX_PROVIDER},PHOENIX_COLLECTOR_ENDPOINT=${PHOENIX_COLLECTOR_ENDPOINT},GOOGLE_GENAI_USE_VERTEXAI=true,GOOGLE_CLOUD_PROJECT=${PROJECT_ID},GOOGLE_CLOUD_LOCATION=global${EXTRA_ENV} \
             --set-secrets=PHOENIX_API_KEY=phoenix-api-key:latest${{ matrix.extra_secrets || '' }} \
             ${CANDIDATE_FLAGS}
