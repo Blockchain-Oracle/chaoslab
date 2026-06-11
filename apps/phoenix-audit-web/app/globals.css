@@ -2104,8 +2104,29 @@ textarea {
   .display {
     overflow-wrap: anywhere;
   }
+  /* break-word, NOT anywhere: anywhere shattered narrow stat-column
+     labels into one-char-per-line (staging walk, /audits). break-word
+     only splits when a single word alone overflows its line box. */
   .mono {
-    overflow-wrap: anywhere;
+    overflow-wrap: break-word;
+  }
+  /* Stat blocks wrap to a row-pair grid instead of cramming one flex row. */
+  .stat-row {
+    flex-wrap: wrap;
+    row-gap: 6px;
+  }
+  .stat-row > div:first-child,
+  .stat-row > div:nth-child(2),
+  .stat-row > div:nth-child(3) {
+    flex: 1 1 30%;
+  }
+  .stat-row input.text-input,
+  .stat-row select.text-input {
+    width: 100% !important;
+  }
+  .stat-row > div:last-child {
+    flex: 1 1 100%;
+    flex-wrap: wrap;
   }
   .kicker {
     white-space: normal;
