@@ -628,13 +628,14 @@ stories:
     # OpenInference using_attributes(session_id, user_id) so Phoenix's Sessions
     # tab groups all spans of one audit run, and run_phoenix_experiment forwards
     # an experiment_name kwarg so the Experiments tab becomes deep-linkable.
-    status: PENDING
+    # Extracted audit_runner_emit.py during PR review (split before 350 lines).
+    status: COMPLETE
     estimate_hours: 0.0
     tags: [backend, p0, phoenix, arize-track]
     depends_on: [story-9.12-user-profile]
     issue_url: ""
-    pr_url: ""
-    merged_at: ""
+    pr_url: "https://github.com/Blockchain-Oracle/phoenix-audit/pull/108"
+    merged_at: "2026-06-11T08:40:00Z"
 
   - id: story-9.10-ux-truth-pass
     epic: "Epic 9 — product surfaces real"
