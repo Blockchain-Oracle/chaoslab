@@ -605,13 +605,18 @@ stories:
     merged_at: "2026-06-10T13:55:00Z"
   - id: story-9.5-email-summaries
     epic: "Epic 9 — product surfaces real"
-    status: PENDING
+    # Wave C1: Resend delivery (notifier/ package) — scheduled summaries to
+    # the schedule's email_recipient + "Email me this report" (signed PDF
+    # attachment) + crash-run failure emails. Real-send verified with the
+    # production key; sender flips to reports@phxaudit.xyz at C3 (Resend
+    # domain DNS verification pending on the send MX row).
+    status: COMPLETE
     estimate_hours: 0.0
-    tags: [backend, p1, email]
-    depends_on: [story-9.3-monitoring-scheduler]
+    tags: [fullstack, p1, email]
+    depends_on: [story-9.3-monitoring-scheduler, story-9.12-user-profile]
     issue_url: ""
-    pr_url: ""
-    merged_at: ""
+    pr_url: "https://github.com/Blockchain-Oracle/phoenix-audit/pull/111"
+    merged_at: "2026-06-11T15:50:00Z"
   - id: story-9.6-gitlab-e2e-verification
     epic: "Epic 9 — product surfaces real"
     status: PENDING
