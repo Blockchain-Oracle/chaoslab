@@ -32,6 +32,7 @@ export function Procedure() {
         From address to signed instrument.
       </h2>
       <div
+        className="procedure-grid"
         style={{
           display: 'grid',
           gridTemplateColumns: 'repeat(4, 1fr)',

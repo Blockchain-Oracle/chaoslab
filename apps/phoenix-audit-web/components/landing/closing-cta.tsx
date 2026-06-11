@@ -5,7 +5,7 @@ export function ClosingCta() {
   return (
     <section style={{ borderTop: '1px solid var(--hairline)', background: 'var(--paper-2)' }}>
       <div
-        className="shell"
+        className="shell closing-cta-grid"
         style={{
           padding: '84px 40px',
           display: 'grid',

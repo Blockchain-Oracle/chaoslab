@@ -74,6 +74,7 @@ export function CascadeStory() {
         </h2>
 
         <div
+          className="cascade-grid"
           style={{
             display: 'grid',
             gridTemplateColumns: '1fr auto 1fr auto 1fr',
