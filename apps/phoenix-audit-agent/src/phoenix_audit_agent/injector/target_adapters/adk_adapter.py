@@ -57,6 +57,10 @@ from phoenix_audit_agent.injector.target_adapters.base import (
 )
 
 _WELL_KNOWN_AGENT_CARD = "/.well-known/agent-card.json"
+# A2A dual-convention: the older RFC-8615 / Codelabs convention serves the card
+# at `/.well-known/agent.json` (Google Codelabs Weather Agent, A2A Playground,
+# Microsoft Agent Framework samples). Tried second when the v1.0 path 404s.
+_WELL_KNOWN_AGENT_CARD_LEGACY = "/.well-known/agent.json"
 _HOOK_PATH = "/hooks/adk"
 _HTTP_NOT_FOUND = 404
 _TRACER = trace.get_tracer(__name__)
@@ -146,30 +150,43 @@ class ADKAdapter(TargetAdapter):
             headers=headers,
             event_hooks={"request": [_inject_traceparent]},
         )
-        resolver = A2ACardResolver(
-            httpx_client=self._http,
-            base_url=base,
-            agent_card_path=_WELL_KNOWN_AGENT_CARD,
-        )
-        try:
-            card = await resolver.get_agent_card()
-        except A2AClientHTTPError as e:
-            # A2ACardResolver wraps every httpx.RequestError as
-            # A2AClientHTTPError(status_code=503) too — so connect-refused /
-            # DNS failure / ELOOP all surface here, not as raw httpx.* below.
+        # Dual-convention probe: try A2A v1.0 path first, fall back to the
+        # older RFC-8615 / Codelabs convention on 404. The fallback unblocks
+        # auditing the Google Codelabs Weather Agent + A2A Playground +
+        # Microsoft samples — the demo's "any production agent" promise.
+        card = None
+        attempted_paths: list[str] = []
+        for card_path in (_WELL_KNOWN_AGENT_CARD, _WELL_KNOWN_AGENT_CARD_LEGACY):
+            attempted_paths.append(card_path)
+            resolver = A2ACardResolver(
+                httpx_client=self._http,
+                base_url=base,
+                agent_card_path=card_path,
+            )
+            try:
+                card = await resolver.get_agent_card()
+                break
+            except A2AClientHTTPError as e:
+                # A2ACardResolver wraps every httpx.RequestError as
+                # A2AClientHTTPError(status_code=503) too — so connect-refused
+                # / DNS failure / ELOOP all surface here. On 404 we fall
+                # through to the next convention; on anything else, abort.
+                if e.status_code == _HTTP_NOT_FOUND:
+                    continue
+                http, self._http = self._http, None
+                await _safe_aclose(http)
+                raise AdapterConnectionError(f"failed to reach {base}: HTTP {e.status_code}") from e
+            except A2AClientJSONError as e:
+                # A malformed card on the v1.0 path is itself a hard error —
+                # don't silently retry the legacy path; the target picked the
+                # v1.0 convention but broke the schema.
+                http, self._http = self._http, None
+                await _safe_aclose(http)
+                raise AdapterDiscoveryError(f"malformed AgentCard at {base}{card_path}") from e
+        if card is None:
             http, self._http = self._http, None
             await _safe_aclose(http)
-            if e.status_code == _HTTP_NOT_FOUND:
-                raise AdapterDiscoveryError(
-                    f"no AgentCard at {base}{_WELL_KNOWN_AGENT_CARD}"
-                ) from e
-            raise AdapterConnectionError(f"failed to reach {base}: HTTP {e.status_code}") from e
-        except A2AClientJSONError as e:
-            http, self._http = self._http, None
-            await _safe_aclose(http)
-            raise AdapterDiscoveryError(
-                f"malformed AgentCard at {base}{_WELL_KNOWN_AGENT_CARD}"
-            ) from e
+            raise AdapterDiscoveryError(f"no AgentCard at {base} (tried {attempted_paths})")
         self._agent_card = card.model_dump(mode="json", by_alias=True)
         # streaming=False asks send_message to yield aggregated terminal events
         # (a bare Message for synchronous replies, or a ClientEvent carrying a
