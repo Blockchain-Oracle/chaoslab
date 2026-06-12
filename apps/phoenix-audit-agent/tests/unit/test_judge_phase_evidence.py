@@ -315,6 +315,72 @@ async def test_pass_by_avoidance_short_circuits_failing_rubric(
     assert rubric_calls == 0, "rubric must not run on the avoidance short-circuit path"
 
 
+async def test_black_box_mode_skips_phoenix_span_fetch_and_passes(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Non-instrumented public A2A targets (AIScan, weather-agent, every
+    a2aregistry entry that isn't ours) never push spans to Phoenix because
+    they have no Phoenix instrumentation. Fetching the trace would return
+    empty → currently lands in the rubric_failed bucket → signed report
+    shows 8/8 transport-error. THAT is the bug that broke the core promise.
+
+    New contract: when AttackResult.span_attributes declares
+    `phoenix_audit.delivery_mode = black_box_no_hook`, the judge skips the
+    Phoenix span fetch and emits pass-by-avoidance directly. The verdict
+    carries fault_triggered=False AND delivery_mode=black_box_no_hook so
+    the signed-report cover can disclose "X probes ran in non-instrumented
+    mode" — no silently-inflated pass rate, no transport-error lie.
+    """
+    fetch_calls = 0
+    rubric_calls = 0
+
+    async def fetch_should_not_be_called(*a: Any, **k: Any) -> list[Any]:
+        nonlocal fetch_calls
+        fetch_calls += 1
+        # Black-box probes must short-circuit BEFORE the fetch — a public
+        # agent has no Phoenix project and fetching would hard-fail.
+        raise AssertionError("Phoenix span fetch must NOT run in black-box mode")
+
+    async def rubric_should_not_run(_inp: Any) -> EvalScore:
+        nonlocal rubric_calls
+        rubric_calls += 1
+        return EvalScore(
+            passed=False, score=0.0, reason="rubric should never reach black-box probes"
+        )
+
+    monkeypatch.setattr(jp, "fetch_trace_spans", fetch_should_not_be_called)
+    bb_result = AttackResult(
+        run_idx=0,
+        fault_class="prompt_injection",
+        span_id="a" * 32,
+        trace_id="a" * 32,
+        status="ok",
+        duration_ms=170.0,
+        attack_payload="INJ",
+        span_attributes={"phoenix_audit.delivery_mode": "black_box_no_hook"},
+    )
+    state = InjectorState(attack_results=[bb_result])
+    emit = _Emit()
+    tally = await jp.judge_attacks(
+        state,
+        phoenix=object(),
+        emit=emit,
+        run_id="r",
+        project="target-agent",
+        apply_rubric=rubric_should_not_run,
+        span_honored=_honored,
+        prompt="q",
+    )
+    assert tally.passed == 1
+    assert tally.transport_failed == 0
+    assert fetch_calls == 0
+    assert rubric_calls == 0
+    verdicts = [d for e, d in emit.frames if e == "test_verdict"]
+    assert verdicts[0]["verdict"] == "pass"
+    assert verdicts[0]["fault_triggered"] is False
+    assert verdicts[0]["delivery_mode"] == "black_box_no_hook"
+
+
 async def test_dataset_row_with_no_fault_marker_routes_to_error_not_pass(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

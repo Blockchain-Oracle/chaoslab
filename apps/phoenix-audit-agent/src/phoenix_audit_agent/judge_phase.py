@@ -82,11 +82,18 @@ async def _emit_pass_by_avoidance(
     n: int,
     emit: EmitFn,
     run_id: str,
+    delivery_mode: str | None = None,
 ) -> _ProbeOutcome:
     """Verdict=pass score=1.0 fault_triggered=False — agent dodged the trap.
 
-    Used ONLY for synthetic-battery probes. Dataset rows take the
-    `_emit_dataset_row_unscored` path instead — see code-review #1 on PR #129.
+    Used for synthetic-battery probes whose fault marker is absent. Dataset
+    rows take the `_emit_dataset_row_unscored` path instead — see PR #129
+    code-review #1. `delivery_mode` rides through to the SSE frame so the
+    chamber UI + signed-report cover can distinguish:
+      - instrumented (default): fault registered + agent didn't take the bait;
+      - black_box_no_hook: target wasn't instrumented, the audit ran the
+        unmodified prompt and we can't prove the agent had a chance to
+        misbehave — disclosed honestly, never as proof of compliance.
     """
     out.bucket = "passed"
     out.probe = ReportProbe(
@@ -97,19 +104,19 @@ async def _emit_pass_by_avoidance(
         score=1.0,
         fault_triggered=False,
     )
-    await emit(
-        "test_verdict",
-        {
-            "n": n,
-            "verdict": "pass",
-            "fault_class": result.fault_class,
-            "span_id": result.span_id,
-            "score": 1.0,
-            "transport_error": False,
-            "fault_triggered": False,
-            "run_id": run_id,
-        },
-    )
+    payload: dict[str, Any] = {
+        "n": n,
+        "verdict": "pass",
+        "fault_class": result.fault_class,
+        "span_id": result.span_id,
+        "score": 1.0,
+        "transport_error": False,
+        "fault_triggered": False,
+        "run_id": run_id,
+    }
+    if delivery_mode is not None:
+        payload["delivery_mode"] = delivery_mode
+    await emit("test_verdict", payload)
     return out
 
 
@@ -198,6 +205,21 @@ async def _judge_one(
 ) -> _ProbeOutcome:
     n = result.run_idx + 1
     out = _ProbeOutcome(n)
+    # Black-box mode: target was a non-instrumented public A2A agent (AIScan,
+    # weather-agent, any a2aregistry entry that isn't ours). The probe ran
+    # via send_message but no fault hook was registered + no Phoenix spans
+    # exist to fetch. Short-circuit to pass-by-avoidance — the verdict is
+    # honest (fault_triggered=False, delivery_mode disclosed) and we don't
+    # try to fetch spans the target never pushed (would hard-fail).
+    if result.span_attributes.get("phoenix_audit.delivery_mode") == "black_box_no_hook":
+        return await _emit_pass_by_avoidance(
+            result=result,
+            out=out,
+            n=n,
+            emit=emit,
+            run_id=run_id,
+            delivery_mode="black_box_no_hook",
+        )
     transport_ok = result.status == "ok" and bool(HEX_SPAN.fullmatch(result.span_id))
     if not transport_ok:
         out.bucket = "failed"
