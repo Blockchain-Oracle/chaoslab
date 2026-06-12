@@ -1,11 +1,79 @@
 # Phoenix Audit — Designer Asset Requests
 
-> Companion to `docs/DESIGNER-BRIEF.md`. The main brief describes the product and persona; **this document is a punch-list of concrete asset requests** the designer turns into delivered visuals. Each request gives a surface, the user moment, what the asset has to do, and the data context — no colors, no fonts, no library suggestions. The designer owns the visual answer.
+> Punch-list of concrete asset requests the designer turns into delivered visuals. Each request gives a surface, the user moment, what the asset has to do, and the data context — no colors, no fonts, no library suggestions. The designer owns the visual answer.
 >
-> Two ground rules carried from the main brief:
+> Two ground rules:
 >
 > 1. Maya is a Director of AI Governance. She's senior, compliance-fluent, not an engineer. Every asset should read as "regulator-ready" not as "developer tooling."
-> 2. Honesty over polish: real flows, real failures, real "this feature is coming next" disclosures. Nothing in here should look like a marketing site for a product that doesn't exist yet.
+> 2. Honesty over polish: real flows, real failures, real "this feature is coming next" disclosures. Nothing here should look like a marketing site for a product that doesn't exist yet.
+
+---
+
+## Surface BR — Brand banner (submission hero)
+
+**What ships:** the hero image at the top of `README.md` and at the top of major docs pages. The first thing a judge sees when the repo loads in GitHub.
+
+**Idiom:** the ember-glow phoenix-spark glyph (reuse the geometry from `apps/phoenix-audit-web/components/ui/glyph.tsx`) + serif wordmark "Phoenix Audit" + the tagline "the AI agent that audits your other AI agents · regulator-ready in 90 seconds". This is not a logo redesign — it's the existing brand mark laid out as a wide banner.
+
+**Variants:** 1280px wide hero (for the README + GitHub repo card) and 600px slim stripe (for PRD / architecture / data-retention page tops, where the same banner appears smaller). Each in two color stories: light (paper background + ink-2 wordmark + ember accent) and dark (chamber background + chamber-ink wordmark + ember-glow accent).
+
+**Constraints:** SVG only, < 30 KB per file. Each variant ships as `apps/phoenix-audit-web/public/brand/banner-{light,dark}.svg` so the README can use `<picture><source media="(prefers-color-scheme: dark)" srcset="banner-dark.svg"><img src="banner-light.svg" /></picture>`.
+
+**Asset request — BR-1.** Light + dark hero banner (1280px wide). Two SVG files.
+
+**Asset request — BR-2.** Light + dark slim stripe (600px wide). Two SVG files. Same wordmark + glyph; tighter vertical rhythm.
+
+---
+
+## Surface AR — Architecture overview (the system-at-a-glance SVG)
+
+**What ships:** one judge-comprehensible end-to-end diagram of the whole system. Lives inline in `README.md` (between the pitch and the quickstart) and in `docs/architecture.md` (just under the title). When a judge opens either, they should see at a glance: this is a real distributed system, not a single-process demo.
+
+**What the diagram must show:**
+
+- The three Cloud Run services: `phoenix-audit-web` (Next.js operator surface), `phoenix-audit-agent` (Google ADK orchestrator), `target-agent` (sacrificial demo bot).
+- Inside `phoenix-audit-agent`: the Injector → Judge → Patcher sub-agent chain (a SequentialAgent across the three).
+- The Phoenix Cloud loop: the target emits OpenInference spans → Phoenix Cloud stores them → the Judge fetches by trace_id → the Judge writes annotations back.
+- The signing + filing emission: Cloud KMS signs the report PDF → the PDF + JSON are stored in GCS with a 7-day signed URL → (optionally) a hardening recipe MR is filed against the target's GitLab repo.
+- The auth + data plane on the web side: Firebase Authentication (session), Firestore (run registry + dataset index), Secret Manager (Phoenix + Resend + GitLab OAuth secrets).
+
+**Idiom:** the existing forensic-editorial palette (paper-and-ember, with the chamber dark variant for the Phoenix loop). Component labels in monospace. Flow arrows dashed in ember-glow. NOT a stock cloud-architecture template — it has to feel like it belongs in the same document as the OG image and the seal.
+
+**Constraints:** 1600px wide; scales down responsively to 720px without losing legibility. SVG only — no PNG, no mermaid, no rasterized export. Optional dark-mode variant if the contrast doesn't carry on dark GitHub themes.
+
+**Asset request — AR-1.** End-to-end architecture SVG. Single file at `docs/images/architecture.svg`. Dark variant optional.
+
+---
+
+## Surface TE — Tool ecosystem ("Built on")
+
+**What ships:** a single composition showing every external tool Phoenix Audit is built on, rendered at consistent visual weight. Lives in `README.md` under a "Built on" section, just below the architecture SVG.
+
+**What the composition must show:** logos for every tool below, grouped by role (the designer composes the layout — could be a grid, a phoenix-nest radial, a stacked-band layout — your call). Logos rendered at their official brand colors but composed against our palette (cream-paper background OR chamber dark background — designer's call; whichever reads more honest).
+
+- **Deploy + sign (Google Cloud):** Cloud Run, Cloud KMS, Cloud Firestore, Cloud Storage, Secret Manager, Artifact Registry, Workload Identity Federation, Cloud Build (CI).
+- **Inference:** Vertex AI, Gemini (3.5 Flash is the judge LLM; the target's model calls also run on Vertex).
+- **Agent runtime:** Google ADK (Agent Development Kit), A2A protocol (the cross-agent wire).
+- **Observability:** Arize Phoenix, OpenInference (the OTel instrumentation standard).
+- **Web stack:** Next.js 16, Tailwind 4, Firebase Authentication, shadcn/ui, visx, Framer Motion.
+- **Backend stack:** Python 3.12, uv, pytest, ty.
+- **Integrations:** GitLab (OAuth + MR filing), Resend (transactional email), WeasyPrint (the PDF signing pipeline).
+
+**Constraints:** 1280px wide; SVG preferred (PNG acceptable). Logos at consistent scale per row/group — no one logo dominating except as a deliberate composition choice. Brand-asset license respected for each (most of these have public usage rights for "built on" attribution).
+
+**Asset request — TE-1.** Tool ecosystem composition. Single file at `docs/images/built-on.svg` (or `.png`).
+
+---
+
+## Surface FS — Hero feature shots (optional, low-priority)
+
+If the designer has bandwidth left after BR / AR / TE: three Playwright-captured screenshots, lightly dressed (subtle shadow, page chrome trimmed), to embed as supporting hero shots in `README.md` and `docs/demo-strategy.md`:
+
+- FS-1. The live audit chamber mid-run — the attack matrix updating with verdicts in real time.
+- FS-2. The signed report cover page — the PDF that lands in the operator's GCS bucket.
+- FS-3. The cascade-flip moment — three failures collapsing into one root cause cluster.
+
+1280×800 each. PNG. Lives in `docs/images/feature-*.png`.
 
 ---
 

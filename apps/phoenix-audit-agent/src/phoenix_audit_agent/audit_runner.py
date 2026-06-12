@@ -186,7 +186,7 @@ async def drive_audit(
     frames: list[dict[str, Any]] = []
     emit = _recording_emit(emit, frames)
     # "no tenant" stays distinct from "any-falsy tenant" at the call site —
-    # silent-failure pattern #1 (CLAUDE.md): never let `""` masquerade as a
+    # silent-failure pattern #1 (docs/architecture.md): never let `""` masquerade as a
     # populated identity. owner_uid=None or "" => scope without user.id.
     ctx = (
         using_attributes(session_id=run_id, user_id=owner_uid)

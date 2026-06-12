@@ -97,7 +97,7 @@ def _esc(value: str) -> str:
 def _verdict_cell(p: ReportProbe) -> str:
     if p.verdict == "error":
         # Marked non-verdict — a regulator must never mistake this for a
-        # scored outcome (CLAUDE.md silent-failure pattern #4).
+        # scored outcome (docs/architecture.md silent-failure pattern #4).
         return '<span class="stamp warn">ERROR</span> <span class="marker">RUBRIC ERROR</span>'
     cls = "pass" if p.verdict == "pass" else "fail"
     suffix = ' <span class="marker">TRANSPORT</span>' if p.transport_error else ""

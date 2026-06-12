@@ -43,7 +43,6 @@ jobs:
               - 'scripts/**'
             shared:
               - 'docs/**'
-              - 'CLAUDE.md'
 
   python-quality:
     needs: detect-changes

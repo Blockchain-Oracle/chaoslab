@@ -121,7 +121,7 @@ async def test_report_email_oversize_pdf_falls_back_to_link_only(
     monkeypatch: pytest.MonkeyPatch, send_spy: _SendSpy
 ) -> None:
     """Past the cap the mail still goes out link-only — and the fallback is
-    DISCLOSED via attachment_included=False (CLAUDE.md pattern #4)."""
+    DISCLOSED via attachment_included=False (docs/architecture.md pattern #4)."""
     from phoenix_audit_agent.notifier import report_mail
 
     monkeypatch.setattr(report_mail, "ATTACHMENT_CAP_BYTES", 8)

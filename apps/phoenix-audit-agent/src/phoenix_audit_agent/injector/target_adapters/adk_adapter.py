@@ -12,7 +12,7 @@ See ``docs/audit-notes.md`` IF-10 — and note that ``a2a-sdk`` 0.3.x exposes bo
 (same-version deprecated — do NOT use).
 
 ADK quarantine note: ``a2a`` is a separate top-level distribution, not a
-submodule of ``google.adk``. The ``google.adk.*`` quarantine rule (CLAUDE.md)
+submodule of ``google.adk``. The ``google.adk.*`` quarantine rule (docs/architecture.md)
 therefore does NOT cover ``a2a.*``; this module imports from ``a2a.client``
 and ``a2a.types`` directly.
 

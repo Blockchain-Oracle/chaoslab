@@ -1,13 +1,6 @@
 # PRD — Phoenix Audit
 
-> **Rename note (PR #83, 2026-06-10):** any `chaoslab-agent` / `chaoslab-web` / `chaoslab_agent` reference in this document refers to the renamed `apps/phoenix-audit-agent` / `apps/phoenix-audit-web` / `phoenix_audit_agent`. GCP identities (SAs `chaoslab-deploy` / `chaoslab-runtime`, bucket `chaoslab-recipes`) intentionally keep their legacy names — see CLAUDE.md.
-
-**Project name:** Phoenix Audit (LOCKED 2026-06-04; working names through 2026-06-03 were "ChaosLab" then "Trust Auditor")
-**Hackathon:** Google Cloud Rapid Agent Hackathon
-**Track:** Arize (Phoenix observability)
-**Deadline:** 2026-06-11, 2:00 PM Pacific Time
-**Status:** DRAFT — pending Abu approval
-**Approved by Abu:** [ ] pending
+**Track:** Arize · Google Cloud Rapid Agent Hackathon
 
 ---
 

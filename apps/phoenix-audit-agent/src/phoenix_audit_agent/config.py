@@ -71,7 +71,7 @@ class Settings(BaseSettings):
     )
     judge_llm: str = Field(
         default=JUDGE_LLM_LOCKED,
-        description="Locked to 'gemini-3.5-flash' per ADR-007 + CLAUDE.md hard rule.",
+        description="Locked to 'gemini-3.5-flash' per ADR-007 + docs/architecture.md hard rule.",
     )
     LATENCY_SLA_MS: float = Field(
         default=5000.0,
@@ -122,7 +122,7 @@ class Settings(BaseSettings):
     )
     GCS_RECIPES_BUCKET: str = Field(
         # Legacy chaoslab-* bucket name kept through the phoenix-audit rename
-        # (live storage rename judged churn-without-benefit — see CLAUDE.md).
+        # (live storage rename judged churn-without-benefit — see docs/architecture.md).
         default="chaoslab-recipes",
         min_length=1,
         description="GCS bucket the Markdown emitter writes recipe artifacts to.",
@@ -289,7 +289,7 @@ class Settings(BaseSettings):
     def _judge_llm_locked(cls, v: str) -> str:
         if v != JUDGE_LLM_LOCKED:
             msg = (
-                f"judge_llm must be {JUDGE_LLM_LOCKED!r} per ADR-007 / CLAUDE.md "
+                f"judge_llm must be {JUDGE_LLM_LOCKED!r} per ADR-007 / docs/architecture.md "
                 f"hard rule; got {v!r}"
             )
             raise ValueError(msg)

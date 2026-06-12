@@ -127,7 +127,7 @@ async def test_drive_audit_owner_uid_none_omits_user_id(
     for attrs in seen_inside:
         assert attrs.get("session.id") == "run_sample0001"
         # Strict: user.id must NOT be on the contextvar. Empty-string would
-        # fail this assertion (silent-failure pattern #1 from CLAUDE.md).
+        # fail this assertion (silent-failure pattern #1 from docs/architecture.md).
         assert "user.id" not in attrs, attrs
 
 
