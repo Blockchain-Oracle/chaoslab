@@ -3,7 +3,7 @@
 The Firestore index row that maps slug → phoenix_dataset_id and carries the
 three-kinds invariant: battery ⇒ owner_uid is None, uploaded ⇒ owner_uid
 is set, regression ⇒ owner_uid + agent_id both set. The discriminator on
-`kind` makes a typo a parse-time error, never a silent drop (CLAUDE.md
+`kind` makes a typo a parse-time error, never a silent drop (docs/architecture.md
 silent-failure pattern #6 in spirit — wrapper-level invariants beat
 list-level checks).
 

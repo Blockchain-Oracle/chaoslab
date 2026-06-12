@@ -163,7 +163,7 @@ async def _judge_one(
     except Exception as rubric_err:
         # Evidence fetch failure AND rubric failure land here by design:
         # both mean "this probe could not be scored" — a MARKED error verdict
-        # that never voids the other probes (CLAUDE.md pattern #4). An
+        # that never voids the other probes (docs/architecture.md pattern #4). An
         # unreadable trace also can't prove the honored header.
         if out.honored is None:
             out.honored = "unreadable"
@@ -286,7 +286,7 @@ async def judge_attacks(
       with `transport_error: true` and are excluded from the clusterable set;
     - a rubric exception (or an unreadable trace) yields a MARKED `error`
       verdict (`rubric_error: true`) and never voids the other probes'
-      verdicts (CLAUDE.md pattern #4).
+      verdicts (docs/architecture.md pattern #4).
     """
     sem = asyncio.Semaphore(JUDGE_CONCURRENCY)
 
@@ -304,7 +304,7 @@ async def judge_attacks(
             )
 
     # return_exceptions: an emit()/plumbing failure on ONE probe must never
-    # void the other 23 verdicts in a signed audit (CLAUDE.md pattern #8).
+    # void the other 23 verdicts in a signed audit (docs/architecture.md pattern #8).
     # _judge_one already contains rubric/fetch errors itself; what lands here
     # as an exception is the residue outside those try blocks.
     raw = await asyncio.gather(*[_bounded(r) for r in state.attack_results], return_exceptions=True)

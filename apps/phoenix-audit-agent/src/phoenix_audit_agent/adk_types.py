@@ -33,7 +33,7 @@ from google.adk.tools.retrieval.base_retrieval_tool import BaseRetrievalTool
 from google.adk.tools.tool_context import ToolContext
 from pydantic import BaseModel, Field, field_validator
 
-# Pinned per ADR-007 + CLAUDE.md hard rule.
+# Pinned per ADR-007 + docs/architecture.md hard rule.
 JUDGE_LLM_PINNED = "gemini-3.5-flash"
 
 # Minimum description length for a sub-agent (load-bearing for supervisor routing

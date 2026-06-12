@@ -1,6 +1,6 @@
 # phoenix-audit-agent
 
-Phoenix Audit's orchestrator. ADK `SequentialAgent` composing Injector → Judge → Patcher sub-agents; A2A or HTTP peer to the target agent under audit. Internal directory name is the `phoenix-audit-agent` codename per CLAUDE.md (rename to `phoenix-audit-agent` is S1.6).
+Phoenix Audit's orchestrator. ADK `SequentialAgent` composing Injector → Judge → Patcher sub-agents; A2A or HTTP peer to the target agent under audit. Internal directory name is the `phoenix-audit-agent` codename per docs/architecture.md (rename to `phoenix-audit-agent` is S1.6).
 
 **S4.1 ships:** FastAPI entrypoint (`/run`, `/stream`, `/health`, `/agents/{id}`) + pydantic-settings config loader amended for the ADR-017 hybrid Phoenix-hosting model (`phoenix_provider` field; `phoenix_api_key` optional by default, required in BYO mode).
 

@@ -257,7 +257,7 @@ async def test_injected_false_marker_is_disclosed_error_not_pass(
 async def test_one_probes_emit_failure_does_not_void_the_others(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """CLAUDE.md pattern #8: plumbing failure on one probe must not torpedo
+    """docs/architecture.md pattern #8: plumbing failure on one probe must not torpedo
     the batch — the failing probe becomes a disclosed error verdict."""
 
     async def fake_fetch(*a: Any, **k: Any) -> list[Any]:

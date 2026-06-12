@@ -53,7 +53,7 @@ def _check_dataset_snapshot_keys_match_completion() -> None:
     `RunCompletion` field, the setattr raises on a `extra="forbid"`
     Pydantic model and crashloops the audit at finalize. Surface that
     contract drift at import time so deployments fail fast on rollout,
-    not silently mid-audit. (CLAUDE.md silent-failure pattern: module-
+    not silently mid-audit. (docs/architecture.md silent-failure pattern: module-
     load drift guards.)
     """
     from phoenix_audit_agent.audit_runner_datasets import dataset_snapshot_fields
@@ -99,7 +99,7 @@ async def emit_signed_report(
     Report-delivery failure (KMS down, GCS down, renderer OSError) is CONTAINED:
     an audit whose verdicts and recipe all succeeded must not render as
     "failed" because the PDF could not be delivered. The skip is marked with
-    the exception type — never silent (CLAUDE.md pattern #4).
+    the exception type — never silent (docs/architecture.md pattern #4).
     """
     from phoenix_audit_agent import audit_runner as _ar
 

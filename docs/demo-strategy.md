@@ -1,6 +1,4 @@
-# Demo Strategy & Later-Backlog
-
-_Written 2026-06-11. Captures the demo narrative + deferred polish items from the morning brainstorm._
+# Demo Strategy
 
 ---
 
@@ -35,40 +33,6 @@ With `using_attributes(session_id=f"run_{run_id}")`:
 - Anyone can land on that session URL and reconstruct exactly what happened, step by step
 
 This is structurally identical to a blockchain explorer — one tx hash → all operations in sequence.
-
----
-
-## Later Backlog (polish, not blocking)
-
-### 1. PDF span links should be clickable hyperlinks
-
-**Current state:** report PDF has span IDs as footnote citations — text only, not hyperlinks.
-
-**Desired:** each span citation in the PDF should be a live `https://app.phoenix.arize.com/projects/phoenix-audit/spans/{spanId}` link (or self-hosted equivalent).
-
-**How:** PDF generation library (check `apps/phoenix-audit-web` for which lib — likely `@react-pdf/renderer` or Puppeteer) supports `<Link href="...">` annotations. Wire `SpanLink` component into the PDF template.
-
-**Why this matters:** a regulator receiving the PDF can click straight to evidence without needing portal access. Turns the report from a document into a verifiable artifact.
-
-### 2. Self-hosted Phoenix needs a stable public URL for live demo
-
-**Current state:** Phoenix runs on `localhost:6006` — span links dead for anyone not on Abu's machine.
-
-**Options (in order of effort):**
-
-- **Option A — Arize Phoenix Cloud (recommended for demo):** one env var swap (`PHOENIX_COLLECTOR_ENDPOINT=https://app.phoenix.arize.com/v1/traces` + space-scoped URL). Free tier. Span links become real public URLs. Judges can click them.
-- **Option B — Deploy self-hosted Phoenix on Cloud Run:** add a 4th Cloud Run service. More control, free, but adds deploy complexity.
-- **Option C — Screen-record only:** show Phoenix open in a browser tab during video. Links don't need to work for anyone else.
-
-**Recommendation:** Option A for judging window (Jun 22–Jul 6). Flip back to self-hosted default after.
-
-### 3. Attack Matrix cell → span deep-link (frontend)
-
-**Current state:** Attack Matrix cells show pass/fail verdict.
-
-**Desired:** clicking a cell opens the Phoenix span viewer for that probe's trace, not just the report.
-
-**How:** `Probe.spanId` already flows from SSE stream to frontend state (via `sse-reducer.ts`). Wire a click handler that navigates to `SpanLink(spanId)` URL.
 
 ---
 

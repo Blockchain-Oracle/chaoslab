@@ -1,20 +1,51 @@
+<!-- BANNER (Surface BR · designer-delivered) -->
+<!-- TODO: <p align="center"><picture><source media="(prefers-color-scheme: dark)" srcset="apps/phoenix-audit-web/public/brand/banner-dark.svg"><img alt="Phoenix Audit" src="apps/phoenix-audit-web/public/brand/banner-light.svg" width="100%"></picture></p> -->
+
 # Phoenix Audit
 
-**An AI agent that audits other AI agents** — for safety, behavior, and EU AI Act compliance. Point it at any production agent (customer-support bot, healthcare prior-auth, coding helper, internal Copilot). Phoenix Audit runs a battery of adversarial tests, watches the agent fail or pass via Arize Phoenix traces, and produces a cryptographically signed, regulator-ready audit report keyed to a commit SHA. What Big-4 consulting charges €80,000 and 18 months for, Phoenix Audit produces in 90 seconds.
+**The AI agent that audits your other AI agents — regulator-ready signed report in 90 seconds.**
 
-> Built for the Google Cloud Rapid Agent Hackathon (Arize track). Deadline 2026-06-11.
+Point Phoenix Audit at any production AI agent (customer-support bot, prior-authorization agent, internal copilot) and it runs an adversarial test battery, watches the agent's internal execution via Arize Phoenix, collapses independent failures into one root cause, and emits a cryptographically signed audit report — keyed to a commit SHA, ready to hand to a compliance officer.
 
-**Day-1 user:** Director of AI Governance / AI Safety Officer at any company running production AI agents. 2,000+ such roles open on LinkedIn today.
+What a Big-4 audit pack costs €80K–€250K and takes 12–18 months for, Phoenix Audit ships in 98 seconds. Same Phoenix telemetry. Same evidence chain. Different artifact.
 
-**Why now:** EU AI Act enforces 2026-08-02. Penalty for non-compliance is €15M or 3% of global turnover. Companies need automated, continuous, signed audit trails — not quarterly consultant reports.
-
-**Demo URL:** TBD (filled in after Cloud Run deploy — see `docs/cicd.md`)
-
-**Demo GIF / screenshot:** _TBD — cascade-flip moment at 2:15 of the 3-min demo video (see `docs/ux-spec.md` "The hero visual")_
+→ **[Live demo](https://phxaudit.xyz/replay)** · **[Run an audit](https://phxaudit.xyz/new)** · **[Documentation](./docs/)**
 
 ---
 
-## Run locally (3 steps)
+## Architecture
+
+<!-- ARCHITECTURE (Surface AR · designer-delivered SVG) -->
+<!-- TODO: <p align="center"><img alt="Phoenix Audit end-to-end architecture" src="docs/images/architecture.svg" width="100%"></p> -->
+
+Three Cloud Run services in concert:
+
+- `phoenix-audit-web` (Next.js 16) — the operator surface: authenticate, point at a target, watch the live audit chamber, download the signed report.
+- `phoenix-audit-agent` (Google ADK orchestrator) — runs Injector → Judge → Patcher sub-agents in a sequential pipeline; the Injector fires the adversarial battery via A2A, the Judge fetches Phoenix spans and clusters failures by root cause, the Patcher drafts the hardening recipe.
+- `target-agent` (the sacrificial demo) — a deliberately naive customer-support agent. The audit can also point at any ADK / LangChain / CrewAI / OpenAI-Agents-SDK / generic-HTTP target.
+
+The orchestrator joins the trace context onto every probe so the Judge can read the target's own internal execution from Phoenix. The final report is signed against the operator's Cloud KMS key, stored in GCS with a 7-day signed URL, and (optionally) filed as a hardening-recipe merge request against the target's repository.
+
+Full detail in [`docs/architecture.md`](./docs/architecture.md) — 12 ADRs covering target adapter tiers, Phoenix Cloud + ADK wiring, the hybrid hosting model, the cryptographic signing chain, and the GitLab MR shape.
+
+---
+
+## Built on
+
+<!-- TOOL ECOSYSTEM (Surface TE · designer-delivered) -->
+<!-- TODO: <p align="center"><img alt="Phoenix Audit built on Google Cloud, Arize Phoenix, Gemini, ADK, A2A, GitLab, Resend, Firebase" src="docs/images/built-on.svg" width="100%"></p> -->
+
+- **Google Cloud** — Cloud Run (3 services), Cloud KMS (Ed25519 signing), Cloud Firestore (run + dataset index), Cloud Storage (signed reports), Secret Manager (Phoenix + Resend + GitLab OAuth), Artifact Registry (build-once-promote-everywhere), Workload Identity Federation (CI auth), Cloud Build.
+- **Arize Phoenix** — span telemetry + OpenInference instrumentation; Phoenix is where the evidence chain lives.
+- **Vertex AI + Gemini** — `gemini-3.5-flash` as the judge LLM; Vertex AI is the inference plane for the target's own model calls.
+- **Google ADK + A2A** — agent orchestration and the cross-agent wire protocol.
+- **Web stack** — Next.js 16, Tailwind 4, Firebase Authentication, shadcn/ui, visx, Framer Motion.
+- **Backend stack** — Python 3.12, `uv`, `pytest`, `ty`.
+- **Integrations** — GitLab (OAuth + MR filing per ADR-011), Resend (transactional email), WeasyPrint (PDF signing pipeline).
+
+---
+
+## Quickstart
 
 ```bash
 # 1. Install Python + TS deps
@@ -22,61 +53,32 @@ uv sync
 pnpm install
 
 # 2. Set up secrets (one-time)
-cp .env.example .env  # populate PHOENIX_API_KEY, GEMINI_API_KEY, etc.
+cp .env.example .env
+# populate PHOENIX_API_KEY, GEMINI_API_KEY, FIREBASE_*, GITLAB_OAUTH_*, RESEND_API_KEY
 
-# 3. Start everything
-make dev   # starts agent + target + web locally
+# 3. Start each app in its own terminal
+pnpm --filter phoenix-audit-web dev          # http://localhost:3000
+uv run --package phoenix-audit-agent uvicorn phoenix_audit_agent.main:app --port 8080
+uv run --package target-agent target-agent   # http://localhost:8001
 ```
 
-> Note: the `make dev` target itself lands in story-8.4. Until then, run each app individually — see `apps/*/README.md`.
+Then open `http://localhost:3000` and follow the onboarding wizard.
 
-For more: `docs/cicd.md` (cloud deploy), `docs/PRD.md` (what it is), `CLAUDE.md` (development workflow).
-
----
-
-## How Phoenix Audit works (in 4 steps)
-
-1. **Connect** — paste your production agent's URL or upload its config. Phoenix Audit inspects the agent's shape (does it answer support tickets? process claims? generate code?) and picks a regulatory framework to test against (EU AI Act / NIST AI RMF / HIPAA / SOC 2 + AI).
-2. **Test** — Phoenix Audit runs a tailored adversarial battery (prompt injection, role confusion, data-exfiltration probes, tool misuse, hallucination probes, off-topic drift). Every test runs as a real Phoenix experiment against the live target. Traces flow into Phoenix in real time.
-3. **Cluster** — when tests fail, Phoenix Audit reads the trace tree back via Phoenix MCP and clusters failures by root cause. Three independent failures that share one upstream span become one finding, not three. This is the moment everyone wants from a compliance tool but nobody has.
-4. **Report** — Phoenix Audit renders a cryptographically signed PDF + JSON regulatory-grade evidence pack (EU AI Act Annex IV format), uploads it to Cloud Storage with a 7-day signed URL, and optionally opens a hardening recipe MR against the agent's GitLab repo. Auditable forever. Signed by your own compliance officer's Cloud KMS key — not by us.
+For Cloud Run deployment instructions see [`docs/cicd.md`](./docs/cicd.md).
 
 ---
 
-## Why this isn't another observability dashboard
+## Documentation
 
-Phoenix observability tools (Phoenix itself, Langfuse, Helicone, Portkey) capture traces. They don't produce attestations. AI insurance products (Klaimee, Mount) underwrite the certificate. They don't run the audit. Enterprise governance platforms (AIUC, Credo AI, Fiddler) ship quarterly external audits. Mid-market teams can't afford them.
-
-**Phoenix Audit sells you the auditable evidence — signed by your own compliance officer's Cloud KMS key.** Two hosting modes (per ADR-017): **default zero-friction mode** runs Phoenix Audit-hosted with a 24h trace-retention SLA and cryptographic erasure (paste your agent URL, click audit — no Phoenix Cloud account needed); **BYO-key mode** for regulated industries lets you bring your own Phoenix project so the trace evidence stays in your tenancy end-to-end. Continuous. Self-serve. Phoenix-native. No conflict of interest.
-
----
-
-## Cross-framework target support
-
-Phoenix Audit can audit ANY agent — not just Google ADK:
-
-| Tier                 | Frameworks                                      | How                                             |
-| -------------------- | ----------------------------------------------- | ----------------------------------------------- |
-| **1** (native)       | Google ADK                                      | `RemoteA2aAgent` over A2A protocol              |
-| **2** (instrumented) | LangChain, LangGraph, CrewAI, OpenAI Agents SDK | OpenInference instrumentor + adapter            |
-| **3** (black-box)    | Any HTTP agent                                  | AgentCard discovery + behavioral fingerprinting |
-
-See `docs/architecture.md` ADR-002 + `docs/stories/story-3.*` for the adapter layer.
-
----
-
-## Repo layout
-
-> Internal package directories still use the `phoenix-audit-*` codename pending S1.6 deploy refactor. The product is Phoenix Audit; the package names are an artifact of where the build started and will be renamed before the final Cloud Run deploy.
-
-- `apps/phoenix-audit-agent/` — Phoenix Audit orchestrator (ADK; SequentialAgent w/ Inspector, Tester, Judge, Reporter sub-agents)
-- `apps/phoenix-audit-web/` — Frontend (Next.js 16 + Tailwind 4 + visx + Framer Motion)
-- `apps/target-agent/` — A deliberately naive customer-support agent used as the "agent under audit" for the demo
-- `docs/` — Full spec (PRD, architecture w/ 12 ADRs, cicd, coding-standards, ux-spec, 52 stories)
-- `research/google-cloud-rapid-agent/` — 60K+ lines of context (brainstorm, audit, RAT-results, hackathon primer, plan)
-- `infra/` — IAM + Secret Manager + Cloud Run setup _(scaffolded in S1.4)_
-- `scripts/` — utilities: 400-line guard _(S1.3)_, demo seed _(S8.2)_
-- `.github/workflows/` — CI: pr-checks _(S1.5)_, staging-deploy _(S1.6)_, prod-promote _(S1.7)_, visual-tests _(S7.x)_
+| Document                                                           | What it covers                                                          |
+| ------------------------------------------------------------------ | ----------------------------------------------------------------------- |
+| [`docs/PRD.md`](./docs/PRD.md)                                     | Product vision · day-1 user · competitive position                      |
+| [`docs/architecture.md`](./docs/architecture.md)                   | System architecture · 12 ADRs · evidence chain                          |
+| [`docs/demo-strategy.md`](./docs/demo-strategy.md)                 | The "three failures · one root cause · patch in four seconds" demo flow |
+| [`docs/data-retention-policy.md`](./docs/data-retention-policy.md) | GDPR Article 28 · 24h trace retention · cryptographic erasure           |
+| [`docs/cicd.md`](./docs/cicd.md)                                   | CI/CD pipeline · Cloud Run deploy · Workload Identity Federation        |
+| [`docs/run-config-schema.md`](./docs/run-config-schema.md)         | JSON Schema for audit run configuration                                 |
+| [`docs/assets.md`](./docs/assets.md)                               | Designer briefs (banner · architecture SVG · tool ecosystem image)      |
 
 ---
 
@@ -84,4 +86,4 @@ See `docs/architecture.md` ADR-002 + `docs/stories/story-3.*` for the adapter la
 
 [Apache License 2.0](./LICENSE).
 
-Attributions: see [`NOTICE`](./NOTICE). Architectural inspiration from `deepankarm/agent-chaos` (Apache-2.0) — no code copied; ADR-006 amended.
+Attributions: see [`NOTICE`](./NOTICE). Architectural inspiration from `deepankarm/agent-chaos` (Apache-2.0) — no code copied.
