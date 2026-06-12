@@ -409,10 +409,21 @@ class Injector(BaseModel):
         raw_trace = response.metadata.get("trace_id", "") if response.metadata else ""
         trace_id = raw_trace if _HEX32.fullmatch(str(raw_trace) or "") else ""
         delivered = bool(response.metadata.get("fault_delivered")) if response.metadata else False
+        delivery_mode = str(response.metadata.get("delivery_mode", "")) if response.metadata else ""
         payload = descriptor.get("payload")
         # F1's payload is a dict (the malformed tool return) and is not
         # consumed by its rubric — only F2/F3's text payloads ride along.
         attack_payload = payload if isinstance(payload, str) else None
+
+        # Black-box mode: non-instrumented public A2A target — no /hooks/adk,
+        # no Phoenix spans. Judge skips the fetch via delivery_mode marker.
+        if adapter_span_id and delivery_mode == "black_box_no_hook" and not response.error:
+            from phoenix_audit_agent.injector._black_box_result import build_black_box_result
+
+            self.state.record_attack(
+                build_black_box_result(attack, response, attack_payload, adapter_span_id)
+            )
+            return
 
         if not adapter_span_id or not trace_id or not delivered:
             _log.warning(
