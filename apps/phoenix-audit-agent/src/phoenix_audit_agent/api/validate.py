@@ -104,7 +104,11 @@ async def validate_target(
     not a discoverable target.
     """
     _log.info("validate_endpoint_invoked", uid=user.uid, target_url=payload.target_url)
-    async with httpx.AsyncClient(timeout=_VALIDATE_TIMEOUT_S) as http:
+    # follow_redirects=False so an attacker can't bounce us off a public URL
+    # into an internal one (security-review medium). The connect timeout is
+    # tight (2s) so the endpoint can't be used as an internal port-scanner.
+    timeout = httpx.Timeout(_VALIDATE_TIMEOUT_S, connect=2.0)
+    async with httpx.AsyncClient(timeout=timeout, follow_redirects=False) as http:
         try:
             probe = await resolve_card(http, payload.target_url)
         except CardNotFoundError as exc:

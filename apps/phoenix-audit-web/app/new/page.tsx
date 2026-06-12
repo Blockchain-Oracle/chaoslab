@@ -211,6 +211,13 @@ function NewAuditForm() {
       const warning = validateResult.warnings?.[0] ?? 'pre-v1 schema; basic audit only'
       return `⚠ ${validateResult.name ?? 'agent'} — ${warning}`
     }
+    // Auth-gated targets (x402 / bearer / oauth) — card probe reads the
+    // well-known fine but the audit calls themselves get 401'd 30s in. Flag
+    // amber + name the scheme so the user knows what's missing rather than
+    // discovering it from a failed run. BYO-token flow is a future PR.
+    if (validateResult.auth && validateResult.auth !== 'none') {
+      return `⚠ ${validateResult.name ?? 'A2A agent'} — ${pv} · requires ${validateResult.auth} credentials (audit will fail without them)`
+    }
     const parts = [pv, skills, auth].filter(Boolean).join(' · ')
     return `✓ ${validateResult.name ?? 'A2A agent'} — ${parts}`
   })()
@@ -258,6 +265,21 @@ function NewAuditForm() {
               spellCheck="false"
             />
           </Field>
+          <p
+            className="mono"
+            style={{
+              fontSize: 11,
+              color: 'var(--ink-3)',
+              marginTop: -28,
+              marginBottom: 32,
+              maxWidth: 560,
+            }}
+          >
+            Works with public A2A v1.0 agents (and pre-v1 cards in basic mode). Gated targets —
+            bearer / OAuth / API-key / x402 stablecoin paywalls — are detected and named, but the
+            audit itself needs credentials we don&rsquo;t yet collect; BYO-token + funded-wallet
+            flow is on the roadmap.
+          </p>
 
           <SectionHead
             no="§2"

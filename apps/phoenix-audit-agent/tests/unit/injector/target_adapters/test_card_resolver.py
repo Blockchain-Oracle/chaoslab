@@ -237,3 +237,28 @@ async def test_auth_scheme_extracted_for_v1_card() -> None:
         result = await resolve_card(http, "http://x")
     assert result.mode == "v1"
     assert result.auth == "bearer-token"
+
+
+@respx.mock
+async def test_x402_extension_surfaces_as_auth_x402() -> None:
+    """x402 stablecoin paywalls are declared in the AgentCard `extensions`
+    array (NOT securitySchemes) per github.com/google-agentic-commerce/a2a-x402.
+    The wizard's amber-hint depends on us reporting it as auth='x402' so a
+    paywalled target shows ⚠ instead of a misleading green ✓."""
+    from phoenix_audit_agent.injector.target_adapters._card_resolver import resolve_card
+
+    payload = _v1_card_payload(name="paywalled-agent")
+    payload["extensions"] = [
+        {
+            "uri": "https://github.com/google-a2a/a2a-x402/v0.1",
+            "description": "stablecoin paywall",
+            "required": True,
+        }
+    ]
+    respx.get("http://x/.well-known/agent-card.json").mock(
+        return_value=httpx.Response(200, json=payload)
+    )
+    async with httpx.AsyncClient() as http:
+        result = await resolve_card(http, "http://x")
+    assert result.mode == "v1"
+    assert result.auth == "x402"

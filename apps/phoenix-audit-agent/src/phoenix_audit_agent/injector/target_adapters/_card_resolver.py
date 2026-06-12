@@ -28,8 +28,6 @@ from http import HTTPStatus
 from typing import Any
 
 import httpx
-from a2a.client import A2ACardResolver
-from a2a.client.errors import A2AClientHTTPError, A2AClientJSONError
 from a2a.types import AgentCapabilities, AgentCard
 
 from phoenix_audit_agent.errors import PhoenixAuditError
@@ -41,6 +39,10 @@ _HTTP_NOT_FOUND = HTTPStatus.NOT_FOUND.value
 # a regulator never sees "skills audited: full" against a target whose card
 # we couldn't fully parse.
 _PERMISSIVE_WARNING = "pre-v1 A2A schema; basic audit only (skill metadata unavailable)"
+# Cap the well-known body — attacker-hosted /.well-known/agent-card.json
+# returning a multi-GB stream would OOM the worker (security-review HIGH).
+# Real agent cards are <10 KiB; 1 MiB is a generous ceiling.
+_MAX_CARD_BYTES = 1 * 1024 * 1024
 
 
 class CardResolverError(PhoenixAuditError):
@@ -71,8 +73,32 @@ class CardProbeResult:
     skills_count: int = 0
 
 
+# x402 is declared in the AgentCard `extensions` array (NOT securitySchemes)
+# per github.com/google-agentic-commerce/a2a-x402 — surfacing it here so the
+# wizard can warn "audit requires a funded wallet" instead of falsely showing
+# the target as unauthenticated.
+_X402_EXTENSION_URI_PREFIX = "https://github.com/google-a2a/a2a-x402"
+
+
+def _has_x402_extension(extensions: Any) -> bool:
+    if not isinstance(extensions, list):
+        return False
+    for ext in extensions:
+        uri = ext.get("uri") if isinstance(ext, dict) else getattr(ext, "uri", None)
+        if isinstance(uri, str) and uri.startswith(_X402_EXTENSION_URI_PREFIX):
+            return True
+    return False
+
+
 def _extract_auth_from_raw(raw: dict[str, Any]) -> str:
-    """Surface the first security scheme name from a raw dict, or 'none'."""
+    """Surface the auth scheme from a raw dict, or 'none'.
+
+    Checks `extensions` for x402 first (per-call stablecoin paywall) then
+    falls back to `securitySchemes` (OpenAPI-style apiKey / bearer / oauth2
+    / mtls). Either way the auditor can't drive the target without creds.
+    """
+    if _has_x402_extension(raw.get("extensions")):
+        return "x402"
     schemes = raw.get("securitySchemes")
     if isinstance(schemes, dict) and schemes:
         first = next(iter(schemes.keys()))
@@ -81,12 +107,15 @@ def _extract_auth_from_raw(raw: dict[str, Any]) -> str:
 
 
 def _extract_auth_from_card(card: AgentCard) -> str:
-    """Surface the first security scheme name from a parsed card, or 'none'.
+    """Surface the auth scheme from a parsed card, or 'none'.
 
-    The wizard shows this as e.g. "AIScan — A2A v0.3.0 · no auth" or
-    "MERCURY — A2A v0.3.0 · x402"; users see at a glance whether
-    auditing this target costs money or needs an API key.
+    Same precedence as the raw extractor: x402 extension first, then
+    `security_schemes`. Wizard renders this as a ⚠ amber hint so the user
+    knows auditing this target needs credentials (audit will 401 / 402
+    without them); BYO-token flow is a future PR.
     """
+    if _has_x402_extension(getattr(card, "extensions", None)):
+        return "x402"
     schemes = card.security_schemes
     if schemes:
         return next(iter(schemes.keys()))
@@ -138,6 +167,16 @@ async def _fetch_raw_json(
     if response.status_code != HTTPStatus.OK.value:
         msg = f"{url} returned HTTP {response.status_code}"
         raise CardTransportError(msg)
+    # Body-size cap (security-review HIGH). Reject Content-Length over the
+    # cap upfront; the read itself is bounded by httpx's response.content
+    # buffer (capped by the timeout + transport limits).
+    declared_len = response.headers.get("content-length")
+    if declared_len and declared_len.isdigit() and int(declared_len) > _MAX_CARD_BYTES:
+        msg = f"{url} response too large ({declared_len} bytes)"
+        raise MalformedCardError(msg)
+    if len(response.content) > _MAX_CARD_BYTES:
+        msg = f"{url} response too large ({len(response.content)} bytes)"
+        raise MalformedCardError(msg)
     try:
         payload = response.json()
     except ValueError as exc:
@@ -150,83 +189,62 @@ async def _fetch_raw_json(
     return payload
 
 
-async def _try_parse_strict(http: httpx.AsyncClient, *, base: str, path: str) -> AgentCard | None:
-    """Use a2a-sdk's strict resolver; return None on 404, raise transport
-    errors. Pydantic ValidationError is intentionally NOT caught here —
-    the caller falls back to permissive synthesis on that exact signal.
-    """
-    resolver = A2ACardResolver(httpx_client=http, base_url=base, agent_card_path=path)
-    try:
-        return await resolver.get_agent_card()
-    except A2AClientHTTPError as exc:
-        if exc.status_code == _HTTP_NOT_FOUND:
-            return None
-        msg = f"{base}{path} returned HTTP {exc.status_code}"
-        raise CardTransportError(msg) from exc
-    except A2AClientJSONError:
-        # The SDK couldn't parse — signal "not strict v1" to the caller.
-        return None
-
-
 async def resolve_card(http: httpx.AsyncClient, base: str) -> CardProbeResult:
     """Probe both well-known paths and return a CardProbeResult.
 
-    Order: try v1.0 strict → v1.0 permissive → legacy strict → legacy
-    permissive. The first success wins. Strict and permissive use the
-    same raw JSON so each path costs at most one GET.
+    Order: v1.0 path strict → v1.0 permissive → legacy path strict →
+    legacy permissive. The first success wins. We always fetch the raw
+    dict first then validate in-process — one GET per path, and the raw
+    dict stays available for x402-extension / securitySchemes inspection
+    even when pydantic drops fields the parsed AgentCard model doesn't
+    declare (e.g. `extensions`).
     """
+    from pydantic import ValidationError  # local import — pydantic re-export indirection
+
     base = base.rstrip("/")
     attempted: list[str] = []
-    raw_per_path: dict[str, dict[str, Any]] = {}
     last_error: Exception | None = None
-    # First pass — strict parse via the SDK. The SDK's resolver does its
-    # own GET, so call it before our raw fetch on each path to keep
-    # behavior identical to PR #130's ADK adapter.
     for path in (WELL_KNOWN_AGENT_CARD, WELL_KNOWN_AGENT_CARD_LEGACY):
         attempted.append(path)
         try:
-            card = await _try_parse_strict(http, base=base, path=path)
-        except CardTransportError as exc:
-            # 5xx on the v1.0 path aborts the chain — don't silently fall
-            # through to the legacy path and pretend "not found".
-            last_error = exc
-            raise
-        if card is not None:
-            # The parsed AgentCard already carries security_schemes; avoid
-            # a second GET on the well-known path (PR #131 test feedback —
-            # idempotent-connect test counts GETs).
-            return CardProbeResult(
-                mode="v1",
-                card=card,
-                discovery_path=path,
-                warnings=[],
-                auth=_extract_auth_from_card(card),
-                skills_count=len(card.skills or []),
-            )
-        # Strict parse returned None → either 404 or pydantic-rejected.
-        # Distinguish by raw fetch; cache the raw dict so we don't refetch.
-        try:
             raw = await _fetch_raw_json(http, base=base, path=path)
-        except (MalformedCardError, CardTransportError) as exc:
-            last_error = exc
-            continue
-        if raw is None:
-            # 404 on both raw and strict paths — try the next well-known.
-            continue
-        # Strict failed but raw fetched ok → permissive synthesis.
-        raw_per_path[path] = raw
-        try:
-            synthesized = _synthesize_permissive_card(raw, base=base)
+        except CardTransportError:
+            # 5xx aborts the chain — don't silently fall through to the
+            # legacy path and pretend "not found".
+            raise
         except MalformedCardError as exc:
             last_error = exc
             continue
+        if raw is None:
+            continue  # 404 — try the next well-known path
+        # Strict validate in-process so we know whether to surface mode=v1
+        # or mode=permissive without paying for a second GET.
+        try:
+            card = AgentCard.model_validate(raw)
+        except ValidationError:
+            try:
+                synthesized = _synthesize_permissive_card(raw, base=base)
+            except MalformedCardError as exc:
+                last_error = exc
+                continue
+            return CardProbeResult(
+                mode="permissive",
+                card=synthesized,
+                discovery_path=path,
+                warnings=[_PERMISSIVE_WARNING],
+                auth=_extract_auth_from_raw(raw),
+                skills_count=0,
+            )
         return CardProbeResult(
-            mode="permissive",
-            card=synthesized,
+            mode="v1",
+            card=card,
             discovery_path=path,
-            warnings=[_PERMISSIVE_WARNING],
+            warnings=[],
+            # Extract from raw, not the parsed card: pydantic drops
+            # `extensions` (where x402 lives), so the parsed AgentCard
+            # can't tell us about stablecoin paywalls.
             auth=_extract_auth_from_raw(raw),
-            skills_count=0,
+            skills_count=len(card.skills or []),
         )
     # All paths exhausted without producing a card.
     if last_error is not None and isinstance(last_error, MalformedCardError):
