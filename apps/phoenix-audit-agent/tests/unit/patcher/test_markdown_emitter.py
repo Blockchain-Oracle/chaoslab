@@ -757,3 +757,156 @@ async def test_emit_translates_real_google_api_core_precondition_failed() -> Non
     client = _make_emit_client_raising(_RealPreconditionFailed("blob exists"))
     with pytest.raises(RecipeAlreadyExistsError):
         await MarkdownEmitter(storage_client=client).emit(_recipe())
+
+
+# ---------------------------------------------------------------------------
+# Regression — run_d9bcbf208b2c (2026-06-12 production audit)
+# E1: Cloud Run's compute-engine credentials lack `sign_bytes`. The naive
+# `blob.generate_signed_url(...)` raises `AttributeError("you need a private
+# key to sign credentials")`. The shared `signed_get_url` helper routes
+# around this via IAM signBlob — markdown_emitter must use that helper.
+# ---------------------------------------------------------------------------
+
+
+async def test_emit_routes_through_signed_get_url_helper_for_iam_signing(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """When the blob's client carries token-only credentials (no sign_bytes,
+    like Cloud Run's compute-engine creds), the helper must call IAM signBlob
+    — NOT the raw generate_signed_url that crashes with AttributeError.
+
+    This test simulates Cloud Run by giving the recording client a fake
+    `_credentials` object with no `sign_bytes`, then asserts the helper's
+    IAM-signing branch fires (kwargs contain `service_account_email` +
+    `access_token`).
+    """
+
+    # Patch the IAM-signing-credential factory to return a deterministic stub
+    # so we don't reach the metadata server in unit tests.
+    class _StubIamCreds:
+        valid = True
+        token = "stub-access-token-xyz"
+        service_account_email = "chaoslab-runtime@phoenix-audit.iam.gserviceaccount.com"
+
+    import phoenix_audit_agent.storage.gcs as gcs_module
+
+    def _stub_iam_signing_credentials() -> _StubIamCreds:
+        return _StubIamCreds()
+
+    monkeypatch.setattr(gcs_module, "_iam_signing_credentials", _stub_iam_signing_credentials)
+
+    captured_kwargs: dict[str, Any] = {}
+
+    class _TokenOnlyCreds:
+        """Mimics Cloud Run's compute_engine.Credentials — token only, no signer."""
+
+        service_account_email = "chaoslab-runtime@phoenix-audit.iam.gserviceaccount.com"
+
+    class _TokenOnlyClient:
+        _credentials = _TokenOnlyCreds()
+
+    class _CloudRunBlob(_Blob):
+        client = _TokenOnlyClient()
+
+        def upload_from_string(
+            self,
+            data: bytes,
+            content_type: str,
+            if_generation_match: int = 0,
+        ) -> None:
+            pass
+
+        def generate_signed_url(self, **kwargs: Any) -> str:
+            captured_kwargs.update(kwargs)
+            return "https://storage.googleapis.com/chaoslab-recipes/x.md?X-Goog-Signature=z"
+
+    class _CloudRunBucket(_Bucket):
+        def blob(self, name: str) -> _CloudRunBlob:
+            return _CloudRunBlob()
+
+        def exists(self) -> bool:
+            return True
+
+    class _CloudRunStorage(StorageClient):
+        def bucket(self, name: str) -> _CloudRunBucket:
+            return _CloudRunBucket()
+
+    result = await MarkdownEmitter(storage_client=_CloudRunStorage()).emit(_recipe())
+    assert isinstance(result, EmitResult)
+    # The contract: when creds lack sign_bytes, the helper MUST forward
+    # IAM-signing parameters to generate_signed_url so signing happens via
+    # the IAM signBlob API instead of crashing on the private-key check.
+    assert captured_kwargs.get("service_account_email") == (
+        "chaoslab-runtime@phoenix-audit.iam.gserviceaccount.com"
+    )
+    assert captured_kwargs.get("access_token") == "stub-access-token-xyz"
+    assert captured_kwargs.get("version") == "v4"
+    assert captured_kwargs.get("method") == "GET"
+
+
+async def test_emit_skips_iam_signing_when_credentials_have_sign_bytes(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Negative-branch lock: when the blob's client carries credentials that
+    DO expose `sign_bytes` (key-file / impersonated SA / local dev), the
+    helper takes the direct path — IAM kwargs MUST NOT be forwarded and
+    `_iam_signing_credentials` MUST NOT be invoked. A refactor that always
+    forwards IAM kwargs would pass the positive test but break local dev.
+    """
+    iam_calls = 0
+
+    def _stub_iam_signing_credentials() -> Any:
+        nonlocal iam_calls
+        iam_calls += 1
+        return None  # should never be reached on this branch
+
+    import phoenix_audit_agent.storage.gcs as gcs_module
+
+    monkeypatch.setattr(gcs_module, "_iam_signing_credentials", _stub_iam_signing_credentials)
+
+    captured_kwargs: dict[str, Any] = {}
+
+    class _KeyfileCreds:
+        """Mimics SA-keyfile / impersonated creds — has a signer."""
+
+        service_account_email = "fake-sa@phoenix-audit.iam.gserviceaccount.com"
+
+        def sign_bytes(self, _data: bytes) -> bytes:
+            return b"stub-signature"
+
+    class _KeyfileClient:
+        _credentials = _KeyfileCreds()
+
+    class _KeyfileBlob(_Blob):
+        client = _KeyfileClient()
+
+        def upload_from_string(
+            self,
+            data: bytes,
+            content_type: str,
+            if_generation_match: int = 0,
+        ) -> None:
+            pass
+
+        def generate_signed_url(self, **kwargs: Any) -> str:
+            captured_kwargs.update(kwargs)
+            return "https://storage.googleapis.com/chaoslab-recipes/x.md?X-Goog-Signature=z"
+
+    class _KeyfileBucket(_Bucket):
+        def blob(self, name: str) -> _KeyfileBlob:
+            return _KeyfileBlob()
+
+        def exists(self) -> bool:
+            return True
+
+    class _KeyfileStorage(StorageClient):
+        def bucket(self, name: str) -> _KeyfileBucket:
+            return _KeyfileBucket()
+
+    result = await MarkdownEmitter(storage_client=_KeyfileStorage()).emit(_recipe())
+    assert isinstance(result, EmitResult)
+    assert "service_account_email" not in captured_kwargs
+    assert "access_token" not in captured_kwargs
+    assert iam_calls == 0
+    assert captured_kwargs.get("version") == "v4"
+    assert captured_kwargs.get("method") == "GET"

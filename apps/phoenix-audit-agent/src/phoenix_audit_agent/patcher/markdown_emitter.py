@@ -13,7 +13,7 @@ from phoenix_audit_agent.config import get_settings
 from phoenix_audit_agent.errors import PhoenixAuditError
 from phoenix_audit_agent.patcher._markdown_renderer import render_recipe
 from phoenix_audit_agent.patcher.recipe import HardeningRecipe
-from phoenix_audit_agent.storage.gcs import get_storage_client
+from phoenix_audit_agent.storage.gcs import get_storage_client, signed_get_url
 
 logger = logging.getLogger(__name__)
 
@@ -59,6 +59,14 @@ class BucketUnreachableError(BucketProbeError):
 
 @runtime_checkable
 class _Blob(Protocol):
+    """The slice of google-cloud-storage Blob the emitter touches.
+
+    NB: `signed_get_url` (storage/gcs.py) also reads `blob.client._credentials`
+    to decide between the direct signer and the IAM-signBlob fallback. The
+    Protocol leaves `client` undeclared because production `Blob` always has
+    it; test stubs that omit it land in the direct path (creds=None branch).
+    """
+
     def upload_from_string(
         self, data: bytes, content_type: str, if_generation_match: int = ...
     ) -> None: ...
@@ -214,11 +222,10 @@ class MarkdownEmitter:
                 msg = f"recipe_id={blob_name} already exists in bucket"
                 raise RecipeAlreadyExistsError(msg) from exc
             raise
-        return blob.generate_signed_url(
-            version="v4",
-            expiration=self._ttl,
-            method="GET",
-        )
+        # signed_get_url routes Cloud Run token-only creds through IAM
+        # signBlob; raw generate_signed_url raises AttributeError there
+        # (run_d9bcbf208b2c, 2026-06-12).
+        return signed_get_url(blob, ttl=self._ttl)
 
 
 # google-api-core signals "this blob already exists" across versions / transports

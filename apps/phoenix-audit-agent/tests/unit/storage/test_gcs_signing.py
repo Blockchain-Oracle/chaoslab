@@ -119,3 +119,36 @@ def test_blob_without_client_signs_directly() -> None:
     signed_get_url(blob, ttl=_TTL)
     assert blob.kwargs is not None
     assert "service_account_email" not in blob.kwargs
+
+
+def test_no_direct_generate_signed_url_calls_outside_storage_gcs() -> None:
+    """Regression lock: every signed-URL call must route through `signed_get_url`.
+
+    The markdown emitter (patcher/markdown_emitter.py:215-219) was the lone
+    holdout calling `blob.generate_signed_url(...)` directly, which crashes
+    on Cloud Run's compute-engine credentials (no `sign_bytes`) — surfaced
+    in production as run_d9bcbf208b2c (2026-06-12). Catching that drift here
+    fails fast in CI instead of a 100s audit ending in a red banner.
+
+    Allowlist: `storage/gcs.py` itself (the helper IS the callsite); tests
+    (stubs explicitly model the SDK boundary).
+    """
+    import re
+    from pathlib import Path
+
+    src_root = Path(__file__).parent.parent.parent.parent / "src" / "phoenix_audit_agent"
+    pattern = re.compile(r"\.generate_signed_url\b")
+    allowed_callsites = {src_root / "storage" / "gcs.py"}
+    offenders: list[str] = []
+    for py_file in src_root.rglob("*.py"):
+        if py_file in allowed_callsites:
+            continue
+        text = py_file.read_text(encoding="utf-8")
+        if pattern.search(text):
+            offenders.append(str(py_file.relative_to(src_root)))
+    assert not offenders, (
+        f"Direct `.generate_signed_url(...)` calls found outside storage/gcs.py: "
+        f"{offenders}. Use `signed_get_url(blob, ttl=...)` instead — the helper "
+        f"transparently handles Cloud Run's token-only credentials via IAM "
+        f"signBlob (see storage/gcs.py)."
+    )

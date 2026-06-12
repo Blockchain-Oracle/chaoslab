@@ -82,10 +82,13 @@ async def write_annotations(
     failures_by_span_id: dict[str, FailedSpan],
 ) -> None:
     annotations = build_annotations(cluster_set, failures_by_span_id)
+    # log_span_annotations needs dict payloads; passing _SpanAnnotation
+    # raises TypeError in httpx (run_d9bcbf208b2c, 2026-06-12).
+    annotation_payloads = [a.model_dump() for a in annotations]
     # PhoenixClient Protocol is intentionally narrow; AsyncClient.spans
     # also exposes `log_span_annotations` (architecture/02 §4.4).
     try:
-        await cast(Any, client.spans).log_span_annotations(span_annotations=annotations)
+        await cast(Any, client.spans).log_span_annotations(span_annotations=annotation_payloads)
     except Exception as exc:
         logger.exception(
             "phoenix_audit_failure_cluster writeback failed",
