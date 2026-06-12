@@ -292,6 +292,7 @@ async def test_fingerprint_when_discovery_was_not_agent_card_has_no_agent_card()
     respx.get("http://target.example/.well-known/agent-card.json").mock(
         return_value=httpx.Response(404)
     )
+    respx.get("http://target.example/.well-known/agent.json").mock(return_value=httpx.Response(404))
     respx.get("http://target.example/.well-known/mcp.json").mock(
         return_value=httpx.Response(200, json={"protocol_version": "2024-11-05"})
     )
