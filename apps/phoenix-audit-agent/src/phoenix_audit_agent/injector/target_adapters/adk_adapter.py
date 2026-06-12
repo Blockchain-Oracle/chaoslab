@@ -44,7 +44,6 @@ from opentelemetry import trace
 from phoenix_audit_agent.errors import (
     AdapterConnectionError,
     AdapterDiscoveryError,
-    FaultDeliveryError,
 )
 from phoenix_audit_agent.injector.target_adapters._card_resolver import (
     CardNotFoundError,
@@ -240,15 +239,16 @@ class ADKAdapter(TargetAdapter):
                 fault_kind=fault_kind,
             ) as registration_id:
                 if invocation.fault_config is not None:
-                    if registration_id is None:
-                        # Invoking anyway would record a healthy, fault-free
-                        # response as if the attack ran — silently inflating
-                        # the pass rate in a signed audit. Refuse instead.
-                        raise FaultDeliveryError(
-                            f"target at {base} did not accept the fault registration "
-                            f"({_HOOK_PATH} unavailable or refused) — probe cannot run"
-                        )
-                    fault_delivered = True
+                    # registration_id is None when /hooks/adk is unavailable
+                    # (typical of public, non-instrumented A2A agents like
+                    # AIScan or every a2aregistry entry that isn't ours).
+                    # Previously this raised FaultDeliveryError, breaking the
+                    # core "point Phoenix at any A2A agent and it works"
+                    # promise. Now we mark fault_delivered=False and proceed
+                    # so the judge applies pass-by-avoidance (PR #129) — no
+                    # silently-inflated pass rate because fault_triggered=False
+                    # is disclosed on every probe row + the signed-report cover.
+                    fault_delivered = registration_id is not None
                 try:
                     # With streaming=False the iterator yields ONE terminal event;
                     # we still iterate to drain it but only keep the last emitted
@@ -283,6 +283,17 @@ class ADKAdapter(TargetAdapter):
             metadata["trace_id"] = trace_id
         if fault_delivered is not None:
             metadata["fault_delivered"] = fault_delivered
+            # delivery_mode is the wire-shaped discriminator the SSE chamber
+            # and the signed-report cover use to label the run honestly:
+            # "instrumented" → fault registered + injected via /hooks/adk;
+            # "black_box_no_hook" → target is a public, non-instrumented A2A
+            # agent (typical of every a2aregistry entry that isn't ours), so
+            # the audit ran the unmodified prompt and the judge applies
+            # pass-by-avoidance reasoning. Surfacing this on the wire stops
+            # the chamber UI from labeling these probes "TRANSPORT ERROR"
+            # (which is misleading — the agent answered fine) and lets the
+            # report cover state "X of Y probes ran in non-instrumented mode".
+            metadata["delivery_mode"] = "instrumented" if fault_delivered else "black_box_no_hook"
         return AdapterResult(
             response=response_text,
             span_ids=span_ids,

@@ -460,6 +460,48 @@ async def test_invoke_propagates_session_id_to_context() -> None:
     await adapter.disconnect()
 
 
+@respx.mock
+async def test_invoke_without_hook_endpoint_runs_in_black_box_mode() -> None:
+    """Non-instrumented public A2A agent (no /hooks/adk) is THE core promise:
+    'anybody should be able to come here with their link and it works'. The
+    previous behavior raised FaultDeliveryError the moment /hooks/adk 404'd,
+    so every probe on a public agent failed with transport_error and the
+    signed report showed 0 / N pass.
+
+    New contract: missing hook endpoint → log + proceed with the unmodified
+    send_message, stamp metadata.fault_delivered=False. The judge's
+    pass-by-avoidance machinery (PR #129) renders the verdict honestly:
+    fault_triggered=False is disclosed on every probe row + the signed-report
+    cover so a regulator sees the audit ran in black-box mode against a
+    non-instrumented target.
+    """
+    respx.get("http://localhost:8001/.well-known/agent-card.json").mock(
+        return_value=httpx.Response(200, json=_valid_agent_card())
+    )
+    # /hooks/adk returns 404 — typical of public, non-Phoenix-instrumented agents.
+    respx.post("http://localhost:8001/hooks/adk").mock(return_value=httpx.Response(404))
+    respx.post("http://localhost:8001/").mock(
+        return_value=httpx.Response(200, json=_jsonrpc_message_response("agent answered normally"))
+    )
+    adapter = ADKAdapter(_spec())
+    result = await adapter.invoke(
+        AdapterInvocation(
+            prompt="probe payload",
+            fault_config={"kind": "malformed_tool_output", "tool_name": "lookup"},
+        )
+    )
+    # No FaultDeliveryError raised — the audit reached the agent.
+    assert result.error is None
+    assert result.response == "agent answered normally"
+    # Honest disclosure: fault was NOT delivered (no hook to register against).
+    # The judge keys off this flag to apply pass-by-avoidance reasoning rather
+    # than treating the agent's benign response as "agent passed the adversarial
+    # injection" — that would inflate the pass rate dishonestly.
+    assert result.metadata["fault_delivered"] is False
+    assert result.metadata["delivery_mode"] == "black_box_no_hook"
+    await adapter.disconnect()
+
+
 async def test_auth_dict_without_bearer_raises_discovery_error() -> None:
     """Round-2 review (SFH-B2 + CR-#3): silently sending NO auth for a
     non-`bearer` key dict is a footgun — pattern #2. The shared

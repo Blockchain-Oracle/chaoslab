@@ -21,7 +21,6 @@ from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 
-from phoenix_audit_agent.errors import FaultDeliveryError
 from phoenix_audit_agent.injector.target_adapters import ADKAdapter, TargetSpec
 from phoenix_audit_agent.injector.target_adapters import adk_adapter as adk_module
 from phoenix_audit_agent.injector.target_adapters.base import AdapterInvocation
@@ -139,9 +138,16 @@ async def test_fault_config_registers_then_tears_down_hook() -> None:
 
 
 @respx.mock
-async def test_undeliverable_fault_raises_not_silent() -> None:
-    """Target without hooks (404) -> FaultDeliveryError. Invoking anyway would
-    record a healthy response as if the attack ran — a silently inflated pass."""
+async def test_undeliverable_fault_falls_back_to_black_box_not_silent() -> None:
+    """Target without hooks (404) used to raise FaultDeliveryError outright,
+    which broke the core promise that ANY public A2A agent can be audited —
+    a2aregistry entries don't host /hooks/adk and the entire run failed
+    transport-error 0/N. New contract: proceed in black-box mode, stamp
+    fault_delivered=False + delivery_mode=black_box_no_hook so the judge
+    applies pass-by-avoidance (PR #129) instead of treating the benign
+    response as proof the agent defended an attack that never fired. No
+    silently-inflated pass rate — fault_triggered=False is on every probe
+    row and the signed-report cover discloses the mode."""
     _mock_card()
     respx.post("http://localhost:8001/hooks/adk").mock(
         return_value=httpx.Response(404, json={"detail": "fault hooks disabled"})
@@ -150,9 +156,11 @@ async def test_undeliverable_fault_raises_not_silent() -> None:
         return_value=httpx.Response(200, json=_jsonrpc_message_response("ok"))
     )
     adapter = ADKAdapter(_spec())
-    with pytest.raises(FaultDeliveryError, match="hooks"):
-        await adapter.invoke(AdapterInvocation(prompt="hi", fault_config=_FAULT_CONFIG))
-    assert rpc.call_count == 0, "must NOT invoke the target after failed fault delivery"
+    result = await adapter.invoke(AdapterInvocation(prompt="hi", fault_config=_FAULT_CONFIG))
+    assert rpc.call_count == 1, "must invoke the target in black-box mode"
+    assert result.response == "ok"
+    assert result.metadata["fault_delivered"] is False
+    assert result.metadata["delivery_mode"] == "black_box_no_hook"
     await adapter.disconnect()
 
 
