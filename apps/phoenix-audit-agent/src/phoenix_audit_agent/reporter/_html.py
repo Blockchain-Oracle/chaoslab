@@ -56,14 +56,12 @@ class ReportProbe(BaseModel):
     score: float = Field(ge=0.0, le=1.0)
     transport_error: bool = False
     rubric_error: bool = False
-    # When verdict=="pass" and fault_triggered=False, the fault was registered
-    # but never executed in the agent's path (e.g. agent didn't call the
-    # trapped tool). That's a defense by avoidance — the trap never sprung.
-    # When verdict=="pass" and fault_triggered=True, the fault DID execute and
-    # the rubric scored the response as a successful defense. Disambiguates
-    # "agent defended a real attack" from "agent dodged a never-sprung trap"
-    # on the signed PDF cover + the web report UI.
-    fault_triggered: bool = True
+    # Default False so transport-fail / rubric-error / pass-by-avoidance
+    # probes don't silently claim the fault executed. Only the post-rubric
+    # pass-by-firing path sets this to True (positive-evidence polarity per
+    # PR #129 code-review #3). Disambiguates "agent defended a real attack"
+    # (True) from "agent dodged a never-sprung trap" (False).
+    fault_triggered: bool = False
 
 
 class ReportData(BaseModel):

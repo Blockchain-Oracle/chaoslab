@@ -1,22 +1,10 @@
 """Dataset-row phase of the audit pipeline.
 
-When the operator picks a dataset in `/new`, this phase runs AFTER the
-synthetic battery — sending each dataset row's prompt to the target on its
-own adapter lifecycle, recording AttackResults onto the shared
-InjectorState, and emitting SSE frames with `origin=f"dataset:{slug}"`
-so the chamber UI can label the two phases distinctly.
-
-Containment rules: failures of this phase MUST NOT abort the audit. The
-synthetic battery already produced real verdicts, and the signed report
-tells the truth either way. Each failure mode is logged as a structured
-warning and the phase returns cleanly.
-
-Architectural note: dataset rows are adversarial prompts, not in-process
-fault injection — no hook is registered on the target. The judge sees no
-`phoenix_audit.fault.*` marker on these probes and naturally classifies
-them as pass-by-avoidance per `judge_phase._fault_fired`. That is the
-correct semantic for an agent that gave a clean response to an
-adversarial prompt.
+Runs after the synthetic battery: invokes the target with each dataset
+row's prompt on a dedicated adapter lifecycle, records AttackResults
+tagged source=f"dataset:{slug}", emits SSE frames with origin=same.
+Failures contain to a structured warning + return cleanly; the synthetic
+battery's verdicts are never voided.
 """
 
 from __future__ import annotations
@@ -38,21 +26,6 @@ _KNOWN_FAULT_CLASSES: frozenset[str] = frozenset(
 )
 
 EmitFn = Callable[[str, dict[str, Any]], Awaitable[None]]
-AdapterBuilder = Callable[[str], Any]
-
-
-def _coerce_fault_class(raw: str) -> FaultClass:
-    """Map a dataset row's free-form fault_class string to the typed Literal.
-
-    Rows from public corpora (HarmBench, OWASP, etc.) may use labels outside
-    our four-class taxonomy. We normalize to the closest match by prefix or
-    fall back to `prompt_injection` (the most common adversarial intent in
-    public datasets). Logged at debug so a future drift can be diagnosed.
-    """
-    if raw in _KNOWN_FAULT_CLASSES:
-        return cast(FaultClass, raw)
-    _log.debug("dataset_row_unknown_fault_class_coerced", raw=raw, mapped="prompt_injection")
-    return "prompt_injection"
 
 
 async def run_dataset_rows(
@@ -62,11 +35,11 @@ async def run_dataset_rows(
     dataset_slug: str,
     state: InjectorState,
     emit: EmitFn,
-    build_adapter: AdapterBuilder,
+    build_adapter: Callable[[str], Any],
 ) -> None:
     """Drive each dataset row through the target and record AttackResults.
 
-    `build_adapter` is injected so audit_runner.py keeps a single source of
+    `build_adapter` is injected so audit_runner.py stays the single source of
     truth for adapter selection AND tests can monkeypatch one symbol.
     """
     from phoenix_audit_agent.api.datasets import get_phoenix_client
@@ -114,18 +87,44 @@ async def run_dataset_rows(
         )
         return
 
-    origin = f"dataset:{dataset_slug}"
+    source = f"dataset:{dataset_slug}"
     base_offset = state.total_attacks
+    n = base_offset
     try:
-        for i, row in enumerate(items):
-            n = base_offset + i + 1
-            fault_class = _coerce_fault_class(row.fault_class)
+        for row in items:
+            # Skip rows with fault_class outside the four-class taxonomy. The
+            # signed report's cluster + fault-class breakdown stays honest;
+            # silently coercing unknown classes to prompt_injection (PR #129
+            # code-review #2) misrepresents both verdict and category.
+            if row.fault_class not in _KNOWN_FAULT_CLASSES:
+                _log.warning(
+                    "dataset_row_unknown_fault_class_skipped",
+                    run_id=run_id,
+                    dataset_slug=dataset_slug,
+                    case_id=row.case_id,
+                    fault_class=row.fault_class,
+                )
+                await emit(
+                    "test_skipped",
+                    {
+                        "fault_class": row.fault_class,
+                        "origin": source,
+                        "case_id": row.case_id,
+                        "reason": "unknown fault_class outside the audit taxonomy",
+                        "run_id": run_id,
+                    },
+                )
+                continue
+            n += 1
+            # Membership in _KNOWN_FAULT_CLASSES (checked above) proves row.fault_class
+            # is one of the four — cast lets ty narrow from str to the Literal.
+            fault_class: FaultClass = cast(FaultClass, row.fault_class)
             await emit(
                 "test_started",
                 {
                     "n": n,
                     "fault_class": fault_class,
-                    "origin": origin,
+                    "origin": source,
                     "case_id": row.case_id,
                     "source": row.source,
                     "run_id": run_id,
@@ -137,6 +136,7 @@ async def run_dataset_rows(
                 run_id=run_id,
                 dataset_slug=dataset_slug,
                 fault_class=fault_class,
+                source_tag=source,
                 n=n,
             )
             state.record_attack(attack)
@@ -145,7 +145,7 @@ async def run_dataset_rows(
                 {
                     "n": n,
                     "fault_class": fault_class,
-                    "origin": origin,
+                    "origin": source,
                     "case_id": row.case_id,
                     "status": attack.status,
                     "span_id": attack.span_id,
@@ -172,15 +172,10 @@ async def _invoke_one_row(
     run_id: str,
     dataset_slug: str,
     fault_class: FaultClass,
+    source_tag: str,
     n: int,
 ) -> AttackResult:
-    """Send one dataset row to the target; map the outcome to AttackResult.
-
-    Three buckets: invoke-raises → error AttackResult with sentinel ids;
-    no evidence → error AttackResult (trace_id missing); evidence → ok
-    AttackResult with the target's trace_id as span_id (the canonical
-    32-hex form the judge fetches by).
-    """
+    """Send one dataset row to the target; map outcome to AttackResult."""
     common_attrs: dict[str, Any] = {
         "phoenix_audit.fault.type": fault_class,
         "phoenix_audit.dataset.case_id": row.case_id,
@@ -207,6 +202,8 @@ async def _invoke_one_row(
             duration_ms=0.0,
             attack_payload=row.prompt,
             span_attributes={**common_attrs, "phoenix_audit.attack.exception": type(exc).__name__},
+            source=source_tag,
+            expected=row.expected,
         )
 
     adapter_span_id = result.span_ids[0] if result.span_ids else ""
@@ -222,6 +219,8 @@ async def _invoke_one_row(
             duration_ms=result.duration_ms,
             attack_payload=row.prompt,
             span_attributes={**common_attrs, "phoenix_audit.attack.span_missing": True},
+            source=source_tag,
+            expected=row.expected,
         )
     return AttackResult(
         run_idx=n - 1,
@@ -232,6 +231,8 @@ async def _invoke_one_row(
         duration_ms=result.duration_ms,
         attack_payload=row.prompt,
         span_attributes=common_attrs,
+        source=source_tag,
+        expected=row.expected,
     )
 
 

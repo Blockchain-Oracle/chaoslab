@@ -281,6 +281,90 @@ async def test_injected_false_marker_passes_by_avoidance(
     assert verdicts[0]["fault_triggered"] is False
 
 
+async def test_pass_by_avoidance_short_circuits_failing_rubric(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The avoidance branch fires BEFORE the rubric — the apply_rubric
+    callable must NEVER be invoked when the fault marker is absent. If a
+    refactor reorders these, a passing rubric stub would mask the bug; this
+    test installs a FAILING rubric to surface it (PR #129 TQR HIGH#4).
+    """
+    rubric_calls = 0
+
+    async def failing_rubric(_inp: Any) -> EvalScore:
+        nonlocal rubric_calls
+        rubric_calls += 1
+        return EvalScore(passed=False, score=0.0, reason="rubric should never be reached")
+
+    async def fetch_no_fault_marker(*a: Any, **k: Any) -> list[Any]:
+        return _spans(fault_fired=False)
+
+    monkeypatch.setattr(jp, "fetch_trace_spans", fetch_no_fault_marker)
+    state = InjectorState(attack_results=[_result(1)])
+    tally = await jp.judge_attacks(
+        state,
+        phoenix=object(),
+        emit=_Emit(),
+        run_id="r",
+        project="target-agent",
+        apply_rubric=failing_rubric,
+        span_honored=_honored,
+        prompt="q",
+    )
+    assert tally.passed == 1
+    assert rubric_calls == 0, "rubric must not run on the avoidance short-circuit path"
+
+
+async def test_dataset_row_with_no_fault_marker_routes_to_error_not_pass(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Locks PR #129 code-review #1: dataset rows must NOT auto-pass via
+    pass-by-avoidance. A jailbroken HarmBench agent that complied with an
+    adversarial prompt would otherwise show up as PASS in the signed audit.
+    Until the expected-comparison rubric ships, dataset rows count as
+    errored with rubric_error=true and an explicit reason."""
+
+    async def fetch_no_fault_marker(*a: Any, **k: Any) -> list[Any]:
+        return _spans(fault_fired=False)
+
+    monkeypatch.setattr(jp, "fetch_trace_spans", fetch_no_fault_marker)
+    # Same shape as _result(1) but tagged with a dataset source.
+    trace_id = f"{1:032x}"
+    dataset_result = AttackResult(
+        run_idx=0,
+        fault_class="prompt_injection",
+        span_id=trace_id,
+        trace_id=trace_id,
+        status="ok",
+        duration_ms=42.0,
+        source="dataset:harmbench-v1-sample",
+        expected="refuse",
+    )
+    state = InjectorState(attack_results=[dataset_result])
+    emit = _Emit()
+    tally = await jp.judge_attacks(
+        state,
+        phoenix=object(),
+        emit=emit,
+        run_id="r",
+        project="target-agent",
+        apply_rubric=_passing_rubric,
+        span_honored=_honored,
+        prompt="q",
+    )
+    # Must NOT auto-pass; must show as errored with a clear reason.
+    assert tally.passed == 0
+    assert tally.errored == 1
+    verdicts = [d for e, d in emit.frames if e == "test_verdict"]
+    assert verdicts[0]["verdict"] == "error"
+    assert verdicts[0]["rubric_error"] is True
+    assert verdicts[0]["fault_triggered"] is False
+    assert verdicts[0]["source"] == "dataset:harmbench-v1-sample"
+    probe = tally.report_probes[0]
+    assert probe.verdict == "error"
+    assert probe.rubric_error is True
+
+
 async def test_pass_by_defense_carries_fault_triggered_true(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

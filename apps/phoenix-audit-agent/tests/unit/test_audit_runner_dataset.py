@@ -307,6 +307,302 @@ async def test_run_injector_dataset_phase_failure_does_not_abort_audit(
     assert started[0]["origin"] == "battery"
 
 
+def _make_fake_injector_with_one_battery_probe() -> type:
+    """Shared fixture-builder for the dataset-phase failure-path tests."""
+    from phoenix_audit_agent.injector.agent import AttackResult, AttackRun
+
+    class _FakeInjector:
+        def __init__(self, **kwargs: Any) -> None:
+            self.state = kwargs["state"]
+            self.on_attack_start = kwargs.get("on_attack_start")
+            self.on_attack_end = kwargs.get("on_attack_end")
+
+        async def run(self) -> None:
+            self.state.baseline_passed = True
+            self.state.baseline_pass_rate = 1.0
+            ar_ = AttackRun(run_idx=0, fault_class="prompt_injection", variant_idx=0)
+            res = AttackResult(
+                run_idx=0,
+                fault_class="prompt_injection",
+                span_id="c" * 16,
+                trace_id="c" * 32,
+                status="ok",
+                duration_ms=10.0,
+            )
+            if self.on_attack_start:
+                await self.on_attack_start(ar_)
+            self.state.record_attack(res)
+            if self.on_attack_end:
+                await self.on_attack_end(res)
+
+    return _FakeInjector
+
+
+@pytest.mark.asyncio
+async def test_dataset_phase_get_examples_failure_contained(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """PR #129 TQR med#1 — branch coverage for the Phoenix get_examples
+    failure path. Synthetic probes stay intact; no dataset:* frames emit."""
+    from phoenix_audit_agent import audit_runner as ar
+    from phoenix_audit_agent.api import datasets as api_datasets
+    from phoenix_audit_agent.storage import datasets as storage_datasets
+    from phoenix_audit_agent.storage.models import DatasetIndex
+
+    frames: list[tuple[str, dict[str, Any]]] = []
+
+    async def emit(event: str, payload: dict[str, Any]) -> None:
+        frames.append((event, payload))
+
+    class _StubIdxStore:
+        async def get_by_slug(self, slug: str) -> Any:
+            return DatasetIndex(
+                dataset_id=slug,
+                phoenix_dataset_id="phx_ds_unreachable",
+                name="x",
+                kind="battery",
+                row_count=1,
+                content_hash="sha256:x",
+                created_at="2026-06-11T07:00:00+00:00",
+                updated_at="2026-06-11T07:00:00+00:00",
+            )
+
+    class _BoomPhoenixClient:
+        async def get_examples(self, phx_id: str) -> Any:
+            raise RuntimeError("phoenix 5xx")
+
+    def _get_stub_idx_store() -> Any:
+        return _StubIdxStore()
+
+    monkeypatch.setattr(ar, "Injector", _make_fake_injector_with_one_battery_probe())
+    monkeypatch.setattr(storage_datasets, "get_dataset_index_store", _get_stub_idx_store)
+    api_datasets.set_phoenix_client(cast(Any, _BoomPhoenixClient()))
+    try:
+        state = await ar._run_injector(
+            run_id="run_xyz",
+            target_url="https://target.example",
+            runs_per_fault=1,
+            prompt="p",
+            emit=emit,
+            dataset_slug="some-slug",
+        )
+    finally:
+        api_datasets.set_phoenix_client(None)
+
+    assert len(state.attack_results) == 1
+    started = [p for e, p in frames if e == "test_started"]
+    assert len(started) == 1
+    assert started[0]["origin"] == "battery"
+    assert all(not p.get("origin", "").startswith("dataset:") for _e, p in frames)
+
+
+@pytest.mark.asyncio
+async def test_dataset_phase_adapter_connect_failure_contained(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """PR #129 TQR med#1 — branch coverage for adapter.connect failure.
+    Synthetic probes stay intact; no dataset:* frames emit."""
+    from phoenix_audit_agent import audit_runner as ar
+    from phoenix_audit_agent.api import datasets as api_datasets
+    from phoenix_audit_agent.phoenix_tools.dataset_client import FlatDatasetItem
+    from phoenix_audit_agent.storage import datasets as storage_datasets
+    from phoenix_audit_agent.storage.models import DatasetIndex
+
+    frames: list[tuple[str, dict[str, Any]]] = []
+
+    async def emit(event: str, payload: dict[str, Any]) -> None:
+        frames.append((event, payload))
+
+    class _StubIdxStore:
+        async def get_by_slug(self, slug: str) -> Any:
+            return DatasetIndex(
+                dataset_id=slug,
+                phoenix_dataset_id="phx_ds_x",
+                name="x",
+                kind="battery",
+                row_count=1,
+                content_hash="sha256:x",
+                created_at="2026-06-11T07:00:00+00:00",
+                updated_at="2026-06-11T07:00:00+00:00",
+            )
+
+    class _OneRowPhoenixClient:
+        async def get_examples(self, phx_id: str) -> list[FlatDatasetItem]:
+            return [
+                FlatDatasetItem(
+                    case_id="x-1",
+                    prompt="adversarial",
+                    fault_class="prompt_injection",
+                    expected="refuse",
+                    source="X",
+                )
+            ]
+
+    class _ConnectBoomAdapter:
+        def __init__(self, url: str = "") -> None:
+            pass
+
+        async def connect(self) -> None:
+            raise RuntimeError("adapter handshake refused")
+
+        async def disconnect(self) -> None:
+            pass
+
+    boom_adapter = _ConnectBoomAdapter()
+
+    def _get_boom_adapter(url: str) -> Any:
+        return boom_adapter
+
+    def _get_stub_idx_store() -> Any:
+        return _StubIdxStore()
+
+    monkeypatch.setattr(ar, "Injector", _make_fake_injector_with_one_battery_probe())
+    monkeypatch.setattr(ar, "build_adapter", _get_boom_adapter)
+    monkeypatch.setattr(storage_datasets, "get_dataset_index_store", _get_stub_idx_store)
+    api_datasets.set_phoenix_client(cast(Any, _OneRowPhoenixClient()))
+    try:
+        state = await ar._run_injector(
+            run_id="run_xyz",
+            target_url="https://target.example",
+            runs_per_fault=1,
+            prompt="p",
+            emit=emit,
+            dataset_slug="some-slug",
+        )
+    finally:
+        api_datasets.set_phoenix_client(None)
+
+    assert len(state.attack_results) == 1
+    started = [p for e, p in frames if e == "test_started"]
+    assert len(started) == 1
+    assert started[0]["origin"] == "battery"
+
+
+@pytest.mark.asyncio
+async def test_dataset_row_with_unknown_fault_class_skipped_not_coerced(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """PR #129 code-review #2: rows with fault_class outside the four-class
+    taxonomy must be skipped with a `test_skipped` SSE event — NOT silently
+    coerced to prompt_injection. The signed report's cluster + fault-class
+    breakdown stays honest."""
+    from phoenix_audit_agent import audit_runner as ar
+    from phoenix_audit_agent.api import datasets as api_datasets
+    from phoenix_audit_agent.injector.target_adapters.base import AdapterResult
+    from phoenix_audit_agent.phoenix_tools.dataset_client import FlatDatasetItem
+    from phoenix_audit_agent.storage import datasets as storage_datasets
+    from phoenix_audit_agent.storage.models import DatasetIndex
+
+    frames: list[tuple[str, dict[str, Any]]] = []
+
+    async def emit(event: str, payload: dict[str, Any]) -> None:
+        frames.append((event, payload))
+
+    class _StubAdapter:
+        def __init__(self, url: str = "") -> None:
+            self.invocations = 0
+
+        async def connect(self) -> None:
+            pass
+
+        async def disconnect(self) -> None:
+            pass
+
+        async def invoke(self, inv: Any) -> AdapterResult:
+            self.invocations += 1
+            tid = f"d{self.invocations:031x}"
+            return AdapterResult(
+                response="ok",
+                span_ids=[f"d{self.invocations:015x}"],
+                duration_ms=10.0,
+                metadata={"trace_id": tid},
+            )
+
+    stub_adapter = _StubAdapter()
+
+    class _StubIdxStore:
+        async def get_by_slug(self, slug: str) -> Any:
+            return DatasetIndex(
+                dataset_id=slug,
+                phoenix_dataset_id="phx_ds_x",
+                name="x",
+                kind="battery",
+                row_count=2,
+                content_hash="sha256:x",
+                created_at="2026-06-11T07:00:00+00:00",
+                updated_at="2026-06-11T07:00:00+00:00",
+            )
+
+    class _MixedClassPhoenixClient:
+        async def get_examples(self, phx_id: str) -> list[FlatDatasetItem]:
+            return [
+                FlatDatasetItem(
+                    case_id="ok-1",
+                    prompt="adversarial 1",
+                    fault_class="prompt_injection",  # in taxonomy
+                    expected="refuse",
+                    source="X",
+                ),
+                FlatDatasetItem(
+                    case_id="bad-1",
+                    prompt="adversarial 2",
+                    fault_class="harmful_content",  # OUTSIDE taxonomy
+                    expected="refuse",
+                    source="X",
+                ),
+            ]
+
+    def _get_stub_adapter(url: str) -> Any:
+        return stub_adapter
+
+    def _get_stub_idx_store() -> Any:
+        return _StubIdxStore()
+
+    monkeypatch.setattr(ar, "Injector", _make_fake_injector_with_one_battery_probe())
+    monkeypatch.setattr(ar, "build_adapter", _get_stub_adapter)
+    monkeypatch.setattr(storage_datasets, "get_dataset_index_store", _get_stub_idx_store)
+    api_datasets.set_phoenix_client(cast(Any, _MixedClassPhoenixClient()))
+    try:
+        state = await ar._run_injector(
+            run_id="run_xyz",
+            target_url="https://target.example",
+            runs_per_fault=1,
+            prompt="p",
+            emit=emit,
+            dataset_slug="harmbench",
+        )
+    finally:
+        api_datasets.set_phoenix_client(None)
+
+    # 1 synthetic + 1 in-taxonomy dataset row = 2 attack results.
+    # The out-of-taxonomy row gets a `test_skipped` event but no AttackResult.
+    assert len(state.attack_results) == 2
+    # Adapter was invoked once (for the in-taxonomy row only).
+    assert stub_adapter.invocations == 1
+    skipped = [p for e, p in frames if e == "test_skipped"]
+    assert len(skipped) == 1
+    assert skipped[0]["fault_class"] == "harmful_content"
+    assert skipped[0]["case_id"] == "bad-1"
+    assert "fault_class" in skipped[0]["reason"] or "taxonomy" in skipped[0]["reason"]
+    # No fabricated test_completed / test_started for the skipped row.
+    started_dataset = [
+        p for e, p in frames if e == "test_started" and p.get("origin", "").startswith("dataset:")
+    ]
+    assert len(started_dataset) == 1
+    assert started_dataset[0]["case_id"] == "ok-1"
+
+
+@pytest.fixture(autouse=True)
+def _reset_phoenix_client_after_each_test() -> Any:
+    """PR #129 TQR med#3 — autouse fixture that resets the module-global
+    Phoenix client holder so a test that forgets the try/finally can't leak
+    state into the next test in the file."""
+    from phoenix_audit_agent.api import datasets as api_datasets
+
+    yield
+    api_datasets.set_phoenix_client(None)
+
+
 @pytest.mark.asyncio
 async def test_dataset_snapshot_lands_on_run_record_at_finalize() -> None:
     """When `dataset_id` is set on the run, the finalize write captures

@@ -134,6 +134,14 @@ class AttackResult(BaseModel):
     attack_payload: str | None = None
     span_attributes: dict[str, Any] = Field(default_factory=dict)
     captured_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
+    # "battery" for synthetic faults the injector built; "dataset:<slug>" for
+    # rows from the operator-picked dataset. The judge needs this to route
+    # dataset rows away from pass-by-avoidance (which only makes sense for
+    # synthetic faults where the marker is the canonical "fired" signal).
+    source: str = "battery"
+    # When source="dataset:<slug>", the row's `expected` field rides through
+    # so a future expected-comparison rubric can score it. None for synthetic.
+    expected: str | None = None
 
 
 class InjectorState(BaseModel):
