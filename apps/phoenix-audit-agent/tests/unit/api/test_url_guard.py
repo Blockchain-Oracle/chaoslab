@@ -97,3 +97,32 @@ def test_metadata_blocked_even_with_allow_local_targets(
     get_settings.cache_clear()
     with pytest.raises(ValueError, match="metadata"):
         validate_target_url("http://metadata.google.internal/")
+
+
+@pytest.mark.parametrize(
+    "blocked",
+    [
+        # RFC1918 private ranges — auditor must never pivot into the VPC.
+        "http://10.0.0.5/",
+        "http://192.168.1.1/",
+        "http://172.16.0.10/",
+        # IPv6 ULA + 0.0.0.0 + reserved + multicast.
+        "http://[fd00::1]/",
+        "http://0.0.0.0/",
+        "http://224.0.0.1/",
+        "http://[ff00::1]/",
+    ],
+)
+def test_private_and_reserved_addresses_blocked_unconditionally(blocked: str) -> None:
+    """Security-review HIGH: the SSRF guard must reject RFC1918 + IPv6 ULA +
+    0.0.0.0 + multicast/reserved unconditionally, in any environment, so a
+    user-supplied target_url can't be aimed at internal infrastructure."""
+    with pytest.raises(ValueError, match=r"private|reserved"):
+        validate_target_url(blocked)
+
+
+def test_userinfo_in_target_url_rejected() -> None:
+    """Security-review low: embedded basic-auth credentials would otherwise
+    land in Cloud Logging via the validate_endpoint_invoked structured log."""
+    with pytest.raises(ValueError, match="credentials"):
+        validate_target_url("https://user:pass@target.example/")

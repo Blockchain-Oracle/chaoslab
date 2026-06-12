@@ -25,6 +25,24 @@ function probeCheck(url: string): { ok: true } | { ok: false; error: string } {
   return { ok: true }
 }
 
+// Wire shape from POST /api/agent/validate — flat union so the React state
+// machine doesn't have to branch on nested optionals. Optional fields are
+// present iff `valid === true`; `reason` iff `valid === false`.
+type ValidateApiResponse = {
+  valid: boolean
+  mode?: 'v1' | 'permissive'
+  name?: string
+  protocol_version?: string
+  version?: string
+  skills_count?: number
+  auth?: string
+  transport?: string
+  card_url?: string
+  discovery_path?: string
+  warnings?: string[]
+  reason?: string
+}
+
 export default function NewAuditPage() {
   // useSearchParams demands a Suspense boundary in the App Router.
   return (
@@ -47,7 +65,11 @@ function NewAuditForm() {
   const [datasetId, setDatasetId] = useState<string | null>(datasetParam)
   const [touched, setTouched] = useState(false)
   const [pinging, setPinging] = useState(false)
-  const [pinged, setPinged] = useState(false)
+  // PR #131 — real preflight result. The wizard pings /api/agent/validate
+  // on URL paste so users see "✓ AIScan — A2A v0.3.0 · 6 skills · no auth"
+  // or "⚠ pre-v1 schema · basic audit only" or "✗ {reason}" before
+  // committing to a 90s full audit. Replaces the prior fake setTimeout.
+  const [validateResult, setValidateResult] = useState<ValidateApiResponse | null>(null)
   const [depth, setDepth] = useState<1 | 2>(2)
   const [framework, setFramework] = useState('EU AI Act')
   const [showOverrides, setShowOverrides] = useState(false)
@@ -81,15 +103,51 @@ function NewAuditForm() {
   const check = probeCheck(url)
 
   useEffect(() => {
-    setPinged(false)
-    if (!check.ok) return
-    setPinging(true)
-    const id = setTimeout(() => {
+    setValidateResult(null)
+    if (!check.ok) {
       setPinging(false)
-      setPinged(true)
-    }, 900)
+      return
+    }
+    setPinging(true)
+    // Debounce so the validate fetch doesn't fire on every keystroke; the
+    // 500ms window matches the placeholder cadence the prior fake check
+    // used (one feedback per "typed and paused", not one per character).
+    const controller = new AbortController()
+    const id = window.setTimeout(async () => {
+      try {
+        const res = await fetch('/api/agent/validate', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ target_url: url.trim() }),
+          signal: controller.signal,
+        })
+        if (controller.signal.aborted) return
+        if (!res.ok) {
+          // Treat upstream HTTP errors as "could not validate" — show the
+          // status to the user instead of pretending the URL is fine. A
+          // 401/403 here means the session expired (rare); 422 means URL
+          // failed the SSRF guard.
+          setValidateResult({
+            valid: false,
+            reason: `validate service returned ${res.status}`,
+          })
+          return
+        }
+        const body = (await res.json()) as ValidateApiResponse
+        setValidateResult(body)
+      } catch (err) {
+        if (controller.signal.aborted) return
+        setValidateResult({
+          valid: false,
+          reason: err instanceof Error ? err.message : 'network error',
+        })
+      } finally {
+        if (!controller.signal.aborted) setPinging(false)
+      }
+    }, 500)
     return () => {
-      clearTimeout(id)
+      controller.abort()
+      window.clearTimeout(id)
       setPinging(false)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -128,11 +186,41 @@ function NewAuditForm() {
     }
   }
 
-  const hint = pinging
-    ? 'Checking address…'
-    : pinged
-      ? '✓ Address format OK — reachability and framework are verified by the first audit probe.'
-      : 'HTTPS URL, or an A2A address for ADK-native agents.'
+  // Hint reflects the validate-endpoint verdict — one of four states:
+  // (1) still typing / format invalid → static helper copy
+  // (2) checking → "Checking address…"
+  // (3) valid v1 → ✓ name + protocol_version + skills_count + auth scheme
+  //     valid permissive → ⚠ name + first warning ("pre-v1 schema; basic audit only")
+  // (4) invalid → ✗ reason from the backend
+  const hint = (() => {
+    if (pinging) return 'Checking address…'
+    if (!validateResult) {
+      return 'HTTPS URL, or an A2A address for ADK-native agents.'
+    }
+    if (!validateResult.valid) {
+      return `✗ ${validateResult.reason ?? 'could not validate this address'}`
+    }
+    const skills =
+      validateResult.skills_count != null
+        ? `${validateResult.skills_count} skill${validateResult.skills_count === 1 ? '' : 's'}`
+        : null
+    const auth =
+      validateResult.auth && validateResult.auth !== 'none' ? validateResult.auth : 'no auth'
+    const pv = validateResult.protocol_version ? `A2A v${validateResult.protocol_version}` : 'A2A'
+    if (validateResult.mode === 'permissive') {
+      const warning = validateResult.warnings?.[0] ?? 'pre-v1 schema; basic audit only'
+      return `⚠ ${validateResult.name ?? 'agent'} — ${warning}`
+    }
+    // Auth-gated targets (x402 / bearer / oauth) — card probe reads the
+    // well-known fine but the audit calls themselves get 401'd 30s in. Flag
+    // amber + name the scheme so the user knows what's missing rather than
+    // discovering it from a failed run. BYO-token flow is a future PR.
+    if (validateResult.auth && validateResult.auth !== 'none') {
+      return `⚠ ${validateResult.name ?? 'A2A agent'} — ${pv} · requires ${validateResult.auth} credentials (audit will fail without them)`
+    }
+    const parts = [pv, skills, auth].filter(Boolean).join(' · ')
+    return `✓ ${validateResult.name ?? 'A2A agent'} — ${parts}`
+  })()
 
   return (
     <PageShell label="new-audit">
@@ -177,6 +265,21 @@ function NewAuditForm() {
               spellCheck="false"
             />
           </Field>
+          <p
+            className="mono"
+            style={{
+              fontSize: 11,
+              color: 'var(--ink-3)',
+              marginTop: -28,
+              marginBottom: 32,
+              maxWidth: 560,
+            }}
+          >
+            Works with public A2A v1.0 agents (and pre-v1 cards in basic mode). Gated targets —
+            bearer / OAuth / API-key / x402 stablecoin paywalls — are detected and named, but the
+            audit itself needs credentials we don&rsquo;t yet collect; BYO-token + funded-wallet
+            flow is on the roadmap.
+          </p>
 
           <SectionHead
             no="§2"

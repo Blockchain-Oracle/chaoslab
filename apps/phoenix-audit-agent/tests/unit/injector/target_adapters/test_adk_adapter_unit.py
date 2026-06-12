@@ -180,24 +180,41 @@ async def test_connect_v1_path_short_circuits_before_legacy() -> None:
 
 @respx.mock
 async def test_connect_malformed_json_raises_discovery_error() -> None:
-    """a2a-sdk's JSON decoder raises A2AClientJSONError; we wrap as AdapterDiscoveryError."""
+    """A non-JSON body at the well-known path is malformed — no card can be
+    extracted, both strict + permissive paths bail. The error message names
+    "malformed" so operators can grep for it in Cloud Logging."""
     respx.get("http://localhost:8001/.well-known/agent-card.json").mock(
         return_value=httpx.Response(200, content=b"not-json-{[")
     )
+    respx.get("http://localhost:8001/.well-known/agent.json").mock(return_value=httpx.Response(404))
     adapter = ADKAdapter(_spec())
     with pytest.raises(AdapterDiscoveryError, match="malformed AgentCard"):
         await adapter.connect()
 
 
 @respx.mock
-async def test_connect_missing_required_card_fields_raises_discovery_error() -> None:
-    """Pydantic validation on AgentCard rejects an incomplete payload."""
+async def test_connect_card_with_only_name_is_permissive_synthesized() -> None:
+    """A card with just `{"name": "x"}` no longer raises — the permissive
+    parser synthesizes a minimal AgentCard (using the base URL as the
+    dispatch URL) and the adapter records `_card_mode == "permissive"`.
+
+    Replaces the prior "missing required card fields raises discovery error"
+    lock — per PR #131 product decision: any agent with a name is auditable
+    in basic mode, with a "pre-v1 schema; basic audit only" warning on the
+    signed cover. The signed report stays honest about what was scored.
+    """
     respx.get("http://localhost:8001/.well-known/agent-card.json").mock(
         return_value=httpx.Response(200, json={"name": "x"})
     )
     adapter = ADKAdapter(_spec())
-    with pytest.raises(AdapterDiscoveryError, match="malformed AgentCard"):
-        await adapter.connect()
+    await adapter.connect()
+    assert adapter._connected is True
+    assert adapter._card_mode == "permissive"
+    assert adapter._card_warnings
+    assert "pre-v1" in adapter._card_warnings[0].lower()
+    assert adapter._agent_card is not None
+    assert adapter._agent_card["name"] == "x"
+    await adapter.disconnect()
 
 
 @respx.mock

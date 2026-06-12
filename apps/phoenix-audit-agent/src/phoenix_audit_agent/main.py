@@ -38,6 +38,7 @@ from phoenix_audit_agent.api.runs_mr import router as runs_mr_router
 from phoenix_audit_agent.api.runs_review import router as runs_review_router
 from phoenix_audit_agent.api.schedules import router as schedules_router
 from phoenix_audit_agent.api.schedules import set_run_launcher
+from phoenix_audit_agent.api.validate import router as validate_router
 from phoenix_audit_agent.audit_runner import drive_audit
 from phoenix_audit_agent.config import GCS_PROBE_ENV_NAME, get_settings
 from phoenix_audit_agent.storage.models import (
@@ -452,6 +453,7 @@ app.include_router(datasets_router)
 app.include_router(integrations_router)
 app.include_router(runs_mr_router)
 app.include_router(runs_review_router)
+app.include_router(validate_router)
 
 
 def run_uvicorn() -> None:
