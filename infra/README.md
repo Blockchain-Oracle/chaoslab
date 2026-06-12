@@ -1,8 +1,14 @@
 # Infra — one-time setup
 
-This directory carries the bash scripts that bootstrap GCP for PhoenixAudit's CI/CD pipeline. Run them once per GCP project; the CI workflows in `.github/workflows/` assume these scripts have already run.
+This directory carries the bash scripts that bootstrap GCP for Phoenix Audit's CI/CD pipeline. Run them once per GCP project; the CI workflows in `.github/workflows/` assume these scripts have already run.
 
 The scripts are **idempotent** — re-running them is safe (existing resources surface as "already exists" warnings).
+
+> **Before you start, three things that will save you hours** (full list in the "Top-5 WIF gotchas" section below):
+>
+> - `GITHUB_OWNER` is **case-sensitive** in the Workload Identity Federation provider's attribute condition. `Blockchain-Oracle` ≠ `blockchain-oracle`.
+> - Cloud KMS keys are **regional**, but the key ring location must match the runtime SA's bindings. Use the same region everywhere.
+> - The runtime SA needs `roles/iam.serviceAccountTokenCreator` **on itself** to mint signed URLs for the report bucket (GCS gotcha).
 
 ## Required env vars
 

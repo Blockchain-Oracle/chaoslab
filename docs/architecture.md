@@ -1,7 +1,11 @@
 # Architecture — Phoenix Audit
 
-<!-- ARCHITECTURE OVERVIEW (Surface AR · designer-delivered SVG; see docs/assets.md) -->
-<!-- TODO: <p align="center"><img alt="Phoenix Audit end-to-end architecture" src="./images/architecture.svg" width="100%"></p> -->
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/Blockchain-Oracle/phoenix-audit/main/docs/images/architecture-dark.svg">
+    <img alt="Phoenix Audit end-to-end architecture — Injector → Judge → Patcher → Cloud KMS signed report" src="https://raw.githubusercontent.com/Blockchain-Oracle/phoenix-audit/main/docs/images/architecture-light.svg" width="100%">
+  </picture>
+</p>
 
 ---
 

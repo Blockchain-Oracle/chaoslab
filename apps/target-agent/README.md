@@ -59,22 +59,19 @@ test's AST-based ordering check enforces this at the source level. The
 correct ordering pattern is shown in `research/.../architecture/02-phoenix-deep-dive.md §3.4`
 (Phoenix Cloud + ADK minimal snippet). Flag-citation history: `audit-notes.md` D4-8.
 
-Env vars (see `.env.example`):
+### Env
 
-- `PHOENIX_API_KEY` — Phoenix Cloud API key. Resolved via
-  `setup_observability()` chain: env var first (local dev convenience),
-  then Google Secret Manager fallback (`phoenix-api-key` under
-  `$GCP_PROJECT_ID`). Secret Manager fallback shipped in S2.3.
-- `PHOENIX_COLLECTOR_ENDPOINT` — defaults to `https://app.phoenix.arize.com`.
-  Some Phoenix Cloud workspaces require the space-scoped URL (`/s/<space>`);
-  empirically confirmed in RAT-2 with form
-  `https://app.phoenix.arize.com/s/<workspace-slug>`. Update this if the
-  integration test 404s on span ingestion.
-- `PHOENIX_PROJECT_NAME` — defaults to `target-agent`. Must match the
-  orchestrator's `--project` flag (Epic 4) and the demo's Phoenix deep-link.
-- `PHOENIX_OBSERVABILITY_OPTIONAL=1` — opt-in to the no-op graceful-degradation
-  path. On Cloud Run (where `K_SERVICE` is set), missing credentials normally
-  raise a hard `ConfigurationError` — this env var overrides that.
+> **⚠ `PUBLIC_URL` is mandatory on Cloud Run** — without it the A2A agent card advertises `http://localhost:8001` regardless of where the container actually binds, and every audit baseline against this target fails 0/5 (issue #22).
+
+The summary below covers the must-haves. Full reference with sources + defaults: [`docs/env-vars.md`](../../docs/env-vars.md).
+
+| Variable                           | What it does                                                                                                                                                       |
+| ---------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `PHOENIX_API_KEY`                  | Phoenix Cloud key. Local: env var. Cloud Run: Secret Manager fallback (`phoenix-api-key` under `$GCP_PROJECT_ID`).                                                 |
+| `PHOENIX_COLLECTOR_ENDPOINT`       | OTLP HTTP endpoint. Defaults to `https://app.phoenix.arize.com`; some workspaces require the space-scoped form `https://app.phoenix.arize.com/s/<workspace-slug>`. |
+| `PHOENIX_PROJECT_NAME`             | Defaults to `target-agent`. Must match the orchestrator's `--project` flag and the demo's Phoenix deep-link.                                                       |
+| `PUBLIC_URL`                       | Cloud Run only — the service's public URL. Issue #22 fix.                                                                                                          |
+| `PHOENIX_OBSERVABILITY_OPTIONAL=1` | Opt-in to the graceful-degradation path on Cloud Run when credentials are intentionally missing.                                                                   |
 
 ## Container build
 
