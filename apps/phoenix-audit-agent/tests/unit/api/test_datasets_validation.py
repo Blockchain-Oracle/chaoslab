@@ -161,7 +161,7 @@ def test_known_fault_classes_match_injector_canon(fmt: str) -> None:
     `injector.agent._FAULT_CLASSES` at import time, so they cannot diverge
     today. This test exists to fail loudly IF a future refactor splits
     them — at which point either (a) re-derive at import time, or (b) add
-    a CI step (CLAUDE.md silent-failure pattern #3) that diffs the two."""
+    a CI step (docs/architecture.md silent-failure pattern #3) that diffs the two."""
     from phoenix_audit_agent.api.datasets_validation import KNOWN_FAULT_CLASSES
     from phoenix_audit_agent.injector.agent import _FAULT_CLASSES
 

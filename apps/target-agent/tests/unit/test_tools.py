@@ -1,6 +1,6 @@
 """Unit tests for the naive target agent's three tools.
 
-Tests follow the trace-as-assertion pattern per CLAUDE.md hard rule:
+Tests follow the trace-as-assertion pattern per docs/architecture.md hard rule:
 assertions are made on Phoenix/OpenInference span attributes
 (`openinference.span.kind`, `status_code`, `tool_call.function.name`)
 rather than natural-language output. The in-memory OTel fixture below

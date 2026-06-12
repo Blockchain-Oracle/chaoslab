@@ -42,7 +42,7 @@ _log = structlog.get_logger(__name__)
 _FLUSH_TIMEOUT_MS = 2000
 
 # Transport errors we treat as transient. Everything else is a programmer
-# error and surfaces with exc_info at error level — per CLAUDE.md silent-
+# error and surfaces with exc_info at error level — per docs/architecture.md silent-
 # failure pattern #4 (a fallback path that LOOKS like real success in
 # operator dashboards is worse than no fallback at all).
 _TRANSIENT_FLUSH_ERRORS = (TimeoutError, ConnectionError, OSError)

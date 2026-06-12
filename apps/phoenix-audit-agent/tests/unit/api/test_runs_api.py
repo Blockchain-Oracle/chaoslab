@@ -171,7 +171,7 @@ async def test_sign_failure_disclosed_distinct_from_absent(
     client: httpx.AsyncClient, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """A signing outage must be DISTINGUISHABLE from 'artifact does not exist'
-    — never a silently absent key (CLAUDE.md pattern #4)."""
+    — never a silently absent key (docs/architecture.md pattern #4)."""
     from phoenix_audit_agent.api import runs as runs_api
 
     async def failing_sign(blob_name: str) -> str:

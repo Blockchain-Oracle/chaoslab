@@ -50,7 +50,8 @@ def test_judge_llm_validator_rejects_non_flash(monkeypatch: pytest.MonkeyPatch) 
 
 
 def test_phoenix_api_key_is_secretstr_when_provided(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Per CLAUDE.md hard rule + Patch #20 schema rule 4a: api_key MUST be SecretStr-redacted."""
+    """Per docs/architecture.md hard rule + Patch #20 schema rule 4a:
+    api_key MUST be SecretStr-redacted."""
     monkeypatch.setenv("GEMINI_API_KEY", "test-gemini")
     monkeypatch.setenv("PHOENIX_API_KEY", "sk-real-secret-key-do-not-leak")
     s = Settings()

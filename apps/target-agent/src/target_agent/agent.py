@@ -39,7 +39,7 @@ _INSTRUCTION = (
 
 root_agent = LlmAgent(
     name="target_customer_support",
-    # Gemini 3.5 Flash per PRD + CLAUDE.md hard rules. Do not substitute.
+    # Gemini 3.5 Flash per PRD + docs/architecture.md hard rules. Do not substitute.
     model="gemini-3.5-flash",
     description="Deliberately-naive customer-support agent — Phoenix Audit's demo target.",
     instruction=_INSTRUCTION,

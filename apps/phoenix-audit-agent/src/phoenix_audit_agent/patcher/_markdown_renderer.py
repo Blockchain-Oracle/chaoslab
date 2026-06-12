@@ -176,7 +176,7 @@ def _render_fallback_notice(recipe: HardeningRecipe) -> str:
         # Render the corruption IN-BAND so the regulator reading the signed
         # recipe sees the integrity warning — not just an Operator grepping
         # Cloud Logging after the fact. Silent return ("") was pattern #4
-        # from CLAUDE.md: fallback indistinguishable from "no fallback at all."
+        # from docs/architecture.md: fallback indistinguishable from "no fallback at all."
         return (
             "## Fallback Clusters\n\n"
             "_(audit-integrity warning: `metadata.fallback_cluster_ids` was "

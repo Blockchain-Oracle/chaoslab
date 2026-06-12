@@ -64,7 +64,7 @@ class ReviewRequest(BaseModel):
 class ReviewResponse(BaseModel):
     review: ClusterReview
     # False => the review IS saved but the Phoenix annotation did not land —
-    # the UI can offer a retry; nothing pretends (CLAUDE.md pattern #4).
+    # the UI can offer a retry; nothing pretends (docs/architecture.md pattern #4).
     phoenix_annotated: bool
 
 

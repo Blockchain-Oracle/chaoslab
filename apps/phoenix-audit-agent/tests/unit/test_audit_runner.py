@@ -527,7 +527,7 @@ async def test_rubric_exception_is_contained_per_probe(wired: _Emitted) -> None:
 async def test_all_errored_run_discloses_clustering_skip_in_report(wired: _Emitted) -> None:
     """Every probe rubric-errored (failed=0, errored>0): the SSE stream says
     'clustering skipped' — the signed report must say the SAME, never render
-    indistinguishable from a clean audit (CLAUDE.md silent-failure #4)."""
+    indistinguishable from a clean audit (docs/architecture.md silent-failure #4)."""
     from phoenix_audit_agent.audit_runner import drive_audit
 
     _FakeInjector.results = [
@@ -627,7 +627,7 @@ async def test_completion_persisted_to_run_store(wired: _Emitted) -> None:
 @pytest.mark.asyncio
 async def test_persistence_failure_disclosed_never_fatal(wired: _Emitted) -> None:
     """A Firestore outage must not void a successful audit — the run completes
-    and the complete frame is MARKED (CLAUDE.md pattern #4)."""
+    and the complete frame is MARKED (docs/architecture.md pattern #4)."""
     from phoenix_audit_agent.storage import runs as run_storage
 
     class _DownStore:
