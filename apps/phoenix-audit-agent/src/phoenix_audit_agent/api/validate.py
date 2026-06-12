@@ -35,9 +35,14 @@ _log = structlog.get_logger(__name__)
 
 router = APIRouter()
 
-# Generous enough for slow agents but bounded so a misbehaving target can't
-# stall the wizard. Cloud Run-shaped agents typically respond in <1s.
-_VALIDATE_TIMEOUT_S = 8.0
+# Generous enough for Cloud Run cold-starts (which can be 3-5s on a
+# minInstances=0 service) but bounded so a misbehaving target can't stall
+# the wizard. Hot Cloud Run agents typically respond in <1s.
+_VALIDATE_TIMEOUT_S = 10.0
+# Connect timeout is the SSRF-relevant knob — keep it tight enough that the
+# endpoint is useless as an internal port-scanner. 4s leaves room for TLS +
+# initial Cloud-Run-cold-start handshake.
+_VALIDATE_CONNECT_TIMEOUT_S = 4.0
 
 
 class ValidateRequest(BaseModel):
@@ -105,9 +110,10 @@ async def validate_target(
     """
     _log.info("validate_endpoint_invoked", uid=user.uid, target_url=payload.target_url)
     # follow_redirects=False so an attacker can't bounce us off a public URL
-    # into an internal one (security-review medium). The connect timeout is
-    # tight (2s) so the endpoint can't be used as an internal port-scanner.
-    timeout = httpx.Timeout(_VALIDATE_TIMEOUT_S, connect=2.0)
+    # into an internal one (security-review medium). Connect timeout stays
+    # tight enough that the endpoint is useless as an internal port-scanner
+    # but generous enough for a Cloud Run cold start (see constants above).
+    timeout = httpx.Timeout(_VALIDATE_TIMEOUT_S, connect=_VALIDATE_CONNECT_TIMEOUT_S)
     async with httpx.AsyncClient(timeout=timeout, follow_redirects=False) as http:
         try:
             probe = await resolve_card(http, payload.target_url)
