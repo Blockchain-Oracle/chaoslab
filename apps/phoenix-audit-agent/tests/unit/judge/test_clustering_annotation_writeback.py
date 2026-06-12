@@ -103,9 +103,11 @@ async def test_annotation_writeback_emits_one_entry_per_span(
     assert len(cast(_RecordingSpans, client.spans).batches[0]) == 15
     # Each entry must carry the phoenix-audit annotation name and an LLM annotator.
     for entry in cast(_RecordingSpans, client.spans).batches[0]:
-        assert entry.name == "phoenix_audit_failure_cluster"
-        assert entry.annotator_kind == "LLM"
-        assert entry.result.label.startswith("cluster_")
+        # model_dump() → dict; Phoenix SDK rejected Pydantic models
+        # (run_d9bcbf208b2c, 2026-06-12).
+        assert entry["name"] == "phoenix_audit_failure_cluster"
+        assert entry["annotator_kind"] == "LLM"
+        assert entry["result"]["label"].startswith("cluster_")
 
 
 async def test_annotation_writeback_assigns_correct_cluster_per_span(
@@ -125,7 +127,7 @@ async def test_annotation_writeback_assigns_correct_cluster_per_span(
             expected_label[sid] = cluster.cluster_id
 
     posted = {
-        entry.span_id: entry.result.label
+        entry["span_id"]: entry["result"]["label"]
         for entry in cast(_RecordingSpans, client.spans).batches[0]
     }
     assert posted == expected_label
@@ -175,7 +177,7 @@ async def test_annotation_writeback_score_passes_through_eval_score(
     client = _RecordingClient()
     await run_clustering(failures, phoenix_client=client)
     scores = {
-        entry.span_id: entry.result.score
+        entry["span_id"]: entry["result"]["score"]
         for entry in cast(_RecordingSpans, client.spans).batches[0]
     }
     assert scores == {f.span_id: f.eval_score.score for f in failures}
@@ -192,7 +194,7 @@ async def test_annotation_explanation_carries_cluster_root_cause(
     client = _RecordingClient()
     result = await run_clustering(failures, phoenix_client=client)
     explanations = {
-        entry.result.explanation for entry in cast(_RecordingSpans, client.spans).batches[0]
+        entry["result"]["explanation"] for entry in cast(_RecordingSpans, client.spans).batches[0]
     }
     assert explanations == {c.root_cause for c in result.clusters}
 
@@ -208,8 +210,8 @@ async def test_annotation_metadata_carries_fault_classes(
     client = _RecordingClient()
     await run_clustering(failures, phoenix_client=client)
     for entry in cast(_RecordingSpans, client.spans).batches[0]:
-        assert "fault_classes" in entry.metadata
-        assert isinstance(entry.metadata["fault_classes"], list)
+        assert "fault_classes" in entry["metadata"]
+        assert isinstance(entry["metadata"]["fault_classes"], list)
 
 
 async def test_annotation_writeback_failure_raises_typed_error(
@@ -240,3 +242,37 @@ async def test_annotation_writeback_failure_raises_typed_error(
         await run_clustering(failures, phoenix_client=_RejectingClient())
     assert exc.value.attempted_count == len(failures)
     assert exc.value.cluster_set.total_failures == len(failures)
+
+
+# ---------------------------------------------------------------------------
+# Regression — run_d9bcbf208b2c (2026-06-12 production audit)
+# ---------------------------------------------------------------------------
+
+
+async def test_annotation_writeback_sends_dicts_not_pydantic_models(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Lock the E3 fix: writeback MUST send dict-shaped entries, not Pydantic
+    models. Phoenix SDK's httpx serializer raises
+    `TypeError: Object of type _SpanAnnotation is not JSON serializable`
+    when passed Pydantic models — the bug that crashed run_d9bcbf208b2c.
+
+    The prior _RecordingSpans stub silently accepted Pydantic models and
+    masked this for months. This test asserts the SDK contract: dicts only.
+    """
+    failures = _failures(4)
+    stub = _StubClusterer(_scripted_partition(failures, cluster_count=1))
+    import phoenix_audit_agent.judge.clustering as c
+
+    monkeypatch.setattr(c, "_call_clusterer", stub)
+    client = _RecordingClient()
+    await run_clustering(failures, phoenix_client=client)
+
+    batch = cast(_RecordingSpans, client.spans).batches[0]
+    # The contract: every entry the SDK receives is a plain dict.
+    for entry in batch:
+        assert isinstance(entry, dict), (
+            f"Phoenix SDK rejects non-dict entries with "
+            f"TypeError: Object of type {type(entry).__name__} is not JSON "
+            f"serializable. Saw {type(entry).__name__}."
+        )

@@ -13,7 +13,7 @@ from phoenix_audit_agent.config import get_settings
 from phoenix_audit_agent.errors import PhoenixAuditError
 from phoenix_audit_agent.patcher._markdown_renderer import render_recipe
 from phoenix_audit_agent.patcher.recipe import HardeningRecipe
-from phoenix_audit_agent.storage.gcs import get_storage_client
+from phoenix_audit_agent.storage.gcs import get_storage_client, signed_get_url
 
 logger = logging.getLogger(__name__)
 
@@ -214,11 +214,12 @@ class MarkdownEmitter:
                 msg = f"recipe_id={blob_name} already exists in bucket"
                 raise RecipeAlreadyExistsError(msg) from exc
             raise
-        return blob.generate_signed_url(
-            version="v4",
-            expiration=self._ttl,
-            method="GET",
-        )
+        # Use the shared helper — it transparently routes Cloud Run's
+        # token-only compute-engine credentials through IAM signBlob so a
+        # raw generate_signed_url AttributeError never reaches prod again
+        # (project_iam_gotcha_gcs). reporter/emitter.py + api/runs.py
+        # already use this helper; markdown_emitter was the lone holdout.
+        return signed_get_url(blob, ttl=self._ttl)
 
 
 # google-api-core signals "this blob already exists" across versions / transports
