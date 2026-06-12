@@ -1,0 +1,21 @@
+{
+  "algorithm": "EC_SIGN_ED25519",
+  "artifacts": [
+    {
+      "file": "report.pdf",
+      "sha256": "93bddf8c548807d833dccc6b11a21b39062bb9fd6ba0bb46ff629c231950ee74",
+      "signature_b64": "hbufyFmsom5oD2mtzzHGsrSqfUK6AMANjiJ6YgEAQbXty4oKYZ7wpfFgeziOkCtkO8t5dYtKBTIxo/CH9Z5sDw=="
+    },
+    {
+      "file": "report.json",
+      "sha256": "979b595fc94fe250cb72f9a81358ee0db7c1fcd04901a8d1ac4ba3cda50ba4c3",
+      "signature_b64": "V9uOVP14D7blhEnLzM7Dtw1a+MxfOqB1r87BNl+4A95rLUoB8r++o0+OUkdphoMZUP83dpjz1f4lrVc03hBBCQ=="
+    }
+  ],
+  "kms_key_version": "projects/project-9105c0b4-dfc1-4ee7-b22/locations/us-central1/keyRings/phoenix-audit/cryptoKeys/report-signer/cryptoKeyVersions/1",
+  "message_convention": "ed25519_sign(sha256(file_bytes))",
+  "public_key_fingerprint_sha256": "79e1f3cf44f05c36bf5a8aef6d3add2163d078d030110711fa46474729c3ccf8",
+  "public_key_pem": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEAevSlN/iLYdTIV1DLKMTqjLWnoBDSH0A+Hnkv8cJuyag=\n-----END PUBLIC KEY-----\n",
+  "signed_at": "2026-06-11T20:36:22+00:00",
+  "version": 1
+}

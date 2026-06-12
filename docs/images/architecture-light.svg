@@ -1,0 +1,139 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="720" viewBox="0 0 1600 720" fill="none" role="img" aria-label="Phoenix Audit end-to-end architecture: target agent, the Phoenix engine of Injector, Judge and Patcher, and a Cloud KMS-signed regulator-ready report">
+  <defs>
+    <marker id="arwL" markerWidth="9" markerHeight="9" refX="6.5" refY="3.4" orient="auto">
+      <path d="M0 0 L7 3.4 L0 6.8" fill="none" stroke="#983803" stroke-width="1.3"></path>
+    </marker>
+    <marker id="arwGray" markerWidth="9" markerHeight="9" refX="6.5" refY="3.4" orient="auto">
+      <path d="M0 0 L7 3.4 L0 6.8" fill="none" stroke="#9c937e" stroke-width="1.3"></path>
+    </marker>
+  </defs>
+  <rect width="1600" height="720" fill="#faf7f0"></rect>
+
+
+  <g stroke="#1c1712" stroke-width="1" opacity="0.4">
+    <path d="M40 34 h22 M40 34 v22"></path><path d="M1560 34 h-22 M1560 34 v22"></path>
+    <path d="M40 686 h22 M40 686 v-22"></path><path d="M1560 686 h-22 M1560 686 v-22"></path>
+  </g>
+
+
+  <line x1="72" y1="74" x2="94" y2="74" stroke="#983803" stroke-width="1.4"></line>
+  <text x="106" y="79" font-family="&#39;IBM Plex Mono&#39;,Menlo,monospace" font-size="12.5" letter-spacing="3" fill="#8f8674">SYSTEM ARCHITECTURE · END TO END</text>
+  <text x="72" y="122" font-family="Newsreader,Georgia,serif" font-weight="500" font-size="40" fill="#1c1712">How a run becomes a signed verdict</text>
+  <text x="72" y="152" font-family="&#39;IBM Plex Mono&#39;,Menlo,monospace" font-size="13.5" letter-spacing="0.3" fill="#57503f">One merge request in. One cryptographically-signed, regulator-ready report out — in about 90 seconds.</text>
+
+
+  <g transform="translate(72,232)">
+    <rect width="244" height="232" rx="3" fill="#ffffff" stroke="#1c1712" stroke-opacity="0.16"></rect>
+    <rect width="244" height="4" rx="2" fill="#7d7460"></rect>
+    <text x="20" y="40" font-family="&#39;IBM Plex Mono&#39;,Menlo,monospace" font-size="11" letter-spacing="2.4" fill="#8f8674">INPUT</text>
+    <text x="20" y="74" font-family="Newsreader,Georgia,serif" font-weight="500" font-size="24" fill="#1c1712">Your agent</text>
+    <text x="20" y="100" font-family="Newsreader,Georgia,serif" font-weight="500" font-size="24" fill="#1c1712">under audit</text>
+    <line x1="20" y1="120" x2="224" y2="120" stroke="#1c1712" stroke-opacity="0.1"></line>
+    <text x="20" y="148" font-family="&#39;IBM Plex Mono&#39;,Menlo,monospace" font-size="12.5" fill="#57503f">↳ Merge request</text>
+    <text x="20" y="172" font-family="&#39;IBM Plex Mono&#39;,Menlo,monospace" font-size="12.5" fill="#57503f">↳ Endpoint / API key</text>
+    <text x="20" y="196" font-family="&#39;IBM Plex Mono&#39;,Menlo,monospace" font-size="12.5" fill="#57503f">↳ Framework: <tspan fill="#983803">EU AI Act</tspan></text>
+    <text x="20" y="216" font-family="&#39;IBM Plex Mono&#39;,Menlo,monospace" font-size="11.5" fill="#8f8674">High-risk · Annex III §5</text>
+  </g>
+
+
+  <line x1="332" y1="348" x2="392" y2="348" stroke="#983803" stroke-width="1.6" marker-end="url(#arwL)"></line>
+
+
+  <g transform="translate(404,196)">
+    <rect width="788" height="340" rx="4" fill="#fbf3e8" stroke="#983803" stroke-opacity="0.35"></rect>
+    <rect width="788" height="340" rx="4" fill="none" stroke="#983803" stroke-opacity="0.12" stroke-dasharray="2 4" stroke-width="1"></rect>
+
+    <g transform="translate(28,26) scale(1.15)">
+      <path d="M12 7.6 L17.4 13.8 L12 20 L6.6 13.8 Z" fill="#983803"></path>
+      <path d="M14.2 5.4 L16.4 3.2 L18.6 5.4 L16.4 7.6 Z" fill="#983803" opacity="0.55"></path>
+      <path d="M9.8 4.2 L12 2 L14.2 4.2 L12 6.4 Z" fill="#983803"></path>
+    </g>
+    <text x="62" y="44" font-family="Newsreader,Georgia,serif" font-weight="500" font-size="23" fill="#1c1712">Phoenix engine</text>
+    <text x="62" y="63" font-family="&#39;IBM Plex Mono&#39;,Menlo,monospace" font-size="10.5" letter-spacing="2" fill="#8f8674">THE AUDITING AGENT · CLOUD RUN</text>
+    <text x="760" y="50" text-anchor="end" font-family="&#39;IBM Plex Mono&#39;,Menlo,monospace" font-size="11" letter-spacing="0.5" fill="#983803">SSE /stream → live chamber</text>
+
+
+
+    <g transform="translate(28,92)">
+      <rect width="226" height="156" rx="3" fill="#ffffff" stroke="#1c1712" stroke-opacity="0.14"></rect>
+      <circle cx="22" cy="30" r="9" fill="none" stroke="#983803" stroke-width="1.4"></circle>
+      <text x="22" y="34" text-anchor="middle" font-family="&#39;IBM Plex Mono&#39;,Menlo,monospace" font-size="11" fill="#983803">1</text>
+      <text x="42" y="34" font-family="Newsreader,Georgia,serif" font-weight="500" font-size="20" fill="#1c1712">Injector</text>
+      <line x1="20" y1="48" x2="206" y2="48" stroke="#1c1712" stroke-opacity="0.08"></line>
+      <text x="20" y="74" font-family="&#39;IBM Plex Mono&#39;,Menlo,monospace" font-size="12" fill="#57503f">Fires the test battery</text>
+      <text x="20" y="94" font-family="&#39;IBM Plex Mono&#39;,Menlo,monospace" font-size="12" fill="#57503f">at the live agent.</text>
+      <text x="20" y="124" font-family="&#39;IBM Plex Mono&#39;,Menlo,monospace" font-size="11" letter-spacing="1.6" fill="#8f8674">FROM DATASET LIBRARY</text>
+      <text x="20" y="143" font-family="&#39;IBM Plex Mono&#39;,Menlo,monospace" font-size="11.5" fill="#983803">jailbreaks · PII · policy</text>
+    </g>
+
+    <line x1="262" y1="170" x2="296" y2="170" stroke="#983803" stroke-width="1.5" marker-end="url(#arwL)"></line>
+
+
+    <g transform="translate(304,92)">
+      <rect width="226" height="156" rx="3" fill="#ffffff" stroke="#1c1712" stroke-opacity="0.14"></rect>
+      <circle cx="22" cy="30" r="9" fill="none" stroke="#983803" stroke-width="1.4"></circle>
+      <text x="22" y="34" text-anchor="middle" font-family="&#39;IBM Plex Mono&#39;,Menlo,monospace" font-size="11" fill="#983803">2</text>
+      <text x="42" y="34" font-family="Newsreader,Georgia,serif" font-weight="500" font-size="20" fill="#1c1712">Judge</text>
+      <line x1="20" y1="48" x2="206" y2="48" stroke="#1c1712" stroke-opacity="0.08"></line>
+      <text x="20" y="74" font-family="&#39;IBM Plex Mono&#39;,Menlo,monospace" font-size="12" fill="#57503f">Verdicts each response,</text>
+      <text x="20" y="94" font-family="&#39;IBM Plex Mono&#39;,Menlo,monospace" font-size="12" fill="#57503f">clusters the failures.</text>
+      <text x="20" y="124" font-family="&#39;IBM Plex Mono&#39;,Menlo,monospace" font-size="11" letter-spacing="1.6" fill="#8f8674">MODEL</text>
+      <text x="20" y="143" font-family="&#39;IBM Plex Mono&#39;,Menlo,monospace" font-size="11.5" fill="#983803">gemini-3.5-flash · Vertex AI</text>
+    </g>
+
+    <line x1="538" y1="170" x2="572" y2="170" stroke="#983803" stroke-width="1.5" marker-end="url(#arwL)"></line>
+
+
+    <g transform="translate(580,92)">
+      <rect width="180" height="156" rx="3" fill="#ffffff" stroke="#1c1712" stroke-opacity="0.14"></rect>
+      <circle cx="22" cy="30" r="9" fill="none" stroke="#983803" stroke-width="1.4"></circle>
+      <text x="22" y="34" text-anchor="middle" font-family="&#39;IBM Plex Mono&#39;,Menlo,monospace" font-size="11" fill="#983803">3</text>
+      <text x="42" y="34" font-family="Newsreader,Georgia,serif" font-weight="500" font-size="20" fill="#1c1712">Patcher</text>
+      <line x1="20" y1="48" x2="160" y2="48" stroke="#1c1712" stroke-opacity="0.08"></line>
+      <text x="20" y="74" font-family="&#39;IBM Plex Mono&#39;,Menlo,monospace" font-size="12" fill="#57503f">Writes a hardening</text>
+      <text x="20" y="94" font-family="&#39;IBM Plex Mono&#39;,Menlo,monospace" font-size="12" fill="#57503f">recipe per cluster.</text>
+      <text x="20" y="124" font-family="&#39;IBM Plex Mono&#39;,Menlo,monospace" font-size="11" letter-spacing="1.6" fill="#8f8674">OUTPUT</text>
+      <text x="20" y="143" font-family="&#39;IBM Plex Mono&#39;,Menlo,monospace" font-size="11.5" fill="#983803">recipe → re-test loop</text>
+    </g>
+  </g>
+
+
+  <line x1="1192" y1="348" x2="1252" y2="348" stroke="#983803" stroke-width="1.6" marker-end="url(#arwL)"></line>
+
+
+  <g transform="translate(1264,232)">
+    <rect width="244" height="232" rx="3" fill="#1c1712"></rect>
+    <rect width="244" height="4" rx="2" fill="#983803"></rect>
+    <text x="20" y="40" font-family="&#39;IBM Plex Mono&#39;,Menlo,monospace" font-size="11" letter-spacing="2.4" fill="#a99c80">OUTPUT</text>
+    <text x="20" y="74" font-family="Newsreader,Georgia,serif" font-weight="500" font-size="24" fill="#f3ecdd">Signed report</text>
+    <line x1="20" y1="92" x2="224" y2="92" stroke="#f3ecdd" stroke-opacity="0.14"></line>
+    <text x="20" y="120" font-family="&#39;IBM Plex Mono&#39;,Menlo,monospace" font-size="12.5" fill="#cdbf9f">↳ Verdict + evidence</text>
+    <text x="20" y="144" font-family="&#39;IBM Plex Mono&#39;,Menlo,monospace" font-size="12.5" fill="#cdbf9f">↳ Per-failure citations</text>
+    <text x="20" y="168" font-family="&#39;IBM Plex Mono&#39;,Menlo,monospace" font-size="12.5" fill="#cdbf9f">↳ Hardening recipe</text>
+
+    <g transform="translate(150,150)">
+      <circle cx="34" cy="34" r="33" stroke="#e89a4e" stroke-width="1.2"></circle>
+      <circle cx="34" cy="34" r="20" stroke="#e89a4e" stroke-width="0.7"></circle>
+      <g transform="translate(34 34) scale(1.15) translate(-12 -12)">
+        <path d="M12 7.6 L17.4 13.8 L12 20 L6.6 13.8 Z" fill="#e89a4e"></path>
+        <path d="M9.8 4.2 L12 2 L14.2 4.2 L12 6.4 Z" fill="#e89a4e"></path>
+      </g>
+    </g>
+    <text x="20" y="206" font-family="&#39;IBM Plex Mono&#39;,Menlo,monospace" font-size="10.5" letter-spacing="1.3" fill="#e89a4e">CLOUD KMS SIGNED</text>
+  </g>
+
+
+  <g transform="translate(72,576)">
+    <line x1="0" y1="0" x2="1436" y2="0" stroke="#1c1712" stroke-opacity="0.12"></line>
+    <text x="0" y="30" font-family="&#39;IBM Plex Mono&#39;,Menlo,monospace" font-size="11" letter-spacing="2.4" fill="#8f8674">BUILT ON GOOGLE CLOUD</text>
+    <g font-family="&#39;IBM Plex Mono&#39;,Menlo,monospace" font-size="13" fill="#57503f">
+      <text x="0" y="62">◆ Cloud Run</text>
+      <text x="150" y="62">◆ Vertex AI · Gemini</text>
+      <text x="360" y="62">◆ Cloud KMS</text>
+      <text x="520" y="62">◆ Cloud Storage</text>
+      <text x="670" y="62">◆ Firestore</text>
+      <text x="820" y="62">◆ Secret Manager</text>
+    </g>
+    <text x="1436" y="62" text-anchor="end" font-family="&#39;IBM Plex Mono&#39;,Menlo,monospace" font-size="12.5" fill="#983803">Every artifact is hash-chained &amp; tamper-evident.</text>
+  </g>
+</svg>

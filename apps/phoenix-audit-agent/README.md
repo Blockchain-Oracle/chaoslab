@@ -10,12 +10,26 @@ Phoenix Audit's orchestrator. ADK `SequentialAgent` composing Injector → Judge
 # 1. Install deps
 uv sync
 
-# 2. Set up env (.env.example -> .env; fill in GEMINI_API_KEY at minimum)
+# 2. Set up env (.env.example -> .env; see env table below)
 cp apps/phoenix-audit-agent/.env.example apps/phoenix-audit-agent/.env
 
 # 3. Start uvicorn
 uv run --package phoenix-audit-agent uvicorn phoenix_audit_agent.main:app --host 0.0.0.0 --port 8080 --reload
 ```
+
+### Env
+
+The summary below covers the must-haves. Full reference with sources + defaults: [`docs/env-vars.md`](../../docs/env-vars.md).
+
+| Variable                     | What it does                                                                 |
+| ---------------------------- | ---------------------------------------------------------------------------- |
+| `GEMINI_API_KEY`             | The judge LLM API key. On Cloud Run, replaced by Vertex AI IAM (ADR-007).    |
+| `PHOENIX_PROVIDER`           | `phoenix-audit` (default, self-hosted) or `customer` (BYO key). See ADR-017. |
+| `PHOENIX_API_KEY`            | Required when `PHOENIX_PROVIDER=customer`.                                   |
+| `PHOENIX_COLLECTOR_ENDPOINT` | OTLP HTTP endpoint. Local default points at `infra/phoenix-self-host/`.      |
+| `JUDGE_LLM`                  | Locked to `gemini-3.5-flash` for cost discipline.                            |
+| `TARGET_DEFAULT_URL`         | Demo target URL (the wizard always lets the operator override).              |
+| `GITLAB_TOKEN`               | Optional — enables MR filing (ADR-011).                                      |
 
 ## Endpoints
 

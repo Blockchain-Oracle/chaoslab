@@ -1,0 +1,48 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="360" viewBox="0 0 1280 360" fill="none" role="img" aria-label="Phoenix Audit — the AI agent that audits your other AI agents · regulator-ready in 90 seconds">
+  <defs>
+    <radialGradient id="glowD" cx="26%" cy="-12%" r="74%">
+      <stop offset="0" stop-color="#d67c34" stop-opacity="0.18"></stop>
+      <stop offset="0.6" stop-color="#d67c34" stop-opacity="0"></stop>
+    </radialGradient>
+    <path id="ringD" d="M 60,60 m -45,0 a 45,45 0 1,1 90,0 a 45,45 0 1,1 -90,0"></path>
+  </defs>
+  <rect width="1280" height="360" fill="#161109"></rect>
+  <rect width="1280" height="360" fill="url(#glowD)"></rect>
+
+  <g stroke="#f3ecdd" stroke-width="1" opacity="0.3">
+    <path d="M40 30 h22 M40 30 v22"></path>
+    <path d="M1240 30 h-22 M1240 30 v22"></path>
+    <path d="M40 330 h22 M40 330 v-22"></path>
+    <path d="M1240 330 h-22 M1240 330 v-22"></path>
+  </g>
+
+  <line x1="72" y1="91" x2="94" y2="91" stroke="#e89a4e" stroke-width="1.4"></line>
+  <text x="106" y="96" font-family="&#39;IBM Plex Mono&#39;,&#39;SFMono-Regular&#39;,Menlo,monospace" font-size="13" letter-spacing="3.1" fill="#7d7460">FORENSIC AI AUDIT · CLOUD KMS SIGNED</text>
+
+  <g transform="translate(72,150) scale(2.45)">
+    <path d="M12 7.6 L17.4 13.8 L12 20 L6.6 13.8 Z" fill="#e89a4e"></path>
+    <path d="M14.2 5.4 L16.4 3.2 L18.6 5.4 L16.4 7.6 Z" fill="#e89a4e" opacity="0.55"></path>
+    <path d="M9.8 4.2 L12 2 L14.2 4.2 L12 6.4 Z" fill="#e89a4e"></path>
+  </g>
+
+  <text x="148" y="211" font-family="Newsreader,&#39;Iowan Old Style&#39;,Georgia,serif" font-weight="500" font-size="78" letter-spacing="0.005em" fill="#f3ecdd">Phoenix Audit</text>
+
+  <text x="74" y="268" font-family="&#39;IBM Plex Mono&#39;,&#39;SFMono-Regular&#39;,Menlo,monospace" font-size="16.5" letter-spacing="0.6" fill="#b3a890">the AI agent that <tspan fill="#e89a4e" font-weight="500">audits</tspan> your other AI agents</text>
+  <text x="74" y="299" font-family="&#39;IBM Plex Mono&#39;,&#39;SFMono-Regular&#39;,Menlo,monospace" font-size="13" letter-spacing="3.1" fill="#7d7460">REGULATOR-READY IN 90 SECONDS</text>
+
+  <line x1="978" y1="74" x2="978" y2="286" stroke="#f3ecdd" stroke-opacity="0.14"></line>
+
+  <g transform="translate(1043,105) scale(1.25)">
+    <circle cx="60" cy="60" r="58" stroke="#e89a4e" stroke-width="1.4"></circle>
+    <circle cx="60" cy="60" r="54.5" stroke="#7d7460" stroke-width="0.6" stroke-dasharray="1.5 3"></circle>
+    <circle cx="60" cy="60" r="35" stroke="#e89a4e" stroke-width="0.9"></circle>
+    <text font-family="&#39;IBM Plex Mono&#39;,Menlo,monospace" font-size="8.1" letter-spacing="1.9" fill="#e89a4e">
+      <textPath href="#ringD">PHOENIX AUDIT · CRYPTOGRAPHICALLY SIGNED · CLOUD KMS · </textPath>
+    </text>
+    <g transform="translate(60 60) scale(2.1) translate(-12 -12)">
+      <path d="M12 7.6 L17.4 13.8 L12 20 L6.6 13.8 Z" fill="#e89a4e"></path>
+      <path d="M14.2 5.4 L16.4 3.2 L18.6 5.4 L16.4 7.6 Z" fill="#e89a4e" opacity="0.55"></path>
+      <path d="M9.8 4.2 L12 2 L14.2 4.2 L12 6.4 Z" fill="#e89a4e"></path>
+    </g>
+  </g>
+</svg>
