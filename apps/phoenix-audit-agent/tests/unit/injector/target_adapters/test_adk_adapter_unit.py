@@ -106,13 +106,76 @@ async def test_connect_parses_agent_card() -> None:
 
 @respx.mock
 async def test_connect_missing_card_raises_discovery_error() -> None:
+    """Both A2A v1.0 + legacy convention paths 404 → no card anywhere."""
     respx.get("http://localhost:8001/.well-known/agent-card.json").mock(
+        return_value=httpx.Response(404, json={"error": "not found"})
+    )
+    respx.get("http://localhost:8001/.well-known/agent.json").mock(
         return_value=httpx.Response(404, json={"error": "not found"})
     )
     adapter = ADKAdapter(_spec())
     with pytest.raises(AdapterDiscoveryError, match="no AgentCard"):
         await adapter.connect()
     assert adapter._connected is False
+
+
+@respx.mock
+async def test_connect_falls_back_to_agent_json_legacy_path() -> None:
+    """A2A dual-convention: agents that follow the older RFC-8615 / Codelabs
+    convention (Weather Agent, A2A Playground, Microsoft samples) serve
+    their card at `/.well-known/agent.json`. Without this fallback, "Point
+    Phoenix Audit at any production AI agent" is a lie — we crash on the
+    handshake. The v1.0 path is probed first; legacy is the second chance.
+    """
+    respx.get("http://localhost:8001/.well-known/agent-card.json").mock(
+        return_value=httpx.Response(404)
+    )
+    legacy_card = {
+        "name": "weather-agent-legacy",
+        "description": "A test agent",
+        "url": "http://localhost:8001",
+        "version": "1.0.0",
+        "capabilities": {"streaming": False},
+        "defaultInputModes": ["text/plain"],
+        "defaultOutputModes": ["text/plain"],
+        "skills": [],
+    }
+    respx.get("http://localhost:8001/.well-known/agent.json").mock(
+        return_value=httpx.Response(200, json=legacy_card)
+    )
+    adapter = ADKAdapter(_spec())
+    await adapter.connect()
+    assert adapter._connected is True
+    assert adapter._agent_card is not None
+    assert adapter._agent_card["name"] == "weather-agent-legacy"
+    await adapter.disconnect()
+
+
+@respx.mock
+async def test_connect_v1_path_short_circuits_before_legacy() -> None:
+    """When v1.0 card is present, the legacy probe MUST NOT fire — protects
+    against a future refactor flipping probe order and accidentally
+    auditing an agent's stale legacy card instead of its canonical v1.0."""
+    v1_card = {
+        "name": "phoenix-target-v1",
+        "description": "A test agent",
+        "url": "http://localhost:8001",
+        "version": "1.0.0",
+        "capabilities": {"streaming": False},
+        "defaultInputModes": ["text/plain"],
+        "defaultOutputModes": ["text/plain"],
+        "skills": [],
+    }
+    respx.get("http://localhost:8001/.well-known/agent-card.json").mock(
+        return_value=httpx.Response(200, json=v1_card)
+    )
+    legacy_route = respx.get("http://localhost:8001/.well-known/agent.json")
+    adapter = ADKAdapter(_spec())
+    await adapter.connect()
+    assert adapter._agent_card is not None
+    assert adapter._agent_card["name"] == "phoenix-target-v1"
+    assert legacy_route.call_count == 0
+    await adapter.disconnect()
 
 
 @respx.mock
@@ -320,6 +383,7 @@ async def test_invoke_auto_connect_failure_propagates_discovery_error() -> None:
     respx.get("http://localhost:8001/.well-known/agent-card.json").mock(
         return_value=httpx.Response(404)
     )
+    respx.get("http://localhost:8001/.well-known/agent.json").mock(return_value=httpx.Response(404))
     adapter = ADKAdapter(_spec())
     with pytest.raises(AdapterDiscoveryError, match="no AgentCard"):
         await adapter.invoke(AdapterInvocation(prompt="hi"))
