@@ -842,3 +842,71 @@ async def test_emit_routes_through_signed_get_url_helper_for_iam_signing(
     assert captured_kwargs.get("access_token") == "stub-access-token-xyz"
     assert captured_kwargs.get("version") == "v4"
     assert captured_kwargs.get("method") == "GET"
+
+
+async def test_emit_skips_iam_signing_when_credentials_have_sign_bytes(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Negative-branch lock: when the blob's client carries credentials that
+    DO expose `sign_bytes` (key-file / impersonated SA / local dev), the
+    helper takes the direct path — IAM kwargs MUST NOT be forwarded and
+    `_iam_signing_credentials` MUST NOT be invoked. A refactor that always
+    forwards IAM kwargs would pass the positive test but break local dev.
+    """
+    iam_calls = 0
+
+    def _stub_iam_signing_credentials() -> Any:
+        nonlocal iam_calls
+        iam_calls += 1
+        return None  # should never be reached on this branch
+
+    import phoenix_audit_agent.storage.gcs as gcs_module
+
+    monkeypatch.setattr(gcs_module, "_iam_signing_credentials", _stub_iam_signing_credentials)
+
+    captured_kwargs: dict[str, Any] = {}
+
+    class _KeyfileCreds:
+        """Mimics SA-keyfile / impersonated creds — has a signer."""
+
+        service_account_email = "fake-sa@phoenix-audit.iam.gserviceaccount.com"
+
+        def sign_bytes(self, _data: bytes) -> bytes:
+            return b"stub-signature"
+
+    class _KeyfileClient:
+        _credentials = _KeyfileCreds()
+
+    class _KeyfileBlob(_Blob):
+        client = _KeyfileClient()
+
+        def upload_from_string(
+            self,
+            data: bytes,
+            content_type: str,
+            if_generation_match: int = 0,
+        ) -> None:
+            pass
+
+        def generate_signed_url(self, **kwargs: Any) -> str:
+            captured_kwargs.update(kwargs)
+            return "https://storage.googleapis.com/chaoslab-recipes/x.md?X-Goog-Signature=z"
+
+    class _KeyfileBucket(_Bucket):
+        def blob(self, name: str) -> _KeyfileBlob:
+            return _KeyfileBlob()
+
+        def exists(self) -> bool:
+            return True
+
+    class _KeyfileStorage(StorageClient):
+        def bucket(self, name: str) -> _KeyfileBucket:
+            return _KeyfileBucket()
+
+    result = await MarkdownEmitter(storage_client=_KeyfileStorage()).emit(_recipe())
+    assert isinstance(result, EmitResult)
+    assert "service_account_email" not in captured_kwargs
+    assert "access_token" not in captured_kwargs
+    assert iam_calls == 0
+    assert captured_kwargs.get("version") == "v4"
+    assert captured_kwargs.get("method") == "GET"

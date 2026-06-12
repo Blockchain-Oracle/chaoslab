@@ -45,6 +45,13 @@ class _RecordingSpans(_SpansNamespace):
         raise NotImplementedError
 
     async def log_span_annotations(self, *, span_annotations: list[Any]) -> None:
+        # Mirror the real SDK's failure mode: httpx serializes the payload
+        # to JSON before posting. The prior stub silently accepted Pydantic
+        # models + non-JSON dict values (datetime/UUID/Enum), which is how
+        # run_d9bcbf208b2c's TypeError reached prod. Calling json.dumps
+        # here surfaces ANY non-serializable payload at unit-test time
+        # with the exact symptom prod would see.
+        json.dumps(span_annotations)
         self.batches.append(list(span_annotations))
 
 

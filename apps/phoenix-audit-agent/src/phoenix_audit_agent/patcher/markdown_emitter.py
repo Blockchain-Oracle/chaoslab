@@ -59,6 +59,14 @@ class BucketUnreachableError(BucketProbeError):
 
 @runtime_checkable
 class _Blob(Protocol):
+    """The slice of google-cloud-storage Blob the emitter touches.
+
+    NB: `signed_get_url` (storage/gcs.py) also reads `blob.client._credentials`
+    to decide between the direct signer and the IAM-signBlob fallback. The
+    Protocol leaves `client` undeclared because production `Blob` always has
+    it; test stubs that omit it land in the direct path (creds=None branch).
+    """
+
     def upload_from_string(
         self, data: bytes, content_type: str, if_generation_match: int = ...
     ) -> None: ...
@@ -214,11 +222,9 @@ class MarkdownEmitter:
                 msg = f"recipe_id={blob_name} already exists in bucket"
                 raise RecipeAlreadyExistsError(msg) from exc
             raise
-        # Use the shared helper — it transparently routes Cloud Run's
-        # token-only compute-engine credentials through IAM signBlob so a
-        # raw generate_signed_url AttributeError never reaches prod again
-        # (project_iam_gotcha_gcs). reporter/emitter.py + api/runs.py
-        # already use this helper; markdown_emitter was the lone holdout.
+        # signed_get_url routes Cloud Run token-only creds through IAM
+        # signBlob; raw generate_signed_url raises AttributeError there
+        # (run_d9bcbf208b2c, 2026-06-12).
         return signed_get_url(blob, ttl=self._ttl)
 
 
