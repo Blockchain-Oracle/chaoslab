@@ -31,14 +31,13 @@ from typing import Any
 
 import httpx
 from a2a.client import (
-    A2ACardResolver,
     ClientConfig,
     ClientEvent,
     ClientFactory,
     create_text_message_object,
 )
 from a2a.client.client import Client
-from a2a.client.errors import A2AClientError, A2AClientHTTPError, A2AClientJSONError
+from a2a.client.errors import A2AClientError
 from a2a.types import Message, Role, Task, TextPart, TransportProtocol
 from opentelemetry import trace
 
@@ -46,6 +45,12 @@ from phoenix_audit_agent.errors import (
     AdapterConnectionError,
     AdapterDiscoveryError,
     FaultDeliveryError,
+)
+from phoenix_audit_agent.injector.target_adapters._card_resolver import (
+    CardNotFoundError,
+    CardTransportError,
+    MalformedCardError,
+    resolve_card,
 )
 from phoenix_audit_agent.injector.target_adapters.base import (
     AdapterFingerprint,
@@ -136,6 +141,12 @@ class ADKAdapter(TargetAdapter):
     def __init__(self, spec: TargetSpec) -> None:
         super().__init__(spec)
         self._agent_card: dict[str, Any] | None = None
+        # "v1" = strict A2A v1.0 card parse via a2a-sdk;
+        # "permissive" = synthesized minimal card for pre-v1 schemas.
+        # Surfaces on the signed report cover so a regulator never sees
+        # "full skill audit" against a target whose card we couldn't fully parse.
+        self._card_mode: str = "v1"
+        self._card_warnings: list[str] = []
         self._client: Client | None = None
         self._http: httpx.AsyncClient | None = None
         self._connected = False
@@ -150,43 +161,30 @@ class ADKAdapter(TargetAdapter):
             headers=headers,
             event_hooks={"request": [_inject_traceparent]},
         )
-        # Dual-convention probe: try A2A v1.0 path first, fall back to the
-        # older RFC-8615 / Codelabs convention on 404. The fallback unblocks
-        # auditing the Google Codelabs Weather Agent + A2A Playground +
-        # Microsoft samples — the demo's "any production agent" promise.
-        card = None
-        attempted_paths: list[str] = []
-        for card_path in (_WELL_KNOWN_AGENT_CARD, _WELL_KNOWN_AGENT_CARD_LEGACY):
-            attempted_paths.append(card_path)
-            resolver = A2ACardResolver(
-                httpx_client=self._http,
-                base_url=base,
-                agent_card_path=card_path,
-            )
-            try:
-                card = await resolver.get_agent_card()
-                break
-            except A2AClientHTTPError as e:
-                # A2ACardResolver wraps every httpx.RequestError as
-                # A2AClientHTTPError(status_code=503) too — so connect-refused
-                # / DNS failure / ELOOP all surface here. On 404 we fall
-                # through to the next convention; on anything else, abort.
-                if e.status_code == _HTTP_NOT_FOUND:
-                    continue
-                http, self._http = self._http, None
-                await _safe_aclose(http)
-                raise AdapterConnectionError(f"failed to reach {base}: HTTP {e.status_code}") from e
-            except A2AClientJSONError as e:
-                # A malformed card on the v1.0 path is itself a hard error —
-                # don't silently retry the legacy path; the target picked the
-                # v1.0 convention but broke the schema.
-                http, self._http = self._http, None
-                await _safe_aclose(http)
-                raise AdapterDiscoveryError(f"malformed AgentCard at {base}{card_path}") from e
-        if card is None:
+        # Delegate card discovery to the shared resolver — it implements the
+        # dual-convention probe + permissive fallback for pre-v1 cards (e.g.
+        # Weather Agent). Auditor downstream stays oblivious to mode; the
+        # `/validate` endpoint surfaces the mode + warnings to the wizard so
+        # the user sees "pre-v1 schema; basic audit only" before signing.
+        try:
+            probe = await resolve_card(self._http, base)
+        except CardTransportError as e:
             http, self._http = self._http, None
             await _safe_aclose(http)
-            raise AdapterDiscoveryError(f"no AgentCard at {base} (tried {attempted_paths})")
+            raise AdapterConnectionError(f"failed to reach {base}: {e}") from e
+        except MalformedCardError as e:
+            http, self._http = self._http, None
+            await _safe_aclose(http)
+            raise AdapterDiscoveryError(f"malformed AgentCard at {base}: {e}") from e
+        except CardNotFoundError as e:
+            http, self._http = self._http, None
+            await _safe_aclose(http)
+            raise AdapterDiscoveryError(str(e)) from e
+        card = probe.card
+        # The mode + warnings ride on the adapter for the audit pipeline to
+        # surface on the signed report cover (load-bearing for honesty).
+        self._card_mode = probe.mode
+        self._card_warnings = list(probe.warnings)
         self._agent_card = card.model_dump(mode="json", by_alias=True)
         # streaming=False asks send_message to yield aggregated terminal events
         # (a bare Message for synchronous replies, or a ClientEvent carrying a

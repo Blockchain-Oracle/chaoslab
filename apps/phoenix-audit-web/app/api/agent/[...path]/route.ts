@@ -45,6 +45,10 @@ const ALLOWED = [
   // agent.
   /^datasets$/,
   /^datasets\/[a-z0-9_-]+$/,
+  // PR #131: preflight A2A card validation. Wizard pings this on URL paste
+  // so users get "✓ valid" / "⚠ pre-v1" / "✗ reason" instantly instead of
+  // finding out after a 90s full audit.
+  /^validate$/,
 ]
 
 function allowed(path: string): boolean {
