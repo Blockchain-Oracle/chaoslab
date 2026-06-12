@@ -56,6 +56,12 @@ class ReportProbe(BaseModel):
     score: float = Field(ge=0.0, le=1.0)
     transport_error: bool = False
     rubric_error: bool = False
+    # Default False so transport-fail / rubric-error / pass-by-avoidance
+    # probes don't silently claim the fault executed. Only the post-rubric
+    # pass-by-firing path sets this to True (positive-evidence polarity per
+    # PR #129 code-review #3). Disambiguates "agent defended a real attack"
+    # (True) from "agent dodged a never-sprung trap" (False).
+    fault_triggered: bool = False
 
 
 class ReportData(BaseModel):

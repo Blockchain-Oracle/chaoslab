@@ -32,7 +32,13 @@ logger = logging.getLogger(__name__)
 
 # Probe path constants — module-level so a future story-3.6b can extend
 # the chain by appending without breaking the order contract.
-_AGENT_CARD_PATH: str = "/.well-known/agent-card.json"
+# A2A dual-convention: v1.0 spec uses `agent-card.json`, but the older
+# RFC-8615 / Codelabs convention (Google Codelabs Weather Agent, A2A
+# Playground, Microsoft examples) uses `agent.json`. Probe both in order.
+_AGENT_CARD_PATHS: tuple[str, ...] = (
+    "/.well-known/agent-card.json",  # A2A v1.0
+    "/.well-known/agent.json",  # RFC-8615 / Codelabs / older A2A
+)
 _MCP_WELL_KNOWN_PATH: str = "/.well-known/mcp.json"
 _MCP_INIT_PATH: str = "/mcp"
 _OPENAPI_PATHS: tuple[str, ...] = (
@@ -79,12 +85,13 @@ async def run_discovery_chain(  # noqa: PLR0911 — 6 probe paths + 1 fall-throu
     attempted: list[str] = []
     raw: dict[str, int] = {}
 
-    # Probe 1: agent_card
-    attempted.append("agent_card")
-    r = await _safe_get(http, f"{base}{_AGENT_CARD_PATH}", raw)
-    payload = _try_json(r)
-    if payload is not None:
-        return DiscoveryResult("agent_card", payload, attempted, raw)
+    # Probe 1: agent_card (dual-convention — A2A v1.0 + legacy RFC-8615)
+    for agent_card_path in _AGENT_CARD_PATHS:
+        attempted.append(f"agent_card:{agent_card_path}")
+        r = await _safe_get(http, f"{base}{agent_card_path}", raw)
+        payload = _try_json(r)
+        if payload is not None:
+            return DiscoveryResult("agent_card", payload, attempted, raw)
 
     # Probe 2: mcp_well_known
     attempted.append("mcp_well_known")

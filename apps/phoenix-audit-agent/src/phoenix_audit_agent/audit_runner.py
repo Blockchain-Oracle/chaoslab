@@ -25,6 +25,7 @@ from openinference.instrumentation import using_attributes
 from pydantic import HttpUrl
 
 from phoenix_audit_agent._time import utc_now_iso
+from phoenix_audit_agent.audit_runner_dataset_rows import run_dataset_rows
 from phoenix_audit_agent.audit_runner_emit import (
     emit_signed_report,
     finalize_run,
@@ -106,13 +107,12 @@ async def _run_injector(
     """Injector phase: drive the attack battery, emitting per-probe frames.
 
     Story-9.15: `dataset_slug` (when set) tags the synthetic-battery probes
-    with `origin="battery"` (the dataset-row probes get `origin=f"dataset:{slug}"`
-    when the row-interleave loop lands). The discriminator on the SSE frame
-    lets the chamber UI label each probe row by where it came from.
+    with `origin="battery"` and runs an additional dataset-row phase whose
+    probes carry `origin=f"dataset:{slug}"`. The discriminator on the SSE
+    frame lets the chamber UI label each probe row by where it came from.
     """
     adapter = build_adapter(target_url)
     state = InjectorState()
-    _ = dataset_slug  # reserved for the row-interleave loop in a follow-up
 
     async def _on_start(attack: AttackRun) -> None:
         await emit(
@@ -148,6 +148,20 @@ async def _run_injector(
         on_attack_end=_on_end,
     )
     await injector.run()
+    # Dataset row phase: when the operator picked a dataset, run its
+    # adversarial prompts after the synthetic battery so they land in the
+    # same InjectorState the judge will score. Failures inside this phase
+    # MUST NOT abort the audit — the synthetic battery already produced
+    # real verdicts, and the signed report tells the truth either way.
+    if dataset_slug:
+        await run_dataset_rows(
+            run_id=run_id,
+            target_url=target_url,
+            dataset_slug=dataset_slug,
+            state=state,
+            emit=emit,
+            build_adapter=build_adapter,
+        )
     return state
 
 
