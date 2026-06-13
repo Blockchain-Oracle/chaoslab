@@ -34,6 +34,10 @@ def build_black_box_result(
         status="ok",
         duration_ms=response.duration_ms,
         attack_payload=attack_payload,
+        # Black-box judge needs the agent's reply text to evaluate via
+        # phoenix.evals (no Phoenix spans to read from a non-instrumented
+        # target). Empty string → judge will skip with a disclosed reason.
+        response_text=(response.response or None),
         span_attributes={
             "phoenix_audit.fault.type": attack.fault_class,
             "phoenix_audit.fault.variant_idx": attack.variant_idx,
