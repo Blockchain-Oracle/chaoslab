@@ -51,11 +51,20 @@ class ReportProbe(BaseModel):
 
     n: int = Field(ge=1)
     fault_class: str
-    verdict: str  # pass | fail | error
+    verdict: str  # pass | fail | error | skip
     span_id: str
-    score: float = Field(ge=0.0, le=1.0)
+    # score=None for skipped probes — distinguishes "unscored by design"
+    # from a score of 0.0 (fail) or 0.5 (mid-range). Any aggregator that
+    # averages probe scores MUST filter out None or it silently inflates
+    # the pass rate. (PR #134 code-review HIGH#2.)
+    score: float | None = Field(default=None, ge=0.0, le=1.0)
     transport_error: bool = False
     rubric_error: bool = False
+    # Disclosed-skip: probe was deliberately not scored (e.g. F1/F4 in
+    # black-box mode). Separate from rubric_error so downstream code that
+    # branches on "the rubric blew up" doesn't conflate the two. (PR #134
+    # code-review HIGH#3.)
+    skipped: bool = False
     # Default False so transport-fail / rubric-error / pass-by-avoidance
     # probes don't silently claim the fault executed. Only the post-rubric
     # pass-by-firing path sets this to True (positive-evidence polarity per

@@ -101,13 +101,17 @@ _CONTEXT_POISONING_CHOICES: dict[str, tuple[float, str]] = {
 
 
 def _skipped_score(fault_class: str) -> EvalScore:
-    """Disclosed-skip outcome for fault classes that need instrumentation."""
+    """Disclosed-skip outcome for fault classes that need instrumentation.
+
+    Returned ``EvalScore`` is sentinel — the caller checks
+    ``black_box_skipped(fault_class)`` separately to set ReportProbe.skipped
+    and ReportProbe.score=None. The passed=False + score=0.0 here are
+    bookkeeping fields that downstream code MUST NOT aggregate into pass
+    rates; the skipped flag is the discriminator. (Code-review HIGH#2/#3.)
+    """
     return EvalScore(
         passed=False,
-        # 0.5 distinguishes this from a real failure (0.0) — downstream
-        # surfaces SHOULD render it as "skipped/unscored" not "failed",
-        # and the explanation makes the asymmetry unambiguous.
-        score=0.5,
+        score=0.0,
         reason=f"[{fault_class}] {_SKIPPED_REASON}",
     )
 
@@ -138,16 +142,23 @@ async def evaluate_black_box_probe(
     Args:
         fault_class: One of the four Phoenix Audit fault classes.
         prompt: The exact adversarial prompt sent to the target.
-        response_text: The agent's reply (or None if transport failed).
-        llm: Optional phoenix.evals.LLM — defaults to Gemini 3.5 Flash.
+        response_text: The agent's reply (None or empty-after-strip → fail).
+        llm: Optional phoenix.evals.LLM — defaults to settings.judge_llm
+            via the Google provider so both audit tiers attribute to one
+            model identity on the signed report.
 
     Returns an EvalScore whose ``reason`` is the LLM's own explanation so
     the SSE chamber + signed-report cover surface the judge's reasoning
-    unchanged.
+    unchanged. Network / safety / rate-limit failures during the LLM call
+    are caught and converted to a disclosed-error EvalScore — production
+    must never crash a probe out of the judge fan-out. (PR #134
+    test-quality HIGH.)
     """
     if black_box_skipped(fault_class):
         return _skipped_score(fault_class)
-    if not response_text:
+    # Empty-after-strip is more common than None on a 200 OK with an empty
+    # A2A message body. Treat both the same. (PR #134 test-quality MED.)
+    if not response_text or not response_text.strip():
         return EvalScore(
             passed=False,
             score=0.0,
@@ -172,7 +183,18 @@ async def evaluate_black_box_probe(
         llm=eval_llm,
         choices=choices,
     )
-    scores = await classifier.async_evaluate({"prompt": prompt, "response": response_text})
+    try:
+        scores = await classifier.async_evaluate({"prompt": prompt, "response": response_text})
+    except Exception as exc:
+        # Network timeout, auth fail, safety block, rate-limit refused after
+        # retries — any classifier-side failure must surface as a disclosed
+        # error verdict instead of crashing the probe out of the fan-out.
+        # Production LLM calls fail; we don't let one bad probe nuke the run.
+        return EvalScore(
+            passed=False,
+            score=0.0,
+            reason=(f"[{fault_class}] phoenix.evals classifier raised {type(exc).__name__}: {exc}"),
+        )
     if not scores:
         return EvalScore(
             passed=False,

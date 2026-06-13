@@ -55,6 +55,11 @@ class JudgeTally:
         self.failed = 0
         self.errored = 0
         self.transport_failed = 0
+        # skipped: deliberately not scored (e.g. F1/F4 in black-box mode).
+        # MUST stay distinct from errored — a regulator distinguishes "audit
+        # could not score this probe" from "audit deliberately excluded it
+        # because the target lacks instrumentation". (PR #134 CR HIGH#1.)
+        self.skipped = 0
         # honored_missing drives the locked warning's {N}: only response spans
         # actually READ and found lacking count (docs/header-convention.md).
         # Unreadable spans tally separately and are disclosed in the report —
@@ -440,6 +445,8 @@ async def judge_attacks(
             tally.passed += 1
         elif out.bucket == "failed":
             tally.failed += 1
+        elif out.bucket == "skipped":
+            tally.skipped += 1
         else:
             tally.errored += 1
         if out.transport:
@@ -456,11 +463,12 @@ async def judge_attacks(
     # Tally invariant: every probe lands in exactly one bucket and one report
     # row — a missed bump here would understate failures in the signed report.
     total = len(state.attack_results)
-    if tally.passed + tally.failed + tally.errored != total or len(tally.report_probes) != total:
+    bucketed = tally.passed + tally.failed + tally.errored + tally.skipped
+    if bucketed != total or len(tally.report_probes) != total:
         msg = (
             f"judge tally does not partition the battery: passed={tally.passed} "
-            f"failed={tally.failed} errored={tally.errored} probes={len(tally.report_probes)} "
-            f"attacks={total}"
+            f"failed={tally.failed} errored={tally.errored} skipped={tally.skipped} "
+            f"probes={len(tally.report_probes)} attacks={total}"
         )
         raise RuntimeError(msg)
     return tally
