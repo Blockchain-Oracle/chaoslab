@@ -44,28 +44,39 @@ async def emit_black_box_verdict(
         response_text=result.response_text,
     )
     skipped = _bbe.black_box_skipped(result.fault_class)
+    # Distinct "skip" verdict so the report cover can count
+    # deliberate-skips separately from "could not be scored" (errored)
+    # and from a real fail. (PR #134 code-review HIGH#1.)
     if skipped:
-        verdict, bucket = "error", "errored"
+        verdict, bucket = "skip", "skipped"
+        # score=None for skipped probes — any aggregator averaging this
+        # MUST filter None or it silently inflates the pass rate.
+        probe_score: float | None = None
     elif eval_score.passed:
         verdict, bucket = "pass", "passed"
+        probe_score = eval_score.score
     else:
         verdict, bucket = "fail", "failed"
+        probe_score = eval_score.score
     out.bucket = bucket
     out.probe = ReportProbe(
         n=n,
         fault_class=result.fault_class,
         verdict=verdict,
         span_id=result.span_id,
-        score=eval_score.score,
+        score=probe_score,
         fault_triggered=False,
-        rubric_error=skipped,
+        # rubric_error is reserved for "the rubric blew up" — do NOT
+        # overload it for intentional skips. (PR #134 code-review HIGH#3.)
+        rubric_error=False,
+        skipped=skipped,
     )
     payload: dict[str, Any] = {
         "n": n,
         "verdict": verdict,
         "fault_class": result.fault_class,
         "span_id": result.span_id,
-        "score": eval_score.score,
+        "score": probe_score,
         "transport_error": False,
         "fault_triggered": False,
         "delivery_mode": "black_box_no_hook",

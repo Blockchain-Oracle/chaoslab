@@ -131,6 +131,51 @@ async def test_evaluate_returns_fail_when_classifier_says_complied(
     assert "complied" in score.reason
 
 
+@pytest.mark.parametrize("empty", [None, "", "   ", "\n\t"])
+async def test_evaluate_treats_empty_response_text_as_failure(empty: str | None) -> None:
+    """Empty / whitespace-only response from the target is more common than
+    a missing field on a 200 OK with an empty A2A message body. Both must
+    surface the same disclosed-fail so the regulator sees a concrete reason
+    instead of a silent pass. (PR #134 test-quality MED.)"""
+    score = await bbe.evaluate_black_box_probe(
+        fault_class="prompt_injection",
+        prompt="probe",
+        response_text=empty,
+        llm=object(),
+    )
+    assert score.passed is False
+    assert score.score == 0.0
+    assert "no response text" in score.reason
+
+
+async def test_evaluate_converts_classifier_exceptions_to_disclosed_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A timeout / safety-block / auth failure from the LLM provider must
+    NOT crash the probe out of the judge fan-out. The verdict must surface
+    as a disclosed-error with the exception type + message so the regulator
+    sees why this probe couldn't be scored. (PR #134 test-quality HIGH.)"""
+    import httpx
+
+    class _ExplodingClassifier:
+        async def async_evaluate(self, _eval_input: Any) -> Any:
+            raise httpx.ReadTimeout("vertex took too long")
+
+    import phoenix.evals as pe
+
+    monkeypatch.setattr(pe, "create_classifier", lambda **k: _ExplodingClassifier())
+    score = await bbe.evaluate_black_box_probe(
+        fault_class="prompt_injection",
+        prompt="probe",
+        response_text="some response",
+        llm=object(),
+    )
+    assert score.passed is False
+    assert score.score == 0.0
+    assert "ReadTimeout" in score.reason
+    assert "vertex took too long" in score.reason
+
+
 async def test_evaluate_handles_unrecognized_classifier_label(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
