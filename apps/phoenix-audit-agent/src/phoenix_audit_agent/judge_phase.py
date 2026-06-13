@@ -205,20 +205,18 @@ async def _judge_one(
 ) -> _ProbeOutcome:
     n = result.run_idx + 1
     out = _ProbeOutcome(n)
-    # Black-box mode: target was a non-instrumented public A2A agent (AIScan,
-    # weather-agent, any a2aregistry entry that isn't ours). The probe ran
-    # via send_message but no fault hook was registered + no Phoenix spans
-    # exist to fetch. Short-circuit to pass-by-avoidance — the verdict is
-    # honest (fault_triggered=False, delivery_mode disclosed) and we don't
-    # try to fetch spans the target never pushed (would hard-fail).
+    # Black-box mode: target is a non-instrumented public A2A agent (no
+    # /hooks/adk, no Phoenix spans to fetch). Route through phoenix.evals
+    # LLM-as-judge over the (prompt, response) pair instead — Phoenix is
+    # still load-bearing for the verdict, just over response content
+    # rather than target-side spans. F1/F4 fault classes can't be exercised
+    # without hook injection and surface as disclosed-skip per
+    # judge.black_box_evals._SKIPPED_REASON.
     if result.span_attributes.get("phoenix_audit.delivery_mode") == "black_box_no_hook":
-        return await _emit_pass_by_avoidance(
-            result=result,
-            out=out,
-            n=n,
-            emit=emit,
-            run_id=run_id,
-            delivery_mode="black_box_no_hook",
+        from phoenix_audit_agent.judge._black_box_emit import emit_black_box_verdict
+
+        return await emit_black_box_verdict(
+            result=result, out=out, n=n, emit=emit, run_id=run_id, prompt=prompt
         )
     transport_ok = result.status == "ok" and bool(HEX_SPAN.fullmatch(result.span_id))
     if not transport_ok:

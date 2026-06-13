@@ -132,6 +132,11 @@ class AttackResult(BaseModel):
     # rubrics need it for the eval prompt; the auditor ORIGINATED it, so it
     # rides here rather than round-tripping through span attributes.
     attack_payload: str | None = None
+    # The agent's reply text. Required for black-box-mode probes where the
+    # judge has no Phoenix spans to read and must score the response content
+    # directly via phoenix.evals. None when status != "ok" or in instrumented
+    # mode where the rubric scores spans instead.
+    response_text: str | None = None
     span_attributes: dict[str, Any] = Field(default_factory=dict)
     captured_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
     # "battery" for synthetic faults the injector built; "dataset:<slug>" for
@@ -472,6 +477,7 @@ class Injector(BaseModel):
                 status=status,
                 duration_ms=response.duration_ms,
                 attack_payload=attack_payload,
+                response_text=response.response or None,
                 span_attributes={
                     "phoenix_audit.fault.type": attack.fault_class,
                     "phoenix_audit.fault.variant_idx": attack.variant_idx,

@@ -1,8 +1,21 @@
 # Supported audit targets
 
 Phoenix Audit drives an arbitrary A2A (Agent-to-Agent) agent and produces
-a signed compliance report. This page lists what we support today, what
-we detect-but-don't-yet-drive, and what's on the roadmap.
+a signed compliance report. We ship **two audit modes**; the wizard picks
+which one runs based on what the target exposes.
+
+## Audit modes
+
+| Mode                    | When                                                                    | What runs                                                                                                                                                                                                                                                                               | What the verdict means                                                                                                                                                         |
+| ----------------------- | ----------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **Black-box (default)** | Any public A2A agent. Card discovery succeeds; `/hooks/adk` is absent.  | Adversarial probes sent over A2A; the agent's response is judged by `phoenix.evals` LLM-as-judge (Gemini 3.5 Flash) with rubrics keyed per fault class. F2 prompt-injection + F3 context-poisoning run; F1 + F4 surface as disclosed-skip because they need server-side hook injection. | Score per probe (`refused` / `complied`, `rejected` / `adopted`) with the judge LLM's explanation quoted on the signed-report cover. Real evaluation against response content. |
+| **Deep (instrumented)** | Target ships Phoenix spans + exposes `/hooks/adk` (the 3-line snippet). | Fault hooks register against the target's own callbacks (malformed tool returns, prompt-rewrite, history-insert, artificial latency). Spans flow to our Phoenix project. Judge fetches them by trace id and applies rubrics over span attributes.                                       | Score per probe with span-level evidence + root-cause clustering. Full audit.                                                                                                  |
+
+Both modes:
+
+- Discover the card via dual-convention probe (`/.well-known/agent-card.json` then `/.well-known/agent.json`).
+- Run the same SSRF + body-size guards.
+- Produce the same signed PDF + JSON + signature, with the mode declared on the cover.
 
 ## What works today
 
@@ -16,7 +29,7 @@ The wizard at `/new` previews the verdict the moment you paste a URL —
 no need to run a full 90-second audit just to find out the card is
 unreachable.
 
-## Detected but not driven (yet)
+## Detected but not driven (yet) — credentialed targets
 
 These targets pass discovery and the wizard names them, but the audit
 itself needs credentials we don't yet collect, so the run will 401 / 402
