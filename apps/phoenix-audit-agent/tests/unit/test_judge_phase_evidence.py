@@ -435,16 +435,25 @@ async def test_black_box_mode_skips_instrumentation_required_fault_classes(
         prompt="q",
     )
     assert tally.passed == 0
-    assert tally.errored == 2
+    # skipped bucket MUST be distinct from errored — a regulator
+    # distinguishes "audit deliberately excluded this probe" from "audit
+    # could not score this probe" (PR #134 CR HIGH#1).
+    assert tally.skipped == 2
+    assert tally.errored == 0
     verdicts = [d for e, d in emit.frames if e == "test_verdict"]
-    assert all(v["verdict"] == "error" for v in verdicts)
+    assert all(v["verdict"] == "skip" for v in verdicts)
     assert all(v.get("skipped") is True for v in verdicts)
+    # score=None for skipped probes — averaging this into a pass rate would
+    # silently inflate it (PR #134 CR HIGH#2).
+    assert all(v["score"] is None for v in verdicts)
     assert all(v["delivery_mode"] == "black_box_no_hook" for v in verdicts)
-    # F1/F4 must surface a disclosed-skip reason — the regulator must see
-    # WHY these were not deeply tested, not just "errored".
     assert all("instrumentation" in v["rubric_reason"].lower() for v in verdicts)
     assert verdicts[0]["fault_triggered"] is False
-    assert verdicts[0]["delivery_mode"] == "black_box_no_hook"
+    # ReportProbe.rubric_error stays False — that field is reserved for
+    # "the rubric blew up", not "intentionally not run" (PR #134 CR HIGH#3).
+    assert all(p.skipped is True for p in tally.report_probes)
+    assert all(p.rubric_error is False for p in tally.report_probes)
+    assert all(p.score is None for p in tally.report_probes)
 
 
 async def test_dataset_row_with_no_fault_marker_routes_to_error_not_pass(
