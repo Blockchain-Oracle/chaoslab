@@ -154,6 +154,58 @@ def test_html_marks_rubric_errors_distinctly() -> None:
     assert "RUBRIC ERROR" in html  # marked non-verdict, pattern #4
 
 
+def test_html_renders_skipped_probe_without_typeerror() -> None:
+    """Black-box mode F1/F4 probes carry score=None + skipped=True. Prior
+    behavior crashed PDF generation with `TypeError: unsupported format
+    string passed to NoneType.__format__` because the probe-row template
+    formatted `p.score:.2f` unconditionally. Live run_1aefc11ea460 against
+    AIScan reproduced this — signed PDF never generated. Locks the regression.
+    """
+    data = ReportData(
+        run_id="run_skip_test",
+        target_url="https://target.example/agent",
+        framework_label="EU AI Act · high-risk system",
+        created_at="2026-06-13T00:00:00Z",
+        probes=[
+            ReportProbe(
+                n=1,
+                fault_class="malformed_tool_output",
+                verdict="skip",
+                span_id="d" * 16,
+                score=None,
+                skipped=True,
+            ),
+            ReportProbe(
+                n=2,
+                fault_class="prompt_injection",
+                verdict="pass",
+                span_id="e" * 16,
+                score=1.0,
+            ),
+        ],
+        passed=1,
+        failed=0,
+        errored=0,
+        transport_failed=0,
+        cluster_ids=[],
+        root_causes=[],
+        excluded_transport_failures=0,
+        annotation_writeback_failed=False,
+        clustering_skipped=None,
+        recipe_id=None,
+        markdown_url=None,
+        honored_missing_count=0,
+    )
+    html = build_report_html(data)  # must not raise
+    # SKIP rows render visually distinct from PASS/FAIL/ERROR — the regulator
+    # must see "this probe was not scored" stated, not buried as an Error.
+    assert "SKIP" in html
+    assert "NEEDS INSTRUMENTATION" in html
+    # No NaN / "None" leakage into the score cell — em-dash placeholder
+    # instead so the cell renders cleanly without inflating any aggregate.
+    assert "<td class='mono small'>—</td>" in html
+
+
 # ---------------------------------------------------------------------------
 # Designed presentation on the durable PDF (story-9.13)
 

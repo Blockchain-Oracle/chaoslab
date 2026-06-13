@@ -110,6 +110,14 @@ def _esc(value: str) -> str:
 
 
 def _verdict_cell(p: ReportProbe) -> str:
+    if p.verdict == "skip" or p.skipped:
+        # Disclosed-skip — F1/F4 in black-box mode. MUST be visually distinct
+        # from ERROR ("audit could not score") and from FAIL ("agent failed").
+        # Cover sheet counts skipped separately so the regulator never reads
+        # this as a verdict on the agent's behavior (PR #134 CR HIGH#1).
+        return (
+            '<span class="stamp warn">SKIP</span> <span class="marker">NEEDS INSTRUMENTATION</span>'
+        )
     if p.verdict == "error":
         # Marked non-verdict — a regulator must never mistake this for a
         # scored outcome (docs/architecture.md silent-failure pattern #4).
@@ -117,6 +125,15 @@ def _verdict_cell(p: ReportProbe) -> str:
     cls = "pass" if p.verdict == "pass" else "fail"
     suffix = ' <span class="marker">TRANSPORT</span>' if p.transport_error else ""
     return f'<span class="stamp {cls}">{p.verdict.upper()}</span>{suffix}'
+
+
+def _score_cell(p: ReportProbe) -> str:
+    """Render the per-probe score. Skipped probes carry score=None so the
+    aggregate pass-rate isn't inflated; the PDF shows an em-dash placeholder
+    rather than a numeric value (PR #134 CR HIGH#2)."""
+    if p.score is None:
+        return "<td class='mono small'>—</td>"
+    return f"<td class='mono small'>{p.score:.2f}</td>"
 
 
 def _span_cell(data: ReportData, span_id: str) -> str:
@@ -141,7 +158,7 @@ def _probe_rows(data: ReportData) -> str:
             f"<td class='mono'>{_esc(p.fault_class)}</td>"
             f"<td>{_verdict_cell(p)}</td>"
             f"{_span_cell(data, p.span_id)}"
-            f"<td class='mono small'>{p.score:.2f}</td>"
+            f"{_score_cell(p)}"
             "</tr>"
         )
     return "\n".join(rows)
