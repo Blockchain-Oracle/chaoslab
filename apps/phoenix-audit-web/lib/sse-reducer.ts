@@ -15,7 +15,12 @@ export interface LiveProbe {
   spanId?: string
   /** `error` = the judge rubric itself failed (rate limit / safety block) —
    *  a MARKED non-verdict, never coerced into pass or fail. */
-  verdict?: 'pass' | 'fail' | 'error'
+  /** `skip` = audit deliberately did not score this probe (F1/F4 in
+   *  black-box mode). Distinct from `error` ("could not score"); the
+   *  cover sheet counts these separately. */
+  verdict?: 'pass' | 'fail' | 'error' | 'skip'
+  skipped?: boolean
+  rubricReason?: string
   transportError?: boolean
   rubricError?: boolean
   score?: number
@@ -80,7 +85,7 @@ export function initialStreamState(): AuditStreamState {
   }
 }
 
-const VALID_VERDICTS: ReadonlySet<string> = new Set(['pass', 'fail', 'error'])
+const VALID_VERDICTS: ReadonlySet<string> = new Set(['pass', 'fail', 'error', 'skip'])
 
 const VALID_PHASES: ReadonlySet<string> = new Set<Phase>([
   'queued',
@@ -200,9 +205,11 @@ export function reduceWireEvent(
         verdict?: string
         fault_class?: string
         span_id?: string
-        score?: number
+        score?: number | null
         transport_error?: boolean
         rubric_error?: boolean
+        skipped?: boolean
+        rubric_reason?: string
       }>(raw)
       if (typeof p?.n !== 'number') return { state: withLines(s, [line]), terminal: false }
       // Validate the verdict against the union — a malformed wire value must
@@ -223,10 +230,16 @@ export function reduceWireEvent(
             // late-joining client never renders an 'unknown' chip.
             ...(p.fault_class ? { faultClass: p.fault_class } : {}),
             state: 'done',
-            verdict: p.verdict as 'pass' | 'fail' | 'error',
+            verdict: p.verdict as 'pass' | 'fail' | 'error' | 'skip',
             transportError: p.transport_error === true,
             rubricError: p.rubric_error === true,
+            // skipped: deliberately not scored (black-box mode F1/F4) —
+            // distinct from rubric_error. The chamber + report counts these
+            // separately so a regulator distinguishes "audit excluded this"
+            // from "audit could not score this".
+            skipped: p.skipped === true,
             ...(typeof p.score === 'number' ? { score: p.score } : {}),
+            ...(p.rubric_reason ? { rubricReason: p.rubric_reason } : {}),
             ...(p.span_id ? { spanId: p.span_id } : {}),
           }),
         },

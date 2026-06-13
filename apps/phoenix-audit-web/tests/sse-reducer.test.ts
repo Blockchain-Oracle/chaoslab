@@ -70,6 +70,27 @@ describe('probe events', () => {
     expect(s.probes[0]?.verdict).toBe('pass')
   })
 
+  it('skip verdict (black-box F1/F4) is accepted, carries skipped flag + rubric_reason', () => {
+    // Regression: live AIScan run_1aefc11ea460 emitted skip verdicts that
+    // the reducer rejected as "unrecognized verdict value" — chamber UI
+    // stayed stuck on JUDGING for skipped probes. New contract: skip is a
+    // first-class verdict alongside pass/fail/error.
+    const s = play([
+      ['test_started', '{"n":1,"fault_class":"malformed_tool_output"}'],
+      [
+        'test_verdict',
+        '{"n":1,"verdict":"skip","fault_class":"malformed_tool_output","score":null,"skipped":true,"transport_error":false,"rubric_error":false,"delivery_mode":"black_box_no_hook","rubric_reason":"[malformed_tool_output] skipped in black-box mode — instrumentation required"}',
+      ],
+    ])
+    expect(s.probes).toHaveLength(1)
+    expect(s.probes[0]?.verdict).toBe('skip')
+    expect(s.probes[0]?.skipped).toBe(true)
+    expect(s.probes[0]?.score).toBeUndefined()
+    expect(s.probes[0]?.rubricReason).toContain('instrumentation required')
+    // Must NOT emit the unrecognized-verdict synth line — the wire was valid.
+    expect(s.wireLines.some((l) => l.includes('unrecognized verdict value'))).toBe(false)
+  })
+
   it('unknown verdict values are logged and DROPPED — never coerced into a fail', () => {
     const s = play([
       ['test_started', '{"n":3,"fault_class":"context_poisoning"}'],

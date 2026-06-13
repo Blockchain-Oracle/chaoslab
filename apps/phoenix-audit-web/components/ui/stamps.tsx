@@ -18,12 +18,24 @@ export function Citation({ children, title }: CitationProps) {
 }
 
 interface VerdictProps {
-  v: 'pass' | 'fail' | 'error' | 'pending'
+  v: 'pass' | 'fail' | 'error' | 'skip' | 'pending'
 }
 
 export function Verdict({ v }: VerdictProps) {
   if (v === 'pass') return <span className="stamp pass">Pass</span>
   if (v === 'fail') return <span className="stamp fail">Fail</span>
+  // Audit deliberately did not score this probe (F1/F4 in black-box mode).
+  // Distinct from `error` so the regulator sees "excluded by design" vs
+  // "could not be scored". Matches the signed-report SKIP stamp.
+  if (v === 'skip')
+    return (
+      <span
+        className="stamp warn"
+        title="Disclosed-skip: target lacks instrumentation for this fault class"
+      >
+        Skip
+      </span>
+    )
   // The judge rubric itself failed — a marked non-verdict, distinct from
   // pass/fail so a regulator can never mistake it for a scored outcome.
   if (v === 'error') return <span className="stamp warn">Error</span>
