@@ -18,6 +18,6 @@
     "build": "pnpm -r --if-present build"
   },
   "devDependencies": {
-    "prettier": "^3.4.0"
+    "prettier": "^3.8.4"
   }
 }
