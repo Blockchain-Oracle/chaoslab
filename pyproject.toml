@@ -124,7 +124,7 @@ exclude_lines = [
 
 [dependency-groups]
 dev = [
-    "arize-phoenix>=17.2.0",
+    "arize-phoenix>=17.5.0",
     "arize-phoenix-client>=2.7.0",
     "arize-phoenix-otel>=0.16.1",
     "google-adk[a2a]>=2.1.0,<3.0.0",
