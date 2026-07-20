@@ -16,7 +16,7 @@
 # Pin uv as a named stage so downstream COPY --from=uv-source references work
 # under all BuildKit parsers (the inline `COPY --from=img:${ARG}` form was
 # silently broken by a buildx parse regression).
-FROM ghcr.io/astral-sh/uv:0.11.19 AS uv-source
+FROM ghcr.io/astral-sh/uv:0.11.29 AS uv-source
 
 # -----------------------------------------------------------------------------
 # Stage 1: deps — install workspace dependencies into a virtualenv
